@@ -4,6 +4,7 @@ import Prelude
 
 import Data.Bifoldable (class Bifoldable, bifoldMap, bifoldl, bifoldr)
 import Data.Bifunctor (class Bifunctor, lmap, rmap)
+import Data.Bitraversable (class Bitraversable, bitraverse, bisequenceDefault)
 import Data.Const as ConstF
 import Data.Foldable (class Foldable, foldMap, foldl, foldr, foldrDefault)
 import Data.Functor.Compose (Compose(..))
@@ -216,7 +217,7 @@ instance bifunctorExpr :: Bifunctor Expr where
   bimap f g (Expr e) = Expr $ e # transMu
     ( VariantF.expand
     # VariantF.on (SProxy :: SProxy "SimpleThings")
-      ( compose (VariantF.inj (SProxy :: SProxy "SimpleThings"))
+      ( (<<<) (VariantF.inj (SProxy :: SProxy "SimpleThings"))
       $ over ConstF.Const
       $ Variant.expand
       # Variant.on (SProxy :: SProxy "Embed")
@@ -235,8 +236,11 @@ instance bindExpr :: Bind (Expr s) where
   bind (Expr (In e)) k = Expr $ In $ e #
     ( (VariantF.expand >>> map (\i -> unwrap ((Expr i) >>= k)))
     # VariantF.on (SProxy :: SProxy "SimpleThings")
-      ( (>>>) unwrap $
-      ( Variant.expand >>> ConstF.Const >>> VariantF.inj (SProxy :: SProxy "SimpleThings"))
+      ( (>>>) unwrap
+      $ ( Variant.expand
+      >>> ConstF.Const
+      >>> VariantF.inj (SProxy :: SProxy "SimpleThings")
+        )
       # Variant.on (SProxy :: SProxy "Embed") (k >>> unwrap >>> unwrap)
       )
     )
@@ -277,6 +281,35 @@ instance foldableExpr :: Foldable (Expr s) where
   foldMap = bifoldMap mempty
   foldl = bifoldl const
   foldr = bifoldr (const identity)
+-- (Bi)traversable will allow running computations on the embedded data,
+-- e.g. using an error monad to get rid of holes, or using Aff to fill in
+-- imports (especially via URL).
+instance bitraversableExpr :: Bitraversable Expr where
+  bisequence = bisequenceDefault
+  bitraverse f g (Expr (In e)) = map (Expr <<< In) $
+    ( ( traverse (Expr >>> bitraverse f g >>> map unwrap)
+    >>> map VariantF.expand
+      )
+    # VariantF.on (SProxy :: SProxy "SimpleThings")
+      ( (>>>) (unwrap)
+      $ (<<<)
+          ( map
+            ( ConstF.Const
+          >>> VariantF.inj (SProxy :: SProxy "SimpleThings")
+            )
+          )
+      $ Variant.expand >>> pure
+      # Variant.on (SProxy :: SProxy "Embed")
+        (g >>> map (Variant.inj (SProxy :: SProxy "Embed")))
+      )
+    # VariantF.on (SProxy :: SProxy "Note")
+      (\(Tuple a rest) -> Tuple <$> f a <*> bitraverse f g (Expr rest) <#>
+        map unwrap >>> VariantF.inj (SProxy :: SProxy "Note")
+      )
+    ) e
+instance traversableExpr :: Traversable (Expr s) where
+  sequence = sequenceDefault
+  traverse = bitraverse pure
 
 -- Pris(o)ms of the behemoth
 _ExprF :: forall a s unused f k.
