@@ -1,4 +1,4 @@
-module Dhall.Core.Types where
+module Dhall.Core.AST where
 
 import Prelude
 
@@ -8,24 +8,24 @@ import Data.Bitraversable (class Bitraversable, bitraverse, bisequenceDefault)
 import Data.Const as ConstF
 import Data.Foldable (class Foldable, foldMap, foldl, foldr, foldrDefault)
 import Data.Functor.Compose (Compose(..))
-import Data.Functor.Mu (Mu(In), transMu)
+import Data.Functor.Mu (Mu(In), roll, transMu, unroll)
 import Data.Functor.Product (Product, product)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Identity (Identity(..))
+import Data.Lens (Prism', prism', Iso', iso, view, review, re)
+import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, over, unwrap)
 import Data.Set (Set)
 import Data.Symbol (class IsSymbol, SProxy(..))
 import Data.Traversable (class Traversable, sequenceDefault, traverse)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Data.Variant.Internal (FProxy)
-import Type.Row (type (+))
-import Data.Lens (Prism', prism', Iso', iso, view, review, re)
-import Data.Lens.Iso.Newtype (_Newtype)
 import Prim.Row as Row
+import Type.Row (type (+))
 
 type OrdMap k = Compose Array (Tuple k)
 
@@ -310,6 +310,20 @@ instance bitraversableExpr :: Bitraversable Expr where
 instance traversableExpr :: Traversable (Expr s) where
   sequence = sequenceDefault
   traverse = bitraverse pure
+
+-- A helper to coalesce a tree of annotations into a single annotation on
+-- a "real" AST node.
+unfurl :: forall s a. Monoid s =>
+  Expr s a -> Tuple s (VariantF (AllTheThings ( "Embed" :: a ) ()) (Expr s a))
+unfurl (Expr e0) = map (map Expr) $ go mempty e0 where
+  go s = unroll >>>
+    VariantF.on (SProxy :: SProxy "Note")
+      (uncurry go)
+      (Tuple s)
+
+coalesce1 :: forall s a. Monoid s => Expr s a -> Expr s a
+coalesce1 e = uncurry mkNote $ unfurl e <#>
+  map unwrap >>> VariantF.expand >>> roll >>> Expr
 
 -- Pris(o)ms of the behemoth
 _ExprF :: forall a s unused f k.
