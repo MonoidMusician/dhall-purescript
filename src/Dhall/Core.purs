@@ -2,23 +2,27 @@ module Dhall.Core ( module Dhall.Core ) where
 
 import Prelude
 
+import Data.Array as Array
+import Data.Const as ConstF
 import Data.Foldable (all, any)
+import Data.Function (on)
+import Data.Functor.Compose (Compose(..))
 import Data.Functor.Mu (Mu(..))
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (FProxy, SProxy(..), VariantF)
-import Data.Const as ConstF
 import Data.Functor.Variant as VariantF
-import Data.Identity (Identity(..))
 import Data.HeytingAlgebra (tt, ff)
-import Data.Lens.Iso.Newtype (_Newtype)
+import Data.Identity (Identity(..))
+import Data.Int (even, toNumber)
 import Data.Lens as Lens
+import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Lens.Record (prop)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe, isNothing)
 import Data.Maybe.First (First)
 import Data.Newtype (class Newtype, under, unwrap, wrap)
 import Data.Set (Set)
 import Data.Set as Set
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst, snd)
 import Data.Variant as Variant
 import Dhall.Core.AST (AllTheThings, BinOpF(..), BuiltinBinOps, BuiltinFuncs, BuiltinOps, BuiltinTypes, BuiltinTypes2, Const(..), Expr(..), ExprRow, FunctorThings, LetF(..), Literals, Literals2, MergeF(..), OrdMap, Pair(..), SimpleThings, Syntax, Terminals, TextLitF(..), Triplet(..), Var(..), _Expr, _ExprF, coalesce1, unfurl) as Dhall.Core
 import Dhall.Core.AST (Expr(..), LetF(..), Var(..), mkLam, mkLet, mkPi, mkVar)
@@ -222,8 +226,8 @@ alphaNormalize = go where
 -- | ill-typed expression into a well-typed expression.
 -- | However, `normalize` will not fail if the expression is ill-typed and will
 -- | leave ill-typed sub-expressions unevaluated.
-normalize :: forall s t a. Eq a => Expr s a -> Expr s {- t -} a
-normalize = normalizeWith (const Nothing)
+normalize :: forall s t a. Eq a => Expr s a -> Expr t a
+normalize = normalizeWith (const (const Nothing))
 
 -- | This function is used to determine whether folds like `Natural/fold` or
 -- | `List/fold` should be lazy or strict in their accumulator based on the type
@@ -250,7 +254,39 @@ denote (Expr (In e)) =
 
 -- | Use this to wrap you embedded functions (see `normalizeWith`) to make them
 -- | polymorphic enough to be used.
-type Normalizer a = forall s. Expr s a -> Maybe (Expr s a)
+type Normalizer a = forall s. Expr s a -> Expr s a -> Maybe (Expr s a)
+
+
+modifyKey :: forall a k. Eq k =>
+  k ->
+  (Tuple k a -> Tuple k a) ->
+  Array (Tuple k a) ->
+  Maybe (Array (Tuple k a))
+modifyKey k f as = do
+  i <- Array.findIndex (fst >>> eq k) as
+  Array.modifyAt i f as
+
+deleteKey :: forall a k. Eq k =>
+  k ->
+  Array (Tuple k a) ->
+  Maybe (Array (Tuple k a))
+deleteKey k as = do
+  i <- Array.findIndex (fst >>> eq k) as
+  Array.deleteAt i as
+
+unionWith :: forall k a. Ord k =>
+  (a -> a -> a) ->
+  Array (Tuple k a) -> Array (Tuple k a) ->
+  Array (Tuple k a)
+unionWith combine l' r' =
+  let
+    l = Array.nubBy (compare `on` fst) l'
+    r = Array.nubBy (compare `on` fst) r'
+    inserting as (Tuple k v) =
+      case modifyKey k (map (combine <@> v)) as of
+        Nothing -> as <> [Tuple k v]
+        Just as' -> as'
+  in Array.foldl inserting l r
 
 {-| Reduce an expression to its normal form, performing beta reduction and applying
     any custom definitions.
@@ -263,29 +299,332 @@ type Normalizer a = forall s. Expr s a -> Maybe (Expr s a)
     That is, if the functions in custom context are not total then the Dhall language, evaluated
     with those functions is not total either.
 -}
-normalizeWith :: forall s t a. Eq a => Normalizer a -> Expr s a -> Expr s {- t -} a
-normalizeWith _ e = e
+normalizeWith :: forall s t a. Eq a => Normalizer a -> Expr s a -> Expr t a
+normalizeWith ctx (Expr e0) = go e0 where
+  onP :: forall e v r.
+    Preview' e v ->
+    (v -> r) -> (e -> r) ->
+    e -> r
+  onP p this other e = case Lens.preview p e of
+    Just v -> this v
+    _ -> other e
+
+  onP2 :: forall e e' v v' r.
+    Preview' e v -> Preview' e' v' ->
+    (v -> v' -> r) -> (e -> e' -> r) ->
+    e -> e' -> r
+  onP2 p p' this other e e' = case Lens.preview p e, Lens.preview p' e' of
+    Just v, Just v' -> this v v'
+    _, _ -> other e e'
+
+  appFn :: forall r o.
+    Lens.Traversal' (VariantF ( "App" :: FProxy AST.Pair | r ) o) o
+  appFn = AST._App <<< prop (SProxy :: SProxy "fn")
+  appFn' :: forall p r o o' o''.
+    Lens.Wander p =>
+    Newtype o o' =>
+    Lens.Optic' p o' o'' ->
+    Lens.Optic' p (VariantF ( "App" :: FProxy AST.Pair | r ) o) o''
+  appFn' p = appFn <<< _Newtype <<< p
+  appArg :: forall r o.
+    Lens.Traversal' (VariantF ( "App" :: FProxy AST.Pair | r ) o) o
+  appArg = AST._App <<< prop (SProxy :: SProxy "arg")
+  appArg' :: forall p r o o' o''.
+    Lens.Wander p =>
+    Newtype o o' =>
+    Lens.Optic' p o' o'' ->
+    Lens.Optic' p (VariantF ( "App" :: FProxy AST.Pair | r ) o) o''
+  appArg' p = appArg <<< _Newtype <<< p
+
+  seq :: forall b c.
+    Preview' b Unit ->
+    Preview' b c ->
+    Preview' b c
+  seq p1 p2 f = wrap \a ->
+    case unwrap (unwrap (p1 (wrap (wrap <<< Just))) a) of
+      Nothing -> mempty
+      Just _ -> unwrap (p2 f) a
+
+  getArg :: forall r o o' e.
+    Newtype o o' =>
+    Preview' o' (ConstF.Const Unit e) ->
+    Preview' (VariantF ( "App" :: FProxy AST.Pair | r ) o) o
+  getArg p = seq (appFn' (unsafeCoerce p)) appArg
+
+
+  previewE :: forall o o' e.
+    Newtype o o' =>
+    Preview' o' e ->
+    o -> Maybe e
+  previewE p = Lens.preview p <<< unwrap
+  unPair :: forall o o' e r.
+    Newtype o o' =>
+    Preview' o' e ->
+    (o -> o -> Maybe e -> Maybe e -> r) ->
+    AST.Pair o ->
+    r
+  unPair p f (AST.Pair l r) = f l r (previewE p l) (previewE p r)
+  unPairN :: forall o o' e e' r.
+    Newtype o o' =>
+    Newtype e e' =>
+    Preview' o' e ->
+    (o -> o -> Maybe e' -> Maybe e' -> r) ->
+    AST.Pair o ->
+    r
+  unPairN p = unPair (unsafeCoerce p)
+
+  mapExpr :: forall f st. f (Mu (VariantF (AST.ExprRow st a))) -> f (Expr st a)
+  mapExpr = unsafeCoerce
+
+  mapMapExpr :: forall f g st. f (g (Mu (VariantF (AST.ExprRow st a)))) -> f (g (Expr st a))
+  mapMapExpr = unsafeCoerce
+
+  -- The companion to judgmentallyEqual for terms that are already
+  -- normalized recursively from this
+  judgEq = eq `on` (alphaNormalize >>> unsafeCoerce :: Expr t a -> Expr Void a)
+
+  go :: Mu (VariantF (AST.ExprRow s a)) -> Expr t a
+  go (In e) =
+    ( (VariantF.expand >>> In >>> Expr)
+    # onP AST._BoolAnd
+      (unPairN AST._BoolLit \l r -> case _, _ of
+        Just true, _ -> Expr r -- (l = True) && r -> r
+        Just false, _ -> Expr l -- (l = False) && r -> (l = False)
+        _, Just false -> Expr r -- l && (r = False) -> (r = False)
+        _, Just true -> Expr l -- l && (r = True) -> l
+        _, _ ->
+          if judgEq (Expr l) (Expr r)
+          then Expr l
+          else AST.mkBoolAnd (Expr l) (Expr r)
+      )
+    # onP AST._BoolOr
+      (unPairN AST._BoolLit \l r -> case _, _ of
+        Just true, _ -> Expr l -- (l = True) || r -> (l = True)
+        Just false, _ -> Expr r -- (l = False) || r -> r
+        _, Just false -> Expr l -- l || (r = False) -> l
+        _, Just true -> Expr r -- l || (r = True) -> (r = True)
+        _, _ ->
+          if judgEq (Expr l) (Expr r)
+          then Expr l
+          else AST.mkBoolOr (Expr l) (Expr r)
+      )
+    # onP AST._BoolEQ
+      (unPairN AST._BoolLit \l r -> case _, _ of
+        Just a, Just b -> AST.mkBoolLit (a == b)
+        _, _ ->
+          if judgEq (Expr l) (Expr r)
+          then AST.mkBoolLit true
+          else AST.mkBoolEQ (Expr l) (Expr r)
+      )
+    # onP AST._BoolNE
+      (unPairN AST._BoolLit \l r -> case _, _ of
+        Just a, Just b -> AST.mkBoolLit (a /= b)
+        _, _ ->
+          if judgEq (Expr l) (Expr r)
+          then AST.mkBoolLit false
+          else AST.mkBoolNE (Expr l) (Expr r)
+      )
+    # onP AST._BoolIf
+      (\(AST.Triplet b t f) ->
+        let p = AST._BoolLit <<< _Newtype in
+        case previewE p b of
+          Just true -> Expr t
+          Just false -> Expr f
+          Nothing ->
+            case previewE p t, previewE p f of
+              Just true, Just false -> Expr b
+              _, _ ->
+                if judgEq (Expr t) (Expr f)
+                  then Expr t
+                  else AST.mkBoolIf (Expr b) (Expr t) (Expr f)
+      )
+    # onP AST._NaturalPlus
+      (unPairN AST._NaturalLit \l r -> case _, _ of
+        Just a, Just b -> AST.mkNaturalLit (a + b)
+        Just 0, _ -> Expr r
+        _, Just 0 -> Expr l
+        _, _ -> AST.mkNaturalPlus (Expr l) (Expr r)
+      )
+    # onP AST._NaturalTimes
+      (unPairN AST._NaturalLit \l r -> case _, _ of
+        Just a, Just b -> AST.mkNaturalLit (a * b)
+        Just 0, _ -> Expr l
+        _, Just 0 -> Expr r
+        Just 1, _ -> Expr r
+        _, Just 1 -> Expr l
+        _, _ -> AST.mkNaturalTimes (Expr l) (Expr r)
+      )
+    # onP AST._ListAppend
+      (unPair AST._ListLit \l r -> case _, _ of
+        Just { ty, values: a }, Just { values: b } ->
+          AST.mkListLit (mapExpr ty) (mapExpr $ a <> b)
+        Just { values: [] }, _ -> Expr r
+        _, Just { values: [] } -> Expr l
+        _, _ -> AST.mkListAppend (Expr l) (Expr r)
+      )
+    # onP AST._Combine
+      (let
+        decide = unPairN AST._RecordLit \l r -> case _, _ of
+          Just a, Just b -> AST.mkRecordLit $ unsafeCoerce $
+            unionWith (\x y -> unwrap $ decide (AST.Pair x y)) a b
+          Just [], _ -> Expr r
+          _, Just [] -> Expr l
+          _, _ -> AST.mkCombine (Expr l) (Expr r)
+      in decide)
+    # onP AST._CombineTypes
+      (let
+        decide = unPairN AST._Record \l r -> case _, _ of
+          Just a, Just b -> AST.mkRecord $ unsafeCoerce $
+            unionWith (\x y -> unwrap $ decide (AST.Pair x y)) a b
+          Just [], _ -> Expr r
+          _, Just [] -> Expr l
+          _, _ -> AST.mkCombineTypes (Expr l) (Expr r)
+      in decide)
+    # onP AST._Prefer
+      (let
+        decide = unPairN AST._RecordLit \l r -> case _, _ of
+          Just a, Just b -> AST.mkRecordLit $ unsafeCoerce $
+            unionWith const a b
+          Just [], _ -> Expr r
+          _, Just [] -> Expr l
+          _, _ -> AST.mkPrefer (Expr l) (Expr r)
+      in decide)
+    # onP AST._Constructors
+      (\e' -> case previewE AST._Union e' of
+        Just (Compose kts) -> AST.mkRecord $ kts <#> \(Tuple k t_) -> Tuple k $
+          AST.mkLam k (Expr t_) $ AST.mkUnionLit k (AST.mkVar (AST.V k 0)) $
+            mapMapExpr $ (fromMaybe <*> deleteKey k) kts
+        Nothing -> AST.mkConstructors (Expr e')
+      )
+    # VariantF.on (SProxy :: SProxy "Note") (snd >>> Expr)
+    # onP AST._App \{ fn, arg } ->
+      onP AST._Lam
+        (\{ var: x, body } ->
+          let
+            v = AST.V x 0
+          in normalizeWith ctx $ shift (-1) v $
+            subst v (shift 1 v (Expr arg)) (Expr body)
+        ) <@> unwrap fn $ \_ ->
+      case Lens.view apps (Expr fn), Lens.view apps (Expr arg) of
+        -- build/fold fusion for `List`
+        -- App (App ListBuild _) (App (App ListFold _) e') -> loop e'
+        App listbuild _, App (App listfold _) e'
+          | noapp AST._ListBuild listbuild
+          , noapp AST._ListFold listfold ->
+            Lens.review apps e'
+        -- build/fold fusion for `Natural`
+        -- App NaturalBuild (App NaturalFold e') -> loop e'
+        naturalbuild, App naturalfold e'
+          | noapp AST._NaturalBuild naturalbuild
+          , noapp AST._NaturalFold naturalfold ->
+            Lens.review apps e'
+        -- build/fold fusion for `Optional`
+        -- App (App OptionalBuild _) (App (App OptionalFold _) e') -> loop e'
+        App optionalbuild _, App (App optionalfold _) e'
+          | noapp AST._OptionalBuild optionalbuild
+          , noapp AST._OptionalFold optionalfold ->
+            Lens.review apps e'
+
+        naturalbuild, g
+          | noapp AST._NaturalBuild naturalbuild ->
+            let
+              zero = AST.mkNaturalLit 0
+              succ = AST.mkLam "x" AST.mkNatural $
+                AST.mkNaturalPlus (AST.mkVar (AST.V "x" 0)) $ AST.mkNaturalLit 1
+              g' = Lens.review apps g
+            in normalizeWith ctx $
+              AST.mkApp (AST.mkApp (AST.mkApp g' AST.mkNatural) succ) zero
+        naturaliszero, naturallit
+          | noapp AST._NaturalIsZero naturaliszero
+          , Just n <- noapplit AST._NaturalLit naturallit ->
+            AST.mkBoolLit (n == 0)
+        naturaleven, naturallit
+          | noapp AST._NaturalEven naturaleven
+          , Just n <- noapplit AST._NaturalLit naturallit ->
+            AST.mkBoolLit (even n)
+        naturalodd, naturallit
+          | noapp AST._NaturalOdd naturalodd
+          , Just n <- noapplit AST._NaturalLit naturallit ->
+            AST.mkBoolLit (even n)
+        naturaltointeger, naturallit
+          | noapp AST._NaturalToInteger naturaltointeger
+          , Just n <- noapplit AST._NaturalLit naturallit ->
+            AST.mkIntegerLit n
+        naturalshow, naturallit
+          | noapp AST._NaturalShow naturalshow
+          , Just n <- noapplit AST._NaturalLit naturallit ->
+            AST.mkTextLit (AST.TextLit (show n))
+        integershow, integerlit
+          | noapp AST._IntegerShow integershow
+          , Just n <- noapplit AST._IntegerLit integerlit ->
+            let s = if n >= 0 then "+" else "" in
+            AST.mkTextLit (AST.TextLit (s <> show n))
+        integertodouble, integerlit
+          | noapp AST._IntegerToDouble integertodouble
+          , Just n <- noapplit AST._IntegerLit integerlit ->
+            AST.mkDoubleLit (toNumber n)
+        doubleshow, doublelit
+          | noapp AST._DoubleShow doubleshow
+          , Just n <- noapplit AST._DoubleLit doublelit ->
+            AST.mkTextLit (AST.TextLit (show n))
+        _, _ ->
+          AST.mkApp (Expr fn) (Expr arg)
+    ) (map (go >>> unwrap) e)
+
+-- Little ADT to make destructuring applications easier for normalization
+data Apps s a = App (Apps s a) (Apps s a) | NoApp (Expr s a)
+
+noapplit :: forall s a v.
+  Lens.Prism'
+    (VariantF (AST.ExprRow s a) (Expr s a))
+    (ConstF.Const v (Expr s a)) ->
+  Apps s a ->
+  Maybe v
+noapplit p = Lens.preview (_NoApp <<< AST._E p <<< _Newtype)
+
+noapp :: forall f s a. Functor f =>
+  Lens.Prism'
+    (VariantF (AST.ExprRow s a) (Expr s a))
+    (f (Expr s a)) ->
+  Apps s a ->
+  Boolean
+noapp p = Lens.is (_NoApp <<< AST._E p)
+
+_NoApp :: forall s a. Lens.Prism' (Apps s a) (Expr s a)
+_NoApp = Lens.prism' NoApp case _ of
+  NoApp e -> Just e
+  _ -> Nothing
+
+apps :: forall s a. Lens.Iso' (Expr s a) (Apps s a)
+apps = Lens.iso fromExpr toExpr where
+  toExpr = case _ of
+    App f a -> AST.mkApp (toExpr f) (toExpr a)
+    NoApp e -> e
+  fromExpr e =
+    case Lens.preview (AST._E (AST._ExprFPrism (SProxy :: SProxy "App"))) e of
+      Nothing -> NoApp e
+      Just (AST.Pair fn arg) -> App (fromExpr fn) (fromExpr arg)
 
 -- | Returns `true` if two expressions are α-equivalent and β-equivalent and
 -- | `false` otherwise
-judgmentallyEqual :: forall s t a. Eq s => Eq a => Expr s a -> Expr s {- t -} a -> Boolean
+judgmentallyEqual :: forall s t a. Eq a => Expr s a -> Expr t a -> Boolean
 judgmentallyEqual eL0 eR0 = alphaBetaNormalize eL0 == alphaBetaNormalize eR0
   where
-    alphaBetaNormalize :: Eq a => Expr s a -> Expr s a
+    alphaBetaNormalize :: forall st. Eq a => Expr st a -> Expr Void a
     alphaBetaNormalize = alphaNormalize <<< normalize
 
 -- | Check if an expression is in a normal form given a context of evaluation.
 -- | Unlike `isNormalized`, this will fully normalize and traverse through the expression.
 --
 -- | It is much more efficient to use `isNormalized`.
-isNormalizedWith :: forall s a. Eq s => Eq a => Normalizer a -> Expr s a -> Boolean
-isNormalizedWith ctx e = e == (normalizeWith ctx e)
+isNormalized :: forall s a. Eq s => Eq a => Expr s a -> Boolean
+isNormalized = isNormalizedWith (const (const Nothing))
 
 type Preview' a b = Lens.Fold (First b) a a b b
 
 -- | Quickly check if an expression is in normal form
-isNormalized :: forall s a. Eq s => Eq a => Expr s a -> Boolean
-isNormalized (Expr e0) = go e0 where
+isNormalizedWith :: forall s a. Eq s => Eq a => Normalizer a -> Expr s a -> Boolean
+isNormalizedWith ctx (Expr e0) = go e0 where
   onP :: forall e v r.
     Preview' e v ->
     (v -> r) -> (e -> r) ->
@@ -339,18 +678,19 @@ isNormalized (Expr e0) = go e0 where
   ain't :: forall f b. Lens.APrism' (f (Mu f)) b -> Mu f -> Boolean
   ain't p = not Lens.is p <<< unwrap
 
+  samesies (AST.Pair a b) = alphaNormalize (Expr a) == alphaNormalize (Expr b)
+
   go :: Mu (VariantF (AST.ExprRow s a)) -> Boolean
   go (In e) = if not all go e then false else
     ( tt
-    # onP AST._Note ff
     # onP AST._BoolAnd
-      (all (ain't AST._BoolLit))
+      (all (ain't AST._BoolLit) && not samesies)
     # onP AST._BoolOr
-      (all (ain't AST._BoolLit))
+      (all (ain't AST._BoolLit) && not samesies)
     # onP AST._BoolEQ
-      (any (ain't AST._BoolLit))
+      (any (ain't AST._BoolLit) && not samesies)
     # onP AST._BoolNE
-      (any (ain't AST._BoolLit))
+      (any (ain't AST._BoolLit) && not samesies)
     # onP AST._BoolIf
       (\(AST.Triplet b t f) ->
         let checkLit = ain't AST._BoolLit
@@ -412,8 +752,9 @@ isNormalized (Expr e0) = go e0 where
         && (checkLit l || checkLit r)
       )
     # onP AST._Constructors (ain't AST._Union)
+    # VariantF.on (SProxy :: SProxy "Note") ff
     # onP AST._App \{ fn, arg } ->
-      ( tt
+      ( (\_ _ -> isNothing (ctx (Expr fn) (Expr arg)))
       -- substitution
       # onP2 AST._Lam identity ff
       -- build/fold fusion for `List`
@@ -433,6 +774,7 @@ freeIn :: forall s a. Eq a => Var -> Expr s a -> Boolean
 freeIn variable expression =
     shift 1 variable strippedExpression /= strippedExpression
   where
+    -- TODO: necessary?
     strippedExpression :: Expr Void a
     strippedExpression = denote expression
 
