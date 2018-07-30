@@ -23,8 +23,7 @@ import Data.Newtype (class Newtype, under, unwrap, wrap)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple (Tuple(..), fst, snd)
-import Data.Variant as Variant
-import Dhall.Core.AST (AllTheThings, BinOpF(..), BuiltinBinOps, BuiltinFuncs, BuiltinOps, BuiltinTypes, BuiltinTypes2, Const(..), Expr(..), ExprRow, FunctorThings, LetF(..), Literals, Literals2, MergeF(..), OrdMap, Pair(..), SimpleThings, Syntax, Terminals, TextLitF(..), Triplet(..), Var(..), _Expr, _ExprF, coalesce1, unfurl) as Dhall.Core
+import Dhall.Core.AST (AllTheThings, BuiltinBinOps, BuiltinFuncs, BuiltinOps, BuiltinTypes, BuiltinTypes2, Const(..), Expr(..), ExprRow, FunctorThings, LetF(..), Literals, Literals2, MergeF(..), OrdMap, Pair(..), SimpleThings, Syntax, Terminals, TextLitF(..), Triplet(..), Var(..), _Expr, _ExprF, coalesce1, unfurl) as Dhall.Core
 import Dhall.Core.AST (Expr(..), LetF(..), Var(..), mkLam, mkLet, mkPi, mkVar)
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports (Directory(..), File(..), FilePrefix(..), Import(..), ImportHashed(..), ImportMode(..), ImportType(..), prettyDirectory, prettyFile, prettyFilePrefix, prettyImport, prettyImportHashed, prettyImportType) as Dhall.Core
@@ -95,18 +94,10 @@ shift d v@(V x n) = go where
     ( ( map (under Expr go)
     >>> VariantF.expand >>> In >>> Expr
       )
-    # VariantF.on (SProxy :: SProxy "SimpleThings")
-      ( (>>>) unwrap
-      $ ( Variant.expand
-      >>> wrap
-      >>> VariantF.inj (SProxy :: SProxy "SimpleThings")
-      >>> In >>> Expr
-        )
-      # Variant.on (SProxy :: SProxy "Var")
-        (\(V x' n') ->
-          let n'' = if x == x' && n <= n' then n' + d else n'
-          in mkVar (V x' n'')
-        )
+    # VariantF.on (SProxy :: SProxy "Var")
+      (unwrap >>> \(V x' n') ->
+        let n'' = if x == x' && n <= n' then n' + d else n'
+        in mkVar (V x' n'')
       )
     # VariantF.on (SProxy :: SProxy "Lam")
       (\(Product (Tuple (Tuple x' _A) (Identity b))) ->
@@ -143,17 +134,9 @@ subst v@(V x n) e = go where
     ( ( map (under Expr go)
     >>> VariantF.expand >>> In >>> Expr
       )
-    # VariantF.on (SProxy :: SProxy "SimpleThings")
-      ( (>>>) unwrap
-      $ ( Variant.expand
-      >>> wrap
-      >>> VariantF.inj (SProxy :: SProxy "SimpleThings")
-      >>> In >>> Expr
-        )
-      # Variant.on (SProxy :: SProxy "Var")
-        (\(V x' n') ->
-          if x == x' && n == n' then e else mkVar (V x' n')
-        )
+    # VariantF.on (SProxy :: SProxy "Var")
+      (unwrap >>> \(V x' n') ->
+        if x == x' && n == n' then e else mkVar (V x' n')
       )
     # VariantF.on (SProxy :: SProxy "Lam")
       (\(Product (Tuple (Tuple y _A) (Identity b))) ->

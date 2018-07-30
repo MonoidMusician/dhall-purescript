@@ -17,21 +17,22 @@ import Data.Identity (Identity(..))
 import Data.Lens (Prism', prism', Iso', iso, view, review, re, only)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype, over, unwrap)
+import Data.Newtype (class Newtype, over, unwrap, wrap)
 import Data.Set (Set)
 import Data.String (joinWith)
 import Data.Symbol (class IsSymbol, SProxy(..))
 import Data.Traversable (class Traversable, sequenceDefault, traverse)
 import Data.Tuple (Tuple(..), uncurry, swap)
-import Data.Variant (Variant)
-import Data.Variant as Variant
 import Data.Variant.Internal (FProxy)
+import Matryoshka (cata)
 import Prim.Row as Row
 import Type.Row (type (+))
-import Matryoshka (cata)
 import Unsafe.Coerce (unsafeCoerce)
 
 type OrdMap k = Compose Array (Tuple k)
+
+type CONST a = FProxy (ConstF.Const a)
+type UNIT = CONST Unit
 
 data Const = Type | Kind
 derive instance eqConst :: Eq Const
@@ -42,10 +43,10 @@ derive instance eqVar :: Eq Var
 derive instance ordVar :: Ord Var
 
 type Literals vs =
-  ( "BoolLit" :: Boolean
-  , "NaturalLit" :: Int
-  , "IntegerLit" :: Int
-  , "DoubleLit" :: Number
+  ( "BoolLit" :: CONST Boolean
+  , "NaturalLit" :: CONST Int
+  , "IntegerLit" :: CONST Int
+  , "DoubleLit" :: CONST Number
   | vs
   )
 
@@ -75,13 +76,13 @@ type Literals2 v =
   )
 
 type BuiltinTypes vs =
-  ( "Bool" :: Unit
-  , "Natural" :: Unit
-  , "Integer" :: Unit
-  , "Double" :: Unit
-  , "Text" :: Unit
-  , "List" :: Unit
-  , "Optional" :: Unit
+  ( "Bool" :: UNIT
+  , "Natural" :: UNIT
+  , "Integer" :: UNIT
+  , "Double" :: UNIT
+  , "Text" :: UNIT
+  , "List" :: UNIT
+  , "Optional" :: UNIT
   | vs
   )
 
@@ -92,54 +93,44 @@ type BuiltinTypes2 v =
   )
 
 type BuiltinFuncs vs =
-  ( "NaturalFold" :: Unit
-  , "NaturalBuild" :: Unit
-  , "NaturalIsZero" :: Unit
-  , "NaturalEven" :: Unit
-  , "NaturalOdd" :: Unit
-  , "NaturalToInteger" :: Unit
-  , "NaturalShow" :: Unit
-  , "IntegerShow" :: Unit
-  , "IntegerToDouble" :: Unit
-  , "DoubleShow" :: Unit
-  , "ListBuild" :: Unit
-  , "ListFold" :: Unit
-  , "ListLength" :: Unit
-  , "ListHead" :: Unit
-  , "ListLast" :: Unit
-  , "ListIndexed" :: Unit
-  , "ListReverse" :: Unit
-  , "OptionalFold" :: Unit
-  , "OptionalBuild" :: Unit
+  ( "NaturalFold" :: UNIT
+  , "NaturalBuild" :: UNIT
+  , "NaturalIsZero" :: UNIT
+  , "NaturalEven" :: UNIT
+  , "NaturalOdd" :: UNIT
+  , "NaturalToInteger" :: UNIT
+  , "NaturalShow" :: UNIT
+  , "IntegerShow" :: UNIT
+  , "IntegerToDouble" :: UNIT
+  , "DoubleShow" :: UNIT
+  , "ListBuild" :: UNIT
+  , "ListFold" :: UNIT
+  , "ListLength" :: UNIT
+  , "ListHead" :: UNIT
+  , "ListLast" :: UNIT
+  , "ListIndexed" :: UNIT
+  , "ListReverse" :: UNIT
+  , "OptionalFold" :: UNIT
+  , "OptionalBuild" :: UNIT
   | vs
   )
 
 type BuiltinBinOps vs =
-  ( "BoolAnd" :: Unit
-  , "BoolOr" :: Unit
-  , "BoolEQ" :: Unit
-  , "BoolNE" :: Unit
-  , "NaturalPlus" :: Unit
-  , "NaturalTimes" :: Unit
-  , "TextAppend" :: Unit
-  , "ListAppend" :: Unit
-  , "Combine" :: Unit
-  , "CombineTypes" :: Unit
-  , "Prefer" :: Unit
-  , "ImportAlt" :: Unit
+  ( "BoolAnd" :: FProxy Pair
+  , "BoolOr" :: FProxy Pair
+  , "BoolEQ" :: FProxy Pair
+  , "BoolNE" :: FProxy Pair
+  , "NaturalPlus" :: FProxy Pair
+  , "NaturalTimes" :: FProxy Pair
+  , "TextAppend" :: FProxy Pair
+  , "ListAppend" :: FProxy Pair
+  , "Combine" :: FProxy Pair
+  , "CombineTypes" :: FProxy Pair
+  , "Prefer" :: FProxy Pair
+  , "ImportAlt" :: FProxy Pair
   | vs
   )
 
-data BinOpF v a = BinOpF (Variant v) a a
-derive instance eqBinOpF :: (Eq (Variant v), Eq a) => Eq (BinOpF v a)
-derive instance functorBinOpF :: Functor (BinOpF v)
-instance foldableBinOpF :: Foldable (BinOpF v) where
-  foldMap f (BinOpF _ a1 a2) = f a1 <> f a2
-  foldl f b (BinOpF _ a1 a2) = f (f b a1) a2
-  foldr f b (BinOpF _ a1 a2) = f a1 (f a2 b)
-instance traversableBinOpF :: Traversable (BinOpF v) where
-  traverse f (BinOpF v a1 a2) = BinOpF v <$> f a1 <*> f a2
-  sequence = sequenceDefault
 data MergeF a = MergeF a a (Maybe a)
 derive instance eqMergeF :: Eq a => Eq (MergeF a)
 derive instance ordMergeF :: Ord a => Ord (MergeF a)
@@ -163,9 +154,8 @@ instance traversableTriplet :: Traversable Triplet where
   traverse f (Triplet a1 a2 a3) = Triplet <$> f a1 <*> f a2 <*> f a3
   sequence = sequenceDefault
 
-type BuiltinOps v =
-  ( "BinOp" :: FProxy (BinOpF (BuiltinBinOps ()))
-  , "BoolIf" :: FProxy (Triplet)
+type BuiltinOps v = BuiltinBinOps
+  ( "BoolIf" :: FProxy (Triplet)
   , "Field" :: FProxy (Tuple String)
   , "Project" :: FProxy (Tuple (Set String))
   , "Merge" :: FProxy (MergeF)
@@ -174,8 +164,8 @@ type BuiltinOps v =
   )
 
 type Terminals vs =
-  ( "Const" :: Const
-  , "Var" :: Var
+  ( "Const" :: CONST Const
+  , "Var" :: CONST Var
   | vs
   )
 
@@ -216,15 +206,13 @@ type SimpleThings vs = Literals + BuiltinTypes + BuiltinFuncs + Terminals + vs
 
 type FunctorThings v = Literals2 + BuiltinTypes2 + BuiltinOps + Syntax + v
 
-type AllTheThings vs v =
-  ( "SimpleThings" :: FProxy (ConstF.Const (Variant (SimpleThings + vs)))
-  | FunctorThings + v
-  )
+type AllTheThings v = SimpleThings + FunctorThings + v
 
 type ExprRow s a =
   AllTheThings
-    ( "Embed" :: a )
-    ( "Note" :: FProxy (Tuple s) )
+    ( "Note" :: FProxy (Tuple s)
+    , "Embed" :: CONST a
+    )
 
 newtype Expr s a = Expr (Mu (VariantF (ExprRow s a)))
 derive instance newtypeExpr :: Newtype (Expr s a) _
@@ -237,31 +225,25 @@ instance showExpr :: (Show s, Show a) => Show (Expr s a) where
       case _ of
         Nothing -> "(Nothing)"
         Just s -> "(Just " <> s <> ")"
+    binop tag (Pair l r) = "(mk" <> tag <> " " <> l <> r <> ")"
     show1 =
       ( VariantF.case_
       # VariantF.on (SProxy :: SProxy "Annot")
         (\(Pair l r) -> "(mkAnnot " <> l <> r <> ")")
       # VariantF.on (SProxy :: SProxy "App")
         (\(Pair l r) -> "(mkApp " <> l <> r <> ")")
-      # VariantF.on (SProxy :: SProxy "BinOp")
-        (\(BinOpF v l r) ->
-          let
-            tag
-              = Variant.case_
-              # Variant.on (SProxy :: SProxy "BoolAnd") (const "BoolAnd")
-              # Variant.on (SProxy :: SProxy "BoolOr") (const "BoolOr")
-              # Variant.on (SProxy :: SProxy "BoolEQ") (const "BoolEQ")
-              # Variant.on (SProxy :: SProxy "BoolNE") (const "BoolNE")
-              # Variant.on (SProxy :: SProxy "NaturalPlus") (const "NaturalPlus")
-              # Variant.on (SProxy :: SProxy "NaturalTimes") (const "NaturalTimes")
-              # Variant.on (SProxy :: SProxy "TextAppend") (const "TextAppend")
-              # Variant.on (SProxy :: SProxy "ListAppend") (const "ListAppend")
-              # Variant.on (SProxy :: SProxy "Combine") (const "Combine")
-              # Variant.on (SProxy :: SProxy "CombineTypes") (const "CombineTypes")
-              # Variant.on (SProxy :: SProxy "Prefer") (const "Prefer")
-              # Variant.on (SProxy :: SProxy "ImportAlt") (const "ImportAlt")
-          in "(mk" <> tag v <> " " <> l <> r <> ")"
-        )
+      # VariantF.on (SProxy :: SProxy "BoolAnd") (binop "BoolAnd")
+      # VariantF.on (SProxy :: SProxy "BoolOr") (binop "BoolOr")
+      # VariantF.on (SProxy :: SProxy "BoolEQ") (binop "BoolEQ")
+      # VariantF.on (SProxy :: SProxy "BoolNE") (binop "BoolNE")
+      # VariantF.on (SProxy :: SProxy "NaturalPlus") (binop "NaturalPlus")
+      # VariantF.on (SProxy :: SProxy "NaturalTimes") (binop "NaturalTimes")
+      # VariantF.on (SProxy :: SProxy "TextAppend") (binop "TextAppend")
+      # VariantF.on (SProxy :: SProxy "ListAppend") (binop "ListAppend")
+      # VariantF.on (SProxy :: SProxy "Combine") (binop "Combine")
+      # VariantF.on (SProxy :: SProxy "CombineTypes") (binop "CombineTypes")
+      # VariantF.on (SProxy :: SProxy "Prefer") (binop "Prefer")
+      # VariantF.on (SProxy :: SProxy "ImportAlt") (binop "ImportAlt")
       # VariantF.on (SProxy :: SProxy "BoolIf")
         (\(Triplet c t f) -> "(mkBoolIf " <> c <> t <> f <> ")")
       # VariantF.on (SProxy :: SProxy "Constructors")
@@ -288,52 +270,49 @@ instance showExpr :: (Show s, Show a) => Show (Expr s a) where
         (\(Compose a) -> "(mkRecord " <> rec a <> ")")
       # VariantF.on (SProxy :: SProxy "RecordLit")
         (\(Compose a) -> "(mkRecord " <> rec a <> ")")
-      # VariantF.on (SProxy :: SProxy "SimpleThings")
-        ( (>>>) unwrap
-        $ Variant.case_
-        # Variant.on (SProxy :: SProxy "BoolLit")
-          (\b -> "(mkBoolLit " <> show b <> ")")
-        # Variant.on (SProxy :: SProxy "NaturalLit")
-          (\b -> "(mkNaturalLit " <> show b <> ")")
-        # Variant.on (SProxy :: SProxy "IntegerLit")
-          (\b -> "(mkIntegerLit " <> show b <> ")")
-        # Variant.on (SProxy :: SProxy "DoubleLit")
-          (\b -> "(mkDoubleLit " <> show b <> ")")
-        # Variant.on (SProxy :: SProxy "Bool") (const "mkBool")
-        # Variant.on (SProxy :: SProxy "Natural") (const "mkNatural")
-        # Variant.on (SProxy :: SProxy "Integer") (const "mkInteger")
-        # Variant.on (SProxy :: SProxy "Double") (const "mkDouble")
-        # Variant.on (SProxy :: SProxy "Text") (const "mkText")
-        # Variant.on (SProxy :: SProxy "List") (const "mkList")
-        # Variant.on (SProxy :: SProxy "Optional") (const "mkOptional")
-        # Variant.on (SProxy :: SProxy "NaturalFold") (const "mkNaturalFold")
-        # Variant.on (SProxy :: SProxy "NaturalBuild") (const "mkNaturalBuild")
-        # Variant.on (SProxy :: SProxy "NaturalIsZero") (const "mkNaturalIsZero")
-        # Variant.on (SProxy :: SProxy "NaturalEven") (const "mkNaturalEven")
-        # Variant.on (SProxy :: SProxy "NaturalOdd") (const "mkNaturalOdd")
-        # Variant.on (SProxy :: SProxy "NaturalToInteger") (const "mkNaturalToInteger")
-        # Variant.on (SProxy :: SProxy "NaturalShow") (const "mkNaturalShow")
-        # Variant.on (SProxy :: SProxy "IntegerShow") (const "mkIntegerShow")
-        # Variant.on (SProxy :: SProxy "IntegerToDouble") (const "mkIntegerToDouble")
-        # Variant.on (SProxy :: SProxy "DoubleShow") (const "mkDoubleShow")
-        # Variant.on (SProxy :: SProxy "ListBuild") (const "mkListBuild")
-        # Variant.on (SProxy :: SProxy "ListFold") (const "mkListFold")
-        # Variant.on (SProxy :: SProxy "ListLength") (const "mkListLength")
-        # Variant.on (SProxy :: SProxy "ListHead") (const "mkListHead")
-        # Variant.on (SProxy :: SProxy "ListLast") (const "mkListLast")
-        # Variant.on (SProxy :: SProxy "ListIndexed") (const "mkListIndexed")
-        # Variant.on (SProxy :: SProxy "ListReverse") (const "mkListReverse")
-        # Variant.on (SProxy :: SProxy "OptionalFold") (const "mkOptionalFold")
-        # Variant.on (SProxy :: SProxy "OptionalBuild") (const "mkOptionalBuild")
-        # Variant.on (SProxy :: SProxy "Const")
-            case _ of
-              Type -> "(mkConst Type)"
-              Kind -> "(mkConst Kind)"
-        # Variant.on (SProxy :: SProxy "Var")
-          (\(V n x) -> "(mkVar (V " <> show n <> show x <> "))")
-        # Variant.on (SProxy :: SProxy "Embed")
-          (\e -> "(mkEmbed (" <> show e <> "))")
+      # VariantF.on (SProxy :: SProxy "BoolLit")
+        (unwrap >>> \b -> "(mkBoolLit " <> show b <> ")")
+      # VariantF.on (SProxy :: SProxy "NaturalLit")
+        (unwrap >>> \b -> "(mkNaturalLit " <> show b <> ")")
+      # VariantF.on (SProxy :: SProxy "IntegerLit")
+        (unwrap >>> \b -> "(mkIntegerLit " <> show b <> ")")
+      # VariantF.on (SProxy :: SProxy "DoubleLit")
+        (unwrap >>> \b -> "(mkDoubleLit " <> show b <> ")")
+      # VariantF.on (SProxy :: SProxy "Bool") (const "mkBool")
+      # VariantF.on (SProxy :: SProxy "Natural") (const "mkNatural")
+      # VariantF.on (SProxy :: SProxy "Integer") (const "mkInteger")
+      # VariantF.on (SProxy :: SProxy "Double") (const "mkDouble")
+      # VariantF.on (SProxy :: SProxy "Text") (const "mkText")
+      # VariantF.on (SProxy :: SProxy "List") (const "mkList")
+      # VariantF.on (SProxy :: SProxy "Optional") (const "mkOptional")
+      # VariantF.on (SProxy :: SProxy "NaturalFold") (const "mkNaturalFold")
+      # VariantF.on (SProxy :: SProxy "NaturalBuild") (const "mkNaturalBuild")
+      # VariantF.on (SProxy :: SProxy "NaturalIsZero") (const "mkNaturalIsZero")
+      # VariantF.on (SProxy :: SProxy "NaturalEven") (const "mkNaturalEven")
+      # VariantF.on (SProxy :: SProxy "NaturalOdd") (const "mkNaturalOdd")
+      # VariantF.on (SProxy :: SProxy "NaturalToInteger") (const "mkNaturalToInteger")
+      # VariantF.on (SProxy :: SProxy "NaturalShow") (const "mkNaturalShow")
+      # VariantF.on (SProxy :: SProxy "IntegerShow") (const "mkIntegerShow")
+      # VariantF.on (SProxy :: SProxy "IntegerToDouble") (const "mkIntegerToDouble")
+      # VariantF.on (SProxy :: SProxy "DoubleShow") (const "mkDoubleShow")
+      # VariantF.on (SProxy :: SProxy "ListBuild") (const "mkListBuild")
+      # VariantF.on (SProxy :: SProxy "ListFold") (const "mkListFold")
+      # VariantF.on (SProxy :: SProxy "ListLength") (const "mkListLength")
+      # VariantF.on (SProxy :: SProxy "ListHead") (const "mkListHead")
+      # VariantF.on (SProxy :: SProxy "ListLast") (const "mkListLast")
+      # VariantF.on (SProxy :: SProxy "ListIndexed") (const "mkListIndexed")
+      # VariantF.on (SProxy :: SProxy "ListReverse") (const "mkListReverse")
+      # VariantF.on (SProxy :: SProxy "OptionalFold") (const "mkOptionalFold")
+      # VariantF.on (SProxy :: SProxy "OptionalBuild") (const "mkOptionalBuild")
+      # VariantF.on (SProxy :: SProxy "Const")
+        (case _ of
+          ConstF.Const Type -> "(mkConst Type)"
+          ConstF.Const Kind -> "(mkConst Kind)"
         )
+      # VariantF.on (SProxy :: SProxy "Var")
+        (unwrap >>> \(V n x) -> "(mkVar (V " <> show n <> show x <> "))")
+      # VariantF.on (SProxy :: SProxy "Embed")
+        (unwrap >>> \e -> "(mkEmbed (" <> show e <> "))")
       # VariantF.on (SProxy :: SProxy "TextLit")
           (\e ->
             let
@@ -368,7 +347,18 @@ instance eq1ExprRowVF :: (Eq s, Eq a) => Eq1 (ExprRowVF s a) where
     ( VariantF.case_
     # vfEqCase (SProxy :: SProxy "Annot")
     # vfEqCase (SProxy :: SProxy "App")
-    # vfEqCase (SProxy :: SProxy "BinOp")
+    # vfEqCase (SProxy :: SProxy "BoolAnd")
+    # vfEqCase (SProxy :: SProxy "BoolOr")
+    # vfEqCase (SProxy :: SProxy "BoolEQ")
+    # vfEqCase (SProxy :: SProxy "BoolNE")
+    # vfEqCase (SProxy :: SProxy "NaturalPlus")
+    # vfEqCase (SProxy :: SProxy "NaturalTimes")
+    # vfEqCase (SProxy :: SProxy "TextAppend")
+    # vfEqCase (SProxy :: SProxy "ListAppend")
+    # vfEqCase (SProxy :: SProxy "Combine")
+    # vfEqCase (SProxy :: SProxy "CombineTypes")
+    # vfEqCase (SProxy :: SProxy "Prefer")
+    # vfEqCase (SProxy :: SProxy "ImportAlt")
     # vfEqCase (SProxy :: SProxy "BoolIf")
     # vfEqCase (SProxy :: SProxy "Constructors")
     # vfEqCase (SProxy :: SProxy "Field")
@@ -382,7 +372,39 @@ instance eq1ExprRowVF :: (Eq s, Eq a) => Eq1 (ExprRowVF s a) where
     # vfEqCase (SProxy :: SProxy "Project")
     # vfEqCase (SProxy :: SProxy "Record")
     # vfEqCase (SProxy :: SProxy "RecordLit")
-    # vfEqCase (SProxy :: SProxy "SimpleThings")
+    # vfEqCase (SProxy :: SProxy "BoolLit")
+    # vfEqCase (SProxy :: SProxy "NaturalLit")
+    # vfEqCase (SProxy :: SProxy "IntegerLit")
+    # vfEqCase (SProxy :: SProxy "DoubleLit")
+    # vfEqCase (SProxy :: SProxy "Bool")
+    # vfEqCase (SProxy :: SProxy "Natural")
+    # vfEqCase (SProxy :: SProxy "Integer")
+    # vfEqCase (SProxy :: SProxy "Double")
+    # vfEqCase (SProxy :: SProxy "Text")
+    # vfEqCase (SProxy :: SProxy "List")
+    # vfEqCase (SProxy :: SProxy "Optional")
+    # vfEqCase (SProxy :: SProxy "NaturalFold")
+    # vfEqCase (SProxy :: SProxy "NaturalBuild")
+    # vfEqCase (SProxy :: SProxy "NaturalIsZero")
+    # vfEqCase (SProxy :: SProxy "NaturalEven")
+    # vfEqCase (SProxy :: SProxy "NaturalOdd")
+    # vfEqCase (SProxy :: SProxy "NaturalToInteger")
+    # vfEqCase (SProxy :: SProxy "NaturalShow")
+    # vfEqCase (SProxy :: SProxy "IntegerShow")
+    # vfEqCase (SProxy :: SProxy "IntegerToDouble")
+    # vfEqCase (SProxy :: SProxy "DoubleShow")
+    # vfEqCase (SProxy :: SProxy "ListBuild")
+    # vfEqCase (SProxy :: SProxy "ListFold")
+    # vfEqCase (SProxy :: SProxy "ListLength")
+    # vfEqCase (SProxy :: SProxy "ListHead")
+    # vfEqCase (SProxy :: SProxy "ListLast")
+    # vfEqCase (SProxy :: SProxy "ListIndexed")
+    # vfEqCase (SProxy :: SProxy "ListReverse")
+    # vfEqCase (SProxy :: SProxy "OptionalFold")
+    # vfEqCase (SProxy :: SProxy "OptionalBuild")
+    # vfEqCase (SProxy :: SProxy "Const")
+    # vfEqCase (SProxy :: SProxy "Var")
+    # vfEqCase (SProxy :: SProxy "Embed")
     # vfEqCase (SProxy :: SProxy "TextLit")
     # vfEqCase (SProxy :: SProxy "Union")
     # vfEqCase (SProxy :: SProxy "UnionLit")
@@ -391,13 +413,8 @@ instance eq1ExprRowVF :: (Eq s, Eq a) => Eq1 (ExprRowVF s a) where
 instance bifunctorExpr :: Bifunctor Expr where
   bimap f g (Expr e) = Expr $ e # transMu
     ( VariantF.expand
-    # VariantF.on (SProxy :: SProxy "SimpleThings")
-      ( (<<<) (VariantF.inj (SProxy :: SProxy "SimpleThings"))
-      $ over ConstF.Const
-      $ Variant.expand
-      # Variant.on (SProxy :: SProxy "Embed")
-        (g >>> Variant.inj (SProxy :: SProxy "Embed"))
-      )
+    # VariantF.on (SProxy :: SProxy "Embed")
+      (over wrap g >>> VariantF.inj (SProxy :: SProxy "Embed"))
     # VariantF.on (SProxy :: SProxy "Note")
       (lmap f >>> VariantF.inj (SProxy :: SProxy "Note"))
     )
@@ -410,45 +427,26 @@ instance applicativeExpr :: Applicative (Expr s) where
 instance bindExpr :: Bind (Expr s) where
   bind (Expr (In e)) k = Expr $ In $ e #
     ( (VariantF.expand >>> map (\i -> unwrap ((Expr i) >>= k)))
-    # VariantF.on (SProxy :: SProxy "SimpleThings")
-      ( (>>>) unwrap
-      $ ( Variant.expand
-      >>> ConstF.Const
-      >>> VariantF.inj (SProxy :: SProxy "SimpleThings")
-        )
-      # Variant.on (SProxy :: SProxy "Embed") (k >>> unwrap >>> unwrap)
-      )
+    # VariantF.on (SProxy :: SProxy "Embed") (unwrap >>> k >>> unwrap >>> unwrap)
     )
 instance monadExpr :: Monad (Expr s)
 
 instance bifoldableExpr :: Bifoldable Expr where
   bifoldMap f g (Expr (In e)) =
     ( foldMap (Expr >>> bifoldMap f g)
-    # VariantF.on (SProxy :: SProxy "SimpleThings")
-      ( (>>>) (unwrap)
-      $ mempty
-      # Variant.on (SProxy :: SProxy "Embed") g
-      )
+    # VariantF.on (SProxy :: SProxy "Embed") (unwrap >>> g)
     # VariantF.on (SProxy :: SProxy "Note")
       (\(Tuple s rest) -> f s <> bifoldMap f g (Expr rest))
     ) e
   bifoldr f g c (Expr (In e)) =
     ( foldr (\i a -> bifoldr f g a (Expr i)) c
-    # VariantF.on (SProxy :: SProxy "SimpleThings")
-      ( (>>>) (unwrap)
-      $ Variant.default c
-      # Variant.on (SProxy :: SProxy "Embed") (g <@> c)
-      )
+    # VariantF.on (SProxy :: SProxy "Embed") (unwrap >>> g <@> c)
     # VariantF.on (SProxy :: SProxy "Note")
       (\(Tuple a rest) -> f a (bifoldr f g c (Expr rest)))
     ) e
   bifoldl f g c (Expr (In e)) =
     ( foldl (\a i -> bifoldl f g a (Expr i)) c
-    # VariantF.on (SProxy :: SProxy "SimpleThings")
-      ( (>>>) (unwrap)
-      $ Variant.default c
-      # Variant.on (SProxy :: SProxy "Embed") (g c)
-      )
+    # VariantF.on (SProxy :: SProxy "Embed") (unwrap >>> g c)
     # VariantF.on (SProxy :: SProxy "Note")
       (\(Tuple a rest) -> bifoldl f g (f c a) (Expr rest))
     ) e
@@ -465,18 +463,8 @@ instance bitraversableExpr :: Bitraversable Expr where
     ( ( traverse (Expr >>> bitraverse f g >>> map unwrap)
     >>> map VariantF.expand
       )
-    # VariantF.on (SProxy :: SProxy "SimpleThings")
-      ( (>>>) (unwrap)
-      $ (<<<)
-          ( map
-            ( ConstF.Const
-          >>> VariantF.inj (SProxy :: SProxy "SimpleThings")
-            )
-          )
-      $ Variant.expand >>> pure
-      # Variant.on (SProxy :: SProxy "Embed")
-        (g >>> map (Variant.inj (SProxy :: SProxy "Embed")))
-      )
+    # VariantF.on (SProxy :: SProxy "Embed")
+      (unwrap >>> g >>> map (wrap >>> VariantF.inj (SProxy :: SProxy "Embed")))
     # VariantF.on (SProxy :: SProxy "Note")
       (\(Tuple a rest) -> Tuple <$> f a <*> bitraverse f g (Expr rest) <#>
         map unwrap >>> VariantF.inj (SProxy :: SProxy "Note")
@@ -489,7 +477,7 @@ instance traversableExpr :: Traversable (Expr s) where
 -- A helper to coalesce a tree of annotations into a single annotation on
 -- a "real" AST node.
 unfurl :: forall s a. Monoid s =>
-  Expr s a -> Tuple s (VariantF (AllTheThings ( "Embed" :: a ) ()) (Expr s a))
+  Expr s a -> Tuple s (VariantF (AllTheThings ( "Embed" :: CONST a )) (Expr s a))
 unfurl (Expr e0) = map (map Expr) $ go mempty e0 where
   go s = unroll >>>
     VariantF.on (SProxy :: SProxy "Note")
@@ -526,57 +514,46 @@ _ExprFPrism k = prism' (VariantF.inj k)
   (VariantF.default Nothing # VariantF.on k Just)
 
 _Expr :: forall a s unused v k.
-  Row.Cons k v unused (SimpleThings ( "Embed" :: a )) =>
+  Row.Cons k (CONST v) unused (ExprRow s a) =>
   IsSymbol k =>
   SProxy k -> Prism' (Expr s a) v
 _Expr k = _E (_ExprPrism k) <<< _Newtype
 
 type ExprPrism r v =
-  forall r2.
     ExprFPrism
-      ( "SimpleThings" :: FProxy (ConstF.Const (Variant r)) | r2 )
+      r
       (ConstF.Const v)
 
 type SimplePrism r v =
-  forall r2 o.
+  forall o.
     Prism'
-      (VariantF ( "SimpleThings" :: FProxy (ConstF.Const (Variant r)) | r2 ) o)
+      (VariantF r o)
       v
 
 _ExprPrism :: forall r unused v k.
-  Row.Cons k v unused r =>
+  Row.Cons k (CONST v) unused r =>
   IsSymbol k =>
   SProxy k ->
   ExprPrism r v
-_ExprPrism k = _ExprFPrism (SProxy :: SProxy "SimpleThings")
-  <<< _Newtype <<<
-    prism' (Variant.inj k) (Variant.default Nothing # Variant.on k Just)
-  <<< re _Newtype
+_ExprPrism k = _ExprFPrism k
 
 _BinOp :: forall a s unused k.
-  Row.Cons k Unit unused (BuiltinBinOps ()) =>
+  Row.Cons k (FProxy Pair) unused (ExprRow s a) =>
   IsSymbol k =>
   SProxy k -> Prism' (Expr s a) (Pair (Expr s a))
 _BinOp k = _E (_BinOpPrism k)
 
 type BinOpPrism r =
-  forall r2.
     ExprFPrism
-      ( "BinOp" :: FProxy (BinOpF r) | r2 )
+      r
       Pair
 _BinOpPrism ::
   forall unused k r.
-    Row.Cons k Unit unused r =>
+    Row.Cons k (FProxy Pair) unused r =>
     IsSymbol k =>
   SProxy k ->
   BinOpPrism r
-_BinOpPrism k = _ExprFPrism (SProxy :: SProxy "BinOp") <<< prism'
-  (\(Pair l r) -> BinOpF (Variant.inj k unit) l r)
-  (\(BinOpF which l r) ->
-    ( Variant.default Nothing
-    # Variant.on k (\_ -> Just (Pair l r))
-    ) which
-  )
+_BinOpPrism k = _ExprFPrism k
 
 mkExprF :: forall a s unused f k.
   Row.Cons k (FProxy f) unused (ExprRow s a) =>
@@ -585,29 +562,28 @@ mkExprF :: forall a s unused f k.
 mkExprF k v = Expr (In (VariantF.inj k (unwrap <$> v)))
 
 mkExpr :: forall a s unused v k.
-  Row.Cons k v unused (SimpleThings ( "Embed" :: a )) =>
+  Row.Cons k (CONST v) unused (ExprRow s a) =>
   IsSymbol k =>
   SProxy k -> v -> Expr s a
-mkExpr k v = mkExprF (SProxy :: SProxy "SimpleThings")
-  (ConstF.Const (Variant.inj k v))
+mkExpr k v = mkExprF k (ConstF.Const v)
 
 mkBinOp :: forall a s unused k.
-  Row.Cons k Unit unused (BuiltinBinOps ()) =>
+  Row.Cons k (FProxy Pair) unused (ExprRow s a) =>
   IsSymbol k =>
   SProxy k -> Expr s a -> Expr s a -> Expr s a
-mkBinOp k l r = mkExprF (SProxy :: SProxy "BinOp")
-  (BinOpF (Variant.inj k unit) l r)
+mkBinOp k l r = mkExprF k
+  (Pair l r)
 
 mkConst :: forall s a. Const -> Expr s a
 mkConst = mkExpr (SProxy :: SProxy "Const")
 
-_Const :: forall r. ExprPrism ( "Const" :: Const | r ) Const
+_Const :: forall r. ExprPrism ( "Const" :: CONST Const | r ) Const
 _Const = _ExprPrism (SProxy :: SProxy "Const")
 
 mkVar :: forall s a. Var -> Expr s a
 mkVar = mkExpr (SProxy :: SProxy "Var")
 
-_Var :: forall r. ExprPrism ( "Var" :: Var | r ) Var
+_Var :: forall r. ExprPrism ( "Var" :: CONST Var | r ) Var
 _Var = _ExprPrism (SProxy :: SProxy "Var")
 
 mkLam :: forall s a. String -> Expr s a -> Expr s a -> Expr s a
@@ -672,43 +648,43 @@ _Annot = _ExprFPrism (SProxy :: SProxy "Annot") <<< iso into outof where
 mkBool :: forall s a. Expr s a
 mkBool = mkExpr (SProxy :: SProxy "Bool") unit
 
-_Bool :: forall r. ExprPrism ( "Bool" :: Unit | r ) Unit
+_Bool :: forall r. ExprPrism ( "Bool" :: UNIT | r ) Unit
 _Bool = _ExprPrism (SProxy :: SProxy "Bool")
 
 mkBoolLit :: forall s a. Boolean -> Expr s a
 mkBoolLit = mkExpr (SProxy :: SProxy "BoolLit")
 
-_BoolLit :: forall r. ExprPrism ( "BoolLit" :: Boolean | r ) Boolean
+_BoolLit :: forall r. ExprPrism ( "BoolLit" :: CONST Boolean | r ) Boolean
 _BoolLit = _ExprPrism (SProxy :: SProxy "BoolLit")
 
-_BoolLit_True :: forall r. SimplePrism ( "BoolLit" :: Boolean | r ) Unit
+_BoolLit_True :: forall r. SimplePrism ( "BoolLit" :: CONST Boolean | r ) Unit
 _BoolLit_True = _BoolLit <<< _Newtype <<< only true
 
-_BoolLit_False :: forall r. SimplePrism ( "BoolLit" :: Boolean | r ) Unit
+_BoolLit_False :: forall r. SimplePrism ( "BoolLit" :: CONST Boolean | r ) Unit
 _BoolLit_False = _BoolLit <<< _Newtype <<< only false
 
 mkBoolAnd :: forall s a. Expr s a -> Expr s a -> Expr s a
 mkBoolAnd = mkBinOp (SProxy :: SProxy "BoolAnd")
 
-_BoolAnd :: forall r. BinOpPrism ( "BoolAnd" :: Unit | r )
+_BoolAnd :: forall r. BinOpPrism ( "BoolAnd" :: FProxy Pair | r )
 _BoolAnd = _BinOpPrism (SProxy :: SProxy "BoolAnd")
 
 mkBoolOr :: forall s a. Expr s a -> Expr s a -> Expr s a
 mkBoolOr = mkBinOp (SProxy :: SProxy "BoolOr")
 
-_BoolOr :: forall r. BinOpPrism ( "BoolOr" :: Unit | r )
+_BoolOr :: forall r. BinOpPrism ( "BoolOr" :: FProxy Pair | r )
 _BoolOr = _BinOpPrism (SProxy :: SProxy "BoolOr")
 
 mkBoolEQ :: forall s a. Expr s a -> Expr s a -> Expr s a
 mkBoolEQ = mkBinOp (SProxy :: SProxy "BoolEQ")
 
-_BoolEQ :: forall r. BinOpPrism ( "BoolEQ" :: Unit | r )
+_BoolEQ :: forall r. BinOpPrism ( "BoolEQ" :: FProxy Pair | r )
 _BoolEQ = _BinOpPrism (SProxy :: SProxy "BoolEQ")
 
 mkBoolNE :: forall s a. Expr s a -> Expr s a -> Expr s a
 mkBoolNE = mkBinOp (SProxy :: SProxy "BoolNE")
 
-_BoolNE :: forall r. BinOpPrism ( "BoolNE" :: Unit | r )
+_BoolNE :: forall r. BinOpPrism ( "BoolNE" :: FProxy Pair | r )
 _BoolNE = _BinOpPrism (SProxy :: SProxy "BoolNE")
 
 mkBoolIf :: forall s a. Expr s a -> Expr s a -> Expr s a -> Expr s a
@@ -721,121 +697,121 @@ _BoolIf = _ExprFPrism (SProxy :: SProxy "BoolIf")
 mkNatural :: forall s a. Expr s a
 mkNatural = mkExpr (SProxy :: SProxy "Natural") unit
 
-_Natural :: forall r. ExprPrism ( "Natural" :: Unit | r ) Unit
+_Natural :: forall r. ExprPrism ( "Natural" :: UNIT | r ) Unit
 _Natural = _ExprPrism (SProxy :: SProxy "Natural")
 
 mkNaturalLit :: forall s a. Int -> Expr s a
 mkNaturalLit = mkExpr (SProxy :: SProxy "NaturalLit")
 
-_NaturalLit :: forall r. ExprPrism ( "NaturalLit" :: Int | r ) Int
+_NaturalLit :: forall r. ExprPrism ( "NaturalLit" :: CONST Int | r ) Int
 _NaturalLit = _ExprPrism (SProxy :: SProxy "NaturalLit")
 
-_NaturalLit_0 :: forall r. SimplePrism ( "NaturalLit" :: Int | r ) Unit
+_NaturalLit_0 :: forall r. SimplePrism ( "NaturalLit" :: CONST Int | r ) Unit
 _NaturalLit_0 = _NaturalLit <<< _Newtype <<< only zero
 
-_NaturalLit_1 :: forall r. SimplePrism ( "NaturalLit" :: Int | r ) Unit
+_NaturalLit_1 :: forall r. SimplePrism ( "NaturalLit" :: CONST Int | r ) Unit
 _NaturalLit_1 = _NaturalLit <<< _Newtype <<< only one
 
 mkNaturalFold :: forall s a. Expr s a
 mkNaturalFold = mkExpr (SProxy :: SProxy "NaturalFold") unit
 
-_NaturalFold :: forall r. ExprPrism ( "NaturalFold" :: Unit | r ) Unit
+_NaturalFold :: forall r. ExprPrism ( "NaturalFold" :: UNIT | r ) Unit
 _NaturalFold = _ExprPrism (SProxy :: SProxy "NaturalFold")
 
 mkNaturalBuild :: forall s a. Expr s a
 mkNaturalBuild = mkExpr (SProxy :: SProxy "NaturalBuild") unit
 
-_NaturalBuild :: forall r. ExprPrism ( "NaturalBuild" :: Unit | r ) Unit
+_NaturalBuild :: forall r. ExprPrism ( "NaturalBuild" :: UNIT | r ) Unit
 _NaturalBuild = _ExprPrism (SProxy :: SProxy "NaturalBuild")
 
 mkNaturalIsZero :: forall s a. Expr s a
 mkNaturalIsZero = mkExpr (SProxy :: SProxy "NaturalIsZero") unit
 
-_NaturalIsZero :: forall r. ExprPrism ( "NaturalIsZero" :: Unit | r ) Unit
+_NaturalIsZero :: forall r. ExprPrism ( "NaturalIsZero" :: UNIT | r ) Unit
 _NaturalIsZero = _ExprPrism (SProxy :: SProxy "NaturalIsZero")
 
 mkNaturalEven :: forall s a. Expr s a
 mkNaturalEven = mkExpr (SProxy :: SProxy "NaturalEven") unit
 
-_NaturalEven :: forall r. ExprPrism ( "NaturalEven" :: Unit | r ) Unit
+_NaturalEven :: forall r. ExprPrism ( "NaturalEven" :: UNIT | r ) Unit
 _NaturalEven = _ExprPrism (SProxy :: SProxy "NaturalEven")
 
 mkNaturalOdd :: forall s a. Expr s a
 mkNaturalOdd = mkExpr (SProxy :: SProxy "NaturalOdd") unit
 
-_NaturalOdd :: forall r. ExprPrism ( "NaturalOdd" :: Unit | r ) Unit
+_NaturalOdd :: forall r. ExprPrism ( "NaturalOdd" :: UNIT | r ) Unit
 _NaturalOdd = _ExprPrism (SProxy :: SProxy "NaturalOdd")
 
 mkNaturalToInteger :: forall s a. Expr s a
 mkNaturalToInteger = mkExpr (SProxy :: SProxy "NaturalToInteger") unit
 
-_NaturalToInteger :: forall r. ExprPrism ( "NaturalToInteger" :: Unit | r ) Unit
+_NaturalToInteger :: forall r. ExprPrism ( "NaturalToInteger" :: UNIT | r ) Unit
 _NaturalToInteger = _ExprPrism (SProxy :: SProxy "NaturalToInteger")
 
 mkNaturalShow :: forall s a. Expr s a
 mkNaturalShow = mkExpr (SProxy :: SProxy "NaturalShow") unit
 
-_NaturalShow :: forall r. ExprPrism ( "NaturalShow" :: Unit | r ) Unit
+_NaturalShow :: forall r. ExprPrism ( "NaturalShow" :: UNIT | r ) Unit
 _NaturalShow = _ExprPrism (SProxy :: SProxy "NaturalShow")
 
 mkNaturalPlus :: forall s a. Expr s a -> Expr s a -> Expr s a
 mkNaturalPlus = mkBinOp (SProxy :: SProxy "NaturalPlus")
 
-_NaturalPlus :: forall r. BinOpPrism ( "NaturalPlus" :: Unit | r )
+_NaturalPlus :: forall r. BinOpPrism ( "NaturalPlus" :: FProxy Pair | r )
 _NaturalPlus = _BinOpPrism (SProxy :: SProxy "NaturalPlus")
 
 mkNaturalTimes :: forall s a. Expr s a -> Expr s a -> Expr s a
 mkNaturalTimes = mkBinOp (SProxy :: SProxy "NaturalTimes")
 
-_NaturalTimes :: forall r. BinOpPrism ( "NaturalTimes" :: Unit | r )
+_NaturalTimes :: forall r. BinOpPrism ( "NaturalTimes" :: FProxy Pair | r )
 _NaturalTimes = _BinOpPrism (SProxy :: SProxy "NaturalTimes")
 
 mkInteger :: forall s a. Expr s a
 mkInteger = mkExpr (SProxy :: SProxy "Integer") unit
 
-_Integer :: forall r. ExprPrism ( "Integer" :: Unit | r ) Unit
+_Integer :: forall r. ExprPrism ( "Integer" :: UNIT | r ) Unit
 _Integer = _ExprPrism (SProxy :: SProxy "Integer")
 
 mkIntegerLit :: forall s a. Int -> Expr s a
 mkIntegerLit = mkExpr (SProxy :: SProxy "IntegerLit")
 
-_IntegerLit :: forall r. ExprPrism ( "IntegerLit" :: Int | r ) Int
+_IntegerLit :: forall r. ExprPrism ( "IntegerLit" :: CONST Int | r ) Int
 _IntegerLit = _ExprPrism (SProxy :: SProxy "IntegerLit")
 
 mkIntegerShow :: forall s a. Expr s a
 mkIntegerShow = mkExpr (SProxy :: SProxy "IntegerShow") unit
 
-_IntegerShow :: forall r. ExprPrism ( "IntegerShow" :: Unit | r ) Unit
+_IntegerShow :: forall r. ExprPrism ( "IntegerShow" :: UNIT | r ) Unit
 _IntegerShow = _ExprPrism (SProxy :: SProxy "IntegerShow")
 
 mkIntegerToDouble :: forall s a. Expr s a
 mkIntegerToDouble = mkExpr (SProxy :: SProxy "IntegerToDouble") unit
 
-_IntegerToDouble :: forall r. ExprPrism ( "IntegerToDouble" :: Unit | r ) Unit
+_IntegerToDouble :: forall r. ExprPrism ( "IntegerToDouble" :: UNIT | r ) Unit
 _IntegerToDouble = _ExprPrism (SProxy :: SProxy "IntegerToDouble")
 
 mkDouble :: forall s a. Expr s a
 mkDouble = mkExpr (SProxy :: SProxy "Double") unit
 
-_Double :: forall r. ExprPrism ( "Double" :: Unit | r ) Unit
+_Double :: forall r. ExprPrism ( "Double" :: UNIT | r ) Unit
 _Double = _ExprPrism (SProxy :: SProxy "Double")
 
 mkDoubleLit :: forall s a. Number -> Expr s a
 mkDoubleLit = mkExpr (SProxy :: SProxy "DoubleLit")
 
-_DoubleLit :: forall r. ExprPrism ( "DoubleLit" :: Number | r ) Number
+_DoubleLit :: forall r. ExprPrism ( "DoubleLit" :: CONST Number | r ) Number
 _DoubleLit = _ExprPrism (SProxy :: SProxy "DoubleLit")
 
 mkDoubleShow :: forall s a. Expr s a
 mkDoubleShow = mkExpr (SProxy :: SProxy "DoubleShow") unit
 
-_DoubleShow :: forall r. ExprPrism ( "DoubleShow" :: Unit | r ) Unit
+_DoubleShow :: forall r. ExprPrism ( "DoubleShow" :: UNIT | r ) Unit
 _DoubleShow = _ExprPrism (SProxy :: SProxy "DoubleShow")
 
 mkText :: forall s a. Expr s a
 mkText = mkExpr (SProxy :: SProxy "Text") unit
 
-_Text :: forall r. ExprPrism ( "Text" :: Unit | r ) Unit
+_Text :: forall r. ExprPrism ( "Text" :: UNIT | r ) Unit
 _Text = _ExprPrism (SProxy :: SProxy "Text")
 
 mkTextLit :: forall s a. TextLitF (Expr s a) -> Expr s a
@@ -853,13 +829,13 @@ _TextLit_empty = _TextLit <<< prism' (const (TextLit ""))
 mkTextAppend :: forall s a. Expr s a -> Expr s a -> Expr s a
 mkTextAppend = mkBinOp (SProxy :: SProxy "TextAppend")
 
-_TextAppend :: forall r. BinOpPrism ( "TextAppend" :: Unit | r )
+_TextAppend :: forall r. BinOpPrism ( "TextAppend" :: FProxy Pair | r )
 _TextAppend = _BinOpPrism (SProxy :: SProxy "TextAppend")
 
 mkList :: forall s a. Expr s a
 mkList = mkExpr (SProxy :: SProxy "List") unit
 
-_List :: forall r. ExprPrism ( "List" :: Unit | r ) Unit
+_List :: forall r. ExprPrism ( "List" :: UNIT | r ) Unit
 _List = _ExprPrism (SProxy :: SProxy "List")
 
 mkListLit :: forall s a. Maybe (Expr s a) -> Array (Expr s a) -> Expr s a
@@ -876,55 +852,55 @@ _ListLit = _ExprFPrism (SProxy :: SProxy "ListLit") <<< _Newtype <<< iso into ou
 mkListAppend :: forall s a. Expr s a -> Expr s a -> Expr s a
 mkListAppend = mkBinOp (SProxy :: SProxy "ListAppend")
 
-_ListAppend :: forall r. BinOpPrism ( "ListAppend" :: Unit | r )
+_ListAppend :: forall r. BinOpPrism ( "ListAppend" :: FProxy Pair | r )
 _ListAppend = _BinOpPrism (SProxy :: SProxy "ListAppend")
 
 mkListFold :: forall s a. Expr s a
 mkListFold = mkExpr (SProxy :: SProxy "ListFold") unit
 
-_ListFold :: forall r. ExprPrism ( "ListFold" :: Unit | r ) Unit
+_ListFold :: forall r. ExprPrism ( "ListFold" :: UNIT | r ) Unit
 _ListFold = _ExprPrism (SProxy :: SProxy "ListFold")
 
 mkListBuild :: forall s a. Expr s a
 mkListBuild = mkExpr (SProxy :: SProxy "ListBuild") unit
 
-_ListBuild :: forall r. ExprPrism ( "ListBuild" :: Unit | r ) Unit
+_ListBuild :: forall r. ExprPrism ( "ListBuild" :: UNIT | r ) Unit
 _ListBuild = _ExprPrism (SProxy :: SProxy "ListBuild")
 
 mkListLength :: forall s a. Expr s a
 mkListLength = mkExpr (SProxy :: SProxy "ListLength") unit
 
-_ListLength :: forall r. ExprPrism ( "ListLength" :: Unit | r ) Unit
+_ListLength :: forall r. ExprPrism ( "ListLength" :: UNIT | r ) Unit
 _ListLength = _ExprPrism (SProxy :: SProxy "ListLength")
 
 mkListHead :: forall s a. Expr s a
 mkListHead = mkExpr (SProxy :: SProxy "ListHead") unit
 
-_ListHead :: forall r. ExprPrism ( "ListHead" :: Unit | r ) Unit
+_ListHead :: forall r. ExprPrism ( "ListHead" :: UNIT | r ) Unit
 _ListHead = _ExprPrism (SProxy :: SProxy "ListHead")
 
 mkListLast :: forall s a. Expr s a
 mkListLast = mkExpr (SProxy :: SProxy "ListLast") unit
 
-_ListLast :: forall r. ExprPrism ( "ListLast" :: Unit | r ) Unit
+_ListLast :: forall r. ExprPrism ( "ListLast" :: UNIT | r ) Unit
 _ListLast = _ExprPrism (SProxy :: SProxy "ListLast")
 
 mkListIndexed :: forall s a. Expr s a
 mkListIndexed = mkExpr (SProxy :: SProxy "ListIndexed") unit
 
-_ListIndexed :: forall r. ExprPrism ( "ListIndexed" :: Unit | r ) Unit
+_ListIndexed :: forall r. ExprPrism ( "ListIndexed" :: UNIT | r ) Unit
 _ListIndexed = _ExprPrism (SProxy :: SProxy "ListIndexed")
 
 mkListReverse :: forall s a. Expr s a
 mkListReverse = mkExpr (SProxy :: SProxy "ListReverse") unit
 
-_ListReverse :: forall r. ExprPrism ( "ListReverse" :: Unit | r ) Unit
+_ListReverse :: forall r. ExprPrism ( "ListReverse" :: UNIT | r ) Unit
 _ListReverse = _ExprPrism (SProxy :: SProxy "ListReverse")
 
 mkOptional :: forall s a. Expr s a
 mkOptional = mkExpr (SProxy :: SProxy "Optional") unit
 
-_Optional :: forall r. ExprPrism ( "Optional" :: Unit | r ) Unit
+_Optional :: forall r. ExprPrism ( "Optional" :: UNIT | r ) Unit
 _Optional = _ExprPrism (SProxy :: SProxy "Optional")
 
 mkOptionalLit :: forall s a. Expr s a -> Maybe (Expr s a) -> Expr s a
@@ -941,13 +917,13 @@ _OptionalLit = _ExprFPrism (SProxy :: SProxy "OptionalLit") <<< _Newtype <<< iso
 mkOptionalFold :: forall s a. Expr s a
 mkOptionalFold = mkExpr (SProxy :: SProxy "OptionalFold") unit
 
-_OptionalFold :: forall r. ExprPrism ( "OptionalFold" :: Unit | r ) Unit
+_OptionalFold :: forall r. ExprPrism ( "OptionalFold" :: UNIT | r ) Unit
 _OptionalFold = _ExprPrism (SProxy :: SProxy "OptionalFold")
 
 mkOptionalBuild :: forall s a. Expr s a
 mkOptionalBuild = mkExpr (SProxy :: SProxy "OptionalBuild") unit
 
-_OptionalBuild :: forall r. ExprPrism ( "OptionalBuild" :: Unit | r ) Unit
+_OptionalBuild :: forall r. ExprPrism ( "OptionalBuild" :: UNIT | r ) Unit
 _OptionalBuild = _ExprPrism (SProxy :: SProxy "OptionalBuild")
 
 mkRecord :: forall s a. Array (Tuple String (Expr s a)) -> Expr s a
@@ -1002,19 +978,19 @@ _UnionLit = _ExprFPrism (SProxy :: SProxy "UnionLit") <<< _Newtype <<< iso into 
 mkCombine :: forall s a. Expr s a -> Expr s a -> Expr s a
 mkCombine = mkBinOp (SProxy :: SProxy "Combine")
 
-_Combine :: forall r. BinOpPrism ( "Combine" :: Unit | r )
+_Combine :: forall r. BinOpPrism ( "Combine" :: FProxy Pair | r )
 _Combine = _BinOpPrism (SProxy :: SProxy "Combine")
 
 mkCombineTypes :: forall s a. Expr s a -> Expr s a -> Expr s a
 mkCombineTypes = mkBinOp (SProxy :: SProxy "CombineTypes")
 
-_CombineTypes :: forall r. BinOpPrism ( "CombineTypes" :: Unit | r )
+_CombineTypes :: forall r. BinOpPrism ( "CombineTypes" :: FProxy Pair | r )
 _CombineTypes = _BinOpPrism (SProxy :: SProxy "CombineTypes")
 
 mkPrefer :: forall s a. Expr s a -> Expr s a -> Expr s a
 mkPrefer = mkBinOp (SProxy :: SProxy "Prefer")
 
-_Prefer :: forall r. BinOpPrism ( "Prefer" :: Unit | r )
+_Prefer :: forall r. BinOpPrism ( "Prefer" :: FProxy Pair | r )
 _Prefer = _BinOpPrism (SProxy :: SProxy "Prefer")
 
 mkMerge :: forall s a. Expr s a -> Expr s a -> Maybe (Expr s a) -> Expr s a
@@ -1059,11 +1035,11 @@ _Note = _ExprFPrism (SProxy :: SProxy "Note")
 mkImportAlt :: forall s a. Expr s a -> Expr s a -> Expr s a
 mkImportAlt = mkBinOp (SProxy :: SProxy "ImportAlt")
 
-_ImportAlt :: forall r. BinOpPrism ( "ImportAlt" :: Unit | r )
+_ImportAlt :: forall r. BinOpPrism ( "ImportAlt" :: FProxy Pair | r )
 _ImportAlt = _BinOpPrism (SProxy :: SProxy "ImportAlt")
 
 mkEmbed :: forall s a. a -> Expr s a
 mkEmbed = mkExpr (SProxy :: SProxy "Embed")
 
-_Embed :: forall a r. ExprPrism ( "Embed" :: a | r ) a
+_Embed :: forall a r. ExprPrism ( "Embed" :: CONST a | r ) a
 _Embed = _ExprPrism (SProxy :: SProxy "Embed")
