@@ -184,6 +184,7 @@ subst v@(V x n) e = go where
 
 -- | α-normalize an expression by renaming all variables to `"_"` and using
 -- | De Bruijn indices to distinguish them
+-- TODO: https://github.com/dhall-lang/dhall-haskell/pull/524
 alphaNormalize :: forall s a. Expr s a -> Expr s a
 alphaNormalize = go where
   v_0 = mkVar (V "_" 0)
@@ -308,49 +309,6 @@ normalizeWith ctx (Expr e0) = go e0 where
   onP p this other e = case Lens.preview p e of
     Just v -> this v
     _ -> other e
-
-  onP2 :: forall e e' v v' r.
-    Preview' e v -> Preview' e' v' ->
-    (v -> v' -> r) -> (e -> e' -> r) ->
-    e -> e' -> r
-  onP2 p p' this other e e' = case Lens.preview p e, Lens.preview p' e' of
-    Just v, Just v' -> this v v'
-    _, _ -> other e e'
-
-  appFn :: forall r o.
-    Lens.Traversal' (VariantF ( "App" :: FProxy AST.Pair | r ) o) o
-  appFn = AST._App <<< prop (SProxy :: SProxy "fn")
-  appFn' :: forall p r o o' o''.
-    Lens.Wander p =>
-    Newtype o o' =>
-    Lens.Optic' p o' o'' ->
-    Lens.Optic' p (VariantF ( "App" :: FProxy AST.Pair | r ) o) o''
-  appFn' p = appFn <<< _Newtype <<< p
-  appArg :: forall r o.
-    Lens.Traversal' (VariantF ( "App" :: FProxy AST.Pair | r ) o) o
-  appArg = AST._App <<< prop (SProxy :: SProxy "arg")
-  appArg' :: forall p r o o' o''.
-    Lens.Wander p =>
-    Newtype o o' =>
-    Lens.Optic' p o' o'' ->
-    Lens.Optic' p (VariantF ( "App" :: FProxy AST.Pair | r ) o) o''
-  appArg' p = appArg <<< _Newtype <<< p
-
-  seq :: forall b c.
-    Preview' b Unit ->
-    Preview' b c ->
-    Preview' b c
-  seq p1 p2 f = wrap \a ->
-    case unwrap (unwrap (p1 (wrap (wrap <<< Just))) a) of
-      Nothing -> mempty
-      Just _ -> unwrap (p2 f) a
-
-  getArg :: forall r o o' e.
-    Newtype o o' =>
-    Preview' o' (ConstF.Const Unit e) ->
-    Preview' (VariantF ( "App" :: FProxy AST.Pair | r ) o) o
-  getArg p = seq (appFn' (unsafeCoerce p)) appArg
-
 
   previewE :: forall o o' e.
     Newtype o o' =>
@@ -495,6 +453,11 @@ normalizeWith ctx (Expr e0) = go e0 where
           AST.mkLam k (Expr t_) $ AST.mkUnionLit k (AST.mkVar (AST.V k 0)) $
             mapMapExpr $ (fromMaybe <*> deleteKey k) kts
         Nothing -> AST.mkConstructors (Expr e')
+      )
+    # onP AST._Let
+      (\{ var, ty, value, body } ->
+        let v = AST.V var 0 in normalizeWith ctx $
+        shift (-1) v (subst v (shift 1 v (Expr value)) (Expr body))
       )
     # VariantF.on (SProxy :: SProxy "Note") (snd >>> Expr)
     # onP AST._App \{ fn, arg } ->
