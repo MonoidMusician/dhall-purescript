@@ -167,39 +167,40 @@ subst v@(V x n) e = go where
 
 -- | α-normalize an expression by renaming all variables to `"_"` and using
 -- | De Bruijn indices to distinguish them
--- TODO: https://github.com/dhall-lang/dhall-haskell/pull/524
 alphaNormalize :: forall s a. Expr s a -> Expr s a
 alphaNormalize = go where
-  v_0 = mkVar (V "_" 0)
   go (Expr (In expr)) =
     ( ( map (go >>> unwrap)
     >>> VariantF.expand >>> In >>> Expr
       )
     # VariantF.on (SProxy :: SProxy "Lam")
       (\(Product (Tuple (Tuple x _A) (Identity b_0))) ->
+        if x == "_" then mkLam x (go _A) (go b_0) else
         let
-          v_1 = shift 1 (V x 0) v_0
-          b_1 = subst (V x 0) v_1 b_0
-          b_2 = shift (-1) (V x 0) b_1
-          b_3 = alphaNormalize b_2
-        in mkLam "_" (go _A) b_3
+          b_1 = shift 1 (V "_" 0) b_0
+          b_2 = subst (V x 0) (mkVar (V "_" 0)) b_1
+          b_3 = shift (-1) (V x 0) b_2
+          b_4 = alphaNormalize b_3
+        in mkLam "_" (go _A) b_4
       )
     # VariantF.on (SProxy :: SProxy "Pi")
       (\(Product (Tuple (Tuple x _A) (Identity _B_0))) ->
+        if x == "_" then mkPi x (go _A) (go _B_0) else
         let
-          v_1 = shift 1 (V x 0) v_0
-          _B_1 = subst (V x 0) v_1 _B_0
-          _B_2 = shift (-1) (V x 0) _B_1
-          _B_3 = alphaNormalize _B_2
+          _B_1 = shift 1 (V "_" 0) _B_0
+          _B_2 = subst (V x 0) (mkVar (V "_" 0)) _B_1
+          _B_3 = shift (-1) (V x 0) _B_2
+          _B_4 = alphaNormalize _B_3
         in mkPi "_" (go _A) _B_3
       )
     # VariantF.on (SProxy :: SProxy "Let")
       (\(LetF x mt a b_0) ->
+        if x == "_" then mkLet x (map go mt) (go a) (go b_0) else
         let
-          v_1 = shift 1 (V x 0) v_0
-          b_1 = subst (V x 0) v_1 b_0
-          b_2 = shift (-1) (V x 0) b_1
-          b_3 = alphaNormalize b_2
+          b_1 = shift 1 (V "_" 0) b_0
+          b_2 = subst (V x 0) (mkVar (V "_" 0)) b_1
+          b_3 = shift (-1) (V x 0) b_2
+          b_4 = alphaNormalize b_3
         in mkLet "_" (go <$> mt) (go a) b_3
       )
     ) (Expr <$> expr)
