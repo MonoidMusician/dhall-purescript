@@ -12,7 +12,9 @@
     "purescript-effect": "^2.0.0",
     "purescript-halogen-textcursor": "MonoidMusician/purescript-halogen-textcursor#halogen-5",
     "purescript-matryoshka": "^0.4.0",
-    "purescript-variant": "MonoidMusician/purescript-variant#foldable-traversable-0.12"
+    "purescript-variant": "MonoidMusician/purescript-variant#foldable-traversable-0.12",
+    "purescript-numbers": "^6.0.0",
+    "purescript-halogen-zuruzuru": "MonoidMusician/purescript-halogen-zuruzuru#halogen-5"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"
