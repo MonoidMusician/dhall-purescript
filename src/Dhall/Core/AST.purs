@@ -2,32 +2,32 @@ module Dhall.Core.AST where
 
 import Prelude
 
+import Control.Monad.Free (Free, hoistFree)
 import Data.Bifoldable (class Bifoldable, bifoldMap, bifoldl, bifoldr)
-import Data.Bifunctor (class Bifunctor, lmap, rmap)
+import Data.Bifunctor (class Bifunctor, lmap)
 import Data.Bitraversable (class Bitraversable, bitraverse, bisequenceDefault)
 import Data.Const as ConstF
-import Data.Eq (class Eq1)
+import Data.Either (Either(..), either)
+import Data.Eq (class Eq1, eq1)
 import Data.Foldable (class Foldable, foldMap, foldl, foldr, foldrDefault)
 import Data.Functor.Compose (Compose(..))
-import Data.Functor.Mu (Mu(In), roll, transMu, unroll)
 import Data.Functor.Product (Product(..), product)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Identity (Identity(..))
-import Data.Lens (Prism', prism', Iso', iso, view, review, re, only)
+import Data.Lens (Prism', prism', iso, only)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype, over, unwrap, wrap)
+import Data.Newtype (class Newtype, un, unwrap, wrap)
 import Data.Set (Set)
 import Data.String (joinWith)
 import Data.Symbol (class IsSymbol, SProxy(..))
 import Data.Traversable (class Traversable, sequenceDefault, traverse)
 import Data.Tuple (Tuple(..), uncurry, swap)
 import Data.Variant.Internal (FProxy)
-import Matryoshka (cata)
+import Matryoshka (class Corecursive, class Recursive, cata, embed, project)
 import Prim.Row as Row
 import Type.Row (type (+))
-import Unsafe.Coerce (unsafeCoerce)
 
 type OrdMap k = Compose Array (Tuple k)
 
@@ -208,14 +208,35 @@ type FunctorThings v = Literals2 + BuiltinTypes2 + BuiltinOps + Syntax + v
 
 type AllTheThings v = SimpleThings + FunctorThings + v
 
-type ExprRow s a =
+type ExprRow s =
+  AllTheThings
+    ( "Note" :: FProxy (Tuple s)
+    )
+type ExprLayerRow s a =
   AllTheThings
     ( "Note" :: FProxy (Tuple s)
     , "Embed" :: CONST a
     )
+type ExprLayerF s a = VariantF (ExprLayerRow s a)
+type ExprLayer s a = (ExprLayerF s a) (Expr s a)
 
-newtype Expr s a = Expr (Mu (VariantF (ExprRow s a)))
+newtype Expr s a = Expr (Free (VariantF (ExprRow s)) a)
 derive instance newtypeExpr :: Newtype (Expr s a) _
+
+instance recursiveExpr :: Recursive (Expr s a) (ExprRowVF s a) where
+  project = unwrap >>> project >>> map Expr >>> unwrap >>> either
+    (wrap >>> VariantF.inj (SProxy :: SProxy "Embed"))
+    VariantF.expand >>> ERVF
+
+instance corecursiveExpr :: Corecursive (Expr s a) (ExprRowVF s a) where
+  embed = wrap <<< embed <<< map (un Expr) <<< wrap <<<
+    VariantF.on (SProxy :: SProxy "Embed") (Left <<< unwrap) Right <<< un ERVF
+
+projectW :: forall s a. Expr s a -> ExprLayer s a
+projectW = project >>> unwrap
+
+embedW :: forall s a. ExprLayer s a -> Expr s a
+embedW = embed <<< wrap
 
 instance showExpr :: (Show s, Show a) => Show (Expr s a) where
   show (Expr e0) = cata show1 e0 where
@@ -226,7 +247,7 @@ instance showExpr :: (Show s, Show a) => Show (Expr s a) where
         Nothing -> "(Nothing)"
         Just s -> "(Just " <> s <> ")"
     binop tag (Pair l r) = "(mk" <> tag <> " " <> l <> r <> ")"
-    show1 =
+    show1 = unwrap >>> either (\e -> "(mkEmbed (" <> show e <> "))")
       ( VariantF.case_
       # VariantF.on (SProxy :: SProxy "Annot")
         (\(Pair l r) -> "(mkAnnot " <> l <> r <> ")")
@@ -311,8 +332,6 @@ instance showExpr :: (Show s, Show a) => Show (Expr s a) where
         )
       # VariantF.on (SProxy :: SProxy "Var")
         (unwrap >>> \(V n x) -> "(mkVar (V " <> show n <> show x <> "))")
-      # VariantF.on (SProxy :: SProxy "Embed")
-        (unwrap >>> \e -> "(mkEmbed (" <> show e <> "))")
       # VariantF.on (SProxy :: SProxy "TextLit")
           (\e ->
             let
@@ -328,7 +347,7 @@ instance showExpr :: (Show s, Show a) => Show (Expr s a) where
       )
 
 instance eqExpr :: (Eq s, Eq a) => Eq (Expr s a) where
-  eq = unsafeCoerce (eq :: Mu (ExprRowVF s a) -> Mu (ExprRowVF s a) -> Boolean)
+  eq e1 e2 = project e1 `eq1` project e2
 
 vfEqCase ::
   forall sym fnc v' v v1' v1 a.
@@ -341,7 +360,9 @@ vfEqCase ::
   VariantF v a -> VariantF v1 a -> Boolean
 vfEqCase k = VariantF.on k (\a -> VariantF.default false # VariantF.on k (eq a))
 
-newtype ExprRowVF s a b = ERVF (VariantF (ExprRow s a) b)
+newtype ExprRowVF s a b = ERVF (ExprLayerF s a b)
+derive instance newtypeERVF :: Newtype (ExprRowVF s a b) _
+derive newtype instance functorERVF :: Functor (ExprRowVF s a)
 instance eq1ExprRowVF :: (Eq s, Eq a) => Eq1 (ExprRowVF s a) where
   eq1 (ERVF e1) (ERVF e2) =
     ( VariantF.case_
@@ -411,86 +432,72 @@ instance eq1ExprRowVF :: (Eq s, Eq a) => Eq1 (ExprRowVF s a) where
     ) e1 e2
 
 instance bifunctorExpr :: Bifunctor Expr where
-  bimap f g (Expr e) = Expr $ e # transMu
+  bimap f g (Expr e) = Expr $ e <#> g # hoistFree
     ( VariantF.expand
-    # VariantF.on (SProxy :: SProxy "Embed")
-      (over wrap g >>> VariantF.inj (SProxy :: SProxy "Embed"))
     # VariantF.on (SProxy :: SProxy "Note")
       (lmap f >>> VariantF.inj (SProxy :: SProxy "Note"))
     )
-instance functorExpr :: Functor (Expr s) where
-  map = rmap
-instance applyExpr :: Apply (Expr s) where
-  apply = ap
-instance applicativeExpr :: Applicative (Expr s) where
-  pure = mkEmbed
-instance bindExpr :: Bind (Expr s) where
-  bind (Expr (In e)) k = Expr $ In $ e #
-    ( (VariantF.expand >>> map (\i -> unwrap ((Expr i) >>= k)))
-    # VariantF.on (SProxy :: SProxy "Embed") (unwrap >>> k >>> unwrap >>> unwrap)
-    )
-instance monadExpr :: Monad (Expr s)
+derive newtype instance functorExpr :: Functor (Expr s)
+derive newtype instance applyExpr :: Apply (Expr s)
+derive newtype instance applicativeExpr :: Applicative (Expr s)
+derive newtype instance bindExpr :: Bind (Expr s)
+derive newtype instance monadExpr :: Monad (Expr s)
 
 instance bifoldableExpr :: Bifoldable Expr where
-  bifoldMap f g (Expr (In e)) =
-    ( foldMap (Expr >>> bifoldMap f g)
+  bifoldMap f g e =
+    ( foldMap (bifoldMap f g)
     # VariantF.on (SProxy :: SProxy "Embed") (unwrap >>> g)
     # VariantF.on (SProxy :: SProxy "Note")
-      (\(Tuple s rest) -> f s <> bifoldMap f g (Expr rest))
-    ) e
-  bifoldr f g c (Expr (In e)) =
-    ( foldr (\i a -> bifoldr f g a (Expr i)) c
+      (\(Tuple s rest) -> f s <> bifoldMap f g rest)
+    ) $ projectW e
+  bifoldr f g c e =
+    ( foldr (\i a -> bifoldr f g a i) c
     # VariantF.on (SProxy :: SProxy "Embed") (unwrap >>> g <@> c)
     # VariantF.on (SProxy :: SProxy "Note")
-      (\(Tuple a rest) -> f a (bifoldr f g c (Expr rest)))
-    ) e
-  bifoldl f g c (Expr (In e)) =
-    ( foldl (\a i -> bifoldl f g a (Expr i)) c
+      (\(Tuple a rest) -> f a (bifoldr f g c rest))
+    ) $ projectW e
+  bifoldl f g c e =
+    ( foldl (\a i -> bifoldl f g a i) c
     # VariantF.on (SProxy :: SProxy "Embed") (unwrap >>> g c)
     # VariantF.on (SProxy :: SProxy "Note")
-      (\(Tuple a rest) -> bifoldl f g (f c a) (Expr rest))
-    ) e
-instance foldableExpr :: Foldable (Expr s) where
-  foldMap = bifoldMap mempty
-  foldl = bifoldl const
-  foldr = bifoldr (const identity)
+      (\(Tuple a rest) -> bifoldl f g (f c a) rest)
+    ) $ projectW e
+derive newtype instance foldableExpr :: Foldable (Expr s)
 -- (Bi)traversable will allow running computations on the embedded data,
 -- e.g. using an error monad to get rid of holes, or using Aff to fill in
 -- imports (especially via URL).
 instance bitraversableExpr :: Bitraversable Expr where
   bisequence = bisequenceDefault
-  bitraverse f g (Expr (In e)) = map (Expr <<< In) $
-    ( ( traverse (Expr >>> bitraverse f g >>> map unwrap)
+  bitraverse f g e = map embedW $
+    ( ( traverse (bitraverse f g)
     >>> map VariantF.expand
       )
     # VariantF.on (SProxy :: SProxy "Embed")
       (unwrap >>> g >>> map (wrap >>> VariantF.inj (SProxy :: SProxy "Embed")))
     # VariantF.on (SProxy :: SProxy "Note")
-      (\(Tuple a rest) -> Tuple <$> f a <*> bitraverse f g (Expr rest) <#>
-        map unwrap >>> VariantF.inj (SProxy :: SProxy "Note")
+      (\(Tuple a rest) -> Tuple <$> f a <*> bitraverse f g rest <#>
+        VariantF.inj (SProxy :: SProxy "Note")
       )
-    ) e
-instance traversableExpr :: Traversable (Expr s) where
-  sequence = sequenceDefault
-  traverse = bitraverse pure
+    ) $ projectW e
+derive newtype instance traversableExpr :: Traversable (Expr s)
 
 -- A helper to coalesce a tree of annotations into a single annotation on
 -- a "real" AST node.
 unfurl :: forall s a. Monoid s =>
   Expr s a -> Tuple s (VariantF (AllTheThings ( "Embed" :: CONST a )) (Expr s a))
-unfurl (Expr e0) = map (map Expr) $ go mempty e0 where
-  go s = unroll >>>
+unfurl e0 = go mempty e0 where
+  go s = projectW >>>
     VariantF.on (SProxy :: SProxy "Note")
       (uncurry go)
       (Tuple s)
 
 coalesce1 :: forall s a. Monoid s => Expr s a -> Expr s a
 coalesce1 e = uncurry mkNote $ unfurl e <#>
-  map unwrap >>> VariantF.expand >>> roll >>> Expr
+  VariantF.expand >>> embedW
 
 -- Pris(o)ms of the behemoth
 _ExprF :: forall a s unused f k.
-  Row.Cons k (FProxy f) unused (ExprRow s a) =>
+  Row.Cons k (FProxy f) unused (ExprLayerRow s a) =>
   IsSymbol k => Functor f =>
   SProxy k -> Prism' (Expr s a) (f (Expr s a))
 _ExprF k = _E (_ExprFPrism k)
@@ -498,12 +505,10 @@ _ExprF k = _E (_ExprFPrism k)
 -- Convert a prism operating on VariantF ( ... ) Expr to one operating on Expr
 _E :: forall f s a. Functor f =>
   Prism'
-    (VariantF (ExprRow s a) (Expr s a))
+    (VariantF (ExprLayerRow s a) (Expr s a))
     (f (Expr s a)) ->
   Prism' (Expr s a) (f (Expr s a))
-_E p = _Newtype <<< _Newtype <<< mapIso (re _Newtype) <<< p where
-    mapIso :: forall b c g. Functor g => Iso' b c -> Iso' (g b) (g c)
-    mapIso i = iso (map (view i)) (map (review i))
+_E p = iso projectW embedW <<< p
 
 type ExprFPrism r f = forall o. Prism' (VariantF r o) (f o)
 _ExprFPrism :: forall r unused f k.
@@ -514,7 +519,7 @@ _ExprFPrism k = prism' (VariantF.inj k)
   (VariantF.default Nothing # VariantF.on k Just)
 
 _Expr :: forall a s unused v k.
-  Row.Cons k (CONST v) unused (ExprRow s a) =>
+  Row.Cons k (CONST v) unused (ExprLayerRow s a) =>
   IsSymbol k =>
   SProxy k -> Prism' (Expr s a) v
 _Expr k = _E (_ExprPrism k) <<< _Newtype
@@ -538,7 +543,7 @@ _ExprPrism :: forall r unused v k.
 _ExprPrism k = _ExprFPrism k
 
 _BinOp :: forall a s unused k.
-  Row.Cons k (FProxy Pair) unused (ExprRow s a) =>
+  Row.Cons k (FProxy Pair) unused (ExprLayerRow s a) =>
   IsSymbol k =>
   SProxy k -> Prism' (Expr s a) (Pair (Expr s a))
 _BinOp k = _E (_BinOpPrism k)
@@ -556,19 +561,19 @@ _BinOpPrism ::
 _BinOpPrism k = _ExprFPrism k
 
 mkExprF :: forall a s unused f k.
-  Row.Cons k (FProxy f) unused (ExprRow s a) =>
+  Row.Cons k (FProxy f) unused (ExprLayerRow s a) =>
   IsSymbol k => Functor f =>
   SProxy k -> f (Expr s a) -> Expr s a
-mkExprF k v = Expr (In (VariantF.inj k (unwrap <$> v)))
+mkExprF k v = embedW $ VariantF.inj k v
 
 mkExpr :: forall a s unused v k.
-  Row.Cons k (CONST v) unused (ExprRow s a) =>
+  Row.Cons k (CONST v) unused (ExprLayerRow s a) =>
   IsSymbol k =>
   SProxy k -> v -> Expr s a
 mkExpr k v = mkExprF k (ConstF.Const v)
 
 mkBinOp :: forall a s unused k.
-  Row.Cons k (FProxy Pair) unused (ExprRow s a) =>
+  Row.Cons k (FProxy Pair) unused (ExprLayerRow s a) =>
   IsSymbol k =>
   SProxy k -> Expr s a -> Expr s a -> Expr s a
 mkBinOp k l r = mkExprF k
@@ -1039,7 +1044,7 @@ _ImportAlt :: forall r. BinOpPrism ( "ImportAlt" :: FProxy Pair | r )
 _ImportAlt = _BinOpPrism (SProxy :: SProxy "ImportAlt")
 
 mkEmbed :: forall s a. a -> Expr s a
-mkEmbed = mkExpr (SProxy :: SProxy "Embed")
+mkEmbed = pure
 
 _Embed :: forall a r. ExprPrism ( "Embed" :: CONST a | r ) a
 _Embed = _ExprPrism (SProxy :: SProxy "Embed")

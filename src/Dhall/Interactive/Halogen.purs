@@ -83,8 +83,8 @@ main :: Effect Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
   let
-    expr = In $ VariantF.inj (SProxy :: SProxy "NaturalTimes") $ Pair
-      (In $ VariantF.inj (SProxy :: SProxy "NaturalLit") $ wrap 0)
-      (In $ VariantF.inj (SProxy :: SProxy "NaturalLit") $ wrap 1)
+    expr = In $ VariantF.inj (SProxy :: SProxy "CombineTypes") $ Pair
+      (In $ VariantF.inj (SProxy :: SProxy "IntegerLit") $ wrap 0)
+      (In $ VariantF.inj (SProxy :: SProxy "BoolLit") $ wrap true)
   driver <- runUI (simpleC (rec both)) expr body
   pure unit
