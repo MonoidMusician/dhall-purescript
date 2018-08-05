@@ -2,7 +2,6 @@ module Dhall.Core ( module Dhall.Core ) where
 
 import Prelude
 
-import Control.Monad.Free (Free)
 import Data.Array as Array
 import Data.Const as ConstF
 import Data.Function (on)
@@ -21,11 +20,14 @@ import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple (Tuple(..), fst, snd)
 import Dhall.Core.AST (AllTheThings, BuiltinBinOps, BuiltinFuncs, BuiltinOps, BuiltinTypes, BuiltinTypes2, Const(..), Expr(..), ExprRow, FunctorThings, LetF(..), Literals, Literals2, MergeF(..), OrdMap, Pair(..), SimpleThings, Syntax, Terminals, TextLitF(..), Triplet(..), Var(..), _Expr, _ExprF, coalesce1, unfurl) as Dhall.Core
-import Dhall.Core.AST (Expr, LetF(..), Var(..), embedW, mkLam, mkLet, mkPi, mkVar, projectW)
+import Dhall.Core.AST (Expr, LetF(..), Var(..), mkLam, mkLet, mkPi, mkVar, projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports (Directory(..), File(..), FilePrefix(..), Import(..), ImportHashed(..), ImportMode(..), ImportType(..), prettyDirectory, prettyFile, prettyFilePrefix, prettyImport, prettyImportHashed, prettyImportType) as Dhall.Core
 import Matryoshka (class Recursive, project)
 import Unsafe.Coerce (unsafeCoerce)
+
+type S_ = SProxy
+_s = SProxy :: forall s. S_ s
 
 -- | `shift` is used by both normalization and type-checking to avoid variable
 -- | capture by shifting variable indices
@@ -87,121 +89,106 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | descend into a lambda or let expression that binds a variable of the same
 -- | name in order to avoid shifting the bound variables by mistake.
 shift :: forall s a. Int -> Var -> Expr s a -> Expr s a
-shift d v@(V x n) = go where
-  go expr =
-    ( ( map go
-    >>> VariantF.expand >>> embedW
-      )
-    # VariantF.on (SProxy :: SProxy "Var")
-      (unwrap >>> \(V x' n') ->
-        let n'' = if x == x' && n <= n' then n' + d else n'
-        in mkVar (V x' n'')
-      )
-    # VariantF.on (SProxy :: SProxy "Lam")
-      (\(Product (Tuple (Tuple x' _A) (Identity b))) ->
-        let
-          _A' = shift d (V x n ) _A
-          b'  = shift d (V x n') b
-          n' = if x == x' then n + 1 else n
-        in mkLam x' _A' b'
-      )
-    # VariantF.on (SProxy :: SProxy "Pi")
-      (\(Product (Tuple (Tuple x' _A) (Identity _B))) ->
-        let
-          _A' = shift d (V x n ) _A
-          _B' = shift d (V x n') _B
-          n' = if x == x' then n + 1 else n
-        in mkPi x' _A' _B'
-      )
-    # VariantF.on (SProxy :: SProxy "Let")
-      (\(LetF f mt r e) ->
-        let
-          n' = if x == f then n + 1 else n
-          e' =  shift d (V x n') e
-          mt' = shift d (V x n ) <$> mt
-          r'  = shift d (V x n ) r
-        in mkLet f mt' r' e'
-      )
-    ) $ projectW expr
+shift d v@(V x n) = AST.rewriteTopDown $ identity
+  >>> VariantF.on (_s::S_ "Var")
+    (unwrap >>> \(V x' n') ->
+      let n'' = if x == x' && n <= n' then n' + d else n'
+      in mkVar (V x' n'')
+    )
+  >>> VariantF.on (_s::S_ "Lam")
+    (\(Product (Tuple (Tuple x' _A) (Identity b))) ->
+      let
+        _A' = shift d (V x n ) _A
+        b'  = shift d (V x n') b
+        n' = if x == x' then n + 1 else n
+      in mkLam x' _A' b'
+    )
+  >>> VariantF.on (_s::S_ "Pi")
+    (\(Product (Tuple (Tuple x' _A) (Identity _B))) ->
+      let
+        _A' = shift d (V x n ) _A
+        _B' = shift d (V x n') _B
+        n' = if x == x' then n + 1 else n
+      in mkPi x' _A' _B'
+    )
+  >>> VariantF.on (_s::S_ "Let")
+    (\(LetF f mt r e) ->
+      let
+        n' = if x == f then n + 1 else n
+        e' =  shift d (V x n') e
+        mt' = shift d (V x n ) <$> mt
+        r'  = shift d (V x n ) r
+      in mkLet f mt' r' e'
+    )
 
 -- | Substitute all occurrences of a variable with an expression
 -- | `subst x C B  ~  B[x := C]`
 subst :: forall s a. Var -> Expr s a -> Expr s a -> Expr s a
-subst v@(V x n) e = go where
-  go expr =
-    ( ( map go
-    >>> VariantF.expand >>> embedW
-      )
-    # VariantF.on (SProxy :: SProxy "Var")
-      (unwrap >>> \(V x' n') ->
-        if x == x' && n == n' then e else mkVar (V x' n')
-      )
-    # VariantF.on (SProxy :: SProxy "Lam")
-      (\(Product (Tuple (Tuple y _A) (Identity b))) ->
-        let
-          _A' = subst (V x n )                  e  _A
-          b'  = subst (V x n') (shift 1 (V y 0) e) b
-          n'  = if x == y then n + 1 else n
-        in mkLam y _A' b'
-      )
-    # VariantF.on (SProxy :: SProxy "Pi")
-      (\(Product (Tuple (Tuple y _A) (Identity _B))) ->
-        let
-          _A' = subst (V x n )                  e  _A
-          _B' = subst (V x n') (shift 1 (V y 0) e) _B
-          n'  = if x == y then n + 1 else n
-        in mkPi y _A' _B'
-      )
-    # VariantF.on (SProxy :: SProxy "Let")
-      (\(LetF f mt r b) ->
-        let
-          n' = if x == f then n + 1 else n
-          b'  = subst (V x n') (shift 1 (V f 0) e) b
-          mt' = subst (V x n) e <$> mt
-          r'  = subst (V x n) e r
-        in mkLet f mt' r' b'
-      )
-    ) $ projectW expr
+subst v@(V x n) e = AST.rewriteTopDown $ identity
+  >>> VariantF.on (_s::S_ "Var")
+    (unwrap >>> \(V x' n') ->
+      if x == x' && n == n' then e else mkVar (V x' n')
+    )
+  >>> VariantF.on (_s::S_ "Lam")
+    (\(Product (Tuple (Tuple y _A) (Identity b))) ->
+      let
+        _A' = subst (V x n )                  e  _A
+        b'  = subst (V x n') (shift 1 (V y 0) e) b
+        n'  = if x == y then n + 1 else n
+      in mkLam y _A' b'
+    )
+  >>> VariantF.on (_s::S_ "Pi")
+    (\(Product (Tuple (Tuple y _A) (Identity _B))) ->
+      let
+        _A' = subst (V x n )                  e  _A
+        _B' = subst (V x n') (shift 1 (V y 0) e) _B
+        n'  = if x == y then n + 1 else n
+      in mkPi y _A' _B'
+    )
+  >>> VariantF.on (_s::S_ "Let")
+    (\(LetF f mt r b) ->
+      let
+        n' = if x == f then n + 1 else n
+        b'  = subst (V x n') (shift 1 (V f 0) e) b
+        mt' = subst (V x n) e <$> mt
+        r'  = subst (V x n) e r
+      in mkLet f mt' r' b'
+    )
 
 -- | α-normalize an expression by renaming all variables to `"_"` and using
 -- | De Bruijn indices to distinguish them
 alphaNormalize :: forall s a. Expr s a -> Expr s a
-alphaNormalize = go where
-  go expr =
-    ( ( map go
-    >>> VariantF.expand >>> embedW
-      )
-    # VariantF.on (SProxy :: SProxy "Lam")
-      (\(Product (Tuple (Tuple x _A) (Identity b_0))) ->
-        if x == "_" then mkLam x (go _A) (go b_0) else
-        let
-          b_1 = shift 1 (V "_" 0) b_0
-          b_2 = subst (V x 0) (mkVar (V "_" 0)) b_1
-          b_3 = shift (-1) (V x 0) b_2
-          b_4 = alphaNormalize b_3
-        in mkLam "_" (go _A) b_4
-      )
-    # VariantF.on (SProxy :: SProxy "Pi")
-      (\(Product (Tuple (Tuple x _A) (Identity _B_0))) ->
-        if x == "_" then mkPi x (go _A) (go _B_0) else
-        let
-          _B_1 = shift 1 (V "_" 0) _B_0
-          _B_2 = subst (V x 0) (mkVar (V "_" 0)) _B_1
-          _B_3 = shift (-1) (V x 0) _B_2
-          _B_4 = alphaNormalize _B_3
-        in mkPi "_" (go _A) _B_3
-      )
-    # VariantF.on (SProxy :: SProxy "Let")
-      (\(LetF x mt a b_0) ->
-        if x == "_" then mkLet x (map go mt) (go a) (go b_0) else
-        let
-          b_1 = shift 1 (V "_" 0) b_0
-          b_2 = subst (V x 0) (mkVar (V "_" 0)) b_1
-          b_3 = shift (-1) (V x 0) b_2
-          b_4 = alphaNormalize b_3
-        in mkLet "_" (go <$> mt) (go a) b_3
-      )
-    ) $ projectW expr
+alphaNormalize = AST.rewriteTopDown $ identity
+  >>> VariantF.on (_s::S_ "Lam")
+    (\(Product (Tuple (Tuple x _A) (Identity b_0))) ->
+      if x == "_" then mkLam x (alphaNormalize _A) (alphaNormalize b_0) else
+      let
+        b_1 = shift 1 (V "_" 0) b_0
+        b_2 = subst (V x 0) (mkVar (V "_" 0)) b_1
+        b_3 = shift (-1) (V x 0) b_2
+        b_4 = alphaNormalize b_3
+      in mkLam "_" (alphaNormalize _A) b_4
+    )
+  >>> VariantF.on (_s::S_ "Pi")
+    (\(Product (Tuple (Tuple x _A) (Identity _B_0))) ->
+      if x == "_" then mkPi x (alphaNormalize _A) (alphaNormalize _B_0) else
+      let
+        _B_1 = shift 1 (V "_" 0) _B_0
+        _B_2 = subst (V x 0) (mkVar (V "_" 0)) _B_1
+        _B_3 = shift (-1) (V x 0) _B_2
+        _B_4 = alphaNormalize _B_3
+      in mkPi "_" (alphaNormalize _A) _B_3
+    )
+  >>> VariantF.on (_s::S_ "Let")
+    (\(LetF x mt a b_0) ->
+      if x == "_" then mkLet x (alphaNormalize <$> mt) (alphaNormalize a) (alphaNormalize b_0) else
+      let
+        b_1 = shift 1 (V "_" 0) b_0
+        b_2 = subst (V x 0) (mkVar (V "_" 0)) b_1
+        b_3 = shift (-1) (V x 0) b_2
+        b_4 = alphaNormalize b_3
+      in mkLet "_" (alphaNormalize <$> mt) (alphaNormalize a) b_3
+    )
 
 -- | Reduce an expression to its normal form, performing beta reduction
 -- | `normalize` does not type-check the expression.  You may want to type-check
@@ -226,17 +213,21 @@ boundedType _ = false
 
 -- | Remove all `Note` constructors from an `Expr` (i.e. de-`Note`)
 denote :: forall s t a. Expr s a -> Expr t a
-denote e =
-  ( ( map denote
-  >>> VariantF.expand >>> embedW
-    )
-  # VariantF.on (SProxy :: SProxy "Note")
-    (\(Tuple _ e') -> denote e')
-  ) $ projectW e
+denote = AST.rewriteBottomUp (VariantF.on (_s::S_ "Note") snd)
 
 -- | Use this to wrap you embedded functions (see `normalizeWith`) to make them
 -- | polymorphic enough to be used.
 type Normalizer a = forall s. Expr s a -> Expr s a -> Maybe (Expr s a)
+
+newtype WrappedNormalizer a = WrappedNormalizer (Normalizer a)
+-- not Alt, because it is not a covariant functor
+instance semigroupWrappedNormalizer :: Semigroup (WrappedNormalizer a) where
+  append (WrappedNormalizer n) (WrappedNormalizer m) = WrappedNormalizer \fn arg ->
+    case n fn arg of
+      Just r -> Just r
+      Nothing -> m fn arg
+instance monoidWrappedNormalizer :: Monoid (WrappedNormalizer a) where
+  mempty = WrappedNormalizer \_ _ -> Nothing
 
 
 modifyKey :: forall a k. Eq k =>
@@ -270,6 +261,8 @@ unionWith combine l' r' =
         Just as' -> as'
   in Array.foldl inserting l r
 
+type Preview' a b = Lens.Fold (First b) a a b b
+
 {-| Reduce an expression to its normal form, performing beta reduction and applying
     any custom definitions.
     `normalizeWith` is designed to be used with function `typeWith`. The `typeWith`
@@ -282,7 +275,7 @@ unionWith combine l' r' =
     with those functions is not total either.
 -}
 normalizeWith :: forall s t a. Eq a => Normalizer a -> Expr s a -> Expr t a
-normalizeWith ctx e0 = go e0 where
+normalizeWith ctx = AST.rewriteBottomUp rules where
   onP :: forall e v r.
     Preview' e v ->
     (v -> r) -> (e -> r) ->
@@ -315,20 +308,12 @@ normalizeWith ctx e0 = go e0 where
     r
   unPairN p = unPair (unsafeCoerce p)
 
-  mapExpr :: forall f st. f (Free (VariantF (AST.ExprRow st)) a) -> f (Expr st a)
-  mapExpr = unsafeCoerce
-
-  mapMapExpr :: forall f g st. f (g (Free (VariantF (AST.ExprRow st)) a)) -> f (g (Expr st a))
-  mapMapExpr = unsafeCoerce
-
   -- The companion to judgmentallyEqual for terms that are already
   -- normalized recursively from this
   judgEq = eq `on` (alphaNormalize >>> unsafeCoerce :: Expr t a -> Expr Void a)
 
-  go :: Expr s a -> Expr t a
-  go e =
-    ( (VariantF.expand >>> embedW)
-    # onP AST._BoolAnd
+  rules = identity
+    >>> VariantF.on (_s::S_ "BoolAnd")
       (unPairN AST._BoolLit \l r -> case _, _ of
         Just true, _ -> r -- (l = True) && r -> r
         Just false, _ -> l -- (l = False) && r -> (l = False)
@@ -339,7 +324,7 @@ normalizeWith ctx e0 = go e0 where
           then l
           else AST.mkBoolAnd (l) (r)
       )
-    # onP AST._BoolOr
+    >>> VariantF.on (_s::S_ "BoolOr")
       (unPairN AST._BoolLit \l r -> case _, _ of
         Just true, _ -> l -- (l = True) || r -> (l = True)
         Just false, _ -> r -- (l = False) || r -> r
@@ -350,7 +335,7 @@ normalizeWith ctx e0 = go e0 where
           then l
           else AST.mkBoolOr (l) (r)
       )
-    # onP AST._BoolEQ
+    >>> VariantF.on (_s::S_ "BoolEQ")
       (unPairN AST._BoolLit \l r -> case _, _ of
         Just a, Just b -> AST.mkBoolLit (a == b)
         _, _ ->
@@ -358,7 +343,7 @@ normalizeWith ctx e0 = go e0 where
           then AST.mkBoolLit true
           else AST.mkBoolEQ (l) (r)
       )
-    # onP AST._BoolNE
+    >>> VariantF.on (_s::S_ "BoolNE")
       (unPairN AST._BoolLit \l r -> case _, _ of
         Just a, Just b -> AST.mkBoolLit (a /= b)
         _, _ ->
@@ -366,7 +351,7 @@ normalizeWith ctx e0 = go e0 where
           then AST.mkBoolLit false
           else AST.mkBoolNE (l) (r)
       )
-    # onP AST._BoolIf
+    >>> VariantF.on (_s::S_ "BoolIf")
       (\(AST.Triplet b t f) ->
         let p = AST._BoolLit <<< _Newtype in
         case previewE p b of
@@ -380,14 +365,14 @@ normalizeWith ctx e0 = go e0 where
                   then t
                   else AST.mkBoolIf (b) (t) (f)
       )
-    # onP AST._NaturalPlus
+    >>> VariantF.on (_s::S_ "NaturalPlus")
       (unPairN AST._NaturalLit \l r -> case _, _ of
         Just a, Just b -> AST.mkNaturalLit (a + b)
         Just 0, _ -> r
         _, Just 0 -> l
         _, _ -> AST.mkNaturalPlus (l) (r)
       )
-    # onP AST._NaturalTimes
+    >>> VariantF.on (_s::S_ "NaturalTimes")
       (unPairN AST._NaturalLit \l r -> case _, _ of
         Just a, Just b -> AST.mkNaturalLit (a * b)
         Just 0, _ -> l
@@ -396,7 +381,7 @@ normalizeWith ctx e0 = go e0 where
         _, Just 1 -> l
         _, _ -> AST.mkNaturalTimes (l) (r)
       )
-    # onP AST._ListAppend
+    >>> VariantF.on (_s::S_ "ListAppend")
       (unPair AST._ListLit \l r -> case _, _ of
         Just { ty, values: a }, Just { values: b } ->
           AST.mkListLit ty (a <> b)
@@ -404,7 +389,7 @@ normalizeWith ctx e0 = go e0 where
         _, Just { values: [] } -> l
         _, _ -> AST.mkListAppend (l) (r)
       )
-    # onP AST._Combine
+    >>> VariantF.on (_s::S_ "Combine")
       (let
         decide = unPairN AST._RecordLit \l r -> case _, _ of
           Just a, Just b -> AST.mkRecordLit $ unsafeCoerce $
@@ -413,7 +398,7 @@ normalizeWith ctx e0 = go e0 where
           _, Just [] -> l
           _, _ -> AST.mkCombine (l) (r)
       in decide)
-    # onP AST._CombineTypes
+    >>> VariantF.on (_s::S_ "CombineTypes")
       (let
         decide = unPairN AST._Record \l r -> case _, _ of
           Just a, Just b -> AST.mkRecord $ unsafeCoerce $
@@ -422,7 +407,7 @@ normalizeWith ctx e0 = go e0 where
           _, Just [] -> l
           _, _ -> AST.mkCombineTypes (l) (r)
       in decide)
-    # onP AST._Prefer
+    >>> VariantF.on (_s::S_ "Prefer")
       (let
         decide = unPairN AST._RecordLit \l r -> case _, _ of
           Just a, Just b -> AST.mkRecordLit $ unsafeCoerce $
@@ -431,20 +416,21 @@ normalizeWith ctx e0 = go e0 where
           _, Just [] -> l
           _, _ -> AST.mkPrefer (l) (r)
       in decide)
-    # onP AST._Constructors
-      (\e' -> case previewE AST._Union e' of
+    >>> VariantF.on (_s::S_ "Constructors")
+      (unwrap >>> \e' -> case previewE AST._Union e' of
         Just (Compose kts) -> AST.mkRecord $ kts <#> \(Tuple k t_) -> Tuple k $
           AST.mkLam k (t_) $ AST.mkUnionLit k (AST.mkVar (AST.V k 0)) $
             (fromMaybe <*> deleteKey k) kts
         Nothing -> AST.mkConstructors (e')
       )
-    # onP AST._Let
+    >>> onP AST._Let
       (\{ var, ty, value, body } ->
         let v = AST.V var 0 in normalizeWith ctx $
         shift (-1) v (subst v (shift 1 v (value)) (body))
       )
-    # VariantF.on (SProxy :: SProxy "Note") snd
-    # onP AST._App \{ fn, arg } ->
+    >>> VariantF.on (_s::S_ "Note") snd
+    -- composing with <<< gives this case priority
+    >>> identity <<< onP AST._App \{ fn, arg } ->
       onP AST._Lam
         (\{ var: x, body } ->
           let
@@ -516,7 +502,6 @@ normalizeWith ctx e0 = go e0 where
             AST.mkTextLit (AST.TextLit (show n))
         _, _ ->
           AST.mkApp (fn) (arg)
-    ) $ map go $ projectW e
 
 -- Little ADT to make destructuring applications easier for normalization
 data Apps s a = App (Apps s a) (Apps s a) | NoApp (Expr s a)
@@ -548,7 +533,7 @@ apps = Lens.iso fromExpr toExpr where
     App f a -> AST.mkApp (toExpr f) (toExpr a)
     NoApp e -> e
   fromExpr e =
-    case Lens.preview (AST._E (AST._ExprFPrism (SProxy :: SProxy "App"))) e of
+    case Lens.preview (AST._E (AST._ExprFPrism (_s::S_ "App"))) e of
       Nothing -> NoApp e
       Just (AST.Pair fn arg) -> App (fromExpr fn) (fromExpr arg)
 
@@ -567,9 +552,7 @@ judgmentallyEqual eL0 eR0 = alphaBetaNormalize eL0 == alphaBetaNormalize eR0
 isNormalized :: forall s a. Eq s => Eq a => Expr s a -> Boolean
 isNormalized = isNormalizedWith (const (const Nothing))
 
-type Preview' a b = Lens.Fold (First b) a a b b
-
--- | Quickly check if an expression is in normal form
+-- | ~Quickly~ Check if an expression is in normal form
 isNormalizedWith :: forall s a. Eq s => Eq a => Normalizer a -> Expr s a -> Boolean
 isNormalizedWith ctx e0 = normalizeWith ctx e0 == e0
 

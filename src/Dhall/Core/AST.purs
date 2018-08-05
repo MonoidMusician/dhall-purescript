@@ -238,6 +238,34 @@ projectW = project >>> unwrap
 embedW :: forall s a. ExprLayer s a -> Expr s a
 embedW = embed <<< wrap
 
+
+-- | Just a helper to handle recursive rewrites: top-down, requires explicit
+-- | recursion for the cases that are handled by the rewrite.
+rewriteTopDown :: forall r r' s t a b.
+  Row.Union r r' (ExprLayerRow t b) =>
+  (
+    (VariantF r (Expr s a) -> Expr t b) ->
+    VariantF (ExprLayerRow s a) (Expr s a) ->
+    Expr t b
+  ) ->
+  Expr s a -> Expr t b
+rewriteTopDown rw1 = go where
+  go expr = rw1 (map go >>> VariantF.expand >>> embedW) $ projectW expr
+
+-- | Another recursion helper: bottom-up, recursion already happens before
+-- | the rewrite gets ahold of it. Just follow the types.
+rewriteBottomUp :: forall r r' s t a b.
+  Row.Union r r' (ExprLayerRow t b) =>
+  (
+    (VariantF r (Expr t b) -> Expr t b) ->
+    VariantF (ExprLayerRow s a) (Expr t b) ->
+    Expr t b
+  ) ->
+  Expr s a -> Expr t b
+rewriteBottomUp rw1 = go where
+  go expr = rw1 (VariantF.expand >>> embedW) $ go <$> projectW expr
+
+
 instance showExpr :: (Show s, Show a) => Show (Expr s a) where
   show (Expr e0) = cata show1 e0 where
     lits e = "[" <> joinWith ", " e <> "]"
