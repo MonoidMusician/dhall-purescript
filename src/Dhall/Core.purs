@@ -2,13 +2,13 @@ module Dhall.Core ( module Dhall.Core ) where
 
 import Prelude
 
-import Data.Array as Array
 import Data.Const as ConstF
+import Data.Eq (class Eq1)
 import Data.Function (on)
-import Data.Functor.Compose (Compose(..))
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (SProxy(..), VariantF)
 import Data.Functor.Variant as VariantF
+import Data.FunctorWithIndex (mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Int (even, toNumber)
 import Data.Lens as Lens
@@ -18,11 +18,13 @@ import Data.Maybe.First (First)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Set (Set)
 import Data.Set as Set
-import Data.Tuple (Tuple(..), fst, snd)
-import Dhall.Core.AST (AllTheThings, BuiltinBinOps, BuiltinFuncs, BuiltinOps, BuiltinTypes, BuiltinTypes2, Const(..), Expr(..), ExprRow, FunctorThings, LetF(..), Literals, Literals2, MergeF(..), OrdMap, Pair(..), SimpleThings, Syntax, Terminals, TextLitF(..), Triplet(..), Var(..), _Expr, _ExprF, coalesce1, unfurl) as Dhall.Core
+import Data.Tuple (Tuple(..), snd)
+import Dhall.Core.AST (AllTheThings, BuiltinBinOps, BuiltinFuncs, BuiltinOps, BuiltinTypes, BuiltinTypes2, Const(..), Expr(..), ExprRow, FunctorThings, LetF(..), Literals, Literals2, MergeF(..), Pair(..), SimpleThings, Syntax, Terminals, TextLitF(..), Triplet(..), Var(..), _Expr, _ExprF, coalesce1, unfurl) as Dhall.Core
 import Dhall.Core.AST (Expr, LetF(..), Var(..), mkLam, mkLet, mkPi, mkVar, projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports (Directory(..), File(..), FilePrefix(..), Import(..), ImportHashed(..), ImportMode(..), ImportType(..), prettyDirectory, prettyFile, prettyFilePrefix, prettyImport, prettyImportHashed, prettyImportType) as Dhall.Core
+import Dhall.Core.StrMapIsh (class StrMapIsh)
+import Dhall.Core.StrMapIsh as StrMapIsh
 import Matryoshka (class Recursive, project)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -88,7 +90,7 @@ _s = SProxy :: forall s. S_ s
 -- | `n` starts off at @0@ when substitution begins and increments every time we
 -- | descend into a lambda or let expression that binds a variable of the same
 -- | name in order to avoid shifting the bound variables by mistake.
-shift :: forall s a. Int -> Var -> Expr s a -> Expr s a
+shift :: forall m s a. Int -> Var -> Expr m s a -> Expr m s a
 shift d v@(V x n) = AST.rewriteTopDown $ identity
   >>> VariantF.on (_s::S_ "Var")
     (unwrap >>> \(V x' n') ->
@@ -123,7 +125,7 @@ shift d v@(V x n) = AST.rewriteTopDown $ identity
 
 -- | Substitute all occurrences of a variable with an expression
 -- | `subst x C B  ~  B[x := C]`
-subst :: forall s a. Var -> Expr s a -> Expr s a -> Expr s a
+subst :: forall m s a. Var -> Expr m s a -> Expr m s a -> Expr m s a
 subst v@(V x n) e = AST.rewriteTopDown $ identity
   >>> VariantF.on (_s::S_ "Var")
     (unwrap >>> \(V x' n') ->
@@ -157,7 +159,7 @@ subst v@(V x n) e = AST.rewriteTopDown $ identity
 
 -- | α-normalize an expression by renaming all variables to `"_"` and using
 -- | De Bruijn indices to distinguish them
-alphaNormalize :: forall s a. Expr s a -> Expr s a
+alphaNormalize :: forall m s a. Expr m s a -> Expr m s a
 alphaNormalize = AST.rewriteTopDown $ identity
   >>> VariantF.on (_s::S_ "Lam")
     (\(Product (Tuple (Tuple x _A) (Identity b_0))) ->
@@ -196,7 +198,7 @@ alphaNormalize = AST.rewriteTopDown $ identity
 -- | ill-typed expression into a well-typed expression.
 -- | However, `normalize` will not fail if the expression is ill-typed and will
 -- | leave ill-typed sub-expressions unevaluated.
-normalize :: forall s t a. Eq a => Expr s a -> Expr t a
+normalize :: forall m s t a. StrMapIsh m => Eq a => Expr m s a -> Expr m t a
 normalize = normalizeWith (const (const Nothing))
 
 -- | This function is used to determine whether folds like `Natural/fold` or
@@ -208,16 +210,16 @@ normalize = normalizeWith (const (const Nothing))
 -- | normalize the accumulator on each step of the loop.  If this function
 -- | returns `False` then they will be lazy in their accumulator and only
 -- | normalize the final result at the end of the fold
-boundedType :: forall s a. Expr s a -> Boolean
+boundedType :: forall m s a. Expr m s a -> Boolean
 boundedType _ = false
 
 -- | Remove all `Note` constructors from an `Expr` (i.e. de-`Note`)
-denote :: forall s t a. Expr s a -> Expr t a
+denote :: forall m s t a. Functor m => Expr m s a -> Expr m t a
 denote = AST.rewriteBottomUp (VariantF.on (_s::S_ "Note") snd)
 
 -- | Use this to wrap you embedded functions (see `normalizeWith`) to make them
 -- | polymorphic enough to be used.
-type Normalizer a = forall s. Expr s a -> Expr s a -> Maybe (Expr s a)
+type Normalizer a = forall m s. Expr m s a -> Expr m s a -> Maybe (Expr m s a)
 
 newtype WrappedNormalizer a = WrappedNormalizer (Normalizer a)
 -- not Alt, because it is not a covariant functor
@@ -228,38 +230,6 @@ instance semigroupWrappedNormalizer :: Semigroup (WrappedNormalizer a) where
       Nothing -> m fn arg
 instance monoidWrappedNormalizer :: Monoid (WrappedNormalizer a) where
   mempty = WrappedNormalizer \_ _ -> Nothing
-
-
-modifyKey :: forall a k. Eq k =>
-  k ->
-  (Tuple k a -> Tuple k a) ->
-  Array (Tuple k a) ->
-  Maybe (Array (Tuple k a))
-modifyKey k f as = do
-  i <- Array.findIndex (fst >>> eq k) as
-  Array.modifyAt i f as
-
-deleteKey :: forall a k. Eq k =>
-  k ->
-  Array (Tuple k a) ->
-  Maybe (Array (Tuple k a))
-deleteKey k as = do
-  i <- Array.findIndex (fst >>> eq k) as
-  Array.deleteAt i as
-
-unionWith :: forall k a. Ord k =>
-  (a -> a -> a) ->
-  Array (Tuple k a) -> Array (Tuple k a) ->
-  Array (Tuple k a)
-unionWith combine l' r' =
-  let
-    l = Array.nubBy (compare `on` fst) l'
-    r = Array.nubBy (compare `on` fst) r'
-    inserting as (Tuple k v) =
-      case modifyKey k (map (combine <@> v)) as of
-        Nothing -> as <> [Tuple k v]
-        Just as' -> as'
-  in Array.foldl inserting l r
 
 type Preview' a b = Lens.Fold (First b) a a b b
 
@@ -274,7 +244,7 @@ type Preview' a b = Lens.Fold (First b) a a b b
     That is, if the functions in custom context are not total then the Dhall language, evaluated
     with those functions is not total either.
 -}
-normalizeWith :: forall s t a. Eq a => Normalizer a -> Expr s a -> Expr t a
+normalizeWith :: forall m s t a. StrMapIsh m => Eq a => Normalizer a -> Expr m s a -> Expr m t a
 normalizeWith ctx = AST.rewriteBottomUp rules where
   onP :: forall e v r.
     Preview' e v ->
@@ -310,7 +280,7 @@ normalizeWith ctx = AST.rewriteBottomUp rules where
 
   -- The companion to judgmentallyEqual for terms that are already
   -- normalized recursively from this
-  judgEq = eq `on` (alphaNormalize >>> unsafeCoerce :: Expr t a -> Expr Void a)
+  judgEq = eq `on` (alphaNormalize >>> unsafeCoerce :: Expr m t a -> Expr m Void a)
 
   rules = identity
     >>> VariantF.on (_s::S_ "BoolAnd")
@@ -391,36 +361,36 @@ normalizeWith ctx = AST.rewriteBottomUp rules where
       )
     >>> VariantF.on (_s::S_ "Combine")
       (let
-        decide = unPairN AST._RecordLit \l r -> case _, _ of
-          Just a, Just b -> AST.mkRecordLit $ unsafeCoerce $
-            unionWith (\x y -> decide (AST.Pair x y)) a b
-          Just [], _ -> r
-          _, Just [] -> l
+        decide = unPair AST._RecordLit \l r -> case _, _ of
+          Just a, Just b -> AST.mkRecordLit $
+            StrMapIsh.unionWith (\x y -> decide (AST.Pair x y)) a b
+          Just a, _ | StrMapIsh.isEmpty a -> r
+          _, Just b | StrMapIsh.isEmpty b -> l
           _, _ -> AST.mkCombine (l) (r)
       in decide)
     >>> VariantF.on (_s::S_ "CombineTypes")
       (let
-        decide = unPairN AST._Record \l r -> case _, _ of
-          Just a, Just b -> AST.mkRecord $ unsafeCoerce $
-            unionWith (\x y -> decide (AST.Pair x y)) a b
-          Just [], _ -> r
-          _, Just [] -> l
+        decide = unPair AST._Record \l r -> case _, _ of
+          Just a, Just b -> AST.mkRecord $
+            StrMapIsh.unionWith (\x y -> decide (AST.Pair x y)) a b
+          Just a, _ | StrMapIsh.isEmpty a -> r
+          _, Just b | StrMapIsh.isEmpty b -> l
           _, _ -> AST.mkCombineTypes (l) (r)
       in decide)
     >>> VariantF.on (_s::S_ "Prefer")
       (let
-        decide = unPairN AST._RecordLit \l r -> case _, _ of
-          Just a, Just b -> AST.mkRecordLit $ unsafeCoerce $
-            unionWith const a b
-          Just [], _ -> r
-          _, Just [] -> l
+        decide = unPair AST._RecordLit \l r -> case _, _ of
+          Just a, Just b -> AST.mkRecordLit $
+            StrMapIsh.unionWith const a b
+          Just a, _ | StrMapIsh.isEmpty a -> r
+          _, Just b | StrMapIsh.isEmpty b -> l
           _, _ -> AST.mkPrefer (l) (r)
       in decide)
     >>> VariantF.on (_s::S_ "Constructors")
       (unwrap >>> \e' -> case previewE AST._Union e' of
-        Just (Compose kts) -> AST.mkRecord $ kts <#> \(Tuple k t_) -> Tuple k $
+        Just kts -> AST.mkRecord $ kts # mapWithIndex \k t_ ->
           AST.mkLam k (t_) $ AST.mkUnionLit k (AST.mkVar (AST.V k 0)) $
-            (fromMaybe <*> deleteKey k) kts
+            (fromMaybe <*> StrMapIsh.delete k) kts
         Nothing -> AST.mkConstructors (e')
       )
     >>> onP AST._Let
@@ -504,30 +474,30 @@ normalizeWith ctx = AST.rewriteBottomUp rules where
           AST.mkApp (fn) (arg)
 
 -- Little ADT to make destructuring applications easier for normalization
-data Apps s a = App (Apps s a) (Apps s a) | NoApp (Expr s a)
+data Apps m s a = App (Apps m s a) (Apps m s a) | NoApp (Expr m s a)
 
-noapplit :: forall s a v.
+noapplit :: forall m s a v.
   Lens.Prism'
-    (VariantF (AST.ExprLayerRow s a) (Expr s a))
-    (ConstF.Const v (Expr s a)) ->
-  Apps s a ->
+    (VariantF (AST.ExprLayerRow m s a) (Expr m s a))
+    (ConstF.Const v (Expr m s a)) ->
+  Apps m s a ->
   Maybe v
 noapplit p = Lens.preview (_NoApp <<< AST._E p <<< _Newtype)
 
-noapp :: forall f s a. Functor f =>
+noapp :: forall f m s a. Functor f =>
   Lens.Prism'
-    (VariantF (AST.ExprLayerRow s a) (Expr s a))
-    (f (Expr s a)) ->
-  Apps s a ->
+    (VariantF (AST.ExprLayerRow m s a) (Expr m s a))
+    (f (Expr m s a)) ->
+  Apps m s a ->
   Boolean
 noapp p = Lens.is (_NoApp <<< AST._E p)
 
-_NoApp :: forall s a. Lens.Prism' (Apps s a) (Expr s a)
+_NoApp :: forall m s a. Lens.Prism' (Apps m s a) (Expr m s a)
 _NoApp = Lens.prism' NoApp case _ of
   NoApp e -> Just e
   _ -> Nothing
 
-apps :: forall s a. Lens.Iso' (Expr s a) (Apps s a)
+apps :: forall m s a. Lens.Iso' (Expr m s a) (Apps m s a)
 apps = Lens.iso fromExpr toExpr where
   toExpr = case _ of
     App f a -> AST.mkApp (toExpr f) (toExpr a)
@@ -539,30 +509,30 @@ apps = Lens.iso fromExpr toExpr where
 
 -- | Returns `true` if two expressions are α-equivalent and β-equivalent and
 -- | `false` otherwise
-judgmentallyEqual :: forall s t a. Eq a => Expr s a -> Expr t a -> Boolean
+judgmentallyEqual :: forall m s t a. StrMapIsh m => Eq a => Expr m s a -> Expr m t a -> Boolean
 judgmentallyEqual eL0 eR0 = alphaBetaNormalize eL0 == alphaBetaNormalize eR0
   where
-    alphaBetaNormalize :: forall st. Eq a => Expr st a -> Expr Void a
+    alphaBetaNormalize :: forall st. Eq a => Expr m st a -> Expr m Void a
     alphaBetaNormalize = alphaNormalize <<< normalize
 
 -- | Check if an expression is in a normal form given a context of evaluation.
 -- | Unlike `isNormalized`, this will fully normalize and traverse through the expression.
 --
 -- | It is much more efficient to use `isNormalized`.
-isNormalized :: forall s a. Eq s => Eq a => Expr s a -> Boolean
+isNormalized :: forall m s a. StrMapIsh m => Eq s => Eq a => Expr m s a -> Boolean
 isNormalized = isNormalizedWith (const (const Nothing))
 
 -- | ~Quickly~ Check if an expression is in normal form
-isNormalizedWith :: forall s a. Eq s => Eq a => Normalizer a -> Expr s a -> Boolean
+isNormalizedWith :: forall m s a. StrMapIsh m => Eq s => Eq a => Normalizer a -> Expr m s a -> Boolean
 isNormalizedWith ctx e0 = normalizeWith ctx e0 == e0
 
 -- | Detect if the given variable is free within the given expression
-freeIn :: forall s a. Eq a => Var -> Expr s a -> Boolean
+freeIn :: forall m s a. Functor m => Eq1 m => Eq a => Var -> Expr m s a -> Boolean
 freeIn variable expression =
     shift 1 variable strippedExpression /= strippedExpression
   where
     -- TODO: necessary?
-    strippedExpression :: Expr Void a
+    strippedExpression :: Expr m Void a
     strippedExpression = denote expression
 
 -- | The set of reserved identifiers for the Dhall language

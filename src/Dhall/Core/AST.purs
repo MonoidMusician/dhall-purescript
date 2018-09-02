@@ -10,7 +10,7 @@ import Data.Const as ConstF
 import Data.Either (Either(..), either)
 import Data.Eq (class Eq1, eq1)
 import Data.Foldable (class Foldable, foldMap, foldl, foldr, foldrDefault)
-import Data.Functor.Compose (Compose(..))
+import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex)
 import Data.Functor.Product (Product(..), product)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
@@ -25,11 +25,11 @@ import Data.Symbol (class IsSymbol, SProxy(..))
 import Data.Traversable (class Traversable, sequenceDefault, traverse)
 import Data.Tuple (Tuple(..), uncurry, swap)
 import Data.Variant.Internal (FProxy)
+import Dhall.Core.StrMapIsh (class StrMapIsh)
+import Dhall.Core.StrMapIsh as StrMapIsh
 import Matryoshka (class Corecursive, class Recursive, cata, embed, project)
 import Prim.Row as Row
 import Type.Row (type (+))
-
-type OrdMap k = Compose Array (Tuple k)
 
 type CONST a = FProxy (ConstF.Const a)
 type UNIT = CONST Unit
@@ -42,7 +42,7 @@ data Var = V String Int
 derive instance eqVar :: Eq Var
 derive instance ordVar :: Ord Var
 
-type Literals vs =
+type Literals (m :: Type -> Type) vs =
   ( "BoolLit" :: CONST Boolean
   , "NaturalLit" :: CONST Int
   , "IntegerLit" :: CONST Int
@@ -66,16 +66,16 @@ instance traversableTextLitF :: Traversable TextLitF where
     TextInterp s <$> f a <*> traverse f tla
   sequence = sequenceDefault
 
-type Literals2 v =
+type Literals2 (m :: Type -> Type) v =
   ( "TextLit" :: FProxy TextLitF
   , "ListLit" :: FProxy (Product Maybe Array)
   , "OptionalLit" :: FProxy (Product Identity Maybe)
-  , "RecordLit" :: FProxy (OrdMap String)
-  , "UnionLit" :: FProxy (Product (Tuple String) (OrdMap String))
+  , "RecordLit" :: FProxy m
+  , "UnionLit" :: FProxy (Product (Tuple String) m)
   | v
   )
 
-type BuiltinTypes vs =
+type BuiltinTypes (m :: Type -> Type) vs =
   ( "Bool" :: UNIT
   , "Natural" :: UNIT
   , "Integer" :: UNIT
@@ -86,13 +86,13 @@ type BuiltinTypes vs =
   | vs
   )
 
-type BuiltinTypes2 v =
-  ( "Record" :: FProxy (OrdMap String)
-  , "Union" :: FProxy (OrdMap String)
+type BuiltinTypes2 (m :: Type -> Type) v =
+  ( "Record" :: FProxy m
+  , "Union" :: FProxy m
   | v
   )
 
-type BuiltinFuncs vs =
+type BuiltinFuncs (m :: Type -> Type) vs =
   ( "NaturalFold" :: UNIT
   , "NaturalBuild" :: UNIT
   , "NaturalIsZero" :: UNIT
@@ -115,7 +115,7 @@ type BuiltinFuncs vs =
   | vs
   )
 
-type BuiltinBinOps vs =
+type BuiltinBinOps (m :: Type -> Type) vs =
   ( "BoolAnd" :: FProxy Pair
   , "BoolOr" :: FProxy Pair
   , "BoolEQ" :: FProxy Pair
@@ -154,7 +154,7 @@ instance traversableTriplet :: Traversable Triplet where
   traverse f (Triplet a1 a2 a3) = Triplet <$> f a1 <*> f a2 <*> f a3
   sequence = sequenceDefault
 
-type BuiltinOps v = BuiltinBinOps
+type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
   ( "BoolIf" :: FProxy (Triplet)
   , "Field" :: FProxy (Tuple String)
   , "Project" :: FProxy (Tuple (Set String))
@@ -163,7 +163,7 @@ type BuiltinOps v = BuiltinBinOps
   | v
   )
 
-type Terminals vs =
+type Terminals (m :: Type -> Type) vs =
   ( "Const" :: CONST Const
   , "Var" :: CONST Var
   | vs
@@ -193,7 +193,7 @@ instance traversablePair :: Traversable Pair where
   sequence = sequenceDefault
 type BindingBody = Product (Tuple String) Identity
 
-type Syntax v =
+type Syntax (m :: Type -> Type) v =
   ( "Lam" :: FProxy (BindingBody)
   , "Pi" :: FProxy (BindingBody)
   , "App" :: FProxy (Pair)
@@ -202,74 +202,74 @@ type Syntax v =
   | v
   )
 
-type SimpleThings vs = Literals + BuiltinTypes + BuiltinFuncs + Terminals + vs
+type SimpleThings m vs = Literals m + BuiltinTypes m + BuiltinFuncs m + Terminals m + vs
 
-type FunctorThings v = Literals2 + BuiltinTypes2 + BuiltinOps + Syntax + v
+type FunctorThings m v = Literals2 m + BuiltinTypes2 m + BuiltinOps m + Syntax m + v
 
-type AllTheThings v = SimpleThings + FunctorThings + v
+type AllTheThings m v = SimpleThings m + FunctorThings m + v
 
-type ExprRow s =
-  AllTheThings
+type ExprRow m s =
+  AllTheThings m
     ( "Note" :: FProxy (Tuple s)
     )
-type ExprLayerRow s a =
-  AllTheThings
+type ExprLayerRow m s a =
+  AllTheThings m
     ( "Note" :: FProxy (Tuple s)
     , "Embed" :: CONST a
     )
-type ExprLayerF s a = VariantF (ExprLayerRow s a)
-type ExprLayer s a = (ExprLayerF s a) (Expr s a)
+type ExprLayerF m s a = VariantF (ExprLayerRow m s a)
+type ExprLayer m s a = (ExprLayerF m s a) (Expr m s a)
 
-newtype Expr s a = Expr (Free (VariantF (ExprRow s)) a)
-derive instance newtypeExpr :: Newtype (Expr s a) _
+newtype Expr m s a = Expr (Free (VariantF (ExprRow m s)) a)
+derive instance newtypeExpr :: Newtype (Expr m s a) _
 
-instance recursiveExpr :: Recursive (Expr s a) (ExprRowVF s a) where
+instance recursiveExpr :: Recursive (Expr m s a) (ExprRowVF m s a) where
   project = unwrap >>> project >>> map Expr >>> unwrap >>> either
     (wrap >>> VariantF.inj (SProxy :: SProxy "Embed"))
     VariantF.expand >>> ERVF
 
-instance corecursiveExpr :: Corecursive (Expr s a) (ExprRowVF s a) where
+instance corecursiveExpr :: Corecursive (Expr m s a) (ExprRowVF m s a) where
   embed = wrap <<< embed <<< map (un Expr) <<< wrap <<<
     VariantF.on (SProxy :: SProxy "Embed") (Left <<< unwrap) Right <<< un ERVF
 
-projectW :: forall s a. Expr s a -> ExprLayer s a
+projectW :: forall m s a. Expr m s a -> ExprLayer m s a
 projectW = project >>> unwrap
 
-embedW :: forall s a. ExprLayer s a -> Expr s a
+embedW :: forall m s a. ExprLayer m s a -> Expr m s a
 embedW = embed <<< wrap
 
 
 -- | Just a helper to handle recursive rewrites: top-down, requires explicit
 -- | recursion for the cases that are handled by the rewrite.
-rewriteTopDown :: forall r r' s t a b.
-  Row.Union r r' (ExprLayerRow t b) =>
+rewriteTopDown :: forall r r' m s t a b.
+  Row.Union r r' (ExprLayerRow m t b) =>
   (
-    (VariantF r (Expr s a) -> Expr t b) ->
-    VariantF (ExprLayerRow s a) (Expr s a) ->
-    Expr t b
+    (VariantF r (Expr m s a) -> Expr m t b) ->
+    VariantF (ExprLayerRow m s a) (Expr m s a) ->
+    Expr m t b
   ) ->
-  Expr s a -> Expr t b
+  Expr m s a -> Expr m t b
 rewriteTopDown rw1 = go where
   go expr = rw1 (map go >>> VariantF.expand >>> embedW) $ projectW expr
 
 -- | Another recursion helper: bottom-up, recursion already happens before
 -- | the rewrite gets ahold of it. Just follow the types.
-rewriteBottomUp :: forall r r' s t a b.
-  Row.Union r r' (ExprLayerRow t b) =>
+rewriteBottomUp :: forall r r' m s t a b.
+  Row.Union r r' (ExprLayerRow m t b) =>
   (
-    (VariantF r (Expr t b) -> Expr t b) ->
-    VariantF (ExprLayerRow s a) (Expr t b) ->
-    Expr t b
+    (VariantF r (Expr m t b) -> Expr m t b) ->
+    VariantF (ExprLayerRow m s a) (Expr m t b) ->
+    Expr m t b
   ) ->
-  Expr s a -> Expr t b
+  Expr m s a -> Expr m t b
 rewriteBottomUp rw1 = go where
   go expr = rw1 (VariantF.expand >>> embedW) $ go <$> projectW expr
 
 
-instance showExpr :: (Show s, Show a) => Show (Expr s a) where
+instance showExpr :: (FoldableWithIndex String m, Show s, Show a) => Show (Expr m s a) where
   show (Expr e0) = cata show1 e0 where
     lits e = "[" <> joinWith ", " e <> "]"
-    rec e = lits $ e <#> \(Tuple k v) -> "(Tuple " <> show k <> v <> ")"
+    rec e = lits $ foldMapWithIndex (\k v -> ["(Tuple " <> show k <> v <> ")"]) e
     mb =
       case _ of
         Nothing -> "(Nothing)"
@@ -316,9 +316,9 @@ instance showExpr :: (Show s, Show a) => Show (Expr s a) where
       # VariantF.on (SProxy :: SProxy "Project")
         (\(Tuple projs e) -> "(mkProject " <> e <> show projs <> ")")
       # VariantF.on (SProxy :: SProxy "Record")
-        (\(Compose a) -> "(mkRecord " <> rec a <> ")")
+        (\a -> "(mkRecord " <> rec a <> ")")
       # VariantF.on (SProxy :: SProxy "RecordLit")
-        (\(Compose a) -> "(mkRecord " <> rec a <> ")")
+        (\a -> "(mkRecord " <> rec a <> ")")
       # VariantF.on (SProxy :: SProxy "BoolLit")
         (unwrap >>> \b -> "(mkBoolLit " <> show b <> ")")
       # VariantF.on (SProxy :: SProxy "NaturalLit")
@@ -369,12 +369,12 @@ instance showExpr :: (Show s, Show a) => Show (Expr s a) where
             in "(mkTextLit " <> v e <> ")"
           )
       # VariantF.on (SProxy :: SProxy "Union")
-        (\(Compose a) -> "(mkRecord " <> rec a <> ")")
+        (\a -> "(mkRecord " <> rec a <> ")")
       # VariantF.on (SProxy :: SProxy "UnionLit")
-        (\(Product (Tuple (Tuple ty val) (Compose a))) -> "(mkUnionLit " <> ty <> val <> rec a <> ")")
+        (\(Product (Tuple (Tuple ty val) a)) -> "(mkUnionLit " <> ty <> val <> rec a <> ")")
       )
 
-instance eqExpr :: (Eq s, Eq a) => Eq (Expr s a) where
+instance eqExpr :: (Eq1 m, Eq s, Eq a) => Eq (Expr m s a) where
   eq e1 e2 = project e1 `eq1` project e2
 
 vfEqCase ::
@@ -388,10 +388,22 @@ vfEqCase ::
   VariantF v a -> VariantF v1 a -> Boolean
 vfEqCase k = VariantF.on k (\a -> VariantF.default false # VariantF.on k (eq a))
 
-newtype ExprRowVF s a b = ERVF (ExprLayerF s a b)
-derive instance newtypeERVF :: Newtype (ExprRowVF s a b) _
-derive newtype instance functorERVF :: Functor (ExprRowVF s a)
-instance eq1ExprRowVF :: (Eq s, Eq a) => Eq1 (ExprRowVF s a) where
+vfEq1Case ::
+  forall sym fnc v' v v1' v1 a.
+    IsSymbol sym =>
+    Eq1 fnc =>
+    Eq a =>
+    Row.Cons sym (FProxy fnc) v' v =>
+    Row.Cons sym (FProxy fnc) v1' v1 =>
+  SProxy sym ->
+  (VariantF v' a -> VariantF v1 a -> Boolean) ->
+  VariantF v a -> VariantF v1 a -> Boolean
+vfEq1Case k = VariantF.on k (\a -> VariantF.default false # VariantF.on k (eq1 a))
+
+newtype ExprRowVF m s a b = ERVF (ExprLayerF m s a b)
+derive instance newtypeERVF :: Newtype (ExprRowVF m s a b) _
+derive newtype instance functorERVF :: Functor (ExprRowVF m s a)
+instance eq1ExprRowVF :: (Eq1 m, Eq s, Eq a) => Eq1 (ExprRowVF m s a) where
   eq1 (ERVF e1) (ERVF e2) =
     ( VariantF.case_
     # vfEqCase (SProxy :: SProxy "Annot")
@@ -419,8 +431,8 @@ instance eq1ExprRowVF :: (Eq s, Eq a) => Eq1 (ExprRowVF s a) where
     # vfEqCase (SProxy :: SProxy "OptionalLit")
     # vfEqCase (SProxy :: SProxy "Pi")
     # vfEqCase (SProxy :: SProxy "Project")
-    # vfEqCase (SProxy :: SProxy "Record")
-    # vfEqCase (SProxy :: SProxy "RecordLit")
+    # vfEq1Case (SProxy :: SProxy "Record")
+    # vfEq1Case (SProxy :: SProxy "RecordLit")
     # vfEqCase (SProxy :: SProxy "BoolLit")
     # vfEqCase (SProxy :: SProxy "NaturalLit")
     # vfEqCase (SProxy :: SProxy "IntegerLit")
@@ -455,23 +467,23 @@ instance eq1ExprRowVF :: (Eq s, Eq a) => Eq1 (ExprRowVF s a) where
     # vfEqCase (SProxy :: SProxy "Var")
     # vfEqCase (SProxy :: SProxy "Embed")
     # vfEqCase (SProxy :: SProxy "TextLit")
-    # vfEqCase (SProxy :: SProxy "Union")
-    # vfEqCase (SProxy :: SProxy "UnionLit")
+    # vfEq1Case (SProxy :: SProxy "Union")
+    # vfEq1Case (SProxy :: SProxy "UnionLit")
     ) e1 e2
 
-instance bifunctorExpr :: Bifunctor Expr where
+instance bifunctorExpr :: Functor m => Bifunctor (Expr m) where
   bimap f g (Expr e) = Expr $ e <#> g # hoistFree
     ( VariantF.expand
     # VariantF.on (SProxy :: SProxy "Note")
       (lmap f >>> VariantF.inj (SProxy :: SProxy "Note"))
     )
-derive newtype instance functorExpr :: Functor (Expr s)
-derive newtype instance applyExpr :: Apply (Expr s)
-derive newtype instance applicativeExpr :: Applicative (Expr s)
-derive newtype instance bindExpr :: Bind (Expr s)
-derive newtype instance monadExpr :: Monad (Expr s)
+derive newtype instance functorExpr :: Functor (Expr m s)
+derive newtype instance applyExpr :: Apply (Expr m s)
+derive newtype instance applicativeExpr :: Applicative (Expr m s)
+derive newtype instance bindExpr :: Bind (Expr m s)
+derive newtype instance monadExpr :: Monad (Expr m s)
 
-instance bifoldableExpr :: Bifoldable Expr where
+instance bifoldableExpr :: Foldable m => Bifoldable (Expr m) where
   bifoldMap f g e =
     ( foldMap (bifoldMap f g)
     # VariantF.on (SProxy :: SProxy "Embed") (unwrap >>> g)
@@ -490,11 +502,11 @@ instance bifoldableExpr :: Bifoldable Expr where
     # VariantF.on (SProxy :: SProxy "Note")
       (\(Tuple a rest) -> bifoldl f g (f c a) rest)
     ) $ projectW e
-derive newtype instance foldableExpr :: Foldable (Expr s)
+derive newtype instance foldableExpr :: Foldable m => Foldable (Expr m s)
 -- (Bi)traversable will allow running computations on the embedded data,
 -- e.g. using an error monad to get rid of holes, or using Aff to fill in
 -- imports (especially via URL).
-instance bitraversableExpr :: Bitraversable Expr where
+instance bitraversableExpr :: Traversable m => Bitraversable (Expr m) where
   bisequence = bisequenceDefault
   bitraverse f g e = map embedW $
     ( ( traverse (bitraverse f g)
@@ -507,35 +519,35 @@ instance bitraversableExpr :: Bitraversable Expr where
         VariantF.inj (SProxy :: SProxy "Note")
       )
     ) $ projectW e
-derive newtype instance traversableExpr :: Traversable (Expr s)
+derive newtype instance traversableExpr :: Traversable m => Traversable (Expr m s)
 
 -- A helper to coalesce a tree of annotations into a single annotation on
 -- a "real" AST node.
-unfurl :: forall s a. Monoid s =>
-  Expr s a -> Tuple s (VariantF (AllTheThings ( "Embed" :: CONST a )) (Expr s a))
+unfurl :: forall m s a. Monoid s =>
+  Expr m s a -> Tuple s (VariantF (AllTheThings m ( "Embed" :: CONST a )) (Expr m s a))
 unfurl e0 = go mempty e0 where
   go s = projectW >>>
     VariantF.on (SProxy :: SProxy "Note")
       (uncurry go)
       (Tuple s)
 
-coalesce1 :: forall s a. Monoid s => Expr s a -> Expr s a
+coalesce1 :: forall m s a. Monoid s => Expr m s a -> Expr m s a
 coalesce1 e = uncurry mkNote $ unfurl e <#>
   VariantF.expand >>> embedW
 
 -- Pris(o)ms of the behemoth
-_ExprF :: forall a s unused f k.
-  Row.Cons k (FProxy f) unused (ExprLayerRow s a) =>
+_ExprF :: forall m s a unused f k.
+  Row.Cons k (FProxy f) unused (ExprLayerRow m s a) =>
   IsSymbol k => Functor f =>
-  SProxy k -> Prism' (Expr s a) (f (Expr s a))
+  SProxy k -> Prism' (Expr m s a) (f (Expr m s a))
 _ExprF k = _E (_ExprFPrism k)
 
 -- Convert a prism operating on VariantF ( ... ) Expr to one operating on Expr
-_E :: forall f s a. Functor f =>
+_E :: forall f m s a. Functor f =>
   Prism'
-    (VariantF (ExprLayerRow s a) (Expr s a))
-    (f (Expr s a)) ->
-  Prism' (Expr s a) (f (Expr s a))
+    (VariantF (ExprLayerRow m s a) (Expr m s a))
+    (f (Expr m s a)) ->
+  Prism' (Expr m s a) (f (Expr m s a))
 _E p = iso projectW embedW <<< p
 
 type ExprFPrism r f = forall o. Prism' (VariantF r o) (f o)
@@ -546,10 +558,10 @@ _ExprFPrism :: forall r unused f k.
 _ExprFPrism k = prism' (VariantF.inj k)
   (VariantF.default Nothing # VariantF.on k Just)
 
-_Expr :: forall a s unused v k.
-  Row.Cons k (CONST v) unused (ExprLayerRow s a) =>
+_Expr :: forall m s a unused v k.
+  Row.Cons k (CONST v) unused (ExprLayerRow m s a) =>
   IsSymbol k =>
-  SProxy k -> Prism' (Expr s a) v
+  SProxy k -> Prism' (Expr m s a) v
 _Expr k = _E (_ExprPrism k) <<< _Newtype
 
 type ExprPrism r v =
@@ -570,10 +582,10 @@ _ExprPrism :: forall r unused v k.
   ExprPrism r v
 _ExprPrism k = _ExprFPrism k
 
-_BinOp :: forall a s unused k.
-  Row.Cons k (FProxy Pair) unused (ExprLayerRow s a) =>
+_BinOp :: forall m s a unused k.
+  Row.Cons k (FProxy Pair) unused (ExprLayerRow m s a) =>
   IsSymbol k =>
-  SProxy k -> Prism' (Expr s a) (Pair (Expr s a))
+  SProxy k -> Prism' (Expr m s a) (Pair (Expr m s a))
 _BinOp k = _E (_BinOpPrism k)
 
 type BinOpPrism r =
@@ -588,38 +600,38 @@ _BinOpPrism ::
   BinOpPrism r
 _BinOpPrism k = _ExprFPrism k
 
-mkExprF :: forall a s unused f k.
-  Row.Cons k (FProxy f) unused (ExprLayerRow s a) =>
+mkExprF :: forall m s a unused f k.
+  Row.Cons k (FProxy f) unused (ExprLayerRow m s a) =>
   IsSymbol k => Functor f =>
-  SProxy k -> f (Expr s a) -> Expr s a
+  SProxy k -> f (Expr m s a) -> Expr m s a
 mkExprF k v = embedW $ VariantF.inj k v
 
-mkExpr :: forall a s unused v k.
-  Row.Cons k (CONST v) unused (ExprLayerRow s a) =>
+mkExpr :: forall m s a unused v k.
+  Row.Cons k (CONST v) unused (ExprLayerRow m s a) =>
   IsSymbol k =>
-  SProxy k -> v -> Expr s a
+  SProxy k -> v -> Expr m s a
 mkExpr k v = mkExprF k (ConstF.Const v)
 
-mkBinOp :: forall a s unused k.
-  Row.Cons k (FProxy Pair) unused (ExprLayerRow s a) =>
+mkBinOp :: forall m s a unused k.
+  Row.Cons k (FProxy Pair) unused (ExprLayerRow m s a) =>
   IsSymbol k =>
-  SProxy k -> Expr s a -> Expr s a -> Expr s a
+  SProxy k -> Expr m s a -> Expr m s a -> Expr m s a
 mkBinOp k l r = mkExprF k
   (Pair l r)
 
-mkConst :: forall s a. Const -> Expr s a
+mkConst :: forall m s a. Const -> Expr m s a
 mkConst = mkExpr (SProxy :: SProxy "Const")
 
 _Const :: forall r. ExprPrism ( "Const" :: CONST Const | r ) Const
 _Const = _ExprPrism (SProxy :: SProxy "Const")
 
-mkVar :: forall s a. Var -> Expr s a
+mkVar :: forall m s a. Var -> Expr m s a
 mkVar = mkExpr (SProxy :: SProxy "Var")
 
 _Var :: forall r. ExprPrism ( "Var" :: CONST Var | r ) Var
 _Var = _ExprPrism (SProxy :: SProxy "Var")
 
-mkLam :: forall s a. String -> Expr s a -> Expr s a -> Expr s a
+mkLam :: forall m s a. String -> Expr m s a -> Expr m s a -> Expr m s a
 mkLam name ty expr = mkExprF (SProxy :: SProxy "Lam")
   (product (Tuple name ty) (Identity expr))
 
@@ -630,7 +642,7 @@ _Lam = _ExprFPrism (SProxy :: SProxy "Lam") <<< _Newtype <<< iso into outof wher
   into (Tuple (Tuple var ty) (Identity body)) = { var, ty, body }
   outof { var, ty, body } = (Tuple (Tuple var ty) (Identity body))
 
-mkPi :: forall s a. String -> Expr s a -> Expr s a -> Expr s a
+mkPi :: forall m s a. String -> Expr m s a -> Expr m s a -> Expr m s a
 mkPi name ty expr = mkExprF (SProxy :: SProxy "Pi")
   (product (Tuple name ty) (Identity expr))
 
@@ -641,7 +653,7 @@ _Pi = _ExprFPrism (SProxy :: SProxy "Pi") <<< _Newtype <<< iso into outof where
   into (Tuple (Tuple var ty) (Identity body)) = { var, ty, body }
   outof { var, ty, body } = (Tuple (Tuple var ty) (Identity body))
 
-mkApp :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkApp :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkApp fn arg = mkExprF (SProxy :: SProxy "App")
   (Pair fn arg)
 
@@ -652,7 +664,7 @@ _App = _ExprFPrism (SProxy :: SProxy "App") <<< iso into outof where
   into (Pair fn arg) = { fn, arg }
   outof { fn, arg } = Pair fn arg
 
-mkLet :: forall s a. String -> Maybe (Expr s a) -> Expr s a -> Expr s a -> Expr s a
+mkLet :: forall m s a. String -> Maybe (Expr m s a) -> Expr m s a -> Expr m s a -> Expr m s a
 mkLet name ty val expr = mkExprF (SProxy :: SProxy "Let")
   (LetF name ty val expr)
 
@@ -667,7 +679,7 @@ _Let = _ExprFPrism (SProxy :: SProxy "Let") <<< iso into outof where
   into (LetF var ty value body) = { var, ty, value, body }
   outof { var, ty, value, body } = LetF var ty value body
 
-mkAnnot :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkAnnot :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkAnnot val ty = mkExprF (SProxy :: SProxy "Annot")
   (Pair val ty)
 
@@ -678,13 +690,13 @@ _Annot = _ExprFPrism (SProxy :: SProxy "Annot") <<< iso into outof where
   into (Pair value ty) = { value, ty }
   outof { value, ty } = Pair value ty
 
-mkBool :: forall s a. Expr s a
+mkBool :: forall m s a. Expr m s a
 mkBool = mkExpr (SProxy :: SProxy "Bool") unit
 
 _Bool :: forall r. ExprPrism ( "Bool" :: UNIT | r ) Unit
 _Bool = _ExprPrism (SProxy :: SProxy "Bool")
 
-mkBoolLit :: forall s a. Boolean -> Expr s a
+mkBoolLit :: forall m s a. Boolean -> Expr m s a
 mkBoolLit = mkExpr (SProxy :: SProxy "BoolLit")
 
 _BoolLit :: forall r. ExprPrism ( "BoolLit" :: CONST Boolean | r ) Boolean
@@ -696,44 +708,44 @@ _BoolLit_True = _BoolLit <<< _Newtype <<< only true
 _BoolLit_False :: forall r. SimplePrism ( "BoolLit" :: CONST Boolean | r ) Unit
 _BoolLit_False = _BoolLit <<< _Newtype <<< only false
 
-mkBoolAnd :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkBoolAnd :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkBoolAnd = mkBinOp (SProxy :: SProxy "BoolAnd")
 
 _BoolAnd :: forall r. BinOpPrism ( "BoolAnd" :: FProxy Pair | r )
 _BoolAnd = _BinOpPrism (SProxy :: SProxy "BoolAnd")
 
-mkBoolOr :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkBoolOr :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkBoolOr = mkBinOp (SProxy :: SProxy "BoolOr")
 
 _BoolOr :: forall r. BinOpPrism ( "BoolOr" :: FProxy Pair | r )
 _BoolOr = _BinOpPrism (SProxy :: SProxy "BoolOr")
 
-mkBoolEQ :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkBoolEQ :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkBoolEQ = mkBinOp (SProxy :: SProxy "BoolEQ")
 
 _BoolEQ :: forall r. BinOpPrism ( "BoolEQ" :: FProxy Pair | r )
 _BoolEQ = _BinOpPrism (SProxy :: SProxy "BoolEQ")
 
-mkBoolNE :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkBoolNE :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkBoolNE = mkBinOp (SProxy :: SProxy "BoolNE")
 
 _BoolNE :: forall r. BinOpPrism ( "BoolNE" :: FProxy Pair | r )
 _BoolNE = _BinOpPrism (SProxy :: SProxy "BoolNE")
 
-mkBoolIf :: forall s a. Expr s a -> Expr s a -> Expr s a -> Expr s a
+mkBoolIf :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a -> Expr m s a
 mkBoolIf cond t f = mkExprF (SProxy :: SProxy "BoolIf")
   (Triplet cond t f)
 
 _BoolIf :: forall r. ExprFPrism ( "BoolIf" :: FProxy Triplet | r ) Triplet
 _BoolIf = _ExprFPrism (SProxy :: SProxy "BoolIf")
 
-mkNatural :: forall s a. Expr s a
+mkNatural :: forall m s a. Expr m s a
 mkNatural = mkExpr (SProxy :: SProxy "Natural") unit
 
 _Natural :: forall r. ExprPrism ( "Natural" :: UNIT | r ) Unit
 _Natural = _ExprPrism (SProxy :: SProxy "Natural")
 
-mkNaturalLit :: forall s a. Int -> Expr s a
+mkNaturalLit :: forall m s a. Int -> Expr m s a
 mkNaturalLit = mkExpr (SProxy :: SProxy "NaturalLit")
 
 _NaturalLit :: forall r. ExprPrism ( "NaturalLit" :: CONST Int | r ) Int
@@ -745,109 +757,109 @@ _NaturalLit_0 = _NaturalLit <<< _Newtype <<< only zero
 _NaturalLit_1 :: forall r. SimplePrism ( "NaturalLit" :: CONST Int | r ) Unit
 _NaturalLit_1 = _NaturalLit <<< _Newtype <<< only one
 
-mkNaturalFold :: forall s a. Expr s a
+mkNaturalFold :: forall m s a. Expr m s a
 mkNaturalFold = mkExpr (SProxy :: SProxy "NaturalFold") unit
 
 _NaturalFold :: forall r. ExprPrism ( "NaturalFold" :: UNIT | r ) Unit
 _NaturalFold = _ExprPrism (SProxy :: SProxy "NaturalFold")
 
-mkNaturalBuild :: forall s a. Expr s a
+mkNaturalBuild :: forall m s a. Expr m s a
 mkNaturalBuild = mkExpr (SProxy :: SProxy "NaturalBuild") unit
 
 _NaturalBuild :: forall r. ExprPrism ( "NaturalBuild" :: UNIT | r ) Unit
 _NaturalBuild = _ExprPrism (SProxy :: SProxy "NaturalBuild")
 
-mkNaturalIsZero :: forall s a. Expr s a
+mkNaturalIsZero :: forall m s a. Expr m s a
 mkNaturalIsZero = mkExpr (SProxy :: SProxy "NaturalIsZero") unit
 
 _NaturalIsZero :: forall r. ExprPrism ( "NaturalIsZero" :: UNIT | r ) Unit
 _NaturalIsZero = _ExprPrism (SProxy :: SProxy "NaturalIsZero")
 
-mkNaturalEven :: forall s a. Expr s a
+mkNaturalEven :: forall m s a. Expr m s a
 mkNaturalEven = mkExpr (SProxy :: SProxy "NaturalEven") unit
 
 _NaturalEven :: forall r. ExprPrism ( "NaturalEven" :: UNIT | r ) Unit
 _NaturalEven = _ExprPrism (SProxy :: SProxy "NaturalEven")
 
-mkNaturalOdd :: forall s a. Expr s a
+mkNaturalOdd :: forall m s a. Expr m s a
 mkNaturalOdd = mkExpr (SProxy :: SProxy "NaturalOdd") unit
 
 _NaturalOdd :: forall r. ExprPrism ( "NaturalOdd" :: UNIT | r ) Unit
 _NaturalOdd = _ExprPrism (SProxy :: SProxy "NaturalOdd")
 
-mkNaturalToInteger :: forall s a. Expr s a
+mkNaturalToInteger :: forall m s a. Expr m s a
 mkNaturalToInteger = mkExpr (SProxy :: SProxy "NaturalToInteger") unit
 
 _NaturalToInteger :: forall r. ExprPrism ( "NaturalToInteger" :: UNIT | r ) Unit
 _NaturalToInteger = _ExprPrism (SProxy :: SProxy "NaturalToInteger")
 
-mkNaturalShow :: forall s a. Expr s a
+mkNaturalShow :: forall m s a. Expr m s a
 mkNaturalShow = mkExpr (SProxy :: SProxy "NaturalShow") unit
 
 _NaturalShow :: forall r. ExprPrism ( "NaturalShow" :: UNIT | r ) Unit
 _NaturalShow = _ExprPrism (SProxy :: SProxy "NaturalShow")
 
-mkNaturalPlus :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkNaturalPlus :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkNaturalPlus = mkBinOp (SProxy :: SProxy "NaturalPlus")
 
 _NaturalPlus :: forall r. BinOpPrism ( "NaturalPlus" :: FProxy Pair | r )
 _NaturalPlus = _BinOpPrism (SProxy :: SProxy "NaturalPlus")
 
-mkNaturalTimes :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkNaturalTimes :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkNaturalTimes = mkBinOp (SProxy :: SProxy "NaturalTimes")
 
 _NaturalTimes :: forall r. BinOpPrism ( "NaturalTimes" :: FProxy Pair | r )
 _NaturalTimes = _BinOpPrism (SProxy :: SProxy "NaturalTimes")
 
-mkInteger :: forall s a. Expr s a
+mkInteger :: forall m s a. Expr m s a
 mkInteger = mkExpr (SProxy :: SProxy "Integer") unit
 
 _Integer :: forall r. ExprPrism ( "Integer" :: UNIT | r ) Unit
 _Integer = _ExprPrism (SProxy :: SProxy "Integer")
 
-mkIntegerLit :: forall s a. Int -> Expr s a
+mkIntegerLit :: forall m s a. Int -> Expr m s a
 mkIntegerLit = mkExpr (SProxy :: SProxy "IntegerLit")
 
 _IntegerLit :: forall r. ExprPrism ( "IntegerLit" :: CONST Int | r ) Int
 _IntegerLit = _ExprPrism (SProxy :: SProxy "IntegerLit")
 
-mkIntegerShow :: forall s a. Expr s a
+mkIntegerShow :: forall m s a. Expr m s a
 mkIntegerShow = mkExpr (SProxy :: SProxy "IntegerShow") unit
 
 _IntegerShow :: forall r. ExprPrism ( "IntegerShow" :: UNIT | r ) Unit
 _IntegerShow = _ExprPrism (SProxy :: SProxy "IntegerShow")
 
-mkIntegerToDouble :: forall s a. Expr s a
+mkIntegerToDouble :: forall m s a. Expr m s a
 mkIntegerToDouble = mkExpr (SProxy :: SProxy "IntegerToDouble") unit
 
 _IntegerToDouble :: forall r. ExprPrism ( "IntegerToDouble" :: UNIT | r ) Unit
 _IntegerToDouble = _ExprPrism (SProxy :: SProxy "IntegerToDouble")
 
-mkDouble :: forall s a. Expr s a
+mkDouble :: forall m s a. Expr m s a
 mkDouble = mkExpr (SProxy :: SProxy "Double") unit
 
 _Double :: forall r. ExprPrism ( "Double" :: UNIT | r ) Unit
 _Double = _ExprPrism (SProxy :: SProxy "Double")
 
-mkDoubleLit :: forall s a. Number -> Expr s a
+mkDoubleLit :: forall m s a. Number -> Expr m s a
 mkDoubleLit = mkExpr (SProxy :: SProxy "DoubleLit")
 
 _DoubleLit :: forall r. ExprPrism ( "DoubleLit" :: CONST Number | r ) Number
 _DoubleLit = _ExprPrism (SProxy :: SProxy "DoubleLit")
 
-mkDoubleShow :: forall s a. Expr s a
+mkDoubleShow :: forall m s a. Expr m s a
 mkDoubleShow = mkExpr (SProxy :: SProxy "DoubleShow") unit
 
 _DoubleShow :: forall r. ExprPrism ( "DoubleShow" :: UNIT | r ) Unit
 _DoubleShow = _ExprPrism (SProxy :: SProxy "DoubleShow")
 
-mkText :: forall s a. Expr s a
+mkText :: forall m s a. Expr m s a
 mkText = mkExpr (SProxy :: SProxy "Text") unit
 
 _Text :: forall r. ExprPrism ( "Text" :: UNIT | r ) Unit
 _Text = _ExprPrism (SProxy :: SProxy "Text")
 
-mkTextLit :: forall s a. TextLitF (Expr s a) -> Expr s a
+mkTextLit :: forall m s a. TextLitF (Expr m s a) -> Expr m s a
 mkTextLit = mkExprF (SProxy :: SProxy "TextLit")
 
 _TextLit :: forall r. ExprFPrism ( "TextLit" :: FProxy TextLitF | r ) TextLitF
@@ -859,19 +871,19 @@ _TextLit_empty = _TextLit <<< prism' (const (TextLit ""))
     TextLit "" -> Just unit
     _ -> Nothing
 
-mkTextAppend :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkTextAppend :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkTextAppend = mkBinOp (SProxy :: SProxy "TextAppend")
 
 _TextAppend :: forall r. BinOpPrism ( "TextAppend" :: FProxy Pair | r )
 _TextAppend = _BinOpPrism (SProxy :: SProxy "TextAppend")
 
-mkList :: forall s a. Expr s a
+mkList :: forall m s a. Expr m s a
 mkList = mkExpr (SProxy :: SProxy "List") unit
 
 _List :: forall r. ExprPrism ( "List" :: UNIT | r ) Unit
 _List = _ExprPrism (SProxy :: SProxy "List")
 
-mkListLit :: forall s a. Maybe (Expr s a) -> Array (Expr s a) -> Expr s a
+mkListLit :: forall m s a. Maybe (Expr m s a) -> Array (Expr m s a) -> Expr m s a
 mkListLit ty lit = mkExprF (SProxy :: SProxy "ListLit")
   (product ty lit)
 
@@ -882,61 +894,61 @@ _ListLit = _ExprFPrism (SProxy :: SProxy "ListLit") <<< _Newtype <<< iso into ou
   into (Tuple ty values) = { ty, values }
   outof { ty, values } = Tuple ty values
 
-mkListAppend :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkListAppend :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkListAppend = mkBinOp (SProxy :: SProxy "ListAppend")
 
 _ListAppend :: forall r. BinOpPrism ( "ListAppend" :: FProxy Pair | r )
 _ListAppend = _BinOpPrism (SProxy :: SProxy "ListAppend")
 
-mkListFold :: forall s a. Expr s a
+mkListFold :: forall m s a. Expr m s a
 mkListFold = mkExpr (SProxy :: SProxy "ListFold") unit
 
 _ListFold :: forall r. ExprPrism ( "ListFold" :: UNIT | r ) Unit
 _ListFold = _ExprPrism (SProxy :: SProxy "ListFold")
 
-mkListBuild :: forall s a. Expr s a
+mkListBuild :: forall m s a. Expr m s a
 mkListBuild = mkExpr (SProxy :: SProxy "ListBuild") unit
 
 _ListBuild :: forall r. ExprPrism ( "ListBuild" :: UNIT | r ) Unit
 _ListBuild = _ExprPrism (SProxy :: SProxy "ListBuild")
 
-mkListLength :: forall s a. Expr s a
+mkListLength :: forall m s a. Expr m s a
 mkListLength = mkExpr (SProxy :: SProxy "ListLength") unit
 
 _ListLength :: forall r. ExprPrism ( "ListLength" :: UNIT | r ) Unit
 _ListLength = _ExprPrism (SProxy :: SProxy "ListLength")
 
-mkListHead :: forall s a. Expr s a
+mkListHead :: forall m s a. Expr m s a
 mkListHead = mkExpr (SProxy :: SProxy "ListHead") unit
 
 _ListHead :: forall r. ExprPrism ( "ListHead" :: UNIT | r ) Unit
 _ListHead = _ExprPrism (SProxy :: SProxy "ListHead")
 
-mkListLast :: forall s a. Expr s a
+mkListLast :: forall m s a. Expr m s a
 mkListLast = mkExpr (SProxy :: SProxy "ListLast") unit
 
 _ListLast :: forall r. ExprPrism ( "ListLast" :: UNIT | r ) Unit
 _ListLast = _ExprPrism (SProxy :: SProxy "ListLast")
 
-mkListIndexed :: forall s a. Expr s a
+mkListIndexed :: forall m s a. Expr m s a
 mkListIndexed = mkExpr (SProxy :: SProxy "ListIndexed") unit
 
 _ListIndexed :: forall r. ExprPrism ( "ListIndexed" :: UNIT | r ) Unit
 _ListIndexed = _ExprPrism (SProxy :: SProxy "ListIndexed")
 
-mkListReverse :: forall s a. Expr s a
+mkListReverse :: forall m s a. Expr m s a
 mkListReverse = mkExpr (SProxy :: SProxy "ListReverse") unit
 
 _ListReverse :: forall r. ExprPrism ( "ListReverse" :: UNIT | r ) Unit
 _ListReverse = _ExprPrism (SProxy :: SProxy "ListReverse")
 
-mkOptional :: forall s a. Expr s a
+mkOptional :: forall m s a. Expr m s a
 mkOptional = mkExpr (SProxy :: SProxy "Optional") unit
 
 _Optional :: forall r. ExprPrism ( "Optional" :: UNIT | r ) Unit
 _Optional = _ExprPrism (SProxy :: SProxy "Optional")
 
-mkOptionalLit :: forall s a. Expr s a -> Maybe (Expr s a) -> Expr s a
+mkOptionalLit :: forall m s a. Expr m s a -> Maybe (Expr m s a) -> Expr m s a
 mkOptionalLit ty lit = mkExprF (SProxy :: SProxy "OptionalLit")
   (product (Identity ty) lit)
 
@@ -947,100 +959,94 @@ _OptionalLit = _ExprFPrism (SProxy :: SProxy "OptionalLit") <<< _Newtype <<< iso
   into (Tuple (Identity ty) value) = { ty, value }
   outof { ty, value } = Tuple (Identity ty) value
 
-mkOptionalFold :: forall s a. Expr s a
+mkOptionalFold :: forall m s a. Expr m s a
 mkOptionalFold = mkExpr (SProxy :: SProxy "OptionalFold") unit
 
 _OptionalFold :: forall r. ExprPrism ( "OptionalFold" :: UNIT | r ) Unit
 _OptionalFold = _ExprPrism (SProxy :: SProxy "OptionalFold")
 
-mkOptionalBuild :: forall s a. Expr s a
+mkOptionalBuild :: forall m s a. Expr m s a
 mkOptionalBuild = mkExpr (SProxy :: SProxy "OptionalBuild") unit
 
 _OptionalBuild :: forall r. ExprPrism ( "OptionalBuild" :: UNIT | r ) Unit
 _OptionalBuild = _ExprPrism (SProxy :: SProxy "OptionalBuild")
 
-mkRecord :: forall s a. Array (Tuple String (Expr s a)) -> Expr s a
-mkRecord = mkExprF (SProxy :: SProxy "Record") <<< Compose
+mkRecord :: forall m s a. Functor m => m (Expr m s a) -> Expr m s a
+mkRecord = mkExprF (SProxy :: SProxy "Record")
 
-_Record :: forall r. ExprFPrism
-  ( "Record" :: FProxy (OrdMap String) | r ) (OrdMap String)
+_Record :: forall r m. Functor m => ExprFPrism
+  ( "Record" :: FProxy m | r ) m
 _Record = _ExprFPrism (SProxy :: SProxy "Record")
 
-_Record_empty :: forall r o.
-  Prism' (VariantF ( "Record" :: FProxy (OrdMap String) | r ) o) Unit
-_Record_empty = _Record <<< prism' (const (Compose [])) case _ of
-  Compose [] -> Just unit
-  _ -> Nothing
+_Record_empty :: forall r o m. StrMapIsh m =>
+  Prism' (VariantF ( "Record" :: FProxy m | r ) o) Unit
+_Record_empty = _Record <<< StrMapIsh._Empty
 
-mkRecordLit :: forall s a. Array (Tuple String (Expr s a)) -> Expr s a
-mkRecordLit = mkExprF (SProxy :: SProxy "RecordLit") <<< Compose
+mkRecordLit :: forall s a m. Functor m => m (Expr m s a) -> Expr m s a
+mkRecordLit = mkExprF (SProxy :: SProxy "RecordLit")
 
-_RecordLit :: forall r. ExprFPrism
-  ( "RecordLit" :: FProxy (OrdMap String) | r ) (OrdMap String)
+_RecordLit :: forall r m. Functor m => ExprFPrism
+  ( "RecordLit" :: FProxy m | r ) m
 _RecordLit = _ExprFPrism (SProxy :: SProxy "RecordLit")
 
-_RecordLit_empty :: forall r o.
-  Prism' (VariantF ( "RecordLit" :: FProxy (OrdMap String) | r ) o) Unit
-_RecordLit_empty = _RecordLit <<< prism' (const (Compose [])) case _ of
-  Compose [] -> Just unit
-  _ -> Nothing
+_RecordLit_empty :: forall r o m. StrMapIsh m =>
+  Prism' (VariantF ( "RecordLit" :: FProxy m | r ) o) Unit
+_RecordLit_empty = _RecordLit <<< StrMapIsh._Empty
 
-mkUnion :: forall s a. Array (Tuple String (Expr s a)) -> Expr s a
-mkUnion = mkExprF (SProxy :: SProxy "Union") <<< Compose
+mkUnion :: forall m s a. Functor m => m (Expr m s a) -> Expr m s a
+mkUnion = mkExprF (SProxy :: SProxy "Union")
 
-_Union :: forall r. ExprFPrism ( "Union" :: FProxy (OrdMap String) | r ) (OrdMap String)
+_Union :: forall r m. Functor m => ExprFPrism ( "Union" :: FProxy m | r ) m
 _Union = _ExprFPrism (SProxy :: SProxy "Union")
 
-_Union_empty :: forall r o.
-  Prism' (VariantF ( "Union" :: FProxy (OrdMap String) | r ) o) Unit
-_Union_empty = _Union <<< prism' (const (Compose [])) case _ of
-  Compose [] -> Just unit
-  _ -> Nothing
+_Union_empty :: forall r o m. StrMapIsh m =>
+  Prism' (VariantF ( "Union" :: FProxy m | r ) o) Unit
+_Union_empty = _Union <<< StrMapIsh._Empty
 
-mkUnionLit :: forall s a. String -> Expr s a -> Array (Tuple String (Expr s a)) -> Expr s a
+mkUnionLit :: forall m s a. Functor m => String -> Expr m s a -> m (Expr m s a) -> Expr m s a
 mkUnionLit name value others = mkExprF (SProxy :: SProxy "UnionLit")
-  (product (Tuple name value) (Compose others))
+  (product (Tuple name value) others)
 
-_UnionLit :: forall r o. Prism'
-  (VariantF ( "UnionLit" :: FProxy (Product (Tuple String) (OrdMap String)) | r ) o)
-  { label :: String, value :: o, tys :: OrdMap String o }
+_UnionLit :: forall r o m. Functor m => Prism'
+  (VariantF ( "UnionLit" :: FProxy (Product (Tuple String) m) | r ) o)
+  { label :: String, value :: o, tys :: m o }
 _UnionLit = _ExprFPrism (SProxy :: SProxy "UnionLit") <<< _Newtype <<< iso into outof where
   into (Tuple (Tuple label value) tys) = { label, value, tys }
   outof { label, value, tys } = Tuple (Tuple label value) tys
 
-mkCombine :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkCombine :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkCombine = mkBinOp (SProxy :: SProxy "Combine")
 
 _Combine :: forall r. BinOpPrism ( "Combine" :: FProxy Pair | r )
 _Combine = _BinOpPrism (SProxy :: SProxy "Combine")
 
-mkCombineTypes :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkCombineTypes :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkCombineTypes = mkBinOp (SProxy :: SProxy "CombineTypes")
 
 _CombineTypes :: forall r. BinOpPrism ( "CombineTypes" :: FProxy Pair | r )
 _CombineTypes = _BinOpPrism (SProxy :: SProxy "CombineTypes")
 
-mkPrefer :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkPrefer :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkPrefer = mkBinOp (SProxy :: SProxy "Prefer")
 
 _Prefer :: forall r. BinOpPrism ( "Prefer" :: FProxy Pair | r )
 _Prefer = _BinOpPrism (SProxy :: SProxy "Prefer")
 
-mkMerge :: forall s a. Expr s a -> Expr s a -> Maybe (Expr s a) -> Expr s a
+mkMerge :: forall m s a. Expr m s a -> Expr m s a -> Maybe (Expr m s a) -> Expr m s a
 mkMerge x y t = mkExprF (SProxy :: SProxy "Merge")
   (MergeF x y t)
 
 _Merge :: forall r. ExprFPrism ( "Merge" :: FProxy MergeF | r ) MergeF
 _Merge = _ExprFPrism (SProxy :: SProxy "Merge")
 
-mkConstructors :: forall s a. Expr s a -> Expr s a
+mkConstructors :: forall m s a. Expr m s a -> Expr m s a
 mkConstructors = mkExprF (SProxy :: SProxy "Constructors") <<< Identity
 
 _Constructors :: forall r o.
   Prism' (VariantF ( "Constructors" :: FProxy Identity | r ) o) o
 _Constructors = _ExprFPrism (SProxy :: SProxy "Constructors") <<< _Newtype
 
-mkField :: forall s a. Expr s a -> String -> Expr s a
+mkField :: forall m s a. Expr m s a -> String -> Expr m s a
 mkField expr field = mkExprF (SProxy :: SProxy "Field")
   (Tuple field expr)
 
@@ -1049,7 +1055,7 @@ _Field :: forall r o. Prism'
   (Tuple o String)
 _Field = _ExprFPrism (SProxy :: SProxy "Field") <<< iso swap swap
 
-mkProject :: forall s a. Expr s a -> Set String -> Expr s a
+mkProject :: forall m s a. Expr m s a -> Set String -> Expr m s a
 mkProject expr fields = mkExprF (SProxy :: SProxy "Project")
   (Tuple fields expr)
 
@@ -1058,20 +1064,20 @@ _Project :: forall r o. Prism'
   (Tuple o (Set String))
 _Project = _ExprFPrism (SProxy :: SProxy "Project") <<< iso swap swap
 
-mkNote :: forall s a. s -> Expr s a -> Expr s a
+mkNote :: forall m s a. s -> Expr m s a -> Expr m s a
 mkNote note expr = mkExprF (SProxy :: SProxy "Note")
   (Tuple note expr)
 
 _Note :: forall s r. ExprFPrism ( "Note" :: FProxy (Tuple s) | r ) (Tuple s)
 _Note = _ExprFPrism (SProxy :: SProxy "Note")
 
-mkImportAlt :: forall s a. Expr s a -> Expr s a -> Expr s a
+mkImportAlt :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkImportAlt = mkBinOp (SProxy :: SProxy "ImportAlt")
 
 _ImportAlt :: forall r. BinOpPrism ( "ImportAlt" :: FProxy Pair | r )
 _ImportAlt = _BinOpPrism (SProxy :: SProxy "ImportAlt")
 
-mkEmbed :: forall s a. a -> Expr s a
+mkEmbed :: forall m s a. a -> Expr m s a
 mkEmbed = pure
 
 _Embed :: forall a r. ExprPrism ( "Embed" :: CONST a | r ) a

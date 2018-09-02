@@ -34,18 +34,18 @@ renderCase :: forall g l l' b f k r r' a.
   VariantF r a -> g (VariantF l b)
 renderCase k f = VariantF.on k (f >>> map (VariantF.inj k))
 
-literals :: forall ir or a.
-  RenderVariantF' ir (Literals + or) a ->
-  RenderVariantF' (Literals + ir) (Literals + or) a
+literals :: forall ir or a m.
+  RenderVariantF' ir (Literals m + or) a ->
+  RenderVariantF' (Literals m + ir) (Literals m + or) a
 literals rest = Star $ unwrap rest
   # renderCase (SProxy :: SProxy "BoolLit") (N.traverse Const (unwrap boolH))
   # renderCase (SProxy :: SProxy "NaturalLit") (N.traverse Const (unwrap naturalH))
   # renderCase (SProxy :: SProxy "IntegerLit") (N.traverse Const (unwrap intH))
   # renderCase (SProxy :: SProxy "DoubleLit") (N.traverse Const (unwrap doubleH))
 
-both :: forall a or.
+both :: forall a or m.
   RenderValue a ->
-  RenderVariantF' (BuiltinBinOps + Literals + ()) (BuiltinBinOps + Literals + or) a
+  RenderVariantF' (BuiltinBinOps m + Literals m + ()) (BuiltinBinOps m + Literals m + or) a
 both param = builtinBinOps (literals (Star $ VariantF.case_)) param
 
 rec :: forall r.
@@ -53,9 +53,9 @@ rec :: forall r.
   RenderValue (Mu (VariantF r))
 rec f = Star \(In v) -> map In (un Star (f (rec f)) v)
 
-builtinBinOps :: forall ir or a.
-  RenderVariantF' ir (BuiltinBinOps + or) a ->
-  RenderValue a -> RenderVariantF' (BuiltinBinOps + ir) (BuiltinBinOps + or) a
+builtinBinOps :: forall ir or a m.
+  RenderVariantF' ir (BuiltinBinOps m + or) a ->
+  RenderValue a -> RenderVariantF' (BuiltinBinOps m + ir) (BuiltinBinOps m + or) a
 builtinBinOps rest param = Star
   let
     deal :: RenderValue (Tuple a a) -> RenderValue (Pair a)
