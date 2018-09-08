@@ -1,0 +1,101 @@
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <style>
+  body {
+    font-size: 24px;
+    font-family: cursive;
+    background-color: #242430;
+    color: #ede6d6;
+  }
+  .feather {
+    width: 1em;
+    height: 1em;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    vertical-align: middle;
+    position: relative;
+    top: 50%;
+    margin-top: -0.5em;
+  }
+  .feather:hover {
+    stroke-width: 2.6;
+  }
+  .feather.active {
+    cursor: pointer;
+    stroke-opacity: 0.75;
+  }
+  .feather.active:hover {
+    stroke-opacity: 1;
+  }
+  .feather.move.vertical {
+    cursor: ns-resize;
+  }
+  .grid-container {
+    display: grid;
+    grid-template-columns: 1em min-content 1em min-content 1em max-content 1em;
+    grid-template-rows: min-content min-content min-content;
+    grid-gap: 0.25ex 0.25em;
+    grid-template-areas:
+      ". . . . ."
+      ". . . . ."
+      ". . . . .";
+    font-family: monospace;
+  }
+  </style>
+</head>
+<body>
+  Hello.
+  <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
+    <use xlink:href="/feather-sprite.svg#plus-circle"></use>
+  </svg>
+  Add an element?
+  <div class="grid-container">
+    <div>
+      <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
+        <use xlink:href="/feather-sprite.svg#minimize"></use>
+      </svg>
+    </div>
+    <div>&#x007B;</div>
+    <div>
+      <svg class="feather active move vertical" style="stroke: hsla(120, 92%, 45%, 1);">
+        <use xlink:href="/feather-sprite.svg#menu"></use>
+      </svg>
+    </div>
+    <div>id</div><div>:</div><div>1024</div>
+    <div>
+      <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
+        <use xlink:href="/feather-sprite.svg#minus-circle"></use>
+      </svg>
+    </div>
+    <div></div>
+    <div>,</div>
+    <div>
+      <svg class="feather active move vertical" style="stroke: hsla(120, 92%, 45%, 1);">
+        <use xlink:href="/feather-sprite.svg#menu"></use>
+      </svg>
+    </div>
+    <div>name</div><div>:</div><div>“Lydia”</div>
+    <div>
+      <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
+        <use xlink:href="/feather-sprite.svg#minus-circle"></use>
+      </svg>
+    </div>
+    <div>
+      <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
+        <use xlink:href="/feather-sprite.svg#minimize"></use>
+      </svg>
+    </div>
+    <div>&#x007D;</div>
+    <div>
+      <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
+        <use xlink:href="/feather-sprite.svg#plus-circle"></use>
+      </svg>
+    </div>
+  </div>
+  <p>(This is just a little sketch for how I want the styling to look, in terms of icons and the CSS grid system.)</p>
+</body>
+</html>
