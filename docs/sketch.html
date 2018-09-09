@@ -45,12 +45,32 @@
       ". . . . .";
     font-family: monospace;
   }
+  input[type=text] {
+    background: none;
+    border: none;
+    outline: none;
+    font: inherit;
+    color: inherit;
+    width: min-content;
+    box-sizing: border-box;
+    border: none;
+    border-bottom: 2px solid hsla(240, 64%, 55%, 0.0);
+    margin-bottom: -2px;
+    transition: border 0.3s;
+    padding: 0px;
+  }
+  input[type=text]:focus {
+    outline: none;
+    border-bottom: 2px solid hsla(240, 64%, 55%, 1.0);
+    margin-bottom: -2px;
+    transition: border 0.3s;
+  }
   </style>
 </head>
 <body>
   Hello.
   <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
-    <use xlink:href="feather-sprite.svg#plus-circle"></use>
+    <use xlink:href="feather-sprite.svg#plus-square"></use>
   </svg>
   Add an element?
   <div class="grid-container">
@@ -68,7 +88,7 @@
     <div><input type="text" class="id-input" value="id"/></div><div>:</div><div>1024</div>
     <div>
       <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
-        <use xlink:href="feather-sprite.svg#minus-circle"></use>
+        <use xlink:href="feather-sprite.svg#minus-square"></use>
       </svg>
     </div>
     <div></div>
@@ -78,10 +98,10 @@
         <use xlink:href="feather-sprite.svg#menu"></use>
       </svg>
     </div>
-    <div>name</div><div>:</div><div>“Lydia”</div>
+    <div><input type="text" class="id-input" value="name"/></div><div>:</div><div>“Lydia”</div>
     <div>
       <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
-        <use xlink:href="feather-sprite.svg#minus-circle"></use>
+        <use xlink:href="feather-sprite.svg#minus-square"></use>
       </svg>
     </div>
     <div>
@@ -92,7 +112,7 @@
     <div>&#x007D;</div>
     <div>
       <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
-        <use xlink:href="feather-sprite.svg#plus-circle"></use>
+        <use xlink:href="feather-sprite.svg#plus-square"></use>
       </svg>
     </div>
   </div>
