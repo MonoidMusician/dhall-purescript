@@ -29227,6 +29227,7 @@ var Control_Bind = require("../Control.Bind/index.js");
 var Data_Function = require("../Data.Function/index.js");
 var Data_Functor = require("../Data.Functor/index.js");
 var Data_Profunctor_Star = require("../Data.Profunctor.Star/index.js");
+var Data_Semigroup = require("../Data.Semigroup/index.js");
 var Data_Unit = require("../Data.Unit/index.js");
 var Dhall_Interactive_Halogen_Types = require("../Dhall.Interactive.Halogen.Types/index.js");
 var Effect = require("../Effect/index.js");
@@ -29250,10 +29251,13 @@ var svgNS = "http://www.w3.org/2000/svg";
 var use = Data_Functor.flap(Data_Functor.functorFn)(Halogen_HTML_Elements.elementNS(svgNS)("use"))([  ]);
 var svg = Halogen_HTML_Elements.elementNS(svgNS)("svg");
 var href = Halogen_HTML_Properties.attr("href");
+var icon = function (i) {
+    return Data_Functor.flap(Data_Functor.functorFn)(svg)([ use([ href("feather-sprite.svg#" + i) ]) ]);
+};
 var class_ = Halogen_HTML_Properties.attr("class");
 var main = Halogen_Aff_Util.runHalogenAff(Control_Bind.bind(Effect_Aff.bindAff)(Halogen_Aff_Util.awaitBody)(function (v) {
     var c = function (v1) {
-        return svg([ class_("feather active") ])(Control_Applicative.pure(Control_Applicative.applicativeArray)(use([ href("feather-sprite.svg#plus-square") ])));
+        return icon("plus-circle")([ class_("feather active") ]);
     };
     return Control_Bind.bind(Effect_Aff.bindAff)(Halogen_VDom_Driver.runUI(Dhall_Interactive_Halogen_Types.simpleC(c))(Data_Unit.unit)(v))(function (v1) {
         return Control_Applicative.pure(Effect_Aff.applicativeAff)(Data_Unit.unit);
@@ -29266,10 +29270,11 @@ module.exports = {
     use: use,
     class_: class_,
     href: href,
+    icon: icon,
     main: main
 };
 
-},{"../Control.Applicative/index.js":4,"../Control.Bind/index.js":10,"../Data.Function/index.js":108,"../Data.Functor/index.js":115,"../Data.Profunctor.Star/index.js":162,"../Data.Unit/index.js":204,"../Dhall.Interactive.Halogen.Types/index.js":208,"../Effect.Aff/index.js":214,"../Effect/index.js":227,"../Halogen.Aff.Util/index.js":241,"../Halogen.Aff/index.js":242,"../Halogen.HTML.Core/index.js":246,"../Halogen.HTML.Elements/index.js":247,"../Halogen.HTML.Events/index.js":248,"../Halogen.HTML.Properties/index.js":249,"../Halogen.HTML/index.js":250,"../Halogen.VDom.Driver/index.js":259,"../Halogen.VDom.Types/index.js":261,"../Halogen/index.js":265,"../Prelude/index.js":272,"../Web.UIEvent.KeyboardEvent/index.js":487,"../Web.UIEvent.MouseEvent/index.js":490,"../Web.UIEvent.WheelEvent/index.js":494}],208:[function(require,module,exports){
+},{"../Control.Applicative/index.js":4,"../Control.Bind/index.js":10,"../Data.Function/index.js":108,"../Data.Functor/index.js":115,"../Data.Profunctor.Star/index.js":162,"../Data.Semigroup/index.js":172,"../Data.Unit/index.js":204,"../Dhall.Interactive.Halogen.Types/index.js":208,"../Effect.Aff/index.js":214,"../Effect/index.js":227,"../Halogen.Aff.Util/index.js":241,"../Halogen.Aff/index.js":242,"../Halogen.HTML.Core/index.js":246,"../Halogen.HTML.Elements/index.js":247,"../Halogen.HTML.Events/index.js":248,"../Halogen.HTML.Properties/index.js":249,"../Halogen.HTML/index.js":250,"../Halogen.VDom.Driver/index.js":259,"../Halogen.VDom.Types/index.js":261,"../Halogen/index.js":265,"../Prelude/index.js":272,"../Web.UIEvent.KeyboardEvent/index.js":487,"../Web.UIEvent.MouseEvent/index.js":490,"../Web.UIEvent.WheelEvent/index.js":494}],208:[function(require,module,exports){
 "use strict";
 var Control_Applicative = require("../Control.Applicative/index.js");
 var Control_Apply = require("../Control.Apply/index.js");
