@@ -16,10 +16,21 @@
     stroke-linecap: round;
     stroke-linejoin: round;
     fill: none;
-    vertical-align: middle;
+  }
+  .feather.inline {
+    /*vertical-align: middle;*/
     position: relative;
     top: 50%;
     margin-top: -0.5em;
+  }
+  .icon-top {
+    align-self: baseline;
+    margin-top: 0.25ex;
+  }
+  /* TODO: maybe just ... don't? */
+  .icon-bottom {
+    align-self: end;
+    margin-bottom: 0.15ex;
   }
   .feather:hover {
     stroke-width: 2.6;
@@ -36,7 +47,7 @@
   }
   .grid-container {
     display: grid;
-    grid-template-columns: 1em min-content 1em min-content 1em max-content 1em;
+    grid-template-columns: 1em min-content 1em max-content 1em;
     grid-template-rows: min-content min-content min-content;
     grid-gap: 0.25ex 0.25em;
     grid-template-areas:
@@ -44,6 +55,11 @@
       ". . . . ."
       ". . . . .";
     font-family: monospace;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: min-content 1em 1fr;
+    grid-gap: 0ex 0.25em;
   }
   input[type=text] {
     background: none;
@@ -69,48 +85,52 @@
 </head>
 <body>
   Hello.
-  <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
+  <svg class="feather active inline" style="stroke: hsla(120, 92%, 45%, 1);">
     <use xlink:href="feather-sprite.svg#plus-square"></use>
   </svg>
   Add an element?
   <div class="grid-container">
-    <div>
+    <div class="icon-top">
       <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
         <use xlink:href="feather-sprite.svg#minimize"></use>
       </svg>
     </div>
     <div>&#x007B;</div>
-    <div>
+    <div class="icon-top">
       <svg class="feather active move vertical" style="stroke: hsla(120, 92%, 45%, 1);">
         <use xlink:href="feather-sprite.svg#menu"></use>
       </svg>
     </div>
-    <div><input type="text" class="id-input" value="id"/></div><div>:</div><div>1024</div>
-    <div>
+    <div class="row">
+      <div><input type="text" class="id-input" value="id"/></div><div>:</div><div>1024</div>
+    </div>
+    <div class="icon-top">
       <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
         <use xlink:href="feather-sprite.svg#minus-square"></use>
       </svg>
     </div>
     <div></div>
     <div>,</div>
-    <div>
+    <div class="icon-top">
       <svg class="feather active move vertical" style="stroke: hsla(120, 92%, 45%, 1);">
         <use xlink:href="feather-sprite.svg#menu"></use>
       </svg>
     </div>
-    <div><input type="text" class="id-input" value="name"/></div><div>:</div><div>“Lydia”</div>
-    <div>
+    <div class="row">
+      <div><input type="text" class="id-input" value="name"/></div><div>:</div><div>“Lydia”</div>
+    </div>
+    <div class="icon-top">
       <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
         <use xlink:href="feather-sprite.svg#minus-square"></use>
       </svg>
     </div>
-    <div>
+    <div class="icon-bottom">
       <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
         <use xlink:href="feather-sprite.svg#minimize"></use>
       </svg>
     </div>
     <div>&#x007D;</div>
-    <div>
+    <div class="icon-bottom">
       <svg class="feather active" style="stroke: hsla(120, 92%, 45%, 1);">
         <use xlink:href="feather-sprite.svg#plus-square"></use>
       </svg>
