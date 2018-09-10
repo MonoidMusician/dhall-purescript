@@ -3,13 +3,15 @@ module Dhall.Interactive.Halogen.Icons where
 import Prelude
 
 import Data.Profunctor.Star (Star(..))
+import Data.Tuple (Tuple(..))
 import Dhall.Interactive.Halogen.Types (simpleC)
 import Effect (Effect)
-import Halogen (AttrName(..), ElemName(..), Namespace(..))
+import Halogen (AttrName(..), ClassName(..), ElemName(..), Namespace(..))
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
+import Halogen.HTML.Properties (InputType(..))
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
 import Web.UIEvent.KeyboardEvent (KeyboardEvent)
@@ -136,6 +138,43 @@ main :: Effect Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
   let
-    c = Star \_ -> icon "plus-circle" [ class_ "feather active" ]
+    icon_top = Tuple "icon-top"
+    move = icon "menu" [ class_ "feather active move vertical" ]
+    remove = icon "minus-square" [ class_ "feather active" ]
+    row items = HH.div [ HP.class_ $ ClassName "row" ] $ HH.div_ <<< pure <$> items
+    labelled label value = row
+      [ HH.input
+        [ HP.type_ InputText
+        , HP.class_ $ ClassName "id-input"
+        , HP.value label
+        ]
+      , HH.text ":"
+      , value
+      ]
+    record_start k v =
+      [ icon_top $ icon "minimize" [ class_ "feather active" ]
+      , pure $ HH.text "{"
+      , icon_top move
+      , pure $ labelled k v
+      , icon_top remove
+      ]
+    record_continue k v =
+      [ pure $ HH.text ""
+      , pure $ HH.text ","
+      , icon_top move
+      , pure $ labelled k v
+      , icon_top $ remove
+      ]
+    record_end =
+      [ Tuple "icon-bottom" $ icon "minimize" [ class_ "feather active" ]
+      , pure $ HH.text "}"
+      , Tuple "icon-bottom" $ icon "plus-square" [ class_ "feather active" ]
+      ]
+    c = Star \_ -> HH.div [ HP.class_ $ ClassName "grid-container" ] $
+      join $ map (\(Tuple cls v) -> HH.div [ HP.class_ $ ClassName cls ] [ v ]) <$>
+        [ record_start "id" $ HH.text "2014"
+        , record_continue "name" $ HH.text "“Lydia”"
+        , record_end
+        ]
   driver <- runUI (simpleC c) unit body
   pure unit

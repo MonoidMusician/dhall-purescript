@@ -29224,10 +29224,14 @@ module.exports = {
 "use strict";
 var Control_Applicative = require("../Control.Applicative/index.js");
 var Control_Bind = require("../Control.Bind/index.js");
+var Control_Semigroupoid = require("../Control.Semigroupoid/index.js");
+var DOM_HTML_Indexed_InputType = require("../DOM.HTML.Indexed.InputType/index.js");
 var Data_Function = require("../Data.Function/index.js");
 var Data_Functor = require("../Data.Functor/index.js");
+var Data_Monoid = require("../Data.Monoid/index.js");
 var Data_Profunctor_Star = require("../Data.Profunctor.Star/index.js");
 var Data_Semigroup = require("../Data.Semigroup/index.js");
+var Data_Tuple = require("../Data.Tuple/index.js");
 var Data_Unit = require("../Data.Unit/index.js");
 var Dhall_Interactive_Halogen_Types = require("../Dhall.Interactive.Halogen.Types/index.js");
 var Effect = require("../Effect/index.js");
@@ -29256,8 +29260,34 @@ var icon = function (i) {
 };
 var class_ = Halogen_HTML_Properties.attr("class");
 var main = Halogen_Aff_Util.runHalogenAff(Control_Bind.bind(Effect_Aff.bindAff)(Halogen_Aff_Util.awaitBody)(function (v) {
+    var row = function (items) {
+        return Halogen_HTML_Elements.div([ Halogen_HTML_Properties.class_("row") ])(Data_Functor.map(Data_Functor.functorArray)(function ($9) {
+            return Halogen_HTML_Elements.div_(Control_Applicative.pure(Control_Applicative.applicativeArray)($9));
+        })(items));
+    };
+    var remove = icon("minus-square")([ class_("feather active") ]);
+    var record_end = [ Data_Tuple.Tuple.create("icon-bottom")(icon("minimize")([ class_("feather active") ])), Control_Applicative.pure(Data_Tuple.applicativeTuple(Data_Monoid.monoidString))(Halogen_HTML_Core.text("}")), Data_Tuple.Tuple.create("icon-bottom")(icon("plus-square")([ class_("feather active") ])) ];
+    var move = icon("menu")([ class_("feather active move vertical") ]);
+    var labelled = function (label) {
+        return function (value) {
+            return row([ Halogen_HTML_Elements.input([ Halogen_HTML_Properties.type_(Halogen_HTML_Core.inputTypeIsProp)(DOM_HTML_Indexed_InputType.InputText.value), Halogen_HTML_Properties.class_("id-input"), Halogen_HTML_Properties.value(label) ]), Halogen_HTML_Core.text(":"), value ]);
+        };
+    };
+    var icon_top = Data_Tuple.Tuple.create("icon-top");
+    var record_continue = function (k) {
+        return function (v1) {
+            return [ Control_Applicative.pure(Data_Tuple.applicativeTuple(Data_Monoid.monoidString))(Halogen_HTML_Core.text("")), Control_Applicative.pure(Data_Tuple.applicativeTuple(Data_Monoid.monoidString))(Halogen_HTML_Core.text(",")), icon_top(move), Control_Applicative.pure(Data_Tuple.applicativeTuple(Data_Monoid.monoidString))(labelled(k)(v1)), icon_top(remove) ];
+        };
+    };
+    var record_start = function (k) {
+        return function (v1) {
+            return [ icon_top(icon("minimize")([ class_("feather active") ])), Control_Applicative.pure(Data_Tuple.applicativeTuple(Data_Monoid.monoidString))(Halogen_HTML_Core.text("{")), icon_top(move), Control_Applicative.pure(Data_Tuple.applicativeTuple(Data_Monoid.monoidString))(labelled(k)(v1)), icon_top(remove) ];
+        };
+    };
     var c = function (v1) {
-        return icon("plus-circle")([ class_("feather active") ]);
+        return Halogen_HTML_Elements.div([ Halogen_HTML_Properties.class_("grid-container") ])(Control_Bind.join(Control_Bind.bindArray)(Data_Functor.map(Data_Functor.functorArray)(Data_Functor.map(Data_Functor.functorArray)(function (v2) {
+            return Halogen_HTML_Elements.div([ Halogen_HTML_Properties.class_(v2.value0) ])([ v2.value1 ]);
+        }))([ record_start("id")(Halogen_HTML_Core.text("2014")), record_continue("name")(Halogen_HTML_Core.text("\u201cLydia\u201d")), record_end ])));
     };
     return Control_Bind.bind(Effect_Aff.bindAff)(Halogen_VDom_Driver.runUI(Dhall_Interactive_Halogen_Types.simpleC(c))(Data_Unit.unit)(v))(function (v1) {
         return Control_Applicative.pure(Effect_Aff.applicativeAff)(Data_Unit.unit);
@@ -29274,7 +29304,7 @@ module.exports = {
     main: main
 };
 
-},{"../Control.Applicative/index.js":4,"../Control.Bind/index.js":10,"../Data.Function/index.js":108,"../Data.Functor/index.js":115,"../Data.Profunctor.Star/index.js":162,"../Data.Semigroup/index.js":172,"../Data.Unit/index.js":204,"../Dhall.Interactive.Halogen.Types/index.js":208,"../Effect.Aff/index.js":214,"../Effect/index.js":227,"../Halogen.Aff.Util/index.js":241,"../Halogen.Aff/index.js":242,"../Halogen.HTML.Core/index.js":246,"../Halogen.HTML.Elements/index.js":247,"../Halogen.HTML.Events/index.js":248,"../Halogen.HTML.Properties/index.js":249,"../Halogen.HTML/index.js":250,"../Halogen.VDom.Driver/index.js":259,"../Halogen.VDom.Types/index.js":261,"../Halogen/index.js":265,"../Prelude/index.js":272,"../Web.UIEvent.KeyboardEvent/index.js":487,"../Web.UIEvent.MouseEvent/index.js":490,"../Web.UIEvent.WheelEvent/index.js":494}],208:[function(require,module,exports){
+},{"../Control.Applicative/index.js":4,"../Control.Bind/index.js":10,"../Control.Semigroupoid/index.js":46,"../DOM.HTML.Indexed.InputType/index.js":51,"../Data.Function/index.js":108,"../Data.Functor/index.js":115,"../Data.Monoid/index.js":146,"../Data.Profunctor.Star/index.js":162,"../Data.Semigroup/index.js":172,"../Data.Tuple/index.js":198,"../Data.Unit/index.js":204,"../Dhall.Interactive.Halogen.Types/index.js":208,"../Effect.Aff/index.js":214,"../Effect/index.js":227,"../Halogen.Aff.Util/index.js":241,"../Halogen.Aff/index.js":242,"../Halogen.HTML.Core/index.js":246,"../Halogen.HTML.Elements/index.js":247,"../Halogen.HTML.Events/index.js":248,"../Halogen.HTML.Properties/index.js":249,"../Halogen.HTML/index.js":250,"../Halogen.VDom.Driver/index.js":259,"../Halogen.VDom.Types/index.js":261,"../Halogen/index.js":265,"../Prelude/index.js":272,"../Web.UIEvent.KeyboardEvent/index.js":487,"../Web.UIEvent.MouseEvent/index.js":490,"../Web.UIEvent.WheelEvent/index.js":494}],208:[function(require,module,exports){
 "use strict";
 var Control_Applicative = require("../Control.Applicative/index.js");
 var Control_Apply = require("../Control.Apply/index.js");
