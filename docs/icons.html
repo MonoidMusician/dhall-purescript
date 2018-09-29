@@ -10,7 +10,7 @@
       background-color: #242430;
       color: #ede6d6;
     }
-    .feather {
+    svg.feather {
       width: 1em;
       height: 1em;
       stroke: currentColor;
@@ -19,35 +19,24 @@
       stroke-linejoin: round;
       fill: none;
     }
-    .feather.inline {
-      /*vertical-align: middle;*/
-      position: relative;
-      top: 50%;
-      margin-top: -0.5em;
+    svg.feather.inline {
+      vertical-align: middle;
     }
-    .icon-top {
-      align-self: baseline;
-      margin-top: 0.25ex;
-    }
-    /* TODO: maybe just ... don't? */
-    .icon-bottom {
-      align-self: end;
-      margin-bottom: 0.15ex;
-    }
-    .feather:hover {
+    svg.feather:hover {
       stroke-width: 2.6;
     }
-    .feather.active {
+    svg.feather.active {
+      stroke: hsla(120, 92%, 45%, 1);
       cursor: pointer;
       stroke-opacity: 0.75;
     }
-    .feather.active:hover {
+    svg.feather.active:hover {
       stroke-opacity: 1;
     }
-    .feather.move.vertical {
+    svg.feather.move.vertical {
       cursor: ns-resize;
     }
-    .grid-container {
+    .grid-container, .grid-container-parent > div {
       display: grid;
       grid-template-columns: 1em min-content 1em max-content 1em;
       grid-template-rows: min-content min-content min-content;
@@ -58,10 +47,29 @@
         ". . . . .";
       font-family: monospace;
     }
-    .row {
+    .grid-container-parent > div div {
+      display: contents;
+    }
+    .grid-container-parent > div div.show-contents-last div {
+      display: block;
+    }
+    /*.row {
       display: grid;
       grid-template-columns: min-content 1em 1fr;
       grid-gap: 0ex 0.25em;
+    }*/
+    .row {
+      display: contents;
+    }
+    button {
+      background: none;
+      border: none;
+      outline: none;
+      font: inherit;
+      color: inherit;
+      border: none;
+      margin: 0px;
+      padding: 0px;
     }
     input[type=text] {
       background: none;
@@ -72,14 +80,14 @@
       width: min-content;
       box-sizing: border-box;
       border: none;
-      border-bottom: 2px solid hsla(240, 64%, 55%, 0.0);
+      border-bottom: 2px solid hsla(240, 52%, 41%, 0.0);
       margin-bottom: -2px;
       transition: border 0.3s;
       padding: 0px;
     }
     input[type=text]:focus {
       outline: none;
-      border-bottom: 2px solid hsla(240, 64%, 55%, 1.0);
+      border-bottom: 2px solid hsla(240, 52%, 41%, 1.0);
       margin-bottom: -2px;
       transition: border 0.3s;
     }
