@@ -8,7 +8,7 @@
       font-size: 24px;
       font-family: cursive;
       background-color: #242430;
-      color: #ede6d6;
+      color: hsl(42, 41%, 80%);
     }
     svg.feather {
       width: 1em;
@@ -21,31 +21,51 @@
     }
     svg.feather.inline {
       vertical-align: middle;
+      margin: 0.0ex 0.25em;
     }
-    svg.feather:hover {
-      stroke-width: 2.6;
+    svg.feather.passive {
+      stroke: hsl(169, 42%, 29%);
+      stroke-opacity: 0.75;
     }
     svg.feather.active {
-      stroke: hsla(120, 92%, 45%, 1);
+      stroke: hsl(169, 36%, 45%);
       cursor: pointer;
       stroke-opacity: 0.75;
     }
     svg.feather.active:hover {
       stroke-opacity: 1;
+      stroke-width: 2.6;
+    }
+    button:active > svg.feather.active {
+      stroke-opacity: 1;
+    }
+    button:focus > svg.feather.active {
+      stroke: hsl(205, 83%, 47%);
+    }
+    /* Move handles do not maintain click focus while moving in the DOM */
+    /* So instead we use the click activation */
+    button.move:active > svg.feather.active.move {
+      stroke: hsl(205, 83%, 47%);
     }
     svg.feather.move.vertical {
       cursor: ns-resize;
     }
+    .ast {
+      font-family: monospace;
+    }
     .grid-container, .grid-container-parent > div {
       display: grid;
-      grid-template-columns: 1em min-content 1em max-content 1em;
+      grid-template-columns: 1em min-content 1em 1em max-content;
       grid-template-rows: min-content min-content min-content;
       grid-gap: 0.25ex 0.25em;
       grid-template-areas:
         ". . . . ."
         ". . . . ."
         ". . . . .";
-      font-family: monospace;
+    }
+    .grid-container svg.feather.inline,
+    .grid-container-parent > div svg.feather.inline {
+      margin: 0.0ex 0.0em;
     }
     .grid-container-parent > div div {
       display: contents;
@@ -72,7 +92,7 @@
       padding: 0px;
     }
     input[type=text] {
-      background: none;
+      background: linear-gradient(to top, hsla(285, 63%, 41%, 0.1) 0%, hsla(285, 63%, 41%, 0.0) 100%);
       border: none;
       outline: none;
       font: inherit;
@@ -80,16 +100,17 @@
       width: min-content;
       box-sizing: border-box;
       border: none;
-      border-bottom: 2px solid hsla(240, 52%, 41%, 0.0);
+      border-bottom: 2px solid hsla(285, 63%, 41%, 0.1);
       margin-bottom: -2px;
-      transition: border 0.3s;
+      transition: border 0.5s, background 0.5s;
       padding: 0px;
     }
     input[type=text]:focus {
+      background: linear-gradient(to top, hsla(285, 63%, 41%, 0.2) 0%, hsla(285, 63%, 41%, 0.05) 100%);
       outline: none;
-      border-bottom: 2px solid hsla(240, 52%, 41%, 1.0);
+      border-bottom: 2px solid hsla(277, 36%, 46%, 1.0);
       margin-bottom: -2px;
-      transition: border 0.3s;
+      transition: border 0.5s, background 0.5s;
     }
     </style>
     <script src="icons.js"></script>
