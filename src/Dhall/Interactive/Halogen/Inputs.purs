@@ -78,7 +78,7 @@ inline_feather_button_action :: forall q ps.
   Maybe (q Unit) ->
   String ->
   H.ComponentHTML q ps Aff
-inline_feather_button_action q = icon_button_action q "feather inline active"
+inline_feather_button_action q t = icon_button_action q t "feather inline active"
 
 inline_feather_button_props :: forall q ps.
   Array (HH.IProp HTMLbutton (q Unit)) ->

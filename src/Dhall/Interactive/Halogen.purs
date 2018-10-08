@@ -3,6 +3,7 @@ module Dhall.Interactive.Halogen where
 import Prelude
 
 import Data.Const (Const(..))
+import Data.Functor.Mu (Mu(..))
 import Data.Functor.Variant (FProxy, SProxy(..), VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Newtype (un, unwrap, wrap)
@@ -15,21 +16,34 @@ import Data.Tuple (Tuple(..))
 import Dhall.Core.AST (BuiltinBinOps, Literals, Pair(..))
 import Dhall.Interactive.Halogen.Types (RenderValue, RenderVariantF', RenderVariantF, boolH, doubleH, intH, naturalH, simpleC)
 import Effect (Effect)
+import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.VDom.Driver (runUI)
-import Data.Functor.Mu (Mu(..))
 import Prim.Row as Row
 import Type.Row (type (+))
 
-renderCase :: forall g l l' b f k r r' a.
+silence :: forall h f i o m.
+  H.Component h f i o m -> H.Component h (Const Void) i o m
+silence = H.unComponent \c -> H.mkComponent
+  { initialState: c.initialState
+  , render: c.render
+  , eval: c.eval <<< case _ of
+      H.Initialize a -> H.Initialize a
+      H.Finalize a -> H.Finalize a
+      H.Receive i a -> H.Receive i a
+      H.Handle act a -> H.Handle act a
+      H.Request (Const void) -> absurd void
+  }
+
+renderCase :: forall g l l' b f f' k r r' a.
   Row.Cons k (FProxy f) r' r =>
   IsSymbol k =>
   Functor g =>
-  Row.Cons k (FProxy f) l' l =>
-  Functor f =>
+  Row.Cons k (FProxy f') l' l =>
+  Functor f' =>
   SProxy k ->
-  (f a -> g (f b)) ->
+  (f a -> g (f' b)) ->
   (VariantF r' a -> g (VariantF l b)) ->
   VariantF r a -> g (VariantF l b)
 renderCase k f = VariantF.on k (f >>> map (VariantF.inj k))
