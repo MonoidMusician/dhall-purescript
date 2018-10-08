@@ -11,6 +11,7 @@ import Data.Either (Either(..), either)
 import Data.Functor.Variant (FProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Maybe (Maybe(..))
+import Data.Natural (Natural, intToNat)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Profunctor (dimap)
 import Data.Profunctor.Star (Star(..))
@@ -42,6 +43,7 @@ data Q a
 
 type Slots =
   ( expanding :: H.Slot Inputs.QueryExpanding String Zuruzuru.Key
+  , naturalH :: H.Slot (Types.InOut Natural) Natural Natural
   )
 
 interactive :: H.Component HH.HTML Q Unit Void Aff
@@ -130,7 +132,6 @@ interactive = H.component
             ]
           ]
 
-type Natural = Int
 type ExprRow =
   ( "NaturalLit" :: AST.CONST Natural
   , "NaturalPlus" :: FProxy AST.Pair
@@ -142,7 +143,7 @@ derive instance newtypeExpr :: Newtype (Expr a) _
 instance showExpr :: Show a => Show (Expr a) where
   show a = show (unsafeCoerce a :: InteractiveExpr Annotation)
 
-mkNaturalLit :: forall a. Int -> Expr a
+mkNaturalLit :: forall a. Natural -> Expr a
 mkNaturalLit n = Expr $ Free.wrap $
   VariantF.inj (SProxy :: SProxy "NaturalLit") $ Const n
 
@@ -177,7 +178,7 @@ rExpr = case rExpr' of
      [ map wrap $ s $ unwrap e ]
 
 example :: Expr Void
-example = mkNaturalPlus (mkNaturalLit 2) (mkNaturalLit 2)
+example = mkNaturalPlus (mkNaturalLit (intToNat 2)) (mkNaturalLit (intToNat 2))
 
 eval :: Expr Void -> Expr Void
 eval = (<<<) mkNaturalLit $ (>>>) unwrap $ cata $ (>>>) unwrap $ either absurd $

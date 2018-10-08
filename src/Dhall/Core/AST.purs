@@ -18,6 +18,7 @@ import Data.Identity (Identity(..))
 import Data.Lens (Prism', prism', iso, only)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
+import Data.Natural (Natural)
 import Data.Newtype (class Newtype, un, unwrap, wrap)
 import Data.Set (Set)
 import Data.String (joinWith)
@@ -44,7 +45,7 @@ derive instance ordVar :: Ord Var
 
 type Literals (m :: Type -> Type) vs =
   ( "BoolLit" :: CONST Boolean
-  , "NaturalLit" :: CONST Int
+  , "NaturalLit" :: CONST Natural
   , "IntegerLit" :: CONST Int
   , "DoubleLit" :: CONST Number
   | vs
@@ -745,16 +746,16 @@ mkNatural = mkExpr (SProxy :: SProxy "Natural") unit
 _Natural :: forall r. ExprPrism ( "Natural" :: UNIT | r ) Unit
 _Natural = _ExprPrism (SProxy :: SProxy "Natural")
 
-mkNaturalLit :: forall m s a. Int -> Expr m s a
+mkNaturalLit :: forall m s a. Natural -> Expr m s a
 mkNaturalLit = mkExpr (SProxy :: SProxy "NaturalLit")
 
-_NaturalLit :: forall r. ExprPrism ( "NaturalLit" :: CONST Int | r ) Int
+_NaturalLit :: forall r. ExprPrism ( "NaturalLit" :: CONST Natural | r ) Natural
 _NaturalLit = _ExprPrism (SProxy :: SProxy "NaturalLit")
 
-_NaturalLit_0 :: forall r. SimplePrism ( "NaturalLit" :: CONST Int | r ) Unit
+_NaturalLit_0 :: forall r. SimplePrism ( "NaturalLit" :: CONST Natural | r ) Unit
 _NaturalLit_0 = _NaturalLit <<< _Newtype <<< only zero
 
-_NaturalLit_1 :: forall r. SimplePrism ( "NaturalLit" :: CONST Int | r ) Unit
+_NaturalLit_1 :: forall r. SimplePrism ( "NaturalLit" :: CONST Natural | r ) Unit
 _NaturalLit_1 = _NaturalLit <<< _Newtype <<< only one
 
 mkNaturalFold :: forall m s a. Expr m s a

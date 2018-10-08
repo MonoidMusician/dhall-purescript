@@ -15,6 +15,7 @@ import Data.Lens as Lens
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Maybe.First (First)
+import Data.Natural (natToInt)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Set (Set)
 import Data.Set as Set
@@ -338,17 +339,17 @@ normalizeWith ctx = AST.rewriteBottomUp rules where
     >>> VariantF.on (_s::S_ "NaturalPlus")
       (unPairN AST._NaturalLit \l r -> case _, _ of
         Just a, Just b -> AST.mkNaturalLit (a + b)
-        Just 0, _ -> r
-        _, Just 0 -> l
+        Just a, _ | a == zero -> r
+        _, Just b | b == zero -> l
         _, _ -> AST.mkNaturalPlus (l) (r)
       )
     >>> VariantF.on (_s::S_ "NaturalTimes")
       (unPairN AST._NaturalLit \l r -> case _, _ of
         Just a, Just b -> AST.mkNaturalLit (a * b)
-        Just 0, _ -> l
-        _, Just 0 -> r
-        Just 1, _ -> r
-        _, Just 1 -> l
+        Just a, _ | a == zero -> l
+        _, Just b | b == zero -> r
+        Just a, _ | a == one -> r
+        _, Just b | b == one -> l
         _, _ -> AST.mkNaturalTimes (l) (r)
       )
     >>> VariantF.on (_s::S_ "ListAppend")
@@ -431,28 +432,28 @@ normalizeWith ctx = AST.rewriteBottomUp rules where
         naturalbuild, g
           | noapp AST._NaturalBuild naturalbuild ->
             let
-              zero = AST.mkNaturalLit 0
-              succ = AST.mkLam "x" AST.mkNatural $
-                AST.mkNaturalPlus (AST.mkVar (AST.V "x" 0)) $ AST.mkNaturalLit 1
+              zero_ = AST.mkNaturalLit zero
+              succ_ = AST.mkLam "x" AST.mkNatural $
+                AST.mkNaturalPlus (AST.mkVar (AST.V "x" 0)) $ AST.mkNaturalLit one
               g' = Lens.review apps g
             in normalizeWith ctx $
-              AST.mkApp (AST.mkApp (AST.mkApp g' AST.mkNatural) succ) zero
+              AST.mkApp (AST.mkApp (AST.mkApp g' AST.mkNatural) succ_) zero_
         naturaliszero, naturallit
           | noapp AST._NaturalIsZero naturaliszero
           , Just n <- noapplit AST._NaturalLit naturallit ->
-            AST.mkBoolLit (n == 0)
+            AST.mkBoolLit (n == zero)
         naturaleven, naturallit
           | noapp AST._NaturalEven naturaleven
           , Just n <- noapplit AST._NaturalLit naturallit ->
-            AST.mkBoolLit (even n)
+            AST.mkBoolLit (even (natToInt n))
         naturalodd, naturallit
           | noapp AST._NaturalOdd naturalodd
           , Just n <- noapplit AST._NaturalLit naturallit ->
-            AST.mkBoolLit (even n)
+            AST.mkBoolLit (not even (natToInt n))
         naturaltointeger, naturallit
           | noapp AST._NaturalToInteger naturaltointeger
           , Just n <- noapplit AST._NaturalLit naturallit ->
-            AST.mkIntegerLit n
+            AST.mkIntegerLit (natToInt n)
         naturalshow, naturallit
           | noapp AST._NaturalShow naturalshow
           , Just n <- noapplit AST._NaturalLit naturallit ->

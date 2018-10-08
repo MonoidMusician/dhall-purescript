@@ -7,6 +7,7 @@ import Data.Functor.Variant (FProxy, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Int (fromString) as Int
 import Data.Maybe (Maybe(..))
+import Data.Natural (Natural, intToNat, natToInt)
 import Data.Newtype (unwrap)
 import Data.Number (fromString) as Number
 import Data.Ord (abs, signum)
@@ -62,13 +63,13 @@ renderPair a (Pair l r) =
   let Tuple l' r' = renderProd a a (Tuple l r) in
   Pair l' r' <#> map \(Tuple l'' r'') -> Pair l'' r''
 
-naturalH :: RenderValue Int
+naturalH :: RenderValue Natural
 naturalH = Star \v -> HH.input
   [ HP.type_ InputNumber
   , HP.min 0.0
   , HP.step (Step 1.0)
-  , HP.value (show (abs v))
-  , HE.onValueInput (Int.fromString >>> map abs)
+  , HP.value (show v)
+  , HE.onValueInput (Int.fromString >>> map intToNat)
   ]
 
 boolH :: RenderValue Boolean
@@ -80,7 +81,7 @@ intH :: RenderValue Int
 intH = Star \v -> HH.span_
   [ HH.button [ HE.onClick (pure (pure (negate v))) ]
     [ HH.text if v < 0 then "-" else "+" ]
-  , unwrap naturalH v <#> mul (signum v)
+  , unwrap naturalH (intToNat v) <#> natToInt >>> mul (signum v)
   ]
 
 stringH :: RenderValue String
