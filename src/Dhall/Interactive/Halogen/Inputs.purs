@@ -22,8 +22,22 @@ data QueryExpanding a
   | Up TCHE.Blurry a
   | PassOn (Free TCHE.Query a)
 
-expanding :: H.Component HH.HTML QueryExpanding String String Aff
-expanding = H.component
+settings :: HP.InputType -> TCHE.Settings
+settings t =
+  { classes: []
+  , type_: t
+  , padding:
+    { focused: mkExists $ 2.0 # CSS.em
+    , blurred: mkExists $ 1.0 # CSS.em
+    }
+  , style: do
+      CSS.minWidth $ 5.0 # CSS.em
+      CSS.maxWidth $ 20.0 # CSS.em
+      CSS.key (CSS.fromString "text-overflow") "ellipsis"
+  }
+
+expanding :: HP.InputType -> H.Component HH.HTML QueryExpanding String String Aff
+expanding t = H.component
   { initialState: TCHE.Blurred
   , initializer: Nothing
   , finalizer: Nothing
@@ -42,23 +56,14 @@ expanding = H.component
       -- But make sure we grab the new state so we are not surprised
       PassOn q -> H.query (SProxy :: SProxy "") unit (Tuple <$> q <*> TCHE.get) >>= case _ of
         Nothing -> throwError $ error "expanding component should have child"
-        Just (Tuple a new) -> a <$ H.put new
+        Just (Tuple a new) -> a <$ do
+          old <- H.get
+          when (new /= old) do
+            H.put new
   , render: \b ->
-    HH.slot (SProxy :: SProxy "") unit TCHE.expandingComponent (Tuple settings b)
-      (HE.input Up)
-  } where
-    settings :: TCHE.Settings
-    settings =
-      { classes: []
-      , padding:
-        { focused: mkExists $ 2.0 # CSS.em
-        , blurred: mkExists $ 1.0 # CSS.em
-        }
-      , style: do
-          CSS.minWidth $ 5.0 # CSS.em
-          CSS.maxWidth $ 20.0 # CSS.em
-          CSS.key (CSS.fromString "text-overflow") "ellipsis"
-      }
+      HH.slot (SProxy :: SProxy "") unit TCHE.expandingComponent
+        (Tuple (settings t) b) (HE.input Up)
+  }
 
 icon_button_action :: forall q ps.
   Maybe (q Unit) ->
