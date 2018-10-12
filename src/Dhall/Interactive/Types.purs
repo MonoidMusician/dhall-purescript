@@ -11,9 +11,11 @@ import Dhall.Core.AST (Expr)
 import Dhall.Core.StrMapIsh (InsOrdStrMap)
 
 data Import = Import String
+derive instance eqImport :: Eq Import
 instance showImport :: Show Import where
   show (Import s) = "(Import " <> show s <> ")"
 data Hole = Hole
+derive instance eqHole :: Eq Hole
 instance showHole :: Show Hole where
   show Hole = "Hole"
 
