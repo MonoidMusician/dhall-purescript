@@ -15,7 +15,7 @@ import Data.Set (Set)
 import Data.Symbol (class IsSymbol, SProxy(..))
 import Data.Tuple (Tuple(..), swap)
 import Data.Variant.Internal (FProxy)
-import Dhall.Core.AST.Types.Basics (BindingBody, CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
+import Dhall.Core.AST.Types.Basics (BindingBody(..), CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
 import Dhall.Core.AST.Types (Const, Expr, ExprLayerRow, Var, embedW, projectW)
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
@@ -119,25 +119,25 @@ _Var = _ExprPrism (SProxy :: SProxy "Var")
 
 mkLam :: forall m s a. String -> Expr m s a -> Expr m s a -> Expr m s a
 mkLam name ty expr = mkExprF (SProxy :: SProxy "Lam")
-  (product (Tuple name ty) (Identity expr))
+  (BindingBody name ty expr)
 
 _Lam :: forall r o.
   Prism' (VariantF ( "Lam" :: FProxy BindingBody | r ) o)
   { var :: String, ty :: o, body :: o }
-_Lam = _ExprFPrism (SProxy :: SProxy "Lam") <<< _Newtype <<< iso into outof where
-  into (Tuple (Tuple var ty) (Identity body)) = { var, ty, body }
-  outof { var, ty, body } = (Tuple (Tuple var ty) (Identity body))
+_Lam = _ExprFPrism (SProxy :: SProxy "Lam") <<< iso into outof where
+  into (BindingBody var ty body) = { var, ty, body }
+  outof { var, ty, body } = (BindingBody var ty body)
 
 mkPi :: forall m s a. String -> Expr m s a -> Expr m s a -> Expr m s a
 mkPi name ty expr = mkExprF (SProxy :: SProxy "Pi")
-  (product (Tuple name ty) (Identity expr))
+  (BindingBody name ty expr)
 
 _Pi :: forall r o.
   Prism' (VariantF ( "Pi" :: FProxy BindingBody | r ) o)
   { var :: String, ty :: o, body :: o }
-_Pi = _ExprFPrism (SProxy :: SProxy "Pi") <<< _Newtype <<< iso into outof where
-  into (Tuple (Tuple var ty) (Identity body)) = { var, ty, body }
-  outof { var, ty, body } = (Tuple (Tuple var ty) (Identity body))
+_Pi = _ExprFPrism (SProxy :: SProxy "Pi") <<< iso into outof where
+  into (BindingBody var ty body) = { var, ty, body }
+  outof { var, ty, body } = (BindingBody var ty body)
 
 mkApp :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkApp fn arg = mkExprF (SProxy :: SProxy "App")

@@ -5,11 +5,9 @@ import Prelude
 import Data.Const as ConstF
 import Data.Eq (class Eq1)
 import Data.Function (on)
-import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (SProxy(..), VariantF)
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (mapWithIndex)
-import Data.Identity (Identity(..))
 import Data.Int (even, toNumber)
 import Data.Lens as Lens
 import Data.Lens.Iso.Newtype (_Newtype)
@@ -19,9 +17,10 @@ import Data.Natural (natToInt)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Set (Set)
 import Data.Set as Set
-import Data.Tuple (Tuple(..), snd)
+import Data.Tuple (snd)
 import Dhall.Core.AST (AllTheThings, BuiltinBinOps, BuiltinFuncs, BuiltinOps, BuiltinTypes, BuiltinTypes2, Const(..), Expr(..), ExprRow, FunctorThings, LetF(..), Literals, Literals2, MergeF(..), Pair(..), SimpleThings, Syntax, Terminals, TextLitF(..), Triplet(..), Var(..), _Expr, _ExprF, coalesce1, unfurl) as Dhall.Core
 import Dhall.Core.AST (Expr, LetF(..), Var(..), mkLam, mkLet, mkPi, mkVar, projectW)
+import Dhall.Core.AST.Types.Basics (BindingBody(..))
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports (Directory(..), File(..), FilePrefix(..), Import(..), ImportHashed(..), ImportMode(..), ImportType(..), prettyDirectory, prettyFile, prettyFilePrefix, prettyImport, prettyImportHashed, prettyImportType) as Dhall.Core
 import Dhall.Core.StrMapIsh (class StrMapIsh)
@@ -99,7 +98,7 @@ shift d v@(V x n) = AST.rewriteTopDown $ identity
       in mkVar (V x' n'')
     )
   >>> VariantF.on (_s::S_ "Lam")
-    (\(Product (Tuple (Tuple x' _A) (Identity b))) ->
+    (\(BindingBody x' _A b) ->
       let
         _A' = shift d (V x n ) _A
         b'  = shift d (V x n') b
@@ -107,7 +106,7 @@ shift d v@(V x n) = AST.rewriteTopDown $ identity
       in mkLam x' _A' b'
     )
   >>> VariantF.on (_s::S_ "Pi")
-    (\(Product (Tuple (Tuple x' _A) (Identity _B))) ->
+    (\(BindingBody x' _A _B) ->
       let
         _A' = shift d (V x n ) _A
         _B' = shift d (V x n') _B
@@ -133,7 +132,7 @@ subst v@(V x n) e = AST.rewriteTopDown $ identity
       if x == x' && n == n' then e else mkVar (V x' n')
     )
   >>> VariantF.on (_s::S_ "Lam")
-    (\(Product (Tuple (Tuple y _A) (Identity b))) ->
+    (\(BindingBody y _A b) ->
       let
         _A' = subst (V x n )                  e  _A
         b'  = subst (V x n') (shift 1 (V y 0) e) b
@@ -141,7 +140,7 @@ subst v@(V x n) e = AST.rewriteTopDown $ identity
       in mkLam y _A' b'
     )
   >>> VariantF.on (_s::S_ "Pi")
-    (\(Product (Tuple (Tuple y _A) (Identity _B))) ->
+    (\(BindingBody y _A _B) ->
       let
         _A' = subst (V x n )                  e  _A
         _B' = subst (V x n') (shift 1 (V y 0) e) _B
@@ -163,7 +162,7 @@ subst v@(V x n) e = AST.rewriteTopDown $ identity
 alphaNormalize :: forall m s a. Expr m s a -> Expr m s a
 alphaNormalize = AST.rewriteTopDown $ identity
   >>> VariantF.on (_s::S_ "Lam")
-    (\(Product (Tuple (Tuple x _A) (Identity b_0))) ->
+    (\(BindingBody x _A b_0) ->
       if x == "_" then mkLam x (alphaNormalize _A) (alphaNormalize b_0) else
       let
         b_1 = shift 1 (V "_" 0) b_0
@@ -173,7 +172,7 @@ alphaNormalize = AST.rewriteTopDown $ identity
       in mkLam "_" (alphaNormalize _A) b_4
     )
   >>> VariantF.on (_s::S_ "Pi")
-    (\(Product (Tuple (Tuple x _A) (Identity _B_0))) ->
+    (\(BindingBody x _A _B_0) ->
       if x == "_" then mkPi x (alphaNormalize _A) (alphaNormalize _B_0) else
       let
         _B_1 = shift 1 (V "_" 0) _B_0
