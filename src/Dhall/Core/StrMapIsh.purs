@@ -21,6 +21,8 @@ import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..), fst, snd, uncurry)
 import Data.Unfoldable (class Unfoldable)
 
+-- This abstracts the functor used for record and union cases in the AST
+-- (the major difference being that sometimes we want sorting vs ordering)
 class (Eq1 m, TraversableWithIndex String m) <= StrMapIsh m where
   empty :: forall a. m a
   isEmpty :: forall a. m a -> Boolean
@@ -94,6 +96,7 @@ instance strMapIshIOSM :: StrMapIsh InsOrdStrMap where
   toUnfoldable = unwrap >>> unwrap >>> Array.toUnfoldable
   fromFoldable = wrap <<< wrap <<< Array.fromFoldable
 
+-- FIXME: I don't think this is what I want for this name?
 set :: forall m a. StrMapIsh m => String -> a -> m a -> Maybe (m a)
 set k v = modify k (const (Tuple k v))
 

@@ -1,6 +1,7 @@
 module Dhall.Core.AST
   ( module Exports ) where
 
+-- Just reexport all the other modules
 import Dhall.Core.AST.Types.Basics
   ( BindingBody
   , CONST
@@ -34,14 +35,14 @@ import Dhall.Core.AST.Types
   , Var(..)
   , embedW
   , projectW
-  , rewriteBottomUp
-  , rewriteTopDown
   , vfEq1Case
   , vfEqCase
   ) as Exports
 import Dhall.Core.AST.Operations
   ( coalesce1
   , unfurl
+  , rewriteBottomUp
+  , rewriteTopDown
   ) as Exports
 import Dhall.Core.AST.Constructors
   ( BinOpPrism

@@ -29,14 +29,19 @@ import Matryoshka (class Corecursive, class Recursive, cata, embed, project)
 import Prim.Row as Row
 import Type.Row (type (+))
 
+-- This file defines the Expr type by its cases, and gives instances, etc.
+
+-- copied from dhall-haskell
 data Const = Type | Kind
 derive instance eqConst :: Eq Const
 derive instance ordConst :: Ord Const
 
+-- copied from dhall-haskell
 data Var = V String Int
 derive instance eqVar :: Eq Var
 derive instance ordVar :: Ord Var
 
+-- Constant (non-recursive) literal types; the base of the AST, essentially
 type Literals (m :: Type -> Type) vs =
   ( "BoolLit" :: CONST Boolean
   , "NaturalLit" :: CONST Natural
@@ -45,6 +50,7 @@ type Literals (m :: Type -> Type) vs =
   | vs
   )
 
+-- Other kinds of literals that _are_ recursive
 type Literals2 (m :: Type -> Type) v =
   ( "TextLit" :: FProxy TextLitF
   , "ListLit" :: FProxy (Product Maybe Array)
@@ -54,6 +60,7 @@ type Literals2 (m :: Type -> Type) v =
   | v
   )
 
+-- The types that are essentially axiomatically added
 type BuiltinTypes (m :: Type -> Type) vs =
   ( "Bool" :: UNIT
   , "Natural" :: UNIT
@@ -65,12 +72,14 @@ type BuiltinTypes (m :: Type -> Type) vs =
   | vs
   )
 
+-- Record and union types (which are recursive)
 type BuiltinTypes2 (m :: Type -> Type) v =
   ( "Record" :: FProxy m
   , "Union" :: FProxy m
   | v
   )
 
+-- Builtin functions, also essentially axioms
 type BuiltinFuncs (m :: Type -> Type) vs =
   ( "NaturalFold" :: UNIT
   , "NaturalBuild" :: UNIT
@@ -94,6 +103,7 @@ type BuiltinFuncs (m :: Type -> Type) vs =
   | vs
   )
 
+-- And binary operations
 type BuiltinBinOps (m :: Type -> Type) vs =
   ( "BoolAnd" :: FProxy Pair
   , "BoolOr" :: FProxy Pair
@@ -110,6 +120,7 @@ type BuiltinBinOps (m :: Type -> Type) vs =
   | vs
   )
 
+-- Other builtin operations with their own syntax
 type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
   ( "BoolIf" :: FProxy (Triplet)
   , "Field" :: FProxy (Tuple String)
@@ -119,12 +130,14 @@ type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
   | v
   )
 
+-- Other terminals, the axioms of `Type` and `Kind`, as well as variables
 type Terminals (m :: Type -> Type) vs =
   ( "Const" :: CONST Const
   , "Var" :: CONST Var
   | vs
   )
 
+-- Other things that have special/fundamental syntax
 type Syntax (m :: Type -> Type) v =
   ( "Lam" :: FProxy (BindingBody)
   , "Pi" :: FProxy (BindingBody)
@@ -134,27 +147,45 @@ type Syntax (m :: Type -> Type) v =
   | v
   )
 
+-- Non-recursive items
 type SimpleThings m vs = Literals m + BuiltinTypes m + BuiltinFuncs m + Terminals m + vs
 
+-- Recursive items
 type FunctorThings m v = Literals2 m + BuiltinTypes2 m + BuiltinOps m + Syntax m + v
 
+-- Both together
 type AllTheThings m v = SimpleThings m + FunctorThings m + v
 
+-- A layer of Expr (within Free) is AllTheThings plus a Note constructor for `s`
 type ExprRow m s =
   AllTheThings m
     ( "Note" :: FProxy (Tuple s)
     )
+-- While a layer (within Mu, not Free) must also include the `a` parameter
+-- via the Embed constructor
 type ExprLayerRow m s a =
   AllTheThings m
     ( "Note" :: FProxy (Tuple s)
     , "Embed" :: CONST a
     )
+-- The same, as a variable
+-- (This has a newtype in ExprRowVF)
 type ExprLayerF m s a = VariantF (ExprLayerRow m s a)
+-- The same, but applied to Expr (this is isomorphic to Expr itself)
 type ExprLayer m s a = (ExprLayerF m s a) (Expr m s a)
 
+-- Expr itself, the type of AST nodes.
+--
+-- It is represented via a Free monad over the VariantF of the rows enumerated
+-- above. The VariantF thus gives the main syntax, where `m` specifies the
+-- functor to use for records and unions and the like, and `s` is the type of
+-- notes which can be added to each layer (as a separate constructor, not like
+-- Cofree), and `a` is additional terminals (e.g. imports), which can be
+-- mapped and applied and (bi)traversed over.
 newtype Expr m s a = Expr (Free (VariantF (ExprRow m s)) a)
 derive instance newtypeExpr :: Newtype (Expr m s a) _
 
+-- Give Expr its own Recursive instance with ExprRowVF (a newtype of ExprLayerF)
 instance recursiveExpr :: Recursive (Expr m s a) (ExprRowVF m s a) where
   project = unwrap >>> project >>> map Expr >>> unwrap >>> either
     (wrap >>> VariantF.inj (SProxy :: SProxy "Embed"))
@@ -164,40 +195,15 @@ instance corecursiveExpr :: Corecursive (Expr m s a) (ExprRowVF m s a) where
   embed = wrap <<< embed <<< map (un Expr) <<< wrap <<<
     VariantF.on (SProxy :: SProxy "Embed") (Left <<< unwrap) Right <<< un ERVF
 
+-- Project and unwrap the ExprRowVF newtype, to allow instant handling of the
+-- cases via VariantF's api.
 projectW :: forall m s a. Expr m s a -> ExprLayer m s a
 projectW = project >>> unwrap
 
 embedW :: forall m s a. ExprLayer m s a -> Expr m s a
 embedW = embed <<< wrap
 
-
--- | Just a helper to handle recursive rewrites: top-down, requires explicit
--- | recursion for the cases that are handled by the rewrite.
-rewriteTopDown :: forall r r' m s t a b.
-  Row.Union r r' (ExprLayerRow m t b) =>
-  (
-    (VariantF r (Expr m s a) -> Expr m t b) ->
-    VariantF (ExprLayerRow m s a) (Expr m s a) ->
-    Expr m t b
-  ) ->
-  Expr m s a -> Expr m t b
-rewriteTopDown rw1 = go where
-  go expr = rw1 (map go >>> VariantF.expand >>> embedW) $ projectW expr
-
--- | Another recursion helper: bottom-up, recursion already happens before
--- | the rewrite gets ahold of it. Just follow the types.
-rewriteBottomUp :: forall r r' m s t a b.
-  Row.Union r r' (ExprLayerRow m t b) =>
-  (
-    (VariantF r (Expr m t b) -> Expr m t b) ->
-    VariantF (ExprLayerRow m s a) (Expr m t b) ->
-    Expr m t b
-  ) ->
-  Expr m s a -> Expr m t b
-rewriteBottomUp rw1 = go where
-  go expr = rw1 (VariantF.expand >>> embedW) $ go <$> projectW expr
-
-
+-- Really ugly showing for Expr
 instance showExpr :: (FoldableWithIndex String m, Show s, Show a) => Show (Expr m s a) where
   show (Expr e0) = cata show1 e0 where
     lits e = "[" <> joinWith ", " e <> "]"
@@ -309,6 +315,9 @@ instance showExpr :: (FoldableWithIndex String m, Show s, Show a) => Show (Expr 
 instance eqExpr :: (Eq1 m, Eq s, Eq a) => Eq (Expr m s a) where
   eq e1 e2 = project e1 `eq1` project e2
 
+instance eq1Expr :: (Eq1 m, Eq s) => Eq1 (Expr m s) where
+  eq1 = eq
+
 vfEqCase ::
   forall sym fnc v' v v1' v1 a.
     IsSymbol sym =>
@@ -332,6 +341,7 @@ vfEq1Case ::
   VariantF v a -> VariantF v1 a -> Boolean
 vfEq1Case k = VariantF.on k (\a -> VariantF.default false # VariantF.on k (eq1 a))
 
+-- A newtype for ... reasons
 newtype ExprRowVF m s a b = ERVF (ExprLayerF m s a b)
 derive instance newtypeERVF :: Newtype (ExprRowVF m s a b) _
 derive newtype instance functorERVF :: Functor (ExprRowVF m s a)

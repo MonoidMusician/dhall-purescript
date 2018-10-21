@@ -6,6 +6,8 @@ import Data.Foldable (foldMap)
 import Data.List (List)
 import Data.Maybe (Maybe(..))
 
+-- Most of this is just copied from dhall-haskell without further thought so far
+
 -- | Internal representation of a directory that stores the path components in
 -- | reverse order
 -- | In other words, the directory `/foo/bar/baz` is encoded as

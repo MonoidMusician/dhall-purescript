@@ -21,6 +21,8 @@ import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
 import Prim.Row as Row
 
+-- Constructors and prisms for each case of the AST
+
 -- Pris(o)ms of the behemoth
 _ExprF :: forall m s a unused f k.
   Row.Cons k (FProxy f) unused (ExprLayerRow m s a) =>

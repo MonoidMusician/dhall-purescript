@@ -9,6 +9,8 @@ import Dhall.Core.AST.Types (Expr, ExprLayerRow, AllTheThings, embedW, projectW)
 import Dhall.Core.AST.Types.Basics (CONST)
 import Prim.Row as Row
 
+-- Some general operations for the Expr AST
+
 -- | Just a helper to handle recursive rewrites: top-down, requires explicit
 -- | recursion for the cases that are handled by the rewrite.
 rewriteTopDown :: forall r r' m s t a b.
