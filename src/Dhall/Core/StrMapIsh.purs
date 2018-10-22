@@ -57,6 +57,8 @@ derive newtype instance eq1IOSM :: Eq1 InsOrdStrMap
 derive newtype instance ord1IOSM :: Ord1 InsOrdStrMap
 mkIOSM :: forall a. Array (Tuple String a) -> InsOrdStrMap a
 mkIOSM = InsOrdStrMap <<< Compose
+unIOSM :: forall a. InsOrdStrMap a -> Array (Tuple String a)
+unIOSM (InsOrdStrMap (Compose as)) = as
 derive newtype instance functorIOSM :: Functor InsOrdStrMap
 derive newtype instance foldableIOSM :: Foldable InsOrdStrMap
 derive newtype instance traversableIOSM :: Traversable InsOrdStrMap
@@ -94,11 +96,17 @@ instance strMapIshIOSM :: StrMapIsh InsOrdStrMap where
         Array.modifyAt i (map (combine <@> v)) as
     in wrap $ wrap $ Array.foldl inserting l r
   toUnfoldable = unwrap >>> unwrap >>> Array.toUnfoldable
-  fromFoldable = wrap <<< wrap <<< Array.fromFoldable
+  fromFoldable = wrap <<< wrap <<< Array.nubBy (compare `on` fst) <<< Array.fromFoldable
 
 -- FIXME: I don't think this is what I want for this name?
 set :: forall m a. StrMapIsh m => String -> a -> m a -> Maybe (m a)
-set k v = modify k (const (Tuple k v))
+set k v = modify k (pure (Tuple k v))
+
+insert :: forall m a. StrMapIsh m => String -> a -> m a -> m a
+insert k v = alter k (pure (pure v))
+
+singleton :: forall m a. StrMapIsh m => String -> a -> m a
+singleton k v = insert k v empty
 
 _Empty :: forall m a. StrMapIsh m => Prism' (m a) Unit
 _Empty = prism' (const empty)

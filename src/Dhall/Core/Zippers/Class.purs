@@ -24,9 +24,9 @@ import Data.Lazy (Lazy, defer)
 import Data.Lens (Lens, Lens', Prism', elementsOf, firstOf, iso, lens, prism', re)
 import Data.Lens.Indexed (itraversed, unIndex)
 import Data.Lens.Iso.Newtype (_Newtype)
-import Data.Maybe (Maybe(..), fromJust)
 import Data.Map (Map)
 import Data.Map as Map
+import Data.Maybe (Maybe(..), fromJust)
 import Data.Natural (Natural)
 import Data.Newtype (class Newtype)
 import Data.Ord (class Ord1)
@@ -40,6 +40,7 @@ import Data.Tuple (Tuple(..), uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Core.AST.Types.Basics as Basics
+import Dhall.Core.StrMapIsh (InsOrdStrMap(..), mkIOSM, unIOSM)
 import Partial.Unsafe (unsafePartial)
 import Type.Row (RLProxy(..), Nil)
 import Type.Row as Row
@@ -431,6 +432,32 @@ instance containerMap :: Ord k => Container (k) (Map k) (Map' k) where
     Map' (Product (Tuple (Const i) as)) -> Map.insert i a as
   downZF as = as # mapWithIndex \i a ->
     a :<-: defer \_ -> Map' (Product (Tuple (Const i) (Map.delete i as)))
+
+newtype InsOrdStrMap' a = InsOrdStrMap' (Product (Const String) (Product InsOrdStrMap InsOrdStrMap) a)
+derive instance newtypeInsOrdStrMap' :: Newtype (InsOrdStrMap' a) _
+derive newtype instance eqInsOrdStrMap' :: Eq a => Eq (InsOrdStrMap' a)
+derive newtype instance ordInsOrdStrMap' :: Ord a => Ord (InsOrdStrMap' a)
+derive newtype instance eq1InsOrdStrMap' :: Eq1 InsOrdStrMap'
+derive newtype instance ord1InsOrdStrMap' :: Ord1 InsOrdStrMap'
+derive newtype instance functorInsOrdStrMap' :: Functor InsOrdStrMap'
+derive newtype instance foldableInsOrdStrMap' :: Foldable InsOrdStrMap'
+derive newtype instance traversableInsOrdStrMap' :: Traversable InsOrdStrMap'
+
+instance containerIIOSM :: ContainerI String InsOrdStrMap' where
+  ixF (InsOrdStrMap' (Product (Tuple (Const k) _))) = k
+
+instance containerIOSM :: Container String InsOrdStrMap InsOrdStrMap' where
+  upZF (a :<-: z) = case extract z of
+    InsOrdStrMap' (Product (Tuple (Const k) (Product (Tuple prev next)))) ->
+      mkIOSM (unIOSM prev <> [Tuple k a] <> unIOSM next)
+  downZF (InsOrdStrMap (Compose as)) = mkIOSM $ as #
+    let l = Array.length as in
+    mapWithIndex \i (Tuple k a) -> Tuple k $
+      a :<-: defer \_ ->
+        let
+          prev = mkIOSM $ Array.slice 0 i as
+          next = mkIOSM $ Array.slice (i+1) l as
+        in InsOrdStrMap' (Product (Tuple (Const k) (Product (Tuple prev next))))
 
 -- Container instances for datatypes defined in Basics
 instance containerPair :: Container (Boolean) Basics.Pair Basics.Pair' where
