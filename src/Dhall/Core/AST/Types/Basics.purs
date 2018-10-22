@@ -2,18 +2,20 @@ module Dhall.Core.AST.Types.Basics where
 
 import Prelude
 
-import Data.Const (Const)
+import Control.Comonad (extract)
 import Data.Const as ConstF
 import Data.Eq (class Eq1)
 import Data.Foldable (class Foldable, foldMap, foldl, foldr)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, foldlWithIndex, foldrWithIndex)
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
+import Data.Lazy (defer)
 import Data.Maybe (Maybe)
 import Data.Natural (Natural)
 import Data.Ord (class Ord1)
 import Data.Traversable (class Traversable, sequence, traverse)
 import Data.TraversableWithIndex (class TraversableWithIndex, traverseWithIndex)
 import Data.Variant.Internal (FProxy)
+import Dhall.Core.Zippers (class Container, class ContainerI, Maybe', _contextZF', downZF, ixF, upZF, (:<-:))
 
 -- This file defines basic functor types used in the AST definition
 
@@ -27,13 +29,12 @@ data Three = Three1 | Three2 | Three3
 derive instance eqThree :: Eq Three
 derive instance ordThree :: Ord Three
 
-type Maybe' = Const Unit
-
 data Pair a = Pair a a
 derive instance eqPair :: Eq a => Eq (Pair a)
 derive instance ordPair :: Ord a => Ord (Pair a)
 derive instance eq1Pair :: Eq1 Pair
 derive instance ord1Pair :: Ord1 Pair
+type PairI = Boolean
 
 instance functorPair :: Functor Pair where
   map f (Pair a0 a1) = Pair (f a0) (f a1)
@@ -90,11 +91,23 @@ instance traversablePair' :: Traversable Pair' where
   sequence (Pair0 a0) = Pair0 <$> a0
   sequence (Pair1 a0) = Pair1 <$> a0
 
+instance containerPair :: Container (Boolean) Pair Pair' where
+  upZF (a :<-: z) = case extract z of
+    Pair0 {- a -} a1 -> Pair a a1
+    Pair1 a0 {- a -} -> Pair a0 a
+
+  downZF (Pair a0 a1) = Pair (a0 :<-: defer \_ -> Pair0 {- a0 -} a1) (a1 :<-: defer \_ -> Pair1 a0 {- a1 -})
+
+instance containerIPair :: ContainerI (Boolean) Pair' where
+  ixF (Pair0 _) = false
+  ixF (Pair1 _) = true
+
 data Triplet a = Triplet a a a
 derive instance eqTriplet :: Eq a => Eq (Triplet a)
 derive instance ordTriplet :: Ord a => Ord (Triplet a)
 derive instance eq1Triplet :: Eq1 Triplet
 derive instance ord1Triplet :: Ord1 Triplet
+type TripletI = Three
 
 instance functorTriplet :: Functor Triplet where
   map f (Triplet a0 a1 a2) = Triplet (f a0) (f a1) (f a2)
@@ -157,11 +170,25 @@ instance traversableTriplet' :: Traversable Triplet' where
   sequence (Triplet1 a0 a1) = Triplet1 <$> a0 <*> a1
   sequence (Triplet2 a0 a1) = Triplet2 <$> a0 <*> a1
 
+instance containerTriplet :: Container (Three) Triplet Triplet' where
+  upZF (a :<-: z) = case extract z of
+    Triplet0 {- a -} a1 a2 -> Triplet a a1 a2
+    Triplet1 a0 {- a -} a2 -> Triplet a0 a a2
+    Triplet2 a0 a1 {- a -} -> Triplet a0 a1 a
+
+  downZF (Triplet a0 a1 a2) = Triplet (a0 :<-: defer \_ -> Triplet0 {- a0 -} a1 a2) (a1 :<-: defer \_ -> Triplet1 a0 {- a1 -} a2) (a2 :<-: defer \_ -> Triplet2 a0 a1 {- a2 -})
+
+instance containerITriplet :: ContainerI (Three) Triplet' where
+  ixF (Triplet0 _ _) = Three1
+  ixF (Triplet1 _ _) = Three2
+  ixF (Triplet2 _ _) = Three3
+
 data TextLitF a = TextLit String | TextInterp String a (TextLitF a)
 derive instance eqTextLitF :: Eq a => Eq (TextLitF a)
 derive instance ordTextLitF :: Ord a => Ord (TextLitF a)
 derive instance eq1TextLitF :: Eq1 TextLitF
 derive instance ord1TextLitF :: Ord1 TextLitF
+type TextLitFI = Natural
 
 instance functorTextLitF :: Functor TextLitF where
   map f (TextLit s) = TextLit s
@@ -229,11 +256,24 @@ instance traversableTextLitF' :: Traversable TextLitF' where
   sequence (TextInterp0 s a0) = TextInterp0 s <$> sequence a0
   sequence (TextInterp1 s a0 a1) = TextInterp1 s <$> a0 <*> sequence a1
 
+instance containerTextLitF :: Container (Natural) TextLitF TextLitF' where
+  upZF (a :<-: z) = case extract z of
+    TextInterp0 s {- a -} a1 -> TextInterp s a a1
+    TextInterp1 s a0 a1 -> TextInterp s a0 (upZF (a :<-: pure a1))
+
+  downZF (TextLit s) = TextLit s
+  downZF (TextInterp s a0 a1) = TextInterp s (a0 :<-: defer \_ -> TextInterp0 s {- a0 -} a1) (downZF a1 <#> _contextZF' (map \z -> TextInterp1 s a0 z))
+
+instance containerITextLitF :: ContainerI (Natural) TextLitF' where
+  ixF (TextInterp0 _ _) = zero
+  ixF (TextInterp1 _ _ z) = one + (ixF z)
+
 data MergeF a = MergeF a a (Maybe a)
 derive instance eqMergeF :: Eq a => Eq (MergeF a)
 derive instance ordMergeF :: Ord a => Ord (MergeF a)
 derive instance eq1MergeF :: Eq1 MergeF
 derive instance ord1MergeF :: Ord1 MergeF
+type MergeFI = Three
 
 instance functorMergeF :: Functor MergeF where
   map f (MergeF a0 a1 a2) = MergeF (f a0) (f a1) (map f a2)
@@ -296,11 +336,25 @@ instance traversableMergeF' :: Traversable MergeF' where
   sequence (MergeF1 a0 a1) = MergeF1 <$> a0 <*> sequence a1
   sequence (MergeF2 a0 a1 a2) = MergeF2 <$> a0 <*> a1 <*> sequence a2
 
+instance containerMergeF :: Container (Three) MergeF MergeF' where
+  upZF (a :<-: z) = case extract z of
+    MergeF0 {- a -} a1 a2 -> MergeF a a1 a2
+    MergeF1 a0 {- a -} a2 -> MergeF a0 a a2
+    MergeF2 a0 a1 a2 -> MergeF a0 a1 (upZF (a :<-: pure a2))
+
+  downZF (MergeF a0 a1 a2) = MergeF (a0 :<-: defer \_ -> MergeF0 {- a0 -} a1 a2) (a1 :<-: defer \_ -> MergeF1 a0 {- a1 -} a2) (downZF a2 <#> _contextZF' (map \z -> MergeF2 a0 a1 z))
+
+instance containerIMergeF :: ContainerI (Three) MergeF' where
+  ixF (MergeF0 _ _) = Three1
+  ixF (MergeF1 _ _) = Three2
+  ixF (MergeF2 _ _ z) = const Three3 (ixF z)
+
 data LetF a = LetF String (Maybe a) a a
 derive instance eqLetF :: Eq a => Eq (LetF a)
 derive instance ordLetF :: Ord a => Ord (LetF a)
 derive instance eq1LetF :: Eq1 LetF
 derive instance ord1LetF :: Ord1 LetF
+type LetFI = Three
 
 instance functorLetF :: Functor LetF where
   map f (LetF s a0 a1 a2) = LetF s (map f a0) (f a1) (f a2)
@@ -363,11 +417,25 @@ instance traversableLetF' :: Traversable LetF' where
   sequence (LetF1 s a0 a1) = LetF1 s <$> sequence a0 <*> a1
   sequence (LetF2 s a0 a1) = LetF2 s <$> sequence a0 <*> a1
 
+instance containerLetF :: Container (Three) LetF LetF' where
+  upZF (a :<-: z) = case extract z of
+    LetF0 s a0 a1 a2 -> LetF s (upZF (a :<-: pure a0)) a1 a2
+    LetF1 s a0 {- a -} a2 -> LetF s a0 a a2
+    LetF2 s a0 a1 {- a -} -> LetF s a0 a1 a
+
+  downZF (LetF s a0 a1 a2) = LetF s (downZF a0 <#> _contextZF' (map \z -> LetF0 s z a1 a2)) (a1 :<-: defer \_ -> LetF1 s a0 {- a1 -} a2) (a2 :<-: defer \_ -> LetF2 s a0 a1 {- a2 -})
+
+instance containerILetF :: ContainerI (Three) LetF' where
+  ixF (LetF0 _ z _ _) = const Three1 (ixF z)
+  ixF (LetF1 _ _ _) = Three2
+  ixF (LetF2 _ _ _) = Three3
+
 data BindingBody a = BindingBody String a a
 derive instance eqBindingBody :: Eq a => Eq (BindingBody a)
 derive instance ordBindingBody :: Ord a => Ord (BindingBody a)
 derive instance eq1BindingBody :: Eq1 BindingBody
 derive instance ord1BindingBody :: Ord1 BindingBody
+type BindingBodyI = Boolean
 
 instance functorBindingBody :: Functor BindingBody where
   map f (BindingBody s a0 a1) = BindingBody s (f a0) (f a1)
@@ -423,3 +491,14 @@ instance traversableBindingBody' :: Traversable BindingBody' where
 
   sequence (BindingBody0 s a0) = BindingBody0 s <$> a0
   sequence (BindingBody1 s a0) = BindingBody1 s <$> a0
+
+instance containerBindingBody :: Container (Boolean) BindingBody BindingBody' where
+  upZF (a :<-: z) = case extract z of
+    BindingBody0 s {- a -} a1 -> BindingBody s a a1
+    BindingBody1 s a0 {- a -} -> BindingBody s a0 a
+
+  downZF (BindingBody s a0 a1) = BindingBody s (a0 :<-: defer \_ -> BindingBody0 s {- a0 -} a1) (a1 :<-: defer \_ -> BindingBody1 s a0 {- a1 -})
+
+instance containerIBindingBody :: ContainerI (Boolean) BindingBody' where
+  ixF (BindingBody0 _ _) = false
+  ixF (BindingBody1 _ _) = true

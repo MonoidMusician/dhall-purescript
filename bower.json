@@ -16,13 +16,21 @@
     "purescript-numbers": "^6.0.0",
     "purescript-halogen-zuruzuru": "MonoidMusician/purescript-halogen-zuruzuru#halogen-5",
     "purescript-naturals": "^3.0.0",
-    "purescript-functors": "^3.1.0"
+    "purescript-functors": "^3.1.0",
+    "purescript-tuples": "MonoidMusician/purescript-tuples#master",
+    "purescript-either": "MonoidMusician/purescript-either#master",
+    "purescript-const": "MonoidMusician/purescript-const#master",
+    "purescript-identity": "MonoidMusician/purescript-identity#master"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"
   },
   "resolutions": {
     "purescript-halogen": "master",
-    "purescript-halogen-vdom": "^4.0.0"
+    "purescript-halogen-vdom": "^4.0.0",
+    "purescript-either": "master",
+    "purescript-tuples": "master",
+    "purescript-const": "master",
+    "purescript-identity": "master"
   }
 }

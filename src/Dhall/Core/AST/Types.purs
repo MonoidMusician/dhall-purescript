@@ -2,6 +2,7 @@ module Dhall.Core.AST.Types where
 
 import Prelude
 
+import Control.Comonad (extract)
 import Control.Monad.Free (Free, hoistFree)
 import Data.Bifoldable (class Bifoldable, bifoldMap, bifoldl, bifoldr)
 import Data.Bifunctor (class Bifunctor, lmap)
@@ -9,22 +10,27 @@ import Data.Bitraversable (class Bitraversable, bitraverse, bisequenceDefault)
 import Data.Const as ConstF
 import Data.Either (Either(..), either)
 import Data.Eq (class Eq1, eq1)
-import Data.Foldable (class Foldable, foldMap, foldl, foldr)
+import Data.Foldable (class Foldable, fold, foldMap, foldl, foldr)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex)
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
+import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
 import Data.Newtype (class Newtype, un, unwrap, wrap)
+import Data.Ord (class Ord1, compare1)
 import Data.Set (Set)
 import Data.String (joinWith)
 import Data.Symbol (class IsSymbol, SProxy(..))
-import Data.Traversable (class Traversable, traverse)
+import Data.Traversable (class Traversable, sequence, traverse)
+import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..))
+import Data.Variant (Variant)
 import Data.Variant.Internal (FProxy)
-import Dhall.Core.AST.Types.Basics (BindingBody(..), CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
+import Dhall.Core.AST.Types.Basics (BindingBody(..), BindingBody', BindingBodyI, CONST, LetF(..), LetF', LetFI, MergeF(..), MergeF', MergeFI, Pair(..), Pair', PairI, TextLitF(..), TextLitF', TextLitFI, Triplet(..), Triplet', TripletI, UNIT, VOID)
+import Dhall.Core.Zippers (class Container, class ContainerI, Array', ArrayI, Identity', IdentityI, Maybe', MaybeI, Product', ProductI, Tuple', TupleI, _contextZF, downZFV, ixFV, mapWithIndexV, upZFV, (:<-:))
 import Matryoshka (class Corecursive, class Recursive, cata, embed, project)
 import Prim.Row as Row
 import Type.Row (type (+))
@@ -50,6 +56,22 @@ type Literals (m :: Type -> Type) vs =
   | vs
   )
 
+type Literals' (m :: Type -> Type) (m' :: Type -> Type) vs =
+  ( "BoolLit" :: VOID
+  , "NaturalLit" :: VOID
+  , "IntegerLit" :: VOID
+  , "DoubleLit" :: VOID
+  | vs
+  )
+
+type LiteralsI vs =
+  ( "BoolLit" :: Void
+  , "NaturalLit" :: Void
+  , "IntegerLit" :: Void
+  , "DoubleLit" :: Void
+  | vs
+  )
+
 -- Other kinds of literals that _are_ recursive
 type Literals2 (m :: Type -> Type) v =
   ( "TextLit" :: FProxy TextLitF
@@ -57,6 +79,24 @@ type Literals2 (m :: Type -> Type) v =
   , "OptionalLit" :: FProxy (Product Identity Maybe)
   , "RecordLit" :: FProxy m
   , "UnionLit" :: FProxy (Product (Tuple String) m)
+  | v
+  )
+
+type Literals2' (m :: Type -> Type) (m' :: Type -> Type) v =
+  ( "TextLit" :: FProxy TextLitF'
+  , "ListLit" :: FProxy (Product' Maybe Maybe' Array Array')
+  , "OptionalLit" :: FProxy (Product' Identity Identity' Maybe Maybe')
+  , "RecordLit" :: FProxy m'
+  , "UnionLit" :: FProxy (Product' (Tuple String) (Tuple' String) m m')
+  | v
+  )
+
+type Literals2I v =
+  ( "TextLit" :: TextLitFI
+  , "ListLit" :: ProductI MaybeI ArrayI
+  , "OptionalLit" :: ProductI IdentityI MaybeI
+  , "RecordLit" :: String
+  , "UnionLit" :: ProductI (TupleI String) String
   | v
   )
 
@@ -72,10 +112,44 @@ type BuiltinTypes (m :: Type -> Type) vs =
   | vs
   )
 
+type BuiltinTypes' (m :: Type -> Type) (m' :: Type -> Type) vs =
+  ( "Bool" :: VOID
+  , "Natural" :: VOID
+  , "Integer" :: VOID
+  , "Double" :: VOID
+  , "Text" :: VOID
+  , "List" :: VOID
+  , "Optional" :: VOID
+  | vs
+  )
+
+type BuiltinTypesI vs =
+  ( "Bool" :: Void
+  , "Natural" :: Void
+  , "Integer" :: Void
+  , "Double" :: Void
+  , "Text" :: Void
+  , "List" :: Void
+  , "Optional" :: Void
+  | vs
+  )
+
 -- Record and union types (which are recursive)
 type BuiltinTypes2 (m :: Type -> Type) v =
   ( "Record" :: FProxy m
   , "Union" :: FProxy m
+  | v
+  )
+
+type BuiltinTypes2' (m :: Type -> Type) (m' :: Type -> Type) v =
+  ( "Record" :: FProxy m'
+  , "Union" :: FProxy m'
+  | v
+  )
+
+type BuiltinTypes2I v =
+  ( "Record" :: String
+  , "Union" :: String
   | v
   )
 
@@ -103,6 +177,52 @@ type BuiltinFuncs (m :: Type -> Type) vs =
   | vs
   )
 
+type BuiltinFuncs' (m :: Type -> Type) (m' :: Type -> Type) vs =
+  ( "NaturalFold" :: VOID
+  , "NaturalBuild" :: VOID
+  , "NaturalIsZero" :: VOID
+  , "NaturalEven" :: VOID
+  , "NaturalOdd" :: VOID
+  , "NaturalToInteger" :: VOID
+  , "NaturalShow" :: VOID
+  , "IntegerShow" :: VOID
+  , "IntegerToDouble" :: VOID
+  , "DoubleShow" :: VOID
+  , "ListBuild" :: VOID
+  , "ListFold" :: VOID
+  , "ListLength" :: VOID
+  , "ListHead" :: VOID
+  , "ListLast" :: VOID
+  , "ListIndexed" :: VOID
+  , "ListReverse" :: VOID
+  , "OptionalFold" :: VOID
+  , "OptionalBuild" :: VOID
+  | vs
+  )
+
+type BuiltinFuncsI vs =
+  ( "NaturalFold" :: Void
+  , "NaturalBuild" :: Void
+  , "NaturalIsZero" :: Void
+  , "NaturalEven" :: Void
+  , "NaturalOdd" :: Void
+  , "NaturalToInteger" :: Void
+  , "NaturalShow" :: Void
+  , "IntegerShow" :: Void
+  , "IntegerToDouble" :: Void
+  , "DoubleShow" :: Void
+  , "ListBuild" :: Void
+  , "ListFold" :: Void
+  , "ListLength" :: Void
+  , "ListHead" :: Void
+  , "ListLast" :: Void
+  , "ListIndexed" :: Void
+  , "ListReverse" :: Void
+  , "OptionalFold" :: Void
+  , "OptionalBuild" :: Void
+  | vs
+  )
+
 -- And binary operations
 type BuiltinBinOps (m :: Type -> Type) vs =
   ( "BoolAnd" :: FProxy Pair
@@ -120,7 +240,39 @@ type BuiltinBinOps (m :: Type -> Type) vs =
   | vs
   )
 
--- Other builtin operations with their own syntax
+type BuiltinBinOps' (m :: Type -> Type) (m' :: Type -> Type) vs =
+  ( "BoolAnd" :: FProxy Pair'
+  , "BoolOr" :: FProxy Pair'
+  , "BoolEQ" :: FProxy Pair'
+  , "BoolNE" :: FProxy Pair'
+  , "NaturalPlus" :: FProxy Pair'
+  , "NaturalTimes" :: FProxy Pair'
+  , "TextAppend" :: FProxy Pair'
+  , "ListAppend" :: FProxy Pair'
+  , "Combine" :: FProxy Pair'
+  , "CombineTypes" :: FProxy Pair'
+  , "Prefer" :: FProxy Pair'
+  , "ImportAlt" :: FProxy Pair'
+  | vs
+  )
+
+type BuiltinBinOpsI vs =
+  ( "BoolAnd" :: PairI
+  , "BoolOr" :: PairI
+  , "BoolEQ" :: PairI
+  , "BoolNE" :: PairI
+  , "NaturalPlus" :: PairI
+  , "NaturalTimes" :: PairI
+  , "TextAppend" :: PairI
+  , "ListAppend" :: PairI
+  , "Combine" :: PairI
+  , "CombineTypes" :: PairI
+  , "Prefer" :: PairI
+  , "ImportAlt" :: PairI
+  | vs
+  )
+
+-- All builtin operations with their own syntax
 type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
   ( "BoolIf" :: FProxy (Triplet)
   , "Field" :: FProxy (Tuple String)
@@ -130,10 +282,40 @@ type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
   | v
   )
 
+type BuiltinOps' (m :: Type -> Type) (m' :: Type -> Type) v = BuiltinBinOps' m m'
+  ( "BoolIf" :: FProxy (Triplet')
+  , "Field" :: FProxy (Tuple' String)
+  , "Project" :: FProxy (Tuple' (Set String))
+  , "Merge" :: FProxy (MergeF')
+  , "Constructors" :: FProxy Identity'
+  | v
+  )
+
+type BuiltinOpsI v = BuiltinBinOpsI
+  ( "BoolIf" :: TripletI
+  , "Field" :: TupleI String
+  , "Project" :: TupleI (Set String)
+  , "Merge" :: MergeFI
+  , "Constructors" :: IdentityI
+  | v
+  )
+
 -- Other terminals, the axioms of `Type` and `Kind`, as well as variables
 type Terminals (m :: Type -> Type) vs =
   ( "Const" :: CONST Const
   , "Var" :: CONST Var
+  | vs
+  )
+
+type Terminals' (m :: Type -> Type) (m' :: Type -> Type) vs =
+  ( "Const" :: VOID
+  , "Var" :: VOID
+  | vs
+  )
+
+type TerminalsI vs =
+  ( "Const" :: Void
+  , "Var" :: Void
   | vs
   )
 
@@ -147,20 +329,50 @@ type Syntax (m :: Type -> Type) v =
   | v
   )
 
+type Syntax' (m :: Type -> Type) (m' :: Type -> Type) v =
+  ( "Lam" :: FProxy (BindingBody')
+  , "Pi" :: FProxy (BindingBody')
+  , "App" :: FProxy (Pair')
+  , "Let" :: FProxy LetF'
+  , "Annot" :: FProxy (Pair')
+  | v
+  )
+
+type SyntaxI v =
+  ( "Lam" :: BindingBodyI
+  , "Pi" :: BindingBodyI
+  , "App" :: PairI
+  , "Let" :: LetFI
+  , "Annot" :: PairI
+  | v
+  )
+
 -- Non-recursive items
 type SimpleThings m vs = Literals m + BuiltinTypes m + BuiltinFuncs m + Terminals m + vs
+type SimpleThings' m m' vs = Literals' m m' + BuiltinTypes' m m' + BuiltinFuncs' m m' + Terminals' m m' + vs
+type SimpleThingsI vs = LiteralsI + BuiltinTypesI + BuiltinFuncsI + TerminalsI + vs
 
 -- Recursive items
 type FunctorThings m v = Literals2 m + BuiltinTypes2 m + BuiltinOps m + Syntax m + v
+type FunctorThings' m m' v = Literals2' m m' + BuiltinTypes2' m m' + BuiltinOps' m m' + Syntax' m m' + v
+type FunctorThingsI v = Literals2I + BuiltinTypes2I + BuiltinOpsI + SyntaxI + v
 
 -- Both together
 type AllTheThings m v = SimpleThings m + FunctorThings m + v
+type AllTheThings' m m' v = SimpleThings' m m' + FunctorThings' m m' + v
+type AllTheThingsI v = SimpleThingsI + FunctorThingsI + v
 
 -- A layer of Expr (within Free) is AllTheThings plus a Note constructor for `s`
 type ExprRow m s =
   AllTheThings m
     ( "Note" :: FProxy (Tuple s)
     )
+type ExprRow' m m' s =
+  AllTheThings' m m'
+    ( "Note" :: FProxy (Tuple' s)
+    )
+type ExprRowI s =
+  AllTheThingsI ( "Note" :: Unit )
 -- While a layer (within Mu, not Free) must also include the `a` parameter
 -- via the Embed constructor
 type ExprLayerRow m s a =
@@ -168,9 +380,21 @@ type ExprLayerRow m s a =
     ( "Note" :: FProxy (Tuple s)
     , "Embed" :: CONST a
     )
--- The same, as a variable
+type ExprLayerRow' m m' s a =
+  AllTheThings' m m'
+    ( "Note" :: FProxy (Tuple' s)
+    , "Embed" :: VOID
+    )
+type ExprLayerRowI s a =
+  AllTheThingsI
+    ( "Note" :: Unit
+    , "Embed" :: Void
+    )
+-- The same, as a variant
 -- (This has a newtype in ExprRowVF)
 type ExprLayerF m s a = VariantF (ExprLayerRow m s a)
+type ExprLayerF' m m' s a = VariantF (ExprLayerRow' m m' s a)
+type ExprLayerFI s a = Variant (ExprLayerRowI s a)
 -- The same, but applied to Expr (this is isomorphic to Expr itself)
 type ExprLayer m s a = (ExprLayerF m s a) (Expr m s a)
 
@@ -314,9 +538,12 @@ instance showExpr :: (FoldableWithIndex String m, Show s, Show a) => Show (Expr 
 
 instance eqExpr :: (Eq1 m, Eq s, Eq a) => Eq (Expr m s a) where
   eq e1 e2 = project e1 `eq1` project e2
-
 instance eq1Expr :: (Eq1 m, Eq s) => Eq1 (Expr m s) where
   eq1 = eq
+instance ordExpr :: (Ord1 m, Ord s, Ord a) => Ord (Expr m s a) where
+  compare e1 e2 = project e1 `compare1` project e2
+instance ord1Expr :: (Ord1 m, Ord s) => Ord1 (Expr m s) where
+  compare1 = compare
 
 vfEqCase ::
   forall sym fnc v' v v1' v1 a.
@@ -341,79 +568,339 @@ vfEq1Case ::
   VariantF v a -> VariantF v1 a -> Boolean
 vfEq1Case k = VariantF.on k (\a -> VariantF.default false # VariantF.on k (eq1 a))
 
+vfOrdCase ::
+  forall sym fnc v' v v1' v1 a.
+    IsSymbol sym =>
+    Ord (fnc a) =>
+    Row.Cons sym (FProxy fnc) v' v =>
+    Row.Cons sym (FProxy fnc) v1' v1 =>
+  SProxy sym ->
+  (VariantF v' a -> VariantF v1 a -> Ordering) ->
+  VariantF v a -> VariantF v1 a -> Ordering
+vfOrdCase k = VariantF.on k (\a -> VariantF.default LT # VariantF.on k (compare a))
+
+vfOrd1Case ::
+  forall sym fnc v' v v1' v1 a.
+    IsSymbol sym =>
+    Ord1 fnc =>
+    Ord a =>
+    Row.Cons sym (FProxy fnc) v' v =>
+    Row.Cons sym (FProxy fnc) v1' v1 =>
+  SProxy sym ->
+  (VariantF v' a -> VariantF v1 a -> Ordering) ->
+  VariantF v a -> VariantF v1 a -> Ordering
+vfOrd1Case k = VariantF.on k (\a -> VariantF.default LT # VariantF.on k (compare1 a))
+
 -- A newtype for ... reasons
 newtype ExprRowVF m s a b = ERVF (ExprLayerF m s a b)
 derive instance newtypeERVF :: Newtype (ExprRowVF m s a b) _
 derive newtype instance functorERVF :: Functor (ExprRowVF m s a)
 derive newtype instance foldableERVF :: Foldable m => Foldable (ExprRowVF m s a)
 derive newtype instance traversableERVF :: Traversable m => Traversable (ExprRowVF m s a)
+newtype ExprRowVF' m m' s a b = ERVF' (ExprLayerF' m m' s a b)
+derive instance newtypeERVF' :: Newtype (ExprRowVF' m m' s a b) _
+derive newtype instance functorERVF' :: Functor (ExprRowVF' m m' s a)
+derive newtype instance foldableERVF' :: (Foldable m, Foldable m') => Foldable (ExprRowVF' m m' s a)
+derive newtype instance traversableERVF' :: (Traversable m, Traversable m') => Traversable (ExprRowVF' m m' s a)
+newtype ExprRowVFI s a = ERVFI (ExprLayerFI s a)
+derive instance newtypeERVFI :: Newtype (ExprRowVFI s a) _
+derive newtype instance eqERVFI :: (Eq s, Eq a) => Eq (ExprRowVFI s a)
+derive newtype instance ordERVFI :: (Ord s, Ord a) => Ord (ExprRowVFI s a)
+instance functorWithIndexERVF :: FunctorWithIndex String m => FunctorWithIndex (ExprRowVFI s a) (ExprRowVF m s a) where
+  mapWithIndex f (ERVF v) = ERVF (mapWithIndexV (f <<< ERVFI) v)
+instance foldableWithIndexERVF :: (FunctorWithIndex String m, FoldableWithIndex String m) => FoldableWithIndex (ExprRowVFI s a) (ExprRowVF m s a) where
+  foldrWithIndex f z = foldr (\(Tuple i a) z' -> f i a z') z <<< mapWithIndex Tuple
+  foldlWithIndex f z = foldl (\z' (Tuple i a) -> f i z' a) z <<< mapWithIndex Tuple
+  foldMapWithIndex f = fold <<< mapWithIndex f
+instance traversableWithIndexERVF :: TraversableWithIndex String m => TraversableWithIndex (ExprRowVFI s a) (ExprRowVF m s a) where
+  traverseWithIndex f = sequence <<< mapWithIndex f
+
+instance eqExprRowVF :: (Eq1 m, Eq s, Eq a, Eq b) => Eq (ExprRowVF m s a b) where
+  eq = eq1
 instance eq1ExprRowVF :: (Eq1 m, Eq s, Eq a) => Eq1 (ExprRowVF m s a) where
   eq1 (ERVF e1) (ERVF e2) =
     ( VariantF.case_
     # vfEqCase (SProxy :: SProxy "Annot")
     # vfEqCase (SProxy :: SProxy "App")
+    # vfEqCase (SProxy :: SProxy "Bool")
     # vfEqCase (SProxy :: SProxy "BoolAnd")
-    # vfEqCase (SProxy :: SProxy "BoolOr")
     # vfEqCase (SProxy :: SProxy "BoolEQ")
+    # vfEqCase (SProxy :: SProxy "BoolIf")
+    # vfEqCase (SProxy :: SProxy "BoolLit")
     # vfEqCase (SProxy :: SProxy "BoolNE")
-    # vfEqCase (SProxy :: SProxy "NaturalPlus")
-    # vfEqCase (SProxy :: SProxy "NaturalTimes")
-    # vfEqCase (SProxy :: SProxy "TextAppend")
-    # vfEqCase (SProxy :: SProxy "ListAppend")
+    # vfEqCase (SProxy :: SProxy "BoolOr")
     # vfEqCase (SProxy :: SProxy "Combine")
     # vfEqCase (SProxy :: SProxy "CombineTypes")
-    # vfEqCase (SProxy :: SProxy "Prefer")
-    # vfEqCase (SProxy :: SProxy "ImportAlt")
-    # vfEqCase (SProxy :: SProxy "BoolIf")
+    # vfEqCase (SProxy :: SProxy "Const")
     # vfEqCase (SProxy :: SProxy "Constructors")
+    # vfEqCase (SProxy :: SProxy "Double")
+    # vfEqCase (SProxy :: SProxy "DoubleLit")
+    # vfEqCase (SProxy :: SProxy "DoubleShow")
+    # vfEqCase (SProxy :: SProxy "Embed")
     # vfEqCase (SProxy :: SProxy "Field")
+    # vfEqCase (SProxy :: SProxy "ImportAlt")
+    # vfEqCase (SProxy :: SProxy "Integer")
+    # vfEqCase (SProxy :: SProxy "IntegerLit")
+    # vfEqCase (SProxy :: SProxy "IntegerShow")
+    # vfEqCase (SProxy :: SProxy "IntegerToDouble")
     # vfEqCase (SProxy :: SProxy "Lam")
     # vfEqCase (SProxy :: SProxy "Let")
+    # vfEqCase (SProxy :: SProxy "List")
+    # vfEqCase (SProxy :: SProxy "ListAppend")
+    # vfEqCase (SProxy :: SProxy "ListBuild")
+    # vfEqCase (SProxy :: SProxy "ListFold")
+    # vfEqCase (SProxy :: SProxy "ListHead")
+    # vfEqCase (SProxy :: SProxy "ListIndexed")
+    # vfEqCase (SProxy :: SProxy "ListLast")
+    # vfEqCase (SProxy :: SProxy "ListLength")
     # vfEqCase (SProxy :: SProxy "ListLit")
+    # vfEqCase (SProxy :: SProxy "ListReverse")
     # vfEqCase (SProxy :: SProxy "Merge")
+    # vfEqCase (SProxy :: SProxy "Natural")
+    # vfEqCase (SProxy :: SProxy "NaturalBuild")
+    # vfEqCase (SProxy :: SProxy "NaturalEven")
+    # vfEqCase (SProxy :: SProxy "NaturalFold")
+    # vfEqCase (SProxy :: SProxy "NaturalIsZero")
+    # vfEqCase (SProxy :: SProxy "NaturalLit")
+    # vfEqCase (SProxy :: SProxy "NaturalOdd")
+    # vfEqCase (SProxy :: SProxy "NaturalPlus")
+    # vfEqCase (SProxy :: SProxy "NaturalShow")
+    # vfEqCase (SProxy :: SProxy "NaturalTimes")
+    # vfEqCase (SProxy :: SProxy "NaturalToInteger")
     # vfEqCase (SProxy :: SProxy "Note")
+    # vfEqCase (SProxy :: SProxy "Optional")
+    # vfEqCase (SProxy :: SProxy "OptionalBuild")
+    # vfEqCase (SProxy :: SProxy "OptionalFold")
     # vfEqCase (SProxy :: SProxy "OptionalLit")
     # vfEqCase (SProxy :: SProxy "Pi")
+    # vfEqCase (SProxy :: SProxy "Prefer")
     # vfEqCase (SProxy :: SProxy "Project")
     # vfEq1Case (SProxy :: SProxy "Record")
     # vfEq1Case (SProxy :: SProxy "RecordLit")
-    # vfEqCase (SProxy :: SProxy "BoolLit")
-    # vfEqCase (SProxy :: SProxy "NaturalLit")
-    # vfEqCase (SProxy :: SProxy "IntegerLit")
-    # vfEqCase (SProxy :: SProxy "DoubleLit")
-    # vfEqCase (SProxy :: SProxy "Bool")
-    # vfEqCase (SProxy :: SProxy "Natural")
-    # vfEqCase (SProxy :: SProxy "Integer")
-    # vfEqCase (SProxy :: SProxy "Double")
     # vfEqCase (SProxy :: SProxy "Text")
-    # vfEqCase (SProxy :: SProxy "List")
-    # vfEqCase (SProxy :: SProxy "Optional")
-    # vfEqCase (SProxy :: SProxy "NaturalFold")
-    # vfEqCase (SProxy :: SProxy "NaturalBuild")
-    # vfEqCase (SProxy :: SProxy "NaturalIsZero")
-    # vfEqCase (SProxy :: SProxy "NaturalEven")
-    # vfEqCase (SProxy :: SProxy "NaturalOdd")
-    # vfEqCase (SProxy :: SProxy "NaturalToInteger")
-    # vfEqCase (SProxy :: SProxy "NaturalShow")
-    # vfEqCase (SProxy :: SProxy "IntegerShow")
-    # vfEqCase (SProxy :: SProxy "IntegerToDouble")
-    # vfEqCase (SProxy :: SProxy "DoubleShow")
-    # vfEqCase (SProxy :: SProxy "ListBuild")
-    # vfEqCase (SProxy :: SProxy "ListFold")
-    # vfEqCase (SProxy :: SProxy "ListLength")
-    # vfEqCase (SProxy :: SProxy "ListHead")
-    # vfEqCase (SProxy :: SProxy "ListLast")
-    # vfEqCase (SProxy :: SProxy "ListIndexed")
-    # vfEqCase (SProxy :: SProxy "ListReverse")
-    # vfEqCase (SProxy :: SProxy "OptionalFold")
-    # vfEqCase (SProxy :: SProxy "OptionalBuild")
-    # vfEqCase (SProxy :: SProxy "Const")
-    # vfEqCase (SProxy :: SProxy "Var")
-    # vfEqCase (SProxy :: SProxy "Embed")
+    # vfEqCase (SProxy :: SProxy "TextAppend")
     # vfEqCase (SProxy :: SProxy "TextLit")
     # vfEq1Case (SProxy :: SProxy "Union")
     # vfEq1Case (SProxy :: SProxy "UnionLit")
+    # vfEqCase (SProxy :: SProxy "Var")
     ) e1 e2
+
+instance ordExprRowVF :: (Ord1 m, Ord s, Ord a, Ord b) => Ord (ExprRowVF m s a b) where
+  compare = compare1
+instance ord1ExprRowVF :: (Ord1 m, Ord s, Ord a) => Ord1 (ExprRowVF m s a) where
+  compare1 (ERVF e1) (ERVF e2) =
+    ( VariantF.case_
+    # vfOrdCase (SProxy :: SProxy "Annot")
+    # vfOrdCase (SProxy :: SProxy "App")
+    # vfOrdCase (SProxy :: SProxy "Bool")
+    # vfOrdCase (SProxy :: SProxy "BoolAnd")
+    # vfOrdCase (SProxy :: SProxy "BoolEQ")
+    # vfOrdCase (SProxy :: SProxy "BoolIf")
+    # vfOrdCase (SProxy :: SProxy "BoolLit")
+    # vfOrdCase (SProxy :: SProxy "BoolNE")
+    # vfOrdCase (SProxy :: SProxy "BoolOr")
+    # vfOrdCase (SProxy :: SProxy "Combine")
+    # vfOrdCase (SProxy :: SProxy "CombineTypes")
+    # vfOrdCase (SProxy :: SProxy "Const")
+    # vfOrdCase (SProxy :: SProxy "Constructors")
+    # vfOrdCase (SProxy :: SProxy "Double")
+    # vfOrdCase (SProxy :: SProxy "DoubleLit")
+    # vfOrdCase (SProxy :: SProxy "DoubleShow")
+    # vfOrdCase (SProxy :: SProxy "Embed")
+    # vfOrdCase (SProxy :: SProxy "Field")
+    # vfOrdCase (SProxy :: SProxy "ImportAlt")
+    # vfOrdCase (SProxy :: SProxy "Integer")
+    # vfOrdCase (SProxy :: SProxy "IntegerLit")
+    # vfOrdCase (SProxy :: SProxy "IntegerShow")
+    # vfOrdCase (SProxy :: SProxy "IntegerToDouble")
+    # vfOrdCase (SProxy :: SProxy "Lam")
+    # vfOrdCase (SProxy :: SProxy "Let")
+    # vfOrdCase (SProxy :: SProxy "List")
+    # vfOrdCase (SProxy :: SProxy "ListAppend")
+    # vfOrdCase (SProxy :: SProxy "ListBuild")
+    # vfOrdCase (SProxy :: SProxy "ListFold")
+    # vfOrdCase (SProxy :: SProxy "ListHead")
+    # vfOrdCase (SProxy :: SProxy "ListIndexed")
+    # vfOrdCase (SProxy :: SProxy "ListLast")
+    # vfOrdCase (SProxy :: SProxy "ListLength")
+    # vfOrdCase (SProxy :: SProxy "ListLit")
+    # vfOrdCase (SProxy :: SProxy "ListReverse")
+    # vfOrdCase (SProxy :: SProxy "Merge")
+    # vfOrdCase (SProxy :: SProxy "Natural")
+    # vfOrdCase (SProxy :: SProxy "NaturalBuild")
+    # vfOrdCase (SProxy :: SProxy "NaturalEven")
+    # vfOrdCase (SProxy :: SProxy "NaturalFold")
+    # vfOrdCase (SProxy :: SProxy "NaturalIsZero")
+    # vfOrdCase (SProxy :: SProxy "NaturalLit")
+    # vfOrdCase (SProxy :: SProxy "NaturalOdd")
+    # vfOrdCase (SProxy :: SProxy "NaturalPlus")
+    # vfOrdCase (SProxy :: SProxy "NaturalShow")
+    # vfOrdCase (SProxy :: SProxy "NaturalTimes")
+    # vfOrdCase (SProxy :: SProxy "NaturalToInteger")
+    # vfOrdCase (SProxy :: SProxy "Note")
+    # vfOrdCase (SProxy :: SProxy "Optional")
+    # vfOrdCase (SProxy :: SProxy "OptionalBuild")
+    # vfOrdCase (SProxy :: SProxy "OptionalFold")
+    # vfOrdCase (SProxy :: SProxy "OptionalLit")
+    # vfOrdCase (SProxy :: SProxy "Pi")
+    # vfOrdCase (SProxy :: SProxy "Prefer")
+    # vfOrdCase (SProxy :: SProxy "Project")
+    # vfOrd1Case (SProxy :: SProxy "Record")
+    # vfOrd1Case (SProxy :: SProxy "RecordLit")
+    # vfOrdCase (SProxy :: SProxy "Text")
+    # vfOrdCase (SProxy :: SProxy "TextAppend")
+    # vfOrdCase (SProxy :: SProxy "TextLit")
+    # vfOrd1Case (SProxy :: SProxy "Union")
+    # vfOrd1Case (SProxy :: SProxy "UnionLit")
+    # vfOrdCase (SProxy :: SProxy "Var")
+    ) e1 e2
+
+instance eqExprRowVF' :: (Eq1 m, Eq1 m', Eq s, Eq a, Eq b) => Eq (ExprRowVF' m m' s a b) where
+  eq = eq1
+instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq s, Eq a) => Eq1 (ExprRowVF' m m' s a) where
+  eq1 (ERVF' e1) (ERVF' e2) =
+    ( VariantF.case_
+    # vfEqCase (SProxy :: SProxy "Annot")
+    # vfEqCase (SProxy :: SProxy "App")
+    # vfEqCase (SProxy :: SProxy "Bool")
+    # vfEqCase (SProxy :: SProxy "BoolAnd")
+    # vfEqCase (SProxy :: SProxy "BoolEQ")
+    # vfEqCase (SProxy :: SProxy "BoolIf")
+    # vfEqCase (SProxy :: SProxy "BoolLit")
+    # vfEqCase (SProxy :: SProxy "BoolNE")
+    # vfEqCase (SProxy :: SProxy "BoolOr")
+    # vfEqCase (SProxy :: SProxy "Combine")
+    # vfEqCase (SProxy :: SProxy "CombineTypes")
+    # vfEqCase (SProxy :: SProxy "Const")
+    # vfEqCase (SProxy :: SProxy "Constructors")
+    # vfEqCase (SProxy :: SProxy "Double")
+    # vfEqCase (SProxy :: SProxy "DoubleLit")
+    # vfEqCase (SProxy :: SProxy "DoubleShow")
+    # vfEqCase (SProxy :: SProxy "Embed")
+    # vfEqCase (SProxy :: SProxy "Field")
+    # vfEqCase (SProxy :: SProxy "ImportAlt")
+    # vfEqCase (SProxy :: SProxy "Integer")
+    # vfEqCase (SProxy :: SProxy "IntegerLit")
+    # vfEqCase (SProxy :: SProxy "IntegerShow")
+    # vfEqCase (SProxy :: SProxy "IntegerToDouble")
+    # vfEqCase (SProxy :: SProxy "Lam")
+    # vfEqCase (SProxy :: SProxy "Let")
+    # vfEqCase (SProxy :: SProxy "List")
+    # vfEqCase (SProxy :: SProxy "ListAppend")
+    # vfEqCase (SProxy :: SProxy "ListBuild")
+    # vfEqCase (SProxy :: SProxy "ListFold")
+    # vfEqCase (SProxy :: SProxy "ListHead")
+    # vfEqCase (SProxy :: SProxy "ListIndexed")
+    # vfEqCase (SProxy :: SProxy "ListLast")
+    # vfEqCase (SProxy :: SProxy "ListLength")
+    # vfEqCase (SProxy :: SProxy "ListLit")
+    # vfEqCase (SProxy :: SProxy "ListReverse")
+    # vfEqCase (SProxy :: SProxy "Merge")
+    # vfEqCase (SProxy :: SProxy "Natural")
+    # vfEqCase (SProxy :: SProxy "NaturalBuild")
+    # vfEqCase (SProxy :: SProxy "NaturalEven")
+    # vfEqCase (SProxy :: SProxy "NaturalFold")
+    # vfEqCase (SProxy :: SProxy "NaturalIsZero")
+    # vfEqCase (SProxy :: SProxy "NaturalLit")
+    # vfEqCase (SProxy :: SProxy "NaturalOdd")
+    # vfEqCase (SProxy :: SProxy "NaturalPlus")
+    # vfEqCase (SProxy :: SProxy "NaturalShow")
+    # vfEqCase (SProxy :: SProxy "NaturalTimes")
+    # vfEqCase (SProxy :: SProxy "NaturalToInteger")
+    # vfEqCase (SProxy :: SProxy "Note")
+    # vfEqCase (SProxy :: SProxy "Optional")
+    # vfEqCase (SProxy :: SProxy "OptionalBuild")
+    # vfEqCase (SProxy :: SProxy "OptionalFold")
+    # vfEqCase (SProxy :: SProxy "OptionalLit")
+    # vfEqCase (SProxy :: SProxy "Pi")
+    # vfEqCase (SProxy :: SProxy "Prefer")
+    # vfEqCase (SProxy :: SProxy "Project")
+    # vfEq1Case (SProxy :: SProxy "Record")
+    # vfEq1Case (SProxy :: SProxy "RecordLit")
+    # vfEqCase (SProxy :: SProxy "Text")
+    # vfEqCase (SProxy :: SProxy "TextAppend")
+    # vfEqCase (SProxy :: SProxy "TextLit")
+    # vfEq1Case (SProxy :: SProxy "Union")
+    # vfEq1Case (SProxy :: SProxy "UnionLit")
+    # vfEqCase (SProxy :: SProxy "Var")
+    ) e1 e2
+
+instance ordExprRowVF' :: (Ord1 m, Ord1 m', Ord s, Ord a, Ord b) => Ord (ExprRowVF' m m' s a b) where
+  compare = compare1
+instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord s, Ord a) => Ord1 (ExprRowVF' m m' s a) where
+  compare1 (ERVF' e1) (ERVF' e2) =
+    ( VariantF.case_
+    # vfOrdCase (SProxy :: SProxy "Annot")
+    # vfOrdCase (SProxy :: SProxy "App")
+    # vfOrdCase (SProxy :: SProxy "Bool")
+    # vfOrdCase (SProxy :: SProxy "BoolAnd")
+    # vfOrdCase (SProxy :: SProxy "BoolEQ")
+    # vfOrdCase (SProxy :: SProxy "BoolIf")
+    # vfOrdCase (SProxy :: SProxy "BoolLit")
+    # vfOrdCase (SProxy :: SProxy "BoolNE")
+    # vfOrdCase (SProxy :: SProxy "BoolOr")
+    # vfOrdCase (SProxy :: SProxy "Combine")
+    # vfOrdCase (SProxy :: SProxy "CombineTypes")
+    # vfOrdCase (SProxy :: SProxy "Const")
+    # vfOrdCase (SProxy :: SProxy "Constructors")
+    # vfOrdCase (SProxy :: SProxy "Double")
+    # vfOrdCase (SProxy :: SProxy "DoubleLit")
+    # vfOrdCase (SProxy :: SProxy "DoubleShow")
+    # vfOrdCase (SProxy :: SProxy "Embed")
+    # vfOrdCase (SProxy :: SProxy "Field")
+    # vfOrdCase (SProxy :: SProxy "ImportAlt")
+    # vfOrdCase (SProxy :: SProxy "Integer")
+    # vfOrdCase (SProxy :: SProxy "IntegerLit")
+    # vfOrdCase (SProxy :: SProxy "IntegerShow")
+    # vfOrdCase (SProxy :: SProxy "IntegerToDouble")
+    # vfOrdCase (SProxy :: SProxy "Lam")
+    # vfOrdCase (SProxy :: SProxy "Let")
+    # vfOrdCase (SProxy :: SProxy "List")
+    # vfOrdCase (SProxy :: SProxy "ListAppend")
+    # vfOrdCase (SProxy :: SProxy "ListBuild")
+    # vfOrdCase (SProxy :: SProxy "ListFold")
+    # vfOrdCase (SProxy :: SProxy "ListHead")
+    # vfOrdCase (SProxy :: SProxy "ListIndexed")
+    # vfOrdCase (SProxy :: SProxy "ListLast")
+    # vfOrdCase (SProxy :: SProxy "ListLength")
+    # vfOrdCase (SProxy :: SProxy "ListLit")
+    # vfOrdCase (SProxy :: SProxy "ListReverse")
+    # vfOrdCase (SProxy :: SProxy "Merge")
+    # vfOrdCase (SProxy :: SProxy "Natural")
+    # vfOrdCase (SProxy :: SProxy "NaturalBuild")
+    # vfOrdCase (SProxy :: SProxy "NaturalEven")
+    # vfOrdCase (SProxy :: SProxy "NaturalFold")
+    # vfOrdCase (SProxy :: SProxy "NaturalIsZero")
+    # vfOrdCase (SProxy :: SProxy "NaturalLit")
+    # vfOrdCase (SProxy :: SProxy "NaturalOdd")
+    # vfOrdCase (SProxy :: SProxy "NaturalPlus")
+    # vfOrdCase (SProxy :: SProxy "NaturalShow")
+    # vfOrdCase (SProxy :: SProxy "NaturalTimes")
+    # vfOrdCase (SProxy :: SProxy "NaturalToInteger")
+    # vfOrdCase (SProxy :: SProxy "Note")
+    # vfOrdCase (SProxy :: SProxy "Optional")
+    # vfOrdCase (SProxy :: SProxy "OptionalBuild")
+    # vfOrdCase (SProxy :: SProxy "OptionalFold")
+    # vfOrdCase (SProxy :: SProxy "OptionalLit")
+    # vfOrdCase (SProxy :: SProxy "Pi")
+    # vfOrdCase (SProxy :: SProxy "Prefer")
+    # vfOrdCase (SProxy :: SProxy "Project")
+    # vfOrd1Case (SProxy :: SProxy "Record")
+    # vfOrd1Case (SProxy :: SProxy "RecordLit")
+    # vfOrdCase (SProxy :: SProxy "Text")
+    # vfOrdCase (SProxy :: SProxy "TextAppend")
+    # vfOrdCase (SProxy :: SProxy "TextLit")
+    # vfOrd1Case (SProxy :: SProxy "Union")
+    # vfOrd1Case (SProxy :: SProxy "UnionLit")
+    # vfOrdCase (SProxy :: SProxy "Var")
+    ) e1 e2
+
+instance containerIERVF :: ContainerI String m' => ContainerI (ExprRowVFI s a) (ExprRowVF' m m' s a) where
+  ixF (ERVF' e) = ERVFI (ixFV e)
+
+instance containerERVF :: (Ord s, Ord a, Functor m', Eq1 m, Traversable m, Container String m m') => Container (ExprRowVFI s a) (ExprRowVF m s a) (ExprRowVF' m m' s a) where
+  downZF (ERVF e) = ERVF (downZFV e <#> _contextZF ERVF')
+  upZF (a :<-: e) = ERVF (upZFV (a :<-: pure (unwrap (extract e))))
 
 instance bifunctorExpr :: Functor m => Bifunctor (Expr m) where
   bimap f g (Expr e) = Expr $ e <#> g # hoistFree

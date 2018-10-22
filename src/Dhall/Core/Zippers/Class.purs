@@ -27,7 +27,6 @@ import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromJust)
-import Data.Natural (Natural)
 import Data.Newtype (class Newtype)
 import Data.Ord (class Ord1)
 import Data.Profunctor.Strong ((&&&))
@@ -39,10 +38,10 @@ import Data.TraversableWithIndex as TraversableWithIndex
 import Data.Tuple (Tuple(..), uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Core.AST.Types.Basics as Basics
 import Dhall.Core.StrMapIsh (InsOrdStrMap(..), mkIOSM, unIOSM)
 import Partial.Unsafe (unsafePartial)
 import Type.Row (RLProxy(..), Nil)
+import Prim.RowList as RL
 import Type.Row as Row
 
 {-
@@ -103,54 +102,78 @@ class (Eq1 f, Eq1 f', Ord i, TraversableWithIndex i f, Traversable f', Container
   upZF   :: forall x. ZF f' x  ->      f  x
   downZF :: forall x.    f  x -> f (ZF f' x)
 
-class FunctorWithIndexRL rl is fs | rl -> is fs where
-  mapWithIndexRL :: forall a b. RLProxy rl ->
+mapWithIndexV :: forall rl is fs a b.
+  RL.RowToList fs rl =>
+  FunctorWithIndexVRL rl is fs =>
+  (Variant is -> a -> b) -> VariantF fs a -> VariantF fs b
+mapWithIndexV = mapWithIndexVRL (RLProxy :: RLProxy rl)
+
+class FunctorWithIndexVRL rl is fs | rl -> is fs where
+  mapWithIndexVRL :: forall a b. RLProxy rl ->
     (Variant is -> a -> b) -> VariantF fs a -> VariantF fs b
 
-instance functorWithIndexRLNil :: FunctorWithIndexRL Nil () () where
-  mapWithIndexRL _ _ = VariantF.case_
+instance functorWithIndexVRLNil :: FunctorWithIndexVRL Nil () () where
+  mapWithIndexVRL _ _ = VariantF.case_
 
-instance functorWithIndexRLCons ::
+instance functorWithIndexVRLCons ::
   ( IsSymbol s
   , FunctorWithIndex i f
   , Row.Cons s (FProxy f) fs' fs
   , Row.Cons s i is' is
   , Row.Union is' is_ is
   , Row.Union fs' fs_ fs
-  , FunctorWithIndexRL rl' is' fs'
-  ) => FunctorWithIndexRL (Row.Cons s (FProxy f) rl') is fs where
-  mapWithIndexRL _ f = VariantF.on s
+  , FunctorWithIndexVRL rl' is' fs'
+  ) => FunctorWithIndexVRL (Row.Cons s (FProxy f) rl') is fs where
+  mapWithIndexVRL _ f = VariantF.on s
     (mapWithIndex (Variant.inj s >>> f) >>> VariantF.inj s)
-    (mapWithIndexRL (RLProxy :: RLProxy rl') (f <<< Variant.expand) >>> VariantF.expand)
+    (mapWithIndexVRL (RLProxy :: RLProxy rl') (f <<< Variant.expand) >>> VariantF.expand)
     where s = SProxy :: SProxy s
 
-class ContainerIRL rl is f's | rl -> is f's where
-  ixFRL :: forall x. RLProxy rl -> VariantF f's x -> Variant is
+ixFV :: forall rl is f's x.
+  RL.RowToList f's rl =>
+  ContainerIVRL rl is f's =>
+  VariantF f's x -> Variant is
+ixFV = ixFVRL (RLProxy :: RLProxy rl)
 
-instance containerIRLNil :: ContainerIRL Nil () () where
-  ixFRL _ = VariantF.case_
+class ContainerIVRL rl is f's | rl -> is f's where
+  ixFVRL :: forall x. RLProxy rl -> VariantF f's x -> Variant is
 
-instance containerIRLCons ::
+instance containerIVRLNil :: ContainerIVRL Nil () () where
+  ixFVRL _ = VariantF.case_
+
+instance containerIVRLCons ::
   ( IsSymbol s
   , ContainerI i f'
   , Row.Cons s (FProxy f') f's' f's
   , Row.Cons s i is' is
   , Row.Union is' is_ is
-  , ContainerIRL rl' is' f's'
-  ) => ContainerIRL (Row.Cons s (FProxy f') rl') is f's where
-  ixFRL _ = VariantF.on s (ixF >>> Variant.inj s)
-    (ixFRL (RLProxy :: RLProxy rl') >>> Variant.expand)
+  , ContainerIVRL rl' is' f's'
+  ) => ContainerIVRL (Row.Cons s (FProxy f') rl') is f's where
+  ixFVRL _ = VariantF.on s (ixF >>> Variant.inj s)
+    (ixFVRL (RLProxy :: RLProxy rl') >>> Variant.expand)
     where s = SProxy :: SProxy s
 
-class ContainerRL rl (is :: # Type) fs f's | rl -> is fs f's where
-  upZFRL :: forall x. RLProxy rl -> ZF (VariantF f's) x -> VariantF fs x
-  downZFRL :: forall x. RLProxy rl -> VariantF fs x -> VariantF fs (ZF (VariantF f's) x)
+upZFV :: forall rl is fs f's x.
+  RL.RowToList fs rl =>
+  ContainerVRL rl is fs f's =>
+  ZF (VariantF f's) x -> VariantF fs x
+upZFV = upZFVRL (RLProxy :: RLProxy rl)
 
-instance containerRLNil :: ContainerRL Nil () () () where
-  upZFRL _ (_ :<-: z) = VariantF.case_ (extract z)
-  downZFRL _ = VariantF.case_
+downZFV :: forall rl is fs f's x.
+  RL.RowToList fs rl =>
+  ContainerVRL rl is fs f's =>
+  VariantF fs x -> VariantF fs (ZF (VariantF f's) x)
+downZFV = downZFVRL (RLProxy :: RLProxy rl)
 
-instance containerRLCons ::
+class ContainerVRL rl (is :: # Type) fs f's | rl -> is fs f's where
+  upZFVRL :: forall x. RLProxy rl -> ZF (VariantF f's) x -> VariantF fs x
+  downZFVRL :: forall x. RLProxy rl -> VariantF fs x -> VariantF fs (ZF (VariantF f's) x)
+
+instance containerVRLNil :: ContainerVRL Nil () () () where
+  upZFVRL _ (_ :<-: z) = VariantF.case_ (extract z)
+  downZFVRL _ = VariantF.case_
+
+instance containerVRLCons ::
   ( IsSymbol s
   , Functor f'
   , Container i f f'
@@ -159,21 +182,21 @@ instance containerRLCons ::
   , Row.Cons s i is' is
   , Row.Union fs' fs_ fs
   , Row.Union f's' f's_ f's
-  , ContainerRL rl' is' fs' f's'
-  ) => ContainerRL (Row.Cons s (FProxy f) rl) is fs f's where
-  upZFRL _ (a :<-: z) = VariantF.on s
+  , ContainerVRL rl' is' fs' f's'
+  ) => ContainerVRL (Row.Cons s (FProxy f) rl') is fs f's where
+  upZFVRL _ (a :<-: z) = VariantF.on s
     (\z' -> upZF (a :<-: pure z') # VariantF.inj s)
-    (\z' -> upZFRL (RLProxy :: RLProxy rl') (a :<-: pure z') # VariantF.expand)
+    (\z' -> upZFVRL (RLProxy :: RLProxy rl') (a :<-: pure z') # VariantF.expand)
     (extract z)
     where s = SProxy :: SProxy s
-  downZFRL _ = VariantF.on s
-    (downZF >>> mapper (VariantF.inj s) (VariantF.inj s))
-    (downZFRL (RLProxy :: RLProxy rl') >>> mapper VariantF.expand VariantF.expand)
+  downZFVRL _ = VariantF.on s
+    (downZF >>> injector (VariantF.inj s) (VariantF.inj s))
+    (downZFVRL (RLProxy :: RLProxy rl') >>> injector VariantF.expand VariantF.expand)
     where s = SProxy :: SProxy s
 
 -- Random utilities
-mapper :: forall f g f' g' a. Functor f => (f ~> g) -> (f' a -> g' a) -> f (ZF f' a) -> g (ZF g' a)
-mapper fg f'g' = (map <<< _contextZF' <<< map) f'g' >>> fg
+injector :: forall f g f' g' a. Functor f => (f ~> g) -> (f' a -> g' a) -> f (ZF f' a) -> g (ZF g' a)
+injector fg f'g' = (map <<< _contextZF' <<< map) f'g' >>> fg
 
 deferAp :: forall a b. (a -> b) -> a -> Lazy b
 deferAp f a = defer \_ -> f a
@@ -302,13 +325,23 @@ else instance containerIConst :: ContainerI Unit (Const a) where
 instance containerIIdentity :: ContainerI Unit Identity where
   ixF (Identity _) = unit
 
-type Const' = Const Void
+type Const' c = Const Void
+type ConstI c = Void
 
-{-
-instance containerConst :: Eq a => Container Void (Const a) (Const Void) where
-  upZF (_ :<-: void) = absurd $ unwrap $ extract void
-  downZF (Const a) = Const a
--}
+instance containerConst :: Eq c => Container Void (Const c) (Const Void) where
+  upZF (_ :<-: z) = case extract z of Const void -> absurd void
+  downZF (Const c) = Const c
+
+type Identity' = Const Unit
+type IdentityI = Unit
+
+instance containerIdentity :: Container Unit Identity (Const Unit) where
+  upZF (a :<-: z) = case extract z of
+    Const (_ :: Unit) -> Identity a
+  downZF (Identity a) = Identity (a :<-: pure (Const unit))
+
+type Coproduct' = Coproduct
+type CoproductI = Either
 
 instance containerICoproduct :: (ContainerI i f', ContainerI j g') => ContainerI (Either i j) (Coproduct f' g') where
   ixF (Coproduct (Left cf)) = Left $ ixF cf
@@ -317,8 +350,8 @@ instance containerICoproduct :: (ContainerI i f', ContainerI j g') => ContainerI
 -- Sum rule: (f + g)' = f' + g'
 instance containerCoproduct :: (Eq1 f, Eq1 g, Functor f', Functor g', Container i f f', Container j g g') =>
   Container (Either i j) (Coproduct f g) (Coproduct f' g') where
-    downZF (Coproduct (Left f)) = downZF f # mapper Coproduct.left Coproduct.left
-    downZF (Coproduct (Right g)) = downZF g # mapper Coproduct.right Coproduct.right
+    downZF (Coproduct (Left f)) = downZF f # injector Coproduct.left Coproduct.left
+    downZF (Coproduct (Right g)) = downZF g # injector Coproduct.right Coproduct.right
     upZF (a :<-: z) = case extract z of
       Coproduct (Left zf) -> Coproduct.left (upZF (a :<-: pure zf))
       Coproduct (Right zf) -> Coproduct.right (upZF (a :<-: pure zf))
@@ -333,6 +366,7 @@ derive newtype instance ord1Product' :: (Ord1 f, Ord1 f', Ord1 g, Ord1 g') => Or
 derive newtype instance functorProduct' :: (Functor f, Functor f', Functor g, Functor g') => Functor (Product' f f' g g')
 derive newtype instance foldableProduct' :: (Foldable f, Foldable f', Foldable g, Foldable g') => Foldable (Product' f f' g g')
 derive newtype instance traversableProduct' :: (Traversable f, Traversable f', Traversable g, Traversable g') => Traversable (Product' f f' g g')
+type ProductI = Either
 
 instance containerIProduct :: (ContainerI i f', ContainerI j g') => ContainerI (Either i j) (Product' f f' g g') where
   ixF (Product' (Coproduct (Left (Product (Tuple cf _))))) = Left $ ixF cf
@@ -341,9 +375,9 @@ instance containerIProduct :: (ContainerI i f', ContainerI j g') => ContainerI (
 instance containerProduct :: (Eq1 f, Eq1 g, Functor f', Functor g', Traversable f, Traversable g, Container i f f', Container j g g') =>
   Container (Either i j) (Product f g) (Product' f f' g g') where
     downZF (Product (Tuple f g)) = Product $ Tuple
-      (downZF f # mapper identity \cf ->
+      (downZF f <#> _contextZF \cf ->
         Product' (Coproduct (Left (Product (Tuple cf g)))))
-      (downZF g # mapper identity \cg ->
+      (downZF g <#> _contextZF \cg ->
         Product' (Coproduct (Right (Product (Tuple f cg)))))
     upZF (a :<-: z) = case extract z of
       Product' (Coproduct (Left (Product (Tuple cf g)))) ->
@@ -361,6 +395,7 @@ derive newtype instance ord1Compose' :: (Ord1 f', Ord1 g, Ord1 g') => Ord1 (Comp
 derive newtype instance functorCompose' :: (Functor f', Functor g, Functor g') => Functor (Compose' f' g g')
 derive newtype instance foldableCompose' :: (Foldable f', Foldable g, Foldable g') => Foldable (Compose' f' g g')
 derive newtype instance traversableCompose' :: (Traversable f', Traversable g, Traversable g') => Traversable (Compose' f' g g')
+type ComposeI = Tuple
 
 instance containerICompose :: (ContainerI i f', ContainerI j g') =>
   ContainerI (Tuple i j) (Compose' f' g g') where
@@ -369,13 +404,14 @@ instance containerICompose :: (ContainerI i f', ContainerI j g') =>
 instance containerCompose :: (Eq1 f, Eq1 g, Functor f', Functor g', Traversable g, Container i f f', Container j g g') =>
   Container (Tuple i j) (Compose f g) (Compose' f' g g') where
     downZF (Compose fg) = Compose $ downZF fg <#> \(g :<-: f'g) ->
-      downZF g # mapper identity \a ->
+      downZF g <#> _contextZF \a ->
         Compose' (Product.product (Compose (extract f'g)) a)
     upZF (a :<-: z) = case extract z of
       Compose' (Product (Tuple (Compose f'g) g')) -> Compose $ upZF $
         upZF (a :<-: pure g') :<-: pure f'g
 
 type Maybe' = Const Unit
+type MaybeI = Unit
 
 instance containerMaybe :: Container Unit Maybe (Const Unit) where
   upZF (a :<-: z) = case extract z of
@@ -383,14 +419,22 @@ instance containerMaybe :: Container Unit Maybe (Const Unit) where
   downZF Nothing = Nothing
   downZF (Just a) = Just (a :<-: pure (Const unit))
 
-{-
+type Either' c = Const Unit
+type EitherI = Unit
+
+instance containerEither :: (Eq c) => Container Unit (Either c) (Const Unit) where
+  upZF (a :<-: z) = case extract z of
+    Const (_ :: Unit) -> Right a
+  downZF (Left c) = Left c
+  downZF (Right a) = Right (a :<-: pure (Const unit))
+
 type Tuple' c = Const c
+type TupleI c = Unit
 
 instance containerTuple :: (Eq c) => Container Unit (Tuple c) (Const c) where
   upZF (a :<-: z) = case extract z of
     Const c -> Tuple c a
   downZF (Tuple c a) = Tuple c (a :<-: pure (Const c))
--}
 
 newtype Array' a = ArrayN (Product Array Array a)
 derive instance newtypeArray' :: Newtype (Array' a) _
@@ -401,6 +445,7 @@ derive newtype instance ord1Array' :: Ord1 Array'
 derive newtype instance functorArray' :: Functor Array'
 derive newtype instance foldableArray' :: Foldable Array'
 derive newtype instance traversableArray' :: Traversable Array'
+type ArrayI = Int -- unfortunately
 
 arrayN :: forall a. Array a -> Array a -> Array' a
 arrayN prev next = ArrayN (Product (Tuple prev next))
@@ -423,6 +468,7 @@ derive newtype instance ord1Map' :: Ord k => Ord1 (Map' k)
 derive newtype instance functorMap' :: Functor (Map' k)
 derive newtype instance foldableMap' :: Foldable (Map' k)
 derive newtype instance traversableMap' :: Traversable (Map' k)
+type MapI k = k
 
 instance containerIMap :: ContainerI (k) (Map' k) where
   ixF (Map' (Product (Tuple (Const i) _))) = i
@@ -442,6 +488,7 @@ derive newtype instance ord1InsOrdStrMap' :: Ord1 InsOrdStrMap'
 derive newtype instance functorInsOrdStrMap' :: Functor InsOrdStrMap'
 derive newtype instance foldableInsOrdStrMap' :: Foldable InsOrdStrMap'
 derive newtype instance traversableInsOrdStrMap' :: Traversable InsOrdStrMap'
+type InsOrdStrMapI = String
 
 instance containerIIOSM :: ContainerI String InsOrdStrMap' where
   ixF (InsOrdStrMap' (Product (Tuple (Const k) _))) = k
@@ -458,77 +505,3 @@ instance containerIOSM :: Container String InsOrdStrMap InsOrdStrMap' where
           prev = mkIOSM $ Array.slice 0 i as
           next = mkIOSM $ Array.slice (i+1) l as
         in InsOrdStrMap' (Product (Tuple (Const k) (Product (Tuple prev next))))
-
--- Container instances for datatypes defined in Basics
-instance containerPair :: Container (Boolean) Basics.Pair Basics.Pair' where
-  upZF (a :<-: z) = case extract z of
-    Basics.Pair0 {- a -} a1 -> Basics.Pair a a1
-    Basics.Pair1 a0 {- a -} -> Basics.Pair a0 a
-
-  downZF (Basics.Pair a0 a1) = Basics.Pair (a0 :<-: defer \_ -> Basics.Pair0 {- a0 -} a1) (a1 :<-: defer \_ -> Basics.Pair1 a0 {- a1 -})
-
-instance containerIPair :: ContainerI (Boolean) Basics.Pair' where
-  ixF (Basics.Pair0 _) = false
-  ixF (Basics.Pair1 _) = true
-
-instance containerTriplet :: Container (Basics.Three) Basics.Triplet Basics.Triplet' where
-  upZF (a :<-: z) = case extract z of
-    Basics.Triplet0 {- a -} a1 a2 -> Basics.Triplet a a1 a2
-    Basics.Triplet1 a0 {- a -} a2 -> Basics.Triplet a0 a a2
-    Basics.Triplet2 a0 a1 {- a -} -> Basics.Triplet a0 a1 a
-
-  downZF (Basics.Triplet a0 a1 a2) = Basics.Triplet (a0 :<-: defer \_ -> Basics.Triplet0 {- a0 -} a1 a2) (a1 :<-: defer \_ -> Basics.Triplet1 a0 {- a1 -} a2) (a2 :<-: defer \_ -> Basics.Triplet2 a0 a1 {- a2 -})
-
-instance containerITriplet :: ContainerI (Basics.Three) Basics.Triplet' where
-  ixF (Basics.Triplet0 _ _) = Basics.Three1
-  ixF (Basics.Triplet1 _ _) = Basics.Three2
-  ixF (Basics.Triplet2 _ _) = Basics.Three3
-
-instance containerTextLitF :: Container (Natural) Basics.TextLitF Basics.TextLitF' where
-  upZF (a :<-: z) = case extract z of
-    Basics.TextInterp0 s {- a -} a1 -> Basics.TextInterp s a a1
-    Basics.TextInterp1 s a0 a1 -> Basics.TextInterp s a0 (upZF (a :<-: pure a1))
-
-  downZF (Basics.TextLit s) = Basics.TextLit s
-  downZF (Basics.TextInterp s a0 a1) = Basics.TextInterp s (a0 :<-: defer \_ -> Basics.TextInterp0 s {- a0 -} a1) (downZF a1 <#> _contextZF' (map \z -> Basics.TextInterp1 s a0 z))
-
-instance containerITextLitF :: ContainerI (Natural) Basics.TextLitF' where
-  ixF (Basics.TextInterp0 _ _) = zero
-  ixF (Basics.TextInterp1 _ _ z) = one + (ixF z)
-
-instance containerMergeF :: Container (Basics.Three) Basics.MergeF Basics.MergeF' where
-  upZF (a :<-: z) = case extract z of
-    Basics.MergeF0 {- a -} a1 a2 -> Basics.MergeF a a1 a2
-    Basics.MergeF1 a0 {- a -} a2 -> Basics.MergeF a0 a a2
-    Basics.MergeF2 a0 a1 a2 -> Basics.MergeF a0 a1 (upZF (a :<-: pure a2))
-
-  downZF (Basics.MergeF a0 a1 a2) = Basics.MergeF (a0 :<-: defer \_ -> Basics.MergeF0 {- a0 -} a1 a2) (a1 :<-: defer \_ -> Basics.MergeF1 a0 {- a1 -} a2) (downZF a2 <#> _contextZF' (map \z -> Basics.MergeF2 a0 a1 z))
-
-instance containerIMergeF :: ContainerI (Basics.Three) Basics.MergeF' where
-  ixF (Basics.MergeF0 _ _) = Basics.Three1
-  ixF (Basics.MergeF1 _ _) = Basics.Three2
-  ixF (Basics.MergeF2 _ _ z) = const Basics.Three3 (ixF z)
-
-instance containerLetF :: Container (Basics.Three) Basics.LetF Basics.LetF' where
-  upZF (a :<-: z) = case extract z of
-    Basics.LetF0 s a0 a1 a2 -> Basics.LetF s (upZF (a :<-: pure a0)) a1 a2
-    Basics.LetF1 s a0 {- a -} a2 -> Basics.LetF s a0 a a2
-    Basics.LetF2 s a0 a1 {- a -} -> Basics.LetF s a0 a1 a
-
-  downZF (Basics.LetF s a0 a1 a2) = Basics.LetF s (downZF a0 <#> _contextZF' (map \z -> Basics.LetF0 s z a1 a2)) (a1 :<-: defer \_ -> Basics.LetF1 s a0 {- a1 -} a2) (a2 :<-: defer \_ -> Basics.LetF2 s a0 a1 {- a2 -})
-
-instance containerILetF :: ContainerI (Basics.Three) Basics.LetF' where
-  ixF (Basics.LetF0 _ z _ _) = const Basics.Three1 (ixF z)
-  ixF (Basics.LetF1 _ _ _) = Basics.Three2
-  ixF (Basics.LetF2 _ _ _) = Basics.Three3
-
-instance containerBindingBody :: Container (Boolean) Basics.BindingBody Basics.BindingBody' where
-  upZF (a :<-: z) = case extract z of
-    Basics.BindingBody0 s {- a -} a1 -> Basics.BindingBody s a a1
-    Basics.BindingBody1 s a0 {- a -} -> Basics.BindingBody s a0 a
-
-  downZF (Basics.BindingBody s a0 a1) = Basics.BindingBody s (a0 :<-: defer \_ -> Basics.BindingBody0 s {- a0 -} a1) (a1 :<-: defer \_ -> Basics.BindingBody1 s a0 {- a1 -})
-
-instance containerIBindingBody :: ContainerI (Boolean) Basics.BindingBody' where
-  ixF (Basics.BindingBody0 _ _) = false
-  ixF (Basics.BindingBody1 _ _) = true

@@ -926,10 +926,10 @@ in  let zipper_ADT
                     adt.index
                 }
 
-in  let upF
+in  let upZF
         : ADT → Text
         =   λ(adt : ADT)
-          →     let upF1 =
+          →     let upZF1 =
                         λ(case : Zipper)
                       → List/foldl
                         Zipper_arg
@@ -950,7 +950,7 @@ in  let upF
                                             ++  Natural/show r.ix
                                         , result =
                                                 r.result
-                                            ++  " (upF (a :<-: pure a"
+                                            ++  " (upZF (a :<-: pure a"
                                             ++  Natural/show r.ix
                                             ++  "))"
                                         , ix =
@@ -999,7 +999,7 @@ in  let upF
                     Text
                     (   λ(r : Text)
                       → λ(case : Zipper)
-                      →     let code = upF1 case
+                      →     let code = upZF1 case
                         
                         in      r
                             ++  newline
@@ -1008,13 +1008,13 @@ in  let upF
                             ++  " -> "
                             ++  code.result
                     )
-                    "  upF (a :<-: z) = case extract z of"
+                    "  upZF (a :<-: z) = case extract z of"
                 ++  newline
 
-in  let downF
+in  let downZF
         : ADT → Text
         =   λ(adt : ADT)
-          →     let downF1 =
+          →     let downZF1 =
                         λ(case : ADT_case)
                       → List/foldl
                         (indexed ADT_arg)
@@ -1029,9 +1029,9 @@ in  let downF
                                             if is_functor p
                                       
                                       then      r.result
-                                            ++  " (downF a"
+                                            ++  " (downZF a"
                                             ++  Natural/show r.ix
-                                            ++  " <#> _contextF' (map \\z -> "
+                                            ++  " <#> _contextZF' (map \\z -> "
                                             ++  case.name
                                             ++  Natural/show r.ix
                                             ++  render_zipper_args_for_ix
@@ -1070,9 +1070,9 @@ in  let downF
                 Text
                 (   λ(case : ADT_case)
                   → λ(r : Text)
-                  →     let code = downF1 case
+                  →     let code = downZF1 case
                     
-                    in      "  downF ("
+                    in      "  downZF ("
                         ++  all_bindings case
                         ++  ") = "
                         ++  code.result
@@ -1240,7 +1240,7 @@ in  let instantiate =
                 ++  render_indexed_derivative_instance
                     "container"
                     "Container"
-                    [ upF, downF ]
+                    [ upZF, downZF ]
                     adt
                 ++  render_instance
                     "containerI"
