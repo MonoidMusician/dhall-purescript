@@ -9,6 +9,8 @@ const pass = n => d => d ? d[n] : null;
 const pass0 = pass(0);
 const pass1 = pass(1);
 
+const tag = type => value => ({ type, value });
+
 function flatten(items) {
   const flat = [];
 
@@ -22,14 +24,73 @@ function flatten(items) {
 
   return flat;
 }
+
+function collapse(items) {
+  var flat = "";
+
+  items.forEach(item => {
+    if (Array.isArray(item)) {
+      flat += collapse(item);
+    } else if (item != null) {
+      flat += item;
+    }
+  });
+
+  return flat;
+}
+
+const reserved =
+  [ "let"
+  , "in"
+  , "Type"
+  , "Kind"
+  , "forall"
+  , "Bool"
+  , "True"
+  , "False"
+  , "merge"
+  , "if"
+  , "then"
+  , "else"
+  , "as"
+  , "using"
+  , "constructors"
+  , "Natural"
+  , "Natural/fold"
+  , "Natural/build"
+  , "Natural/isZero"
+  , "Natural/even"
+  , "Natural/odd"
+  , "Natural/toInteger"
+  , "Natural/show"
+  , "Integer"
+  , "Integer/show"
+  , "Integer/toDouble"
+  , "Double"
+  , "Double/show"
+  , "Text"
+  , "List"
+  , "List/build"
+  , "List/fold"
+  , "List/length"
+  , "List/head"
+  , "List/last"
+  , "List/indexed"
+  , "List/reverse"
+  , "Optional"
+  , "Some"
+  , "None"
+  , "Optional/build"
+  , "Optional/fold"
+  ];
 %}
 
 complete_expression -> whitespace expression {% pass1 %}
 
 
 end_of_line ->
-      [\u0A]    | [\u0D] [\u0A]
-tab -> [\u09]
+      [\n]    | [\r] [\n]
+tab -> [\t]
 block_comment -> "{-" block_comment_continue
 
 block_comment_chunk ->
@@ -40,7 +101,7 @@ block_comment_chunk ->
 
 block_comment_continue -> "-}" | block_comment_chunk block_comment_continue
 
-not_end_of_line -> [^\u20] | tab
+not_end_of_line -> [^\x20] | tab
 
 line_comment -> "--" not_end_of_line:* end_of_line
 
@@ -55,9 +116,9 @@ whitespace -> whitespace_chunk:* {% nuller %}
 
 nonempty_whitespace -> whitespace_chunk:+ {% nuller %}
 
-ALPHA -> [A-Za-z]
+ALPHA -> [A-Za-z] {% pass0 %}
 
-DIGIT -> [0-9]
+DIGIT -> [0-9] {% pass0 %}
 HEXDIG -> DIGIT {% pass0 %} | "A" {% pass0 %} | "B" {% pass0 %} | "C" {% pass0 %} | "D" {% pass0 %} | "E" {% pass0 %} | "F" {% pass0 %}
 
 simple_label -> (ALPHA | "_") (ALPHA | DIGIT | "-" | "/" | "_"):* {% d => d[0].join("") + d[1].join("") %}
@@ -67,10 +128,10 @@ quoted_label -> (ALPHA | DIGIT | "-" | "/" | "_" | ":" | "." | "$"):+ {% d => d[
 label -> ("`" quoted_label "`" | simple_label) whitespace {% d => d[0].length === 3 ? d[0][1] : d[0][0] %}
 
 double_quote_chunk ->
-      "${" expression "}" {% pass1 %}    | "\\"      ( [\u22]      | [\u24]      | [\u5C]      | [\u2F]      | [\u62]      | [\u66]      | [\u6E]      | [\u72]      | [\u74]      | [\u75] HEXDIG HEXDIG HEXDIG HEXDIG {% d => String.fromCharCode(parseInt(d[1]+d[2]+d[3]+d[4], 16)) %}      ) {% pass1 %}
+      "${" expression "}" {% pass1 %}    | "\\"      ( [\x22\x24\x5C\x2F\x62\x66\x6E\x72\x74] | "u" HEXDIG HEXDIG HEXDIG HEXDIG {% d => String.fromCharCode(parseInt(d[1]+d[2]+d[3]+d[4], 16)) %}      ) {% pass1 %}
     | [^"\\] {% pass0 %}
 
-double_quote_literal -> [\u22] double_quote_chunk:* [\u22] {% pass1 %}
+double_quote_literal -> [\x22] double_quote_chunk:* [\x22] {% pass1 %}
 
 single_quote_continue ->
       "'''"               single_quote_continue {% d => ["''"].concat(d[1]) %}
@@ -208,7 +269,7 @@ import_alt    -> "?"  whitespace {% pass0 %}
 combine       -> ( [\u2227] | "/\\"                ) whitespace {% pass0 %}
 combine_types -> ( [\u2A53] | "//\\\\"              ) whitespace {% pass0 %}
 prefer        -> ( [\u2AFD] | "//"                ) whitespace {% pass0 %}
-lambda        -> ( [\u3BB]  | "\\"                 ) whitespace {% pass0 %}
+lambda        -> ( [\u03BB]  | "\\"                 ) whitespace {% pass0 %}
 forall        -> ( [\u2200] | "forall" ) whitespace {% pass0 %}
 arrow         -> ( [\u2192] | "->"                ) whitespace {% pass0 %}
 
@@ -222,52 +283,47 @@ integer_literal -> ( "+" | "-" ) natural_lit_raw whitespace {% d => d[0] == "+" 
 
 natural_literal -> natural_lit_raw whitespace {% pass0 %}
 
-identifier -> label ( at natural_lit_raw ):? whitespace {% d => ({ type: "Var", value: [d[0], d[1] || 0] }) %}
+identifier -> label ( at natural_lit_raw whitespace ):? {% (d, _, reject) => reserved.includes(d[0]) ? reject : ({ type: "Var", value: [d[0], d[1] || 0] }) %}
 
-identifier_reserved_prefix ->
-    reserved_raw (ALPHA | DIGIT | "-" | "/" | "_"):+ whitespace ( at natural_lit_raw ):? whitespace {% d => ({ type: "Var", value: [d[0]+d[1].join(""), d[3] || 0] }) %}
+#identifier_reserved_prefix ->
+#    reserved_raw (ALPHA | DIGIT | "-" | "/" | "_"):+ whitespace ( at natural_lit_raw whitespace ):? {% d => ({ type: "Var", subtype: "reserved_prefix", value: [d[0]+d[1].join(""), d[3] || 0] }) %}
 
-identifier_reserved_namespaced_prefix ->
-    reserved_namespaced_raw (ALPHA | DIGIT | "-" | "/" | "_"):+ whitespace ( at natural_lit_raw ):? {% d => ({ type: "Var", value: [d[0]+d[1].join(""), d[3] || 0] }) %}
+#identifier_reserved_namespaced_prefix ->
+#    reserved_namespaced_raw (ALPHA | DIGIT | "-" | "/" | "_"):+ whitespace ( at natural_lit_raw ):? {% d => ({ type: "Var", value: [d[0]+d[1].join(""), d[3] || 0] }) %}
 
 missing -> missing_raw whitespace {% pass0 %}
 
 path_character ->
-      [\u21-\u22]
-    | [\u24-\u27]
-    | [\u2A-\u2B]
-    | [\u2D-\u2E]
-    | [\u30-\u3B]
-    | [\u3D]
-    | [\u40-\u5A]
-    | [\u5E-\u7A]
-    | [\u7C]
-    | [\u7E]
+      [\x21-\x22\x24-\x27\x2A-\x2B\x2D-\x2E\x30-\x3B\x3D\x40-\x5A\x5E-\x7A\x7C\x7E]
 
-path_component -> "/" path_character:+ {% d => d[1].join() %}
+path_component -> "/" path_character:+ {% d => collapse(d[1]) %}
 
-directory -> path_component:*
+directory -> path_component:* {% pass0 %}
 
-file -> path_component
+file -> path_component {% pass0 %}
 
 local_raw ->
-      ".." directory file    | "."  directory file    | "~"  directory file    | directory file {% d => [null, d[0], d[1]] %}
+      ".." directory file {% d => ({ type: "Local", value: ["Relative", ["..", ...d[1]], d[2]] }) %}
+	  | "."  directory file {% d => ({ type: "Local", value: ["Relative", d[0], d[1]] }) %}
+	  | "~"  directory file {% d => ({ type: "Local", value: ["Home", d[0], d[1]] }) %}
+	  | directory file {% d => ({ type: "Local", value: ["Absolute", d[0], d[1]] }) %}
+
 local -> local_raw whitespace {% pass0 %}
 
 
 scheme -> "http" {% pass0 %} | "https" {% pass0 %}
 http_raw -> scheme "://" authority directory file ( "?" query ):? ( "#" fragment ):?
-{% d => [d[0], d[2], d[3], d[4], pass1(d[5]), pass1(d[6])] %}
+{% d => ({ type: "Remote", value: [d[0], d[2], d[3], d[4], pass1(d[5]), pass1(d[6])] }) %}
 
 authority -> ( userinfo "@" ):? host ( ":" port ):? {% d => [pass1(d[0]), d[1], pass1(d[2])] %}
 
-userinfo -> ( unreserved | pct_encoded | sub_delims | ":" ):*
+userinfo -> ( unreserved | pct_encoded | sub_delims | ":" ):* {% pass0 %}
 
-host -> IP_literal | IPv4address | reg_name
+host -> IP_literal {% collapse %} | IPv4address {% collapse %} | reg_name {% collapse %}
 
-port -> DIGIT:*
+port -> DIGIT:* {% pass0 %}
 
-IP_literal -> "[" ( IPv6address | IPvFuture  ) "]"
+IP_literal -> "[" ( IPv6address {% collapse %} | IPvFuture {% collapse %} ) "]"
 
 IPvFuture -> "v" HEXDIG:+ "." ( unreserved | sub_delims | ":" ):+
 
@@ -281,54 +337,52 @@ IPv6address ->                            ( h16 ":" h16 ":" h16 ":" h16 ":" h16 
             | ( ( h16 ":" ( h16 ":" ( h16 ":" ( h16 ":" ( h16 ":" ):? ):? ):? ):? ):? h16 ):? "::"              h16
             | ( ( h16 ":" ( h16 ":" ( h16 ":" ( h16 ":" ( h16 ":" ( h16 ":" ):? ):? ):? ):? ):? ) h16 ):? "::"
 
-h16 -> HEXDIG | HEXDIG | HEXDIG | HEXDIG
+h16 -> HEXDIG | HEXDIG HEXDIG | HEXDIG HEXDIG HEXDIG | HEXDIG HEXDIG HEXDIG HEXDIG
 
 ls32 -> ( h16 ":" h16 ) | IPv4address
 
 IPv4address -> dec_octet "." dec_octet "." dec_octet "." dec_octet
 
-dec_octet -> DIGIT          | [\u31-\u39] DIGIT          | "1" DIGIT DIGIT          | "2" [\u30-\u34] DIGIT          | "25" [\u30-\u35]
-reg_name -> ( unreserved | pct_encoded | sub_delims ):*
+dec_octet -> DIGIT {% collapse %}          | [\x31-\x39] DIGIT {% collapse %}          | "1" DIGIT DIGIT {% collapse %}          | "2" [\x30-\x34] DIGIT {% collapse %}          | "25" [\x30-\x35] {% collapse %}
+reg_name -> ( unreserved | pct_encoded | sub_delims ):* {% collapse %}
 
-pchar -> unreserved | pct_encoded | sub_delims | ":" | "@"
+pchar -> ( unreserved | pct_encoded | sub_delims | ":" | "@") {% collapse %}
 
-query -> ( pchar | "/" | "?" ):*
+query -> ( pchar | "/" | "?" ):* {% collapse %}
 
-fragment -> ( pchar | "/" | "?" ):*
+fragment -> ( pchar | "/" | "?" ):* {% collapse %}
 
-pct_encoded -> "%" HEXDIG HEXDIG
+pct_encoded -> "%" HEXDIG HEXDIG {% collapse %}
 
-unreserved  -> ALPHA | DIGIT | "-" | "." | "_" | "~"
+unreserved  -> ( ALPHA | DIGIT | "-" | "." | "_" | "~" ) {% collapse %}
 
-sub_delims -> "!" | "$" | "&" | "'" | "(" | ")" | "*" | "+" | "," | ";" | "="
+sub_delims -> ( "!" | "$" | "&" | "'" | "(" | ")" | "*" | "+" | "," | ";" | "=")  {% collapse %}
 
 http ->
     http_raw whitespace
     ( using (import_hashed | open_parens import_hashed close_parens) ):?
+	{% d => (d[0].value.push(d[2] ? (d[2][2].length === 1 ? d[2][2][0] : d[2][2][1]) : null), d[0]) %}
 
 env -> "env:"
     ( bash_environment_variable
-    | [\u22] posix_environment_variable [\u22]
+    | [\x22] posix_environment_variable [\x22]
     )
-    whitespace
+    whitespace {% d => ({ type: "Env", value: d[1].length === 1 ? d[1][0] : d[1][1] }) %}
 
-bash_environment_variable -> (ALPHA | "_") (ALPHA | DIGIT | "_"):*
+bash_environment_variable -> (ALPHA | "_") (ALPHA | DIGIT | "_"):* {% collapse %}
 
-posix_environment_variable -> posix_environment_variable_character:+
+posix_environment_variable -> posix_environment_variable_character:+ {% collapse %}
 
 posix_environment_variable_character ->
-      [\u5C]      ( [\u22]      | [\u5C]      | [\u61]      | [\u62]      | [\u66]      | [\u6E]      | [\u72]      | [\u74]      | [\u76]      )
-    | [\u20-\u21]
-    | [\u23-\u3C]
-    | [\u3E-\u5B]
-    | [\u5D-\u7E]
+      [\x5C]      ( [\x22\x5C\x61\x62\x66\x6E\x72\x74\x76]      )
+    | [\x20-\x21\x23-\x3C\x3E-\x5B\x5D-\x7E]
 
-import_type -> missing | local | http | env
+import_type -> missing {% pass0 %} | local {% pass0 %} | http {% pass0 %} | env {% pass0 %}
 
-hash -> [\u73] [\u68] [\u61] [\u32] [\u35] [\u36] [\u3a] HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG whitespace
-import_hashed -> import_type ( hash ):?
+hash -> "sha256:" HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG whitespace
+import_hashed -> import_type ( hash ):? {% tag("ImportHashed") %}
 
-import -> import_hashed ( as Text ):?
+import -> import_hashed ( as Text ):? {% tag("Import") %}
 
 
 expression ->
@@ -395,11 +449,11 @@ primitive_expression ->
     | open_brace record_type_or_literal close_brace {% pass1 %}
     | open_angle union_type_or_literal  close_angle {% pass1 %}
     | non_empty_list_literal {% pass0 %}
-	| identifier_reserved_namespaced_prefix {% pass0 %}
+	#| identifier_reserved_namespaced_prefix {% pass0 %}
     | reserved_namespaced {% d => ({ type: d[0], value: [] }) %}
-    | identifier_reserved_prefix {% pass0 %}
-    | reserved {% d => ({ type: d[0], value: [] }) %}
+    #| identifier_reserved_prefix {% pass0 %}
     | identifier {% pass0 %}
+    | reserved {% d => ({ type: d[0], value: [] }) %}
     | open_parens expression close_parens {% pass1 %}
 
 labels -> open_brace (  label (comma label):* | null ) close_brace
