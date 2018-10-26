@@ -52,12 +52,27 @@ prettyFilePrefix Absolute = ""
 prettyFilePrefix Here = "."
 prettyFilePrefix Home = "~"
 
+data Scheme = HTTP | HTTPS
+derive instance eqScheme :: Eq Scheme
+derive instance ordScheme :: Ord Scheme
+
+newtype URL = URL
+    { scheme    :: Scheme
+    , authority :: String
+    , path      :: File
+    , query     :: Maybe String
+    , fragment  :: Maybe String
+    , headers   :: Maybe ImportHashed
+    }
+derive instance eqURL :: Eq URL
+derive instance ordURL :: Ord URL
+
 -- | The type of import (i.e. local vs. remote vs. environment)
 data ImportType
   -- Local path
   = Local FilePrefix File
   -- URL of remote resource and optional headers stored in an import
-  | URL String File String (Maybe ImportHashed)
+  | Remote URL
   -- Environment variable
   | Env String
   | Missing
@@ -69,8 +84,13 @@ instance semigroupImportType :: Semigroup ImportType where
   append (Local prefix file₀) (Local Here file₁) =
     Local prefix (file₀ <> file₁)
 
-  append (URL prefix file₀ suffix headers) (Local Here file₁) =
-    URL prefix (file₀ <> file₁) suffix headers
+  append (Remote (URL url)) (Local Here path) =
+    Remote (URL (url { path = url.path <> path }))
+
+  append import₀ (Remote (URL url)) = Remote $ URL $ url { headers = headers' }
+    where
+      headers' = url.headers <#>
+        (ImportHashed { hash: Nothing, importType: import₀ } <> _)
 
   append _ import₁ =
     import₁
@@ -78,14 +98,30 @@ instance semigroupImportType :: Semigroup ImportType where
 prettyImportType :: ImportType -> String
 prettyImportType (Local prefix file) =
   prettyFilePrefix prefix <> prettyFile file
-prettyImportType (URL prefix file suffix headers) =
-      prefix
-  <>  prettyFile file
-  <>  suffix
-  <>  foldMap prettyHeaders headers
+prettyImportType (Remote (URL url)) =
+        schemeDoc
+    <>  "://"
+    <>  url.authority
+    <>  prettyFile url.path
+    <>  queryDoc
+    <>  fragmentDoc
+    <>  foldMap prettyHeaders url.headers
   where
     prettyHeaders h = " using " <> prettyImportHashed h
-prettyImportType (Env env) = "env:" <> show env
+
+    schemeDoc = case url.scheme of
+        HTTP  -> "http"
+        HTTPS -> "https"
+
+    queryDoc = case url.query of
+        Nothing -> ""
+        Just q  -> "?" <> q
+
+    fragmentDoc = case url.fragment of
+        Nothing -> ""
+        Just f  -> "#" <> f
+
+prettyImportType (Env env) = "env:" <> env
 prettyImportType Missing = "missing"
 
 -- | How to interpret the import's contents (i.e. as Dhall code or raw text)
@@ -124,6 +160,9 @@ instance semigroupImport :: Semigroup Import where
     { importHashed: i0.importHashed <> i1.importHashed
     , importMode: i1.importMode
     }
+
+instance showImport :: Show Import where
+  show = prettyImport
 
 prettyImport :: Import -> String
 prettyImport (Import { importHashed, importMode }) =
