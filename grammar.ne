@@ -128,8 +128,8 @@ quoted_label -> (ALPHA | DIGIT | "-" | "/" | "_" | ":" | "." | "$"):+ {% d => d[
 label -> ("`" quoted_label "`" | simple_label) whitespace {% d => d[0].length === 3 ? d[0][1] : d[0][0] %}
 
 double_quote_chunk ->
-      "${" expression "}" {% pass1 %}    | "\\"      ( [\x22\x24\x5C\x2F\x62\x66\x6E\x72\x74] | "u" HEXDIG HEXDIG HEXDIG HEXDIG {% d => String.fromCharCode(parseInt(d[1]+d[2]+d[3]+d[4], 16)) %}      ) {% pass1 %}
-    | [^"\\] {% pass0 %}
+      "${" complete_expression "}" {% pass1 %}    | "\\"      ( [\x22\x24\x5C\x2F\x62\x66\x6E\x72\x74] | "u" HEXDIG HEXDIG HEXDIG HEXDIG {% d => String.fromCharCode(parseInt(d[1]+d[2]+d[3]+d[4], 16)) %}      ) {% pass1 %}
+    | [^"\\$] {% pass0 %} | "$" [^{] {% d => d.join("") %}
 
 double_quote_literal -> [\x22] double_quote_chunk:* [\x22] {% pass1 %}
 
@@ -142,7 +142,7 @@ single_quote_continue ->
 
 single_quote_literal -> "''" single_quote_continue {% pass1 %}
 
-text_literal -> (double_quote_literal | single_quote_literal) whitespace {% pass0 %}
+text_literal -> (double_quote_literal | single_quote_literal) whitespace {% d => d[0][0] %}
 
 if_raw                -> "if" {% pass0 %}
 then_raw              -> "then" {% pass0 %}
@@ -154,7 +154,7 @@ using_raw             -> "using" {% pass0 %}
 merge_raw             -> "merge" {% pass0 %}
 missing_raw           -> "missing" {% pass0 %}
 Some_raw              -> "Some" {% pass0 %}
-constructors_raw      -> "constructors" {% pass0 %}
+constructors_raw      -> "constructors" {% () => "Constructors" %}
 Natural_fold_raw      -> "Natural/fold" {% pass0 %}
 Natural_build_raw     -> "Natural/build" {% pass0 %}
 Natural_isZero_raw    -> "Natural/isZero" {% pass0 %}
@@ -175,7 +175,7 @@ List_reverse_raw      -> "List/reverse" {% pass0 %}
 Optional_fold_raw     -> "Optional/fold" {% pass0 %}
 Optional_build_raw    -> "Optional/build" {% pass0 %}
 Bool_raw              -> "Bool" {% pass0 %}
-Optional_raw        -> "Optional" {% pass0 %}
+Optional_raw          -> "Optional" {% pass0 %}
 None_raw              -> "None" {% pass0 %}
 Natural_raw           -> "Natural" {% pass0 %}
 Integer_raw           -> "Integer" {% pass0 %}
@@ -279,7 +279,7 @@ double_literal -> ( "+" | "-" ):? DIGIT:+ ( "." DIGIT:+ ( exponent ):? | exponen
 
 natural_lit_raw -> DIGIT:+ {% d => d[0].join("")|0 %}
 
-integer_literal -> ( "+" | "-" ) natural_lit_raw whitespace {% d => d[0] == "+" ? d[1] : -d[1] %}
+integer_literal -> ( "+" | "-" ) natural_lit_raw whitespace {% d => d[0] == "+" ? +d[1] : -d[1] %}
 
 natural_literal -> natural_lit_raw whitespace {% pass0 %}
 
@@ -303,8 +303,8 @@ directory -> path_component:* {% pass0 %}
 file -> path_component {% pass0 %}
 
 local_raw ->
-      ".." directory file {% d => ({ type: "Local", value: ["Relative", ["..", ...d[1]], d[2]] }) %}
-	  | "."  directory file {% d => ({ type: "Local", value: ["Relative", d[0], d[1]] }) %}
+      ".." directory file {% d => ({ type: "Local", value: ["Here", ["..", ...d[1]], d[2]] }) %}
+	  | "."  directory file {% d => ({ type: "Local", value: ["Here", d[0], d[1]] }) %}
 	  | "~"  directory file {% d => ({ type: "Local", value: ["Home", d[0], d[1]] }) %}
 	  | directory file {% d => ({ type: "Local", value: ["Absolute", d[0], d[1]] }) %}
 
@@ -315,7 +315,7 @@ scheme -> "http" {% pass0 %} | "https" {% pass0 %}
 http_raw -> scheme "://" authority directory file ( "?" query ):? ( "#" fragment ):?
 {% d => ({ type: "Remote", value: [d[0], d[2], d[3], d[4], pass1(d[5]), pass1(d[6])] }) %}
 
-authority -> ( userinfo "@" ):? host ( ":" port ):? {% d => [pass1(d[0]), d[1], pass1(d[2])] %}
+authority -> ( userinfo "@" ):? host ( ":" port ):? {% collapse %}
 
 userinfo -> ( unreserved | pct_encoded | sub_delims | ":" ):* {% pass0 %}
 
@@ -367,7 +367,7 @@ env -> "env:"
     ( bash_environment_variable
     | [\x22] posix_environment_variable [\x22]
     )
-    whitespace {% d => ({ type: "Env", value: d[1].length === 1 ? d[1][0] : d[1][1] }) %}
+    whitespace {% d => ({ type: "Env", value: [d[1].length === 1 ? d[1][0] : d[1][1]] }) %}
 
 bash_environment_variable -> (ALPHA | "_") (ALPHA | DIGIT | "_"):* {% collapse %}
 
@@ -377,7 +377,7 @@ posix_environment_variable_character ->
       [\x5C]      ( [\x22\x5C\x61\x62\x66\x6E\x72\x74\x76]      )
     | [\x20-\x21\x23-\x3C\x3E-\x5B\x5D-\x7E]
 
-import_type -> missing {% pass0 %} | local {% pass0 %} | http {% pass0 %} | env {% pass0 %}
+import_type -> missing {% () => ({ type: "Missing", value: [] }) %} | local {% pass0 %} | http {% pass0 %} | env {% pass0 %}
 
 hash -> "sha256:" HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG whitespace
 import_hashed -> import_type ( hash ):? {% tag("ImportHashed") %}
@@ -422,7 +422,7 @@ application_expression ->
 {%
 d => {
 	if (d[0] != null) {
-		return binop("App")([{ type: "App", value: [d[0], d[1]] }, d[2]]);
+		return binop("App")([{ type: d[0][0], value: [d[1]] }, d[2]]);
 	} else {
 		return binop("App")([d[1],d[2]]);
 	}
@@ -442,9 +442,9 @@ selector_expression -> primitive_expression (dot ( label | labels )):*
 
 
 primitive_expression ->
-      double_literal {% d => ({ type: "DoubleLit", value: d[0] }) %}
-    | natural_literal {% d => ({ type: "NaturalLit", value: d[0] }) %}
-    | integer_literal {% d => ({ type: "IntegerLit", value: d[0] }) %}
+      double_literal {% d => ({ type: "DoubleLit", value: [d[0]] }) %}
+    | natural_literal {% d => ({ type: "NaturalLit", value: [d[0]] }) %}
+    | integer_literal {% d => ({ type: "IntegerLit", value: [d[0]] }) %}
     | text_literal {% d => ({ type: "TextLit", value: d[0] }) %}
     | open_brace record_type_or_literal close_brace {% pass1 %}
     | open_angle union_type_or_literal  close_angle {% pass1 %}
@@ -477,20 +477,24 @@ d => ({ type: "RecordLit", value: [["",d[1]]].concat(d[2].map(v => [v[1],v[3]]))
 %}
 
 union_type_or_literal ->
-      non_empty_union_type_or_literal
+      non_empty_union_type_or_literal {% pass0 %}
     | null {% () => ({ type: "Union", value: [] }) %}
 non_empty_union_type_or_literal ->
     label
     ( equal expression (bar label colon expression):*
 {%
-d => [({ type: "UnionLit", value: [["",d[1]]].concat(d[2].map(v => [v[1],v[3]])) })]
+d => lbl => ({ type: "UnionLit", value: [[lbl,d[1]]].concat(d[2].map(v => [v[1],v[3]])) })
 %}
     | colon expression (bar non_empty_union_type_or_literal | null)
 {%
-d => [({ type: "Union", value: [["",d[1]]].concat(d[2].map(v => [v[1],v[3]])) })]
+d => lbl => d[2].length <= 1 ? { type: "Union", value: [[lbl,d[1]]] } :
+	d[2][1].type === "Union"
+	? { type: "Union", value: [[lbl,d[1]]].concat(d[2][1].value) }
+	// Shuffle the label to the front
+	: { type: "UnionLit", value: d[2][1].value[0].concat([[lbl,d[1]]].concat(d[2][1].slice(1)))}
 %}
     )
-	{% function(d) {d[1][0].value[0][0] = d[0]; return d[1][0]} %}
+	{% d => d[1](d[0]) %}
 
 non_empty_list_literal -> open_bracket expression (comma expression):* close_bracket
 	{% d => ({type: "ListLit", value: [[d[1]].concat(d[2].map(v => v[1])), null]}) %}

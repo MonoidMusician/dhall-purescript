@@ -27,6 +27,7 @@ import Dhall.Interactive.Halogen.Types (DataComponent)
 import Dhall.Interactive.Halogen.Types as Types
 import Dhall.Interactive.Halogen.Types.Natural as Types.Natural
 import Dhall.Interactive.Types (InteractiveExpr, Annotation)
+import Dhall.Parser (parse, parse')
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class.Console (logShow)
@@ -236,6 +237,12 @@ eval = (<<<) mkNaturalLit $ (>>>) unwrap $ cata $ (>>>) unwrap $ either absurd $
   # VariantF.on (SProxy :: SProxy "NaturalPlus")
     (\(AST.Pair l r) -> l + r)
 
+parserC :: Types.RenderValue String
+parserC = Star \s -> HH.div [ HP.class_ $ H.ClassName "code" ]
+  [ HH.div_ [ HH.input [ HE.onValueInput Just, HP.value s ] ]
+  , HH.div_ [ HH.text (show (parse' s)) ]
+  ]
+
 main :: Effect Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
@@ -243,4 +250,5 @@ main = HA.runHalogenAff do
   driver2 <- runUI (simpleC rExpr) example body
   driver2.subscribe $ consumer \v ->
     mempty <$ logShow v <* logShow (eval v)
+  driver3 <- runUI (Types.simpleC parserC) "Type" body
   pure unit
