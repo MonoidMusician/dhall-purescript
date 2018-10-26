@@ -480,7 +480,7 @@ instance showExpr :: (FoldableWithIndex String m, Show s, Show a) => Show (Expr 
       # VariantF.on (SProxy :: SProxy "Record")
         (\a -> "(mkRecord " <> rec a <> ")")
       # VariantF.on (SProxy :: SProxy "RecordLit")
-        (\a -> "(mkRecord " <> rec a <> ")")
+        (\a -> "(mkRecordLit " <> rec a <> ")")
       # VariantF.on (SProxy :: SProxy "BoolLit")
         (unwrap >>> \b -> "(mkBoolLit " <> show b <> ")")
       # VariantF.on (SProxy :: SProxy "NaturalLit")
