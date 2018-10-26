@@ -54,6 +54,8 @@ const reserved =
   , "else"
   , "as"
   , "using"
+  , "missing"
+  , "env"
   , "constructors"
   , "Natural"
   , "Natural/fold"

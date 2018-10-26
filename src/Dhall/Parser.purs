@@ -127,7 +127,7 @@ decodeFAST (FAST r) =
 
     "Import", [a, b] -> pure $ Import
       { importHashed: decodeImportHashed (fromForeign a)
-      , importMode: if Foreign.isNull b then RawText else Code
+      , importMode: if Foreign.isNull b then Code else RawText
       }
     _, _ -> unsafeCrashWith "Unrecognized Expr"
 
