@@ -77,6 +77,8 @@ type Literals2 (m :: Type -> Type) v =
   ( "TextLit" :: FProxy TextLitF
   , "ListLit" :: FProxy (Product Maybe Array)
   , "OptionalLit" :: FProxy (Product Identity Maybe)
+  , "Some" :: FProxy Identity
+  , "None" :: CONST Unit
   , "RecordLit" :: FProxy m
   , "UnionLit" :: FProxy (Product (Tuple String) m)
   | v
@@ -86,6 +88,8 @@ type Literals2' (m :: Type -> Type) (m' :: Type -> Type) v =
   ( "TextLit" :: FProxy TextLitF'
   , "ListLit" :: FProxy (Product' Maybe Maybe' Array Array')
   , "OptionalLit" :: FProxy (Product' Identity Identity' Maybe Maybe')
+  , "Some" :: FProxy Identity'
+  , "None" :: VOID
   , "RecordLit" :: FProxy m'
   , "UnionLit" :: FProxy (Product' (Tuple String) (Tuple' String) m m')
   | v
@@ -95,6 +99,8 @@ type Literals2I v =
   ( "TextLit" :: TextLitFI
   , "ListLit" :: ProductI MaybeI ArrayI
   , "OptionalLit" :: ProductI IdentityI MaybeI
+  , "Some" :: IdentityI
+  , "None" :: Void
   , "RecordLit" :: String
   , "UnionLit" :: ProductI (TupleI String) String
   | v
@@ -439,6 +445,8 @@ instance showExpr :: (FoldableWithIndex String m, Show s, Show a) => Show (Expr 
     binop tag (Pair l r) = "(mk" <> tag <> " " <> l <> r <> ")"
     show1 = unwrap >>> either (\e -> "(mkEmbed (" <> show e <> "))")
       ( VariantF.case_
+      # VariantF.on (SProxy :: SProxy "None")
+        (const "mkNone")
       # VariantF.on (SProxy :: SProxy "Annot")
         (\(Pair l r) -> "(mkAnnot " <> l <> r <> ")")
       # VariantF.on (SProxy :: SProxy "App")
@@ -459,6 +467,8 @@ instance showExpr :: (FoldableWithIndex String m, Show s, Show a) => Show (Expr 
         (\(Triplet c t f) -> "(mkBoolIf " <> c <> t <> f <> ")")
       # VariantF.on (SProxy :: SProxy "Constructors")
         (\(Identity ty) -> "(mkConstructors " <> ty <> ")")
+      # VariantF.on (SProxy :: SProxy "Some")
+        (\(Identity v) -> "(mkSome " <> v <> ")")
       # VariantF.on (SProxy :: SProxy "Field")
         (\(Tuple field e) -> "(mkField " <> e <> show field <> ")")
       # VariantF.on (SProxy :: SProxy "Lam")
@@ -667,6 +677,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq s, Eq a) => Eq1 (ExprRowVF m s a) where
     # vfEqCase (SProxy :: SProxy "NaturalShow")
     # vfEqCase (SProxy :: SProxy "NaturalTimes")
     # vfEqCase (SProxy :: SProxy "NaturalToInteger")
+    # vfEqCase (SProxy :: SProxy "None")
     # vfEqCase (SProxy :: SProxy "Note")
     # vfEqCase (SProxy :: SProxy "Optional")
     # vfEqCase (SProxy :: SProxy "OptionalBuild")
@@ -677,6 +688,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq s, Eq a) => Eq1 (ExprRowVF m s a) where
     # vfEqCase (SProxy :: SProxy "Project")
     # vfEq1Case (SProxy :: SProxy "Record")
     # vfEq1Case (SProxy :: SProxy "RecordLit")
+    # vfEq1Case (SProxy :: SProxy "Some")
     # vfEqCase (SProxy :: SProxy "Text")
     # vfEqCase (SProxy :: SProxy "TextAppend")
     # vfEqCase (SProxy :: SProxy "TextLit")
@@ -737,6 +749,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord s, Ord a) => Ord1 (ExprRowVF m s a) where
     # vfOrdCase (SProxy :: SProxy "NaturalShow")
     # vfOrdCase (SProxy :: SProxy "NaturalTimes")
     # vfOrdCase (SProxy :: SProxy "NaturalToInteger")
+    # vfOrdCase (SProxy :: SProxy "None")
     # vfOrdCase (SProxy :: SProxy "Note")
     # vfOrdCase (SProxy :: SProxy "Optional")
     # vfOrdCase (SProxy :: SProxy "OptionalBuild")
@@ -747,6 +760,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord s, Ord a) => Ord1 (ExprRowVF m s a) where
     # vfOrdCase (SProxy :: SProxy "Project")
     # vfOrd1Case (SProxy :: SProxy "Record")
     # vfOrd1Case (SProxy :: SProxy "RecordLit")
+    # vfOrd1Case (SProxy :: SProxy "Some")
     # vfOrdCase (SProxy :: SProxy "Text")
     # vfOrdCase (SProxy :: SProxy "TextAppend")
     # vfOrdCase (SProxy :: SProxy "TextLit")
@@ -807,6 +821,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq s, Eq a) => Eq1 (ExprRowVF' m m' s 
     # vfEqCase (SProxy :: SProxy "NaturalShow")
     # vfEqCase (SProxy :: SProxy "NaturalTimes")
     # vfEqCase (SProxy :: SProxy "NaturalToInteger")
+    # vfEqCase (SProxy :: SProxy "None")
     # vfEqCase (SProxy :: SProxy "Note")
     # vfEqCase (SProxy :: SProxy "Optional")
     # vfEqCase (SProxy :: SProxy "OptionalBuild")
@@ -817,6 +832,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq s, Eq a) => Eq1 (ExprRowVF' m m' s 
     # vfEqCase (SProxy :: SProxy "Project")
     # vfEq1Case (SProxy :: SProxy "Record")
     # vfEq1Case (SProxy :: SProxy "RecordLit")
+    # vfEq1Case (SProxy :: SProxy "Some")
     # vfEqCase (SProxy :: SProxy "Text")
     # vfEqCase (SProxy :: SProxy "TextAppend")
     # vfEqCase (SProxy :: SProxy "TextLit")
@@ -877,6 +893,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord s, Ord a) => Ord1 (ExprRowVF' m
     # vfOrdCase (SProxy :: SProxy "NaturalShow")
     # vfOrdCase (SProxy :: SProxy "NaturalTimes")
     # vfOrdCase (SProxy :: SProxy "NaturalToInteger")
+    # vfOrdCase (SProxy :: SProxy "None")
     # vfOrdCase (SProxy :: SProxy "Note")
     # vfOrdCase (SProxy :: SProxy "Optional")
     # vfOrdCase (SProxy :: SProxy "OptionalBuild")
@@ -887,6 +904,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord s, Ord a) => Ord1 (ExprRowVF' m
     # vfOrdCase (SProxy :: SProxy "Project")
     # vfOrd1Case (SProxy :: SProxy "Record")
     # vfOrd1Case (SProxy :: SProxy "RecordLit")
+    # vfOrd1Case (SProxy :: SProxy "Some")
     # vfOrdCase (SProxy :: SProxy "Text")
     # vfOrdCase (SProxy :: SProxy "TextAppend")
     # vfOrdCase (SProxy :: SProxy "TextLit")

@@ -447,6 +447,20 @@ _OptionalLit = _ExprFPrism (SProxy :: SProxy "OptionalLit") <<< _Newtype <<< iso
   into (Tuple (Identity ty) value) = { ty, value }
   outof { ty, value } = Tuple (Identity ty) value
 
+mkSome :: forall m s a. Expr m s a -> Expr m s a
+mkSome val = mkExprF (SProxy :: SProxy "Some")
+  (Identity val)
+
+_Some :: forall r o.
+  Prism' (VariantF ( "Some" :: FProxy Identity | r ) o) o
+_Some = _ExprFPrism (SProxy :: SProxy "Some") <<< _Newtype
+
+mkNone :: forall m s a. Expr m s a
+mkNone = mkExpr (SProxy :: SProxy "None") unit
+
+_None :: forall r. ExprPrism ( "None" :: UNIT | r ) Unit
+_None = _ExprPrism (SProxy :: SProxy "None")
+
 mkOptionalFold :: forall m s a. Expr m s a
 mkOptionalFold = mkExpr (SProxy :: SProxy "OptionalFold") unit
 

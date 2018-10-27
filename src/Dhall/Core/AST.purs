@@ -112,6 +112,8 @@ import Dhall.Core.AST.Constructors
   , _OptionalBuild
   , _OptionalFold
   , _OptionalLit
+  , _Some
+  , _None
   , _Pi
   , _Prefer
   , _Project
@@ -182,6 +184,8 @@ import Dhall.Core.AST.Constructors
   , mkOptionalBuild
   , mkOptionalFold
   , mkOptionalLit
+  , mkSome
+  , mkNone
   , mkPi
   , mkPrefer
   , mkProject

@@ -27,7 +27,7 @@ import Dhall.Interactive.Halogen.Types (DataComponent)
 import Dhall.Interactive.Halogen.Types as Types
 import Dhall.Interactive.Halogen.Types.Natural as Types.Natural
 import Dhall.Interactive.Types (InteractiveExpr, Annotation)
-import Dhall.Parser (parse, parse')
+import Dhall.Parser (parse')
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class.Console (logShow)

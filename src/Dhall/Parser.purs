@@ -116,6 +116,8 @@ decodeFAST (FAST r) =
     "DoubleLit", [a] -> AST.mkDoubleLit (unsafeCoerce a)
     "TextLit", vs -> AST.mkTextLit (decodeTextLit vs)
     "OptionalLit", [a, b] -> AST.mkOptionalLit (decodeF b) (Array.head (decodeA decodeF a))
+    "Some", [a] -> AST.mkSome (decodeF a)
+    "None", _ -> AST.mkNone
     "ListLit", [a, b] -> AST.mkListLit (decodeN decodeF b) (decodeA decodeF a)
     "Record", vs -> AST.mkRecord (decodeLabelled vs)
     "RecordLit", vs -> AST.mkRecordLit (decodeLabelled vs)
