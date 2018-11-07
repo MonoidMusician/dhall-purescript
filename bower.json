@@ -17,10 +17,10 @@
     "purescript-halogen-zuruzuru": "MonoidMusician/purescript-halogen-zuruzuru#halogen-5",
     "purescript-naturals": "^3.0.0",
     "purescript-functors": "^3.1.0",
-    "purescript-tuples": "MonoidMusician/purescript-tuples#master",
-    "purescript-either": "MonoidMusician/purescript-either#master",
-    "purescript-const": "MonoidMusician/purescript-const#master",
-    "purescript-identity": "MonoidMusician/purescript-identity#master"
+    "purescript-tuples": "^5.1.0",
+    "purescript-either": "^4.1.0",
+    "purescript-const": "^4.1.0",
+    "purescript-identity": "^4.1.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"
