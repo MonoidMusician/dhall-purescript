@@ -33,7 +33,7 @@ import Dhall.Core.AST (Const(..), Expr(..), Pair(..))
 import Dhall.Core.AST as AST
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
-import Matryoshka (class Recursive, cata, project)
+import Matryoshka (class Recursive, cata, para, project)
 import Type.Row as R
 
 axiom :: forall f. Alternative f => Const -> f Const
@@ -73,12 +73,6 @@ type Fb ws es m s a = V.FeedbackR ws es (Expr m s a)
 type CtxFb ws es m s a = Context (Expr m s a) -> Fb ws es m s a
 type Onion ws es m s a = Tuple (Expr m s a) (CtxFb ws es m s a)
 
-cataWithOriginalIndexed :: forall t f i a.
-  Recursive t f => FunctorWithIndex i f =>
-  (i -> a -> a) -> (f (Tuple t a) -> a) -> t -> a
-cataWithOriginalIndexed ix f = go where
-  go t = f $ mapWithIndex (\i t' -> Tuple t' $ ix i $ go t') $ project t
-
 {-| Generalization of `typeWith` that allows type-checking the `Embed`
     constructor with custom logic
 -}
@@ -88,10 +82,14 @@ typeWithA :: forall m s a.
   Context (Expr m s a) ->
   Expr m s a ->
   V.FeedbackR _ _ (Expr m s a)
-typeWithA tpa = flip $
-  cataWithOriginalIndexed
-    (\i -> compose (V.scoped (_s::S_ "Within") i)) $
-  flip compose unwrap $
+typeWithA tpa = flip $ para $
+  let
+    -- Tag each error/warning with the index at which it occurred, recursively
+    indexFeedback = mapWithIndex
+      (map <<< map <<< V.scoped (_s::S_ "Within"))
+  in
+  -- Before we pass it to the handler below, tag indices and then unwrap it
+  (>>>) indexFeedback $ (>>>) unwrap $
   let
     onConst :: forall x.
       (x -> V.FeedbackR _ _ (Expr m s a)) ->
@@ -184,7 +182,7 @@ typeWithA tpa = flip $
 
     intro name ty ctx =
       Dhall.Core.shift 1 (AST.V name 0) <$>
-        Dhall.Context.insert name (Dhall.Core.normalize ty) ctx
+        Dhall.Context.insert name (Dhall.Core.normalize (fst ty)) ctx
 
     naturalEnc =
       AST.mkForall "natural" $
@@ -207,7 +205,7 @@ typeWithA tpa = flip $
           AST.mkPi "none" optional $
             optional
 
-  in VariantF.match $
+  in VariantF.match
     { "Const": onConst \c ->
         axiom c <#> AST.mkConst #
           V.liftW <<< V.noteSimple (_s::S_ "`Kind` has no type") unit
@@ -218,19 +216,55 @@ typeWithA tpa = flip $
         _ <- extract ty ctx
         -- normalize _after_ typechecking succeeds
         -- (so normalization is guaranteed to terminate)
-        body_ty <- extract body $ intro name (fst ty) ctx
+        let ctx' = intro name ty ctx
+        body_ty <- extract body ctx'
         let p = AST.mkPi name (fst ty) body_ty
         _ <- typeWithA tpa ctx p
         pure p
     , "Pi": \(AST.BindingBody name ty body) ctx -> do
         kA <- ensureConst ty ctx
           (V.liftW <<< V.errorSimple (_s::S_ "Invalid input type"))
-        let ctx' = intro name (fst ty) ctx
+        let ctx' = intro name ty ctx
         kB <- ensureConst body ctx'
           (V.liftW <<< V.errorSimple (_s::S_ "Invalid output type"))
 
         map AST.mkConst $ rule kA kB #
           V.liftW <<< V.noteSimple (_s::S_ "No dependent types") (Tuple (fst ty) (fst body))
+    , "Let": \(AST.LetF name mty value expr) ctx -> do
+        ty <- carmelize <$> extract value ctx
+        for_ mty \ty' -> do
+          _ <- extract ty' ctx
+          if Dhall.Core.judgmentallyEqual (fst ty) (fst ty') then pure unit else
+            V.liftW <<< V.errorSimple (_s::S_ "Annotation mismatch") $ unit
+        kind <- extract ty ctx
+        let
+          name0 = AST.V name 0
+          shiftIn = Dhall.Core.shift 1 name0
+          shiftOut = Dhall.Core.shift (-1) name0
+          subst = Dhall.Core.subst name0 $ shiftIn $ Dhall.Core.normalize $ fst value
+        let
+          -- The catch-all branch directly implements the Dhall
+          -- specification as written; it is necessary to substitute in
+          -- types in order to get 'dependent let' behaviour and to
+          -- allow type synonyms (see #69). However, doing a full
+          -- substitution is slow if the value is large and used many
+          -- times. If the value being substitued in is a term (i.e.,
+          -- its type is a Type), then we can get a very significant
+          -- speed-up by doing the type-checking once at binding-time,
+          -- as opposed to doing it at every use site (see #412).
+
+          -- TODO: Does this apply to Kind too?
+          handleType Type = do
+            let ctx' = intro name ty ctx
+            extract expr ctx' <#> subst >>> shiftOut
+          handleType _ = handleTerm unit
+
+          handleTerm _ =
+            extract expr ctx <#> subst >>> shiftOut
+        kind # Dhall.Core.normalize # AST.projectW #
+          VariantF.on (_s::S_ "Const")
+            (unwrap >>> handleType)
+            \_ -> handleTerm unit
     , "App": \(AST.Pair f a) ctx ->
         -- TODO: recovery? if the variable is free in the resultant type?
         let
@@ -254,16 +288,11 @@ typeWithA tpa = flip $
                   , actual: nf_aty1
                   }
         in join $ checkArg <$> checkFn <*> extract a ctx
-    , "Let": ?help
     , "Annot": \(AST.Pair expr ty) ctx ->
         let
           checkEq aty0 aty1 =
-            if Dhall.Core.judgmentallyEqual aty0 aty1
-              then pure aty0
-              else do
-                let nf_aty0 = Dhall.Core.normalize aty0
-                let nf_aty1 = Dhall.Core.normalize aty1
-                V.liftW <<< V.errorSimple (_s::S_ "Annotation mismatch") $ unit
+            if Dhall.Core.judgmentallyEqual aty0 aty1 then pure aty0 else
+              V.liftW <<< V.errorSimple (_s::S_ "Annotation mismatch") $ unit
         in join $ checkEq <$> extract expr ctx <*> (fst ty <$ extract ty ctx)
     , "Bool": identity aType
     , "BoolLit": always $ AST.mkBool
