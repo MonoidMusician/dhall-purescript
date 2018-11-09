@@ -16,6 +16,7 @@ import Data.Tuple (Tuple(..))
 -- | lets you have multiple ordered occurrences of the same key and you can
 -- | query for the `n`th occurrence of a given key.
 newtype Context a = Context (List (Tuple String a))
+derive instance functorContext :: Functor Context
 
 -- | An empty context with no key-value pairs
 empty :: forall a. Context a

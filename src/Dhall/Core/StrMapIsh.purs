@@ -82,7 +82,7 @@ instance strMapIshIOSM :: StrMapIsh InsOrdStrMap where
     case Array.findIndex (fst >>> eq k) as of
       Nothing -> case f Nothing of
         Nothing -> as
-        Just v -> as <> [Tuple k v]
+        Just v -> [Tuple k v] <> as
       Just i -> (fromMaybe <*> Array.alterAt i (traverse (f <<< Just))) as
   delete k (InsOrdStrMap (Compose as)) = wrap <<< wrap <$> do
     i <- Array.findIndex (fst >>> eq k) as

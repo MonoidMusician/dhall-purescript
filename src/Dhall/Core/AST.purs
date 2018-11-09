@@ -3,7 +3,7 @@ module Dhall.Core.AST
 
 -- Just reexport all the other modules
 import Dhall.Core.AST.Types.Basics
-  ( BindingBody
+  ( BindingBody(..)
   , CONST
   , LetF(..)
   , MergeF(..)
@@ -14,18 +14,34 @@ import Dhall.Core.AST.Types.Basics
   ) as Exports
 import Dhall.Core.AST.Types
   ( AllTheThings
+  , AllTheThings'
+  , AllTheThingsI
   , BuiltinBinOps
+  , BuiltinBinOps'
+  , BuiltinBinOpsI
   , BuiltinFuncs
+  , BuiltinFuncs'
+  , BuiltinFuncsI
   , BuiltinOps
+  , BuiltinOps'
+  , BuiltinOpsI
   , BuiltinTypes
+  , BuiltinTypes'
+  , BuiltinTypesI
   , BuiltinTypes2
+  , BuiltinTypes2'
+  , BuiltinTypes2I
   , Const(..)
   , Expr(..)
   , ExprLayer
   , ExprLayerF
   , ExprLayerRow
+  , ExprLayerRow'
+  , ExprLayerRowI
   , ExprRow
   , ExprRowVF(..)
+  , ExprRowVF'(..)
+  , ExprRowVFI(..)
   , FunctorThings
   , Literals
   , Literals2
@@ -131,6 +147,7 @@ import Dhall.Core.AST.Constructors
   , _Var
   , mkAnnot
   , mkApp
+  , mkArrow
   , mkBinOp
   , mkBool
   , mkBoolAnd
@@ -150,11 +167,13 @@ import Dhall.Core.AST.Constructors
   , mkExpr
   , mkExprF
   , mkField
+  , mkForall
   , mkImportAlt
   , mkInteger
   , mkIntegerLit
   , mkIntegerShow
   , mkIntegerToDouble
+  , mkKind
   , mkLam
   , mkLet
   , mkList
@@ -194,6 +213,7 @@ import Dhall.Core.AST.Constructors
   , mkText
   , mkTextAppend
   , mkTextLit
+  , mkType
   , mkUnion
   , mkUnionLit
   , mkVar

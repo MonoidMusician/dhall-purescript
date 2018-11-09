@@ -15,7 +15,7 @@ import Data.Symbol (class IsSymbol, SProxy(..))
 import Data.Tuple (Tuple(..), swap)
 import Data.Variant.Internal (FProxy)
 import Dhall.Core.AST.Types.Basics (BindingBody(..), CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
-import Dhall.Core.AST.Types (Const, Expr, ExprLayerRow, Var, embedW, projectW)
+import Dhall.Core.AST.Types (Const(..), Expr, ExprLayerRow, Var, embedW, projectW)
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
 import Prim.Row as Row
@@ -112,6 +112,12 @@ mkConst = mkExpr (SProxy :: SProxy "Const")
 _Const :: forall r. ExprPrism ( "Const" :: CONST Const | r ) Const
 _Const = _ExprPrism (SProxy :: SProxy "Const")
 
+mkType :: forall m s a. Expr m s a
+mkType = mkConst Type
+
+mkKind :: forall m s a. Expr m s a
+mkKind = mkConst Kind
+
 mkVar :: forall m s a. Var -> Expr m s a
 mkVar = mkExpr (SProxy :: SProxy "Var")
 
@@ -139,6 +145,12 @@ _Pi :: forall r o.
 _Pi = _ExprFPrism (SProxy :: SProxy "Pi") <<< iso into outof where
   into (BindingBody var ty body) = { var, ty, body }
   outof { var, ty, body } = (BindingBody var ty body)
+
+mkArrow :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
+mkArrow = mkPi "_"
+
+mkForall :: forall m s a. String -> Expr m s a -> Expr m s a
+mkForall name = mkPi name mkType
 
 mkApp :: forall m s a. Expr m s a -> Expr m s a -> Expr m s a
 mkApp fn arg = mkExprF (SProxy :: SProxy "App")
