@@ -11,7 +11,6 @@ import Data.Lens (Prism', prism', iso, only)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
-import Data.Set (Set)
 import Data.Symbol (class IsSymbol, SProxy(..))
 import Data.Tuple (Tuple(..), swap)
 import Data.Variant.Internal (FProxy)
@@ -557,13 +556,13 @@ _Field :: forall r o. Prism'
   (Tuple o String)
 _Field = _ExprFPrism (SProxy :: SProxy "Field") <<< iso swap swap
 
-mkProject :: forall m s a. Expr m s a -> Set String -> Expr m s a
+mkProject :: forall m s a. Expr m s a -> m Unit -> Expr m s a
 mkProject expr fields = mkExprF (SProxy :: SProxy "Project")
   (Tuple fields expr)
 
-_Project :: forall r o. Prism'
-  (VariantF ( "Project" :: FProxy (Tuple (Set String)) | r ) o)
-  (Tuple o (Set String))
+_Project :: forall m r o. Prism'
+  (VariantF ( "Project" :: FProxy (Tuple (m Unit)) | r ) o)
+  (Tuple o (m Unit))
 _Project = _ExprFPrism (SProxy :: SProxy "Project") <<< iso swap swap
 
 mkNote :: forall m s a. s -> Expr m s a -> Expr m s a

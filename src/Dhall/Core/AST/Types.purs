@@ -12,6 +12,7 @@ import Data.Either (Either(..), either)
 import Data.Eq (class Eq1, eq1)
 import Data.Foldable (class Foldable, fold, foldMap, foldl, foldr)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex)
+import Data.Function (on)
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
@@ -21,7 +22,6 @@ import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
 import Data.Newtype (class Newtype, un, unwrap, wrap)
 import Data.Ord (class Ord1, compare1)
-import Data.Set (Set)
 import Data.String (joinWith)
 import Data.Symbol (class IsSymbol, SProxy(..))
 import Data.Traversable (class Traversable, sequence, traverse)
@@ -282,7 +282,7 @@ type BuiltinBinOpsI vs =
 type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
   ( "BoolIf" :: FProxy (Triplet)
   , "Field" :: FProxy (Tuple String)
-  , "Project" :: FProxy (Tuple (Set String))
+  , "Project" :: FProxy (Tuple (m Unit))
   , "Merge" :: FProxy (MergeF)
   , "Constructors" :: FProxy Identity
   | v
@@ -291,7 +291,7 @@ type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
 type BuiltinOps' (m :: Type -> Type) (m' :: Type -> Type) v = BuiltinBinOps' m m'
   ( "BoolIf" :: FProxy (Triplet')
   , "Field" :: FProxy (Tuple' String)
-  , "Project" :: FProxy (Tuple' (Set String))
+  , "Project" :: FProxy (Tuple' (m Unit))
   , "Merge" :: FProxy (MergeF')
   , "Constructors" :: FProxy Identity'
   | v
@@ -300,7 +300,7 @@ type BuiltinOps' (m :: Type -> Type) (m' :: Type -> Type) v = BuiltinBinOps' m m
 type BuiltinOpsI v = BuiltinBinOpsI
   ( "BoolIf" :: TripletI
   , "Field" :: TupleI String
-  , "Project" :: TupleI (Set String)
+  , "Project" :: Unit
   , "Merge" :: MergeFI
   , "Constructors" :: IdentityI
   | v
@@ -434,7 +434,7 @@ embedW :: forall m s a. ExprLayer m s a -> Expr m s a
 embedW = embed <<< wrap
 
 -- Really ugly showing for Expr
-instance showExpr :: (FoldableWithIndex String m, Show s, Show a) => Show (Expr m s a) where
+instance showExpr :: (TraversableWithIndex String m, Show s, Show a) => Show (Expr m s a) where
   show (Expr e0) = cata show1 e0 where
     lits e = "[" <> joinWith ", " e <> "]"
     rec e = lits $ foldMapWithIndex (\k v -> ["(Tuple " <> show k <> v <> ")"]) e
@@ -486,7 +486,7 @@ instance showExpr :: (FoldableWithIndex String m, Show s, Show a) => Show (Expr 
       # VariantF.on (SProxy :: SProxy "Pi")
         (\(BindingBody n t b) -> "(mkPi " <> n <> t <> b <> ")")
       # VariantF.on (SProxy :: SProxy "Project")
-        (\(Tuple projs e) -> "(mkProject " <> e <> show projs <> ")")
+        (\(Tuple projs e) -> "(mkProject " <> e <> rec (show <$> projs) <> ")")
       # VariantF.on (SProxy :: SProxy "Record")
         (\a -> "(mkRecord " <> rec a <> ")")
       # VariantF.on (SProxy :: SProxy "RecordLit")
@@ -555,6 +555,18 @@ instance ordExpr :: (Ord1 m, Ord s, Ord a) => Ord (Expr m s a) where
 instance ord1Expr :: (Ord1 m, Ord s) => Ord1 (Expr m s) where
   compare1 = compare
 
+vfCase ::
+  forall sym fnc v' v v1' v1 a r.
+    IsSymbol sym =>
+    Row.Cons sym (FProxy fnc) v' v =>
+    Row.Cons sym (FProxy fnc) v1' v1 =>
+  r ->
+  (fnc a -> fnc a -> r) ->
+  SProxy sym ->
+  (VariantF v' a -> VariantF v1 a -> r) ->
+  VariantF v a -> VariantF v1 a -> r
+vfCase df f k = VariantF.on k (\a -> VariantF.default df # VariantF.on k (f a))
+
 vfEqCase ::
   forall sym fnc v' v v1' v1 a.
     IsSymbol sym =>
@@ -564,7 +576,7 @@ vfEqCase ::
   SProxy sym ->
   (VariantF v' a -> VariantF v1 a -> Boolean) ->
   VariantF v a -> VariantF v1 a -> Boolean
-vfEqCase k = VariantF.on k (\a -> VariantF.default false # VariantF.on k (eq a))
+vfEqCase = vfCase false eq
 
 vfEq1Case ::
   forall sym fnc v' v v1' v1 a.
@@ -576,7 +588,7 @@ vfEq1Case ::
   SProxy sym ->
   (VariantF v' a -> VariantF v1 a -> Boolean) ->
   VariantF v a -> VariantF v1 a -> Boolean
-vfEq1Case k = VariantF.on k (\a -> VariantF.default false # VariantF.on k (eq1 a))
+vfEq1Case = vfCase false eq1
 
 vfOrdCase ::
   forall sym fnc v' v v1' v1 a.
@@ -587,7 +599,7 @@ vfOrdCase ::
   SProxy sym ->
   (VariantF v' a -> VariantF v1 a -> Ordering) ->
   VariantF v a -> VariantF v1 a -> Ordering
-vfOrdCase k = VariantF.on k (\a -> VariantF.default LT # VariantF.on k (compare a))
+vfOrdCase = vfCase LT compare
 
 vfOrd1Case ::
   forall sym fnc v' v v1' v1 a.
@@ -599,7 +611,7 @@ vfOrd1Case ::
   SProxy sym ->
   (VariantF v' a -> VariantF v1 a -> Ordering) ->
   VariantF v a -> VariantF v1 a -> Ordering
-vfOrd1Case k = VariantF.on k (\a -> VariantF.default LT # VariantF.on k (compare1 a))
+vfOrd1Case = vfCase LT compare1
 
 -- A newtype for ... reasons
 newtype ExprRowVF m s a b = ERVF (ExprLayerF m s a b)
@@ -685,7 +697,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq s, Eq a) => Eq1 (ExprRowVF m s a) where
     # vfEqCase (SProxy :: SProxy "OptionalLit")
     # vfEqCase (SProxy :: SProxy "Pi")
     # vfEqCase (SProxy :: SProxy "Prefer")
-    # vfEqCase (SProxy :: SProxy "Project")
+    # vfCase false (\(Tuple a0 b0) (Tuple a1 b1) -> eq1 a0 a1 && eq b0 b1) (SProxy :: SProxy "Project")
     # vfEq1Case (SProxy :: SProxy "Record")
     # vfEq1Case (SProxy :: SProxy "RecordLit")
     # vfEq1Case (SProxy :: SProxy "Some")
@@ -757,7 +769,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord s, Ord a) => Ord1 (ExprRowVF m s a) where
     # vfOrdCase (SProxy :: SProxy "OptionalLit")
     # vfOrdCase (SProxy :: SProxy "Pi")
     # vfOrdCase (SProxy :: SProxy "Prefer")
-    # vfOrdCase (SProxy :: SProxy "Project")
+    # vfCase LT (\(Tuple a0 b0) (Tuple a1 b1) -> compare1 a0 a1 <> compare b0 b1) (SProxy :: SProxy "Project")
     # vfOrd1Case (SProxy :: SProxy "Record")
     # vfOrd1Case (SProxy :: SProxy "RecordLit")
     # vfOrd1Case (SProxy :: SProxy "Some")
@@ -829,7 +841,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq s, Eq a) => Eq1 (ExprRowVF' m m' s 
     # vfEqCase (SProxy :: SProxy "OptionalLit")
     # vfEqCase (SProxy :: SProxy "Pi")
     # vfEqCase (SProxy :: SProxy "Prefer")
-    # vfEqCase (SProxy :: SProxy "Project")
+    # vfCase false (eq1 `on` unwrap) (SProxy :: SProxy "Project")
     # vfEq1Case (SProxy :: SProxy "Record")
     # vfEq1Case (SProxy :: SProxy "RecordLit")
     # vfEq1Case (SProxy :: SProxy "Some")
@@ -901,7 +913,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord s, Ord a) => Ord1 (ExprRowVF' m
     # vfOrdCase (SProxy :: SProxy "OptionalLit")
     # vfOrdCase (SProxy :: SProxy "Pi")
     # vfOrdCase (SProxy :: SProxy "Prefer")
-    # vfOrdCase (SProxy :: SProxy "Project")
+    # vfCase LT (compare1 `on` unwrap) (SProxy :: SProxy "Project")
     # vfOrd1Case (SProxy :: SProxy "Record")
     # vfOrd1Case (SProxy :: SProxy "RecordLit")
     # vfOrd1Case (SProxy :: SProxy "Some")
@@ -916,7 +928,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord s, Ord a) => Ord1 (ExprRowVF' m
 instance containerIERVF :: ContainerI String m' => ContainerI (ExprRowVFI s a) (ExprRowVF' m m' s a) where
   ixF (ERVF' e) = ERVFI (ixFV e)
 
-instance containerERVF :: (Ord s, Ord a, Functor m', Eq1 m, Traversable m, Container String m m') => Container (ExprRowVFI s a) (ExprRowVF m s a) (ExprRowVF' m m' s a) where
+instance containerERVF :: (Ord s, Ord a, Functor m', Eq1 m, Eq (m Unit), Traversable m, Container String m m') => Container (ExprRowVFI s a) (ExprRowVF m s a) (ExprRowVF' m m' s a) where
   downZF (ERVF e) = ERVF (downZFV e <#> _contextZF ERVF')
   upZF (a :<-: e) = ERVF (upZFV (a :<-: pure (unwrap (extract e))))
 

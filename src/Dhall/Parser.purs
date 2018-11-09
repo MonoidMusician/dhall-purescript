@@ -10,7 +10,6 @@ import Data.List (List)
 import Data.Maybe (Maybe(..))
 import Data.Nullable (Nullable)
 import Data.Nullable as Nullable
-import Data.Set as Set
 import Data.Tuple (Tuple(..))
 import Dhall.Core.AST (Const(..), Expr, TextLitF(..), Var(..))
 import Dhall.Core.AST as AST
@@ -103,7 +102,7 @@ decodeFAST (FAST r) =
     "App", [a, b] -> AST.mkApp (decodeF a) (decodeF b)
     "BoolIf", [a, b, c] -> AST.mkBoolIf (decodeF a) (decodeF b) (decodeF c)
     "Field", [a, b] -> AST.mkField (decodeF a) (decodeS b)
-    "Project", [a, b] -> AST.mkProject (decodeF a) (Set.fromFoldable (decodeA decodeS b))
+    "Project", [a, b] -> AST.mkProject (decodeF a) (IOSM.fromFoldable (Tuple <$> decodeA decodeS b <@> unit))
     "Merge", [a, b, c] -> AST.mkMerge (decodeF a) (decodeF b) (decodeN decodeF c)
     "Constructors", [a] -> AST.mkConstructors (decodeF a)
     "Lam", [a, b, c] -> AST.mkLam (decodeS a) (decodeF b) (decodeF c)
