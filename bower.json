@@ -20,7 +20,8 @@
     "purescript-tuples": "^5.1.0",
     "purescript-either": "^4.1.0",
     "purescript-const": "^4.1.0",
-    "purescript-identity": "^4.1.0"
+    "purescript-identity": "^4.1.0",
+    "purescript-complex-validation": "MonoidMusician/purescript-complex-validation#master"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"
@@ -31,6 +32,7 @@
     "purescript-either": "master",
     "purescript-tuples": "master",
     "purescript-const": "master",
-    "purescript-identity": "master"
+    "purescript-identity": "master",
+    "purescript-variant": "foldable-traversable-0.12"
   }
 }
