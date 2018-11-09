@@ -18,6 +18,7 @@ import Data.Functor.Variant (FProxy(..), SProxy(..))
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
+import Data.List (List)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (un, unwrap, wrap)
 import Data.Profunctor.Strong (fanout)
@@ -25,6 +26,7 @@ import Data.Symbol (class IsSymbol)
 import Data.Traversable (for)
 import Data.TraversableWithIndex (forWithIndex)
 import Data.Tuple (Tuple(..), fst)
+import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Context (Context(..))
 import Dhall.Context as Dhall.Context
@@ -70,6 +72,45 @@ suggest a = unwrap >>> case _ of
       -- preserve warnings, if any
       foldMap extract mtaccum
 
+data TypeCheckError r m s a = TypeCheckError
+  -- The main location where the typechecking error occurred
+  { location :: List (AST.ExprRowVFI s a)
+  -- The explanation, given as text interspersed with specific places to look at
+  -- (for the user to read)
+  , explanation :: AST.TextLitF (Focus m s a)
+  -- The tag for the specific error, mostly for machine purposes
+  , tag :: Variant r
+  }
+
+-- An expression for the user to look at when an error occurs, giving
+-- specific context for what went wrong.
+data Focus m s a
+  -- Atomic: Pointer to a focus in the original tree
+  = ExistingFocus (List (AST.ExprRowVFI s a))
+  -- Derived: Point to the type of another focus
+  | TypeOfFocus (Focus m s a)
+  -- Atomic: A new expression, whose origin is shrouded in mystery ...
+  | ConstructedFocus (Expr m s a)
+
+type Ctx m s a = Context (Expr m s a)
+type Feedback r m s a = V.Erroring (TypeCheckError r m s a)
+type TypeChecked r m s a = Feedback r m s a (Expr m s a)
+type TypeCheckedCtx r m s a = Ctx m s a -> TypeChecked r m s a
+
+type Shallot r m s a =
+  { the_term :: Expr m s a
+  , its_type :: Feedback r m s a
+    { the_type :: Expr m s a
+    , its_kind :: TypeChecked r m s a
+    }
+  }
+
+typechecked :: forall r m s a. Shallot r m s a -> TypeChecked r m s a
+typechecked = _.its_type >>> map _.the_type
+
+kindchecked :: forall r m s a. Shallot r m s a -> TypeChecked r m s a
+kindchecked = _.its_type >>> (=<<) _.its_kind
+
 type Fb ws es m s a = V.FeedbackR ws es (Expr m s a)
 type CtxFb ws es m s a = Context (Expr m s a) -> Fb ws es m s a
 type OnionCtx ws es m s a = Tuple (Expr m s a) (CtxFb ws es m s a)
@@ -93,8 +134,21 @@ typeWithA tpa = flip $ para $
   -- Before we pass it to the handler below, tag indices and then unwrap it
   (>>>) indexFeedback $ (>>>) unwrap $
   let
-    carmelize :: Expr m s a -> OnionCtx _ _ m s a
-    carmelize = fanout identity $ flip $ typeWithA tpa
+    caramelize :: Expr m s a -> OnionCtx _ _ m s a
+    caramelize = fanout identity $ flip $ typeWithA tpa
+
+    ensure' :: forall sym f r'.
+      IsSymbol sym =>
+      R.Cons sym (FProxy f) r' (AST.ExprLayerRow m s a) =>
+      SProxy sym ->
+      Expr m s a ->
+      (Unit -> V.FeedbackR _ _ Void) ->
+      V.FeedbackR _ _ (f (Expr m s a))
+    ensure' s ty error =
+      let nf_ty = Dhall.Core.normalize ty in
+      AST.projectW nf_ty # VariantF.on s pure
+        \_ -> absurd <$> error unit
+
   in let
     contextual =
       let
@@ -105,9 +159,7 @@ typeWithA tpa = flip $ para $
           V.FeedbackR _ _ Const
         ensureConst_ctx expr ctx error = do
           ty <- extract expr ctx
-          let nf_ty = Dhall.Core.normalize ty
-          AST.projectW nf_ty # VariantF.on (_s::S_ "Const") (pure <<< unwrap)
-            \_ -> absurd <$> error unit
+          unwrap <$> ensure' (_s::S_ "Const") ty error
 
         intro name ty ctx =
           Dhall.Core.shift 1 (AST.V name 0) <$>
@@ -121,25 +173,30 @@ typeWithA tpa = flip $ para $
           Dhall.Context.lookup name idx ctx #
             V.liftW <<< V.noteSimple (_s::S_ "Unbound variable") v
       , "Lam": \(AST.BindingBody name ty body) ctx -> do
-          _ <- extract ty ctx
+          kA <- ensureConst_ctx ty ctx
+            (V.liftW <<< V.errorSimple (_s::S_ "Invalid input type"))
           -- normalize (as part of `intro`) _after_ typechecking succeeds
           -- (in order to guarantee that normalization terminates)
           let ctx' = intro name ty ctx
-          body_ty <- extract body ctx'
-          let p = AST.mkPi name (fst ty) body_ty
-          _ <- typeWithA tpa ctx p
-          pure p
-      , "Pi": \(AST.BindingBody name ty body) ctx -> do
+          ty_body <- caramelize <$> extract body ctx'
+          kB <- ensureConst_ctx ty_body ctx'
+            (V.liftW <<< V.errorSimple (_s::S_ "Invalid output type"))
+          _ <- rule kA kB #
+            V.liftW <<< V.noteSimple (_s::S_ "No dependent types") (Tuple (fst ty) (fst ty_body))
+          pure $ AST.mkPi name (fst ty) (fst ty_body)
+      , "Pi": \(AST.BindingBody name ty ty_body) ctx -> do
           kA <- ensureConst_ctx ty ctx
             (V.liftW <<< V.errorSimple (_s::S_ "Invalid input type"))
+          -- normalize (as part of `intro`) _after_ typechecking succeeds
+          -- (in order to guarantee that normalization terminates)
           let ctx' = intro name ty ctx
-          kB <- ensureConst_ctx body ctx'
+          kB <- ensureConst_ctx ty_body ctx'
             (V.liftW <<< V.errorSimple (_s::S_ "Invalid output type"))
 
           map AST.mkConst $ rule kA kB #
-            V.liftW <<< V.noteSimple (_s::S_ "No dependent types") (Tuple (fst ty) (fst body))
+            V.liftW <<< V.noteSimple (_s::S_ "No dependent types") (Tuple (fst ty) (fst ty_body))
       , "Let": \(AST.LetF name mty value expr) ctx -> do
-          ty <- carmelize <$> extract value ctx
+          ty <- caramelize <$> extract value ctx
           for_ mty \ty' -> do
             _ <- extract ty' ctx
             if Dhall.Core.judgmentallyEqual (fst ty) (fst ty') then pure unit else
@@ -236,18 +293,6 @@ typeWithA tpa = flip $ para $
           ty <- extract expr
           ensure' s ty error
 
-        ensure' :: forall sym f r'.
-          IsSymbol sym =>
-          R.Cons sym (FProxy f) r' (AST.ExprLayerRow m s a) =>
-          SProxy sym ->
-          Expr m s a ->
-          (Unit -> V.FeedbackR _ _ Void) ->
-          V.FeedbackR _ _ (f (Expr m s a))
-        ensure' s ty error =
-          let nf_ty = Dhall.Core.normalize ty in
-          AST.projectW nf_ty # VariantF.on s pure
-            \_ -> absurd <$> error unit
-
         -- Ensure that the passed `expr` is a term; i.e. the type of its type
         -- is `Type`. Returns the type of the `expr`.
         ensureTerm ::
@@ -257,7 +302,7 @@ typeWithA tpa = flip $ para $
           V.FeedbackR _ _ (Expr m s a)
         ensureTerm expr ctx error = do
           ty <- extract expr
-          ty <$ ensureType (carmelize ty <@> ctx) error
+          ty <$ ensureType (caramelize ty <@> ctx) error
 
         -- Ensure that the passed `ty` is a type; i.e. its type is `Type`.
         ensureType ::
@@ -429,7 +474,7 @@ typeWithA tpa = flip $ para $
                 (V.liftW <<< V.errorSimple (_s::S_ "Invalid alternative type") <<< Tuple field)
       , "UnionLit": \(Product (Tuple (Tuple field (expr :: Onion _ _ m s a)) kts)) ctx -> do
           ty <- Dhall.Core.normalize <$> extract expr
-          let kts' = StrMapIsh.insert field (carmelize ty <@> ctx) kts
+          let kts' = StrMapIsh.insert field (caramelize ty <@> ctx) kts
           forWithIndex_ kts' \field ty -> do
             void $ ensure (_s::S_ "Const") ty
               (V.liftW <<< V.errorSimple (_s::S_ "Invalid alternative type") <<< Tuple field)
