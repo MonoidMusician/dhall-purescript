@@ -23,7 +23,7 @@ import Data.Unfoldable (class Unfoldable)
 
 -- This abstracts the functor used for record and union cases in the AST
 -- (the major difference being that sometimes we want sorting vs ordering)
-class (Eq1 m, TraversableWithIndex String m) <= StrMapIsh m where
+class (Ord1 m, TraversableWithIndex String m) <= StrMapIsh m where
   empty :: forall a. m a
   isEmpty :: forall a. m a -> Boolean
   get :: forall a. String -> m a -> Maybe a
