@@ -9,52 +9,47 @@ import Control.Comonad.Cofree (Cofree, hoistCofree)
 import Control.Comonad.Cofree as Cofree
 import Control.Comonad.Env (EnvT(..))
 import Control.Monad.Reader (ReaderT(..), runReaderT)
-import Control.Monad.Writer (WriterT(..))
+import Control.Monad.Writer (WriterT)
 import Control.Plus (empty)
-import Data.Array (fold)
 import Data.Array as Array
-import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty as NEA
 import Data.Bifunctor (lmap)
 import Data.Const as Const
-import Data.Const as ConstF
-import Data.Either (Either(..), either)
 import Data.Foldable (class Foldable, foldMap, for_, traverse_)
-import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, foldlWithIndex, forWithIndex_, traverseWithIndex_)
+import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, forWithIndex_)
 import Data.Function (on)
-import Data.Functor.Compose (Compose(..))
 import Data.Functor.Product (Product(..))
-import Data.Functor.Variant (FProxy(..), SProxy(..))
+import Data.Functor.Variant (FProxy, SProxy)
 import Data.Functor.Variant as VariantF
-import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
+import Data.FunctorWithIndex (mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.List (List)
 import Data.List as List
 import Data.List.NonEmpty as NEL
-import Data.List.Types (NonEmptyList(..))
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.List.Types (NonEmptyList)
+import Data.Maybe (Maybe(..), maybe)
 import Data.Maybe.First (First(..))
 import Data.Newtype (class Newtype, un, unwrap, wrap)
-import Data.NonEmpty (NonEmpty(..), (:|))
+import Data.NonEmpty (NonEmpty, (:|))
 import Data.Profunctor.Strong ((&&&))
 import Data.Semigroup.Foldable (class Foldable1)
+import Data.Set (Set)
 import Data.Set as Set
 import Data.Symbol (class IsSymbol)
 import Data.Traversable (class Traversable, for, traverse)
 import Data.TraversableWithIndex (forWithIndex)
-import Data.Tuple (Tuple(..), fst, uncurry)
+import Data.Tuple (Tuple(..), uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Context (Context(..))
+import Dhall.Context (Context)
 import Dhall.Context as Dhall.Context
 import Dhall.Core (S_, _s, denote)
 import Dhall.Core as Dhall.Core
-import Dhall.Core.AST (Const(..), Expr(..), Pair(..))
+import Dhall.Core.AST (Const(..), Expr, Pair(..))
 import Dhall.Core.AST as AST
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
 import Matryoshka (class Recursive, ana, project)
-import Matryoshka as Matryoshka
 import Type.Row as R
 
 axiom :: forall f. Alternative f => Const -> f Const
@@ -231,15 +226,79 @@ ensureNodupes error = traverse_ error
   <<< Array.sort
   <<< foldMapWithIndex (\i _ -> [i])
 
+type Errors r m s a =
+  ( "Not a function" :: Unit
+  , "Type mismatch" :: { function :: Expr m s a
+                       , expected :: Expr m s a
+                       , argument :: Expr m s a
+                       , actual :: Expr m s a
+                       }
+  , "Invalid predicate" :: Unit
+  , "If branch mismatch" :: Unit
+  , "If branch must be term" :: Tuple Boolean Unit
+  , "Invalid list type" :: Unit
+  , "Missing list type" :: Unit
+  , "Invalid list element" :: Int
+  , "Mismatched list elements" :: Int
+  , "Cannot append non-list" :: Tuple Boolean Unit
+  , "List append mistmatch" :: Unit
+  , "Invalid optional type" :: Unit
+  , "Invalid optional element" :: Unit
+  , "Invalid `Some`" :: Unit
+  , "Duplicate record fields" :: NonEmptyList String
+  , "Invalid field type" :: Tuple String Unit
+  , "Inconsistent field types" :: Inconsistency
+                                    (NonEmptyList
+                                       { key :: String
+                                       , value :: { kind :: Const
+                                                  , ty :: Expr m s a
+                                                  }
+                                       }
+                                    )
+  , "Duplicate union fields" :: NonEmptyList String
+  , "Invalid alternative type" :: Tuple String Unit
+  , "Must combine a record" :: Tuple Boolean Unit
+  , "Record mismatch" :: Unit
+  , "Oops" :: Unit
+  , "Must merge a record" :: Unit
+  , "Must merge a union" :: Unit
+  , "Missing merge type" :: Unit
+  , "Handler not a function" :: Unit
+  , "Dependent handler function" :: Unit
+  , "Missing handler" :: Set Unit
+  , "Handler input type mismatch" :: Unit
+  , "Unused handlers" :: Set Unit
+  , "Cannot project" :: Unit
+  , "Missing field" :: String
+  , "Invalid input type" :: Unit
+  , "Invalid output type" :: Unit
+  , "No dependent types" :: Tuple (Expr m s a) (Expr m s a)
+  , "Unbound variable" :: AST.Var
+  , "Annotation mismatch" :: Unit
+  , "`Kind` has no type" :: Unit
+  , "Expected type" :: { expected :: Expr m Void a
+                       , received :: Expr m Void a
+                       }
+  , "Cannot access" :: String
+  , "Constructors requires a union type" :: Unit
+  | r
+  )
+type FeedbackE w r m s a = WriterT (Array (Variant w)) (V.Erroring (TypeCheckError (Errors r m s a) m s a))
+type CtxFeedbackE w r m s a = ReaderT (Ctx m s a) (FeedbackE w r m s a)
+type TypeCheckedE w r m s a = FeedbackE w r m s a (Expr m s a)
+type CtxTypeCheckedE w r m s a = CtxFeedbackE w r m s a (Expr m s a)
+type ShallotE w r m s a = Cofree (FeedbackE w r m s a) (Expr m s a)
+type CtxShallotE w r m s a = Cofree (ReaderT (Ctx m s a) (FeedbackE w r m s a)) (Expr m s a)
+
 {-| Generalization of `typeWith` that allows type-checking the `Embed`
     constructor with custom logic
 -}
-typeWithA :: forall m s a.
+typeWithA :: forall w r m s a.
   Eq a => StrMapIsh m =>
   Typer m a ->
   Context (Expr m s a) ->
   Expr m s a ->
-  TypeChecked _ _ m s a
+  TypeCheckedE w r m s a
 typeWithA tpa = flip $ compose runReaderT $ recursor $
   let
     -- Tag each error/warning with the index at which it occurred, recursively
@@ -255,8 +314,8 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
       R.Cons sym (FProxy f) r' (AST.ExprLayerRow m s a) =>
       SProxy sym ->
       Expr m s a ->
-      (Unit -> Feedback _ _ m s a Void) ->
-      Feedback _ _ m s a (f (Expr m s a))
+      (Unit -> FeedbackE w r m s a Void) ->
+      FeedbackE w r m s a (f (Expr m s a))
     ensure' s ty error =
       let nf_ty = Dhall.Core.normalize ty in
       AST.projectW nf_ty # VariantF.on s pure
@@ -266,9 +325,9 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
     contextual =
       let
         ensureConst_ctx ::
-          CtxShallot _ _ m s a ->
-          (Unit -> Feedback _ _ m s a Void) ->
-          CtxFeedback _ _ m s a Const
+          CtxShallotE w r m s a ->
+          (Unit -> FeedbackE w r m s a Void) ->
+          CtxFeedbackE w r m s a Const
         ensureConst_ctx expr error = do
           ty <- typecheck expr
           oblivious $ unwrap <$> ensure' (_s::S_ "Const") ty error
@@ -340,15 +399,15 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
     preservative =
       let
         onConst :: forall x.
-          (x -> Feedback _ _ m s a (Expr m s a)) ->
-          Const.Const x (Shallot _ _ m s a) ->
-          TypeChecked _ _ m s a
+          (x -> FeedbackE w r m s a (Expr m s a)) ->
+          Const.Const x (ShallotE w r m s a) ->
+          TypeCheckedE w r m s a
         onConst f (Const.Const c) = f c
-        always :: forall x y. x -> y -> Feedback _ _ m s a x
+        always :: forall x y. x -> y -> FeedbackE w r m s a x
         always b _ = pure b
-        aType :: forall x. Const.Const x (Shallot _ _ m s a) -> TypeChecked _ _ m s a
+        aType :: forall x. Const.Const x (ShallotE w r m s a) -> TypeCheckedE w r m s a
         aType = always $ AST.mkType
-        aFunctor :: forall x. Const.Const x (Shallot _ _ m s a) -> TypeChecked _ _ m s a
+        aFunctor :: forall x. Const.Const x (ShallotE w r m s a) -> TypeCheckedE w r m s a
         aFunctor = always $ AST.mkArrow AST.mkType AST.mkType
         a0 = AST.mkVar (AST.V "a" 0)
 
@@ -357,8 +416,8 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
         -- *normalized* type `t`.
         checkBinOp ::
           Expr m Void a ->
-          Pair (Shallot _ _ m s a) ->
-          TypeChecked _ _ m s a
+          Pair (ShallotE w r m s a) ->
+          TypeCheckedE w r m s a
         checkBinOp t p = suggest (lmap absurd t) $ for_ p $
           -- t should be simple enough that alphaNormalize is unnecessary
           \operand -> typecheck operand >>= Dhall.Core.normalize >>> case _ of
@@ -391,9 +450,9 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
           IsSymbol sym =>
           R.Cons sym (FProxy f) r' (AST.ExprLayerRow m s a) =>
           SProxy sym ->
-          Shallot _ _ m s a ->
-          (Unit -> Feedback _ _ m s a Void) ->
-          Feedback _ _ m s a (f (Expr m s a))
+          ShallotE w r m s a ->
+          (Unit -> FeedbackE w r m s a Void) ->
+          FeedbackE w r m s a (f (Expr m s a))
         ensure s expr error = do
           ty <- typecheck expr
           ensure' s ty error
@@ -401,18 +460,18 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
         -- Ensure that the passed `expr` is a term; i.e. the type of its type
         -- is `Type`. Returns the type of the `expr`.
         ensureTerm ::
-          Shallot _ _ m s a ->
-          (Unit -> Feedback _ _ m s a Void) ->
-          Feedback _ _ m s a (Expr m s a)
+          ShallotE w r m s a ->
+          (Unit -> FeedbackE w r m s a Void) ->
+          FeedbackE w r m s a (Expr m s a)
         ensureTerm expr error = do
           ty <- Cofree.tail expr
           term ty <$ ensureType ty error
 
         -- Ensure that the passed `ty` is a type; i.e. its type is `Type`.
         ensureType ::
-          Shallot _ _ m s a ->
-          (Unit -> Feedback _ _ m s a Void) ->
-          Feedback _ _ m s a Unit
+          ShallotE w r m s a ->
+          (Unit -> FeedbackE w r m s a Void) ->
+          FeedbackE w r m s a Unit
         ensureType ty error = do
           kind <- typecheck ty
           ensure' (_s::S_ "Const") kind error >>= case _ of
@@ -504,8 +563,8 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             -- or from the first element
             Nothing -> case Array.head lit of
               Nothing -> errorSimple (_s::S_ "Missing list type") $ unit
-              Just item0 -> do
-                ensureTerm item0
+              Just item -> do
+                ensureTerm item
                   (errorSimple (_s::S_ "Invalid list type"))
           suggest ty $ forWithIndex_ lit \i item -> do
             ty' <- typecheck item
@@ -612,9 +671,9 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
           *> do
             ty <- Cofree.tail expr
             let kts' = StrMapIsh.insert field ty kts
-            forWithIndex_ kts' \field kind -> do
+            forWithIndex_ kts' \field' kind -> do
               void $ ensure (_s::S_ "Const") kind
-                (errorSimple (_s::S_ "Invalid alternative type") <<< Tuple field)
+                (errorSimple (_s::S_ "Invalid alternative type") <<< Tuple field')
             pure $ AST.mkUnion $ term <$> kts'
       , "Combine":
           let
@@ -696,8 +755,8 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             -- or from the first handler
             Nothing -> case un First $ foldMap pure ktsX of
               Nothing -> errorSimple (_s::S_ "Missing merge type") $ unit
-              Just item0 -> do
-                AST.BindingBody name _ output <- ensure' (_s::S_ "Pi") item0
+              Just item -> do
+                AST.BindingBody name _ output <- ensure' (_s::S_ "Pi") item
                   (errorSimple (_s::S_ "Handler not a function"))
                 -- NOTE: the following check added
                 when (not Dhall.Core.freeIn (AST.V name 0) output)
@@ -729,7 +788,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
           pure $ AST.mkRecord $ kts # mapWithIndex \field ty' ->
             AST.mkPi field ty' $ term ty
       , "Field": \(Tuple field expr) -> do
-          ty <- typecheck expr
+          tyR <- typecheck expr
           let
             error _ = errorSimple (_s::S_ "Cannot access") $ field
             handleRecord kts = do
@@ -749,7 +808,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                     Type -> term expr # Dhall.Core.normalize # AST.projectW #
                       VariantF.on (_s::S_ "Union") handleType (\_ -> error unit)
                     _ -> error unit
-          ty # Dhall.Core.normalize # AST.projectW # casing
+          tyR # Dhall.Core.normalize # AST.projectW # casing
       , "Project": \(Tuple ks expr) -> do
           kts <- ensure (_s::S_ "Record") expr
             (errorSimple (_s::S_ "Cannot project"))
@@ -765,4 +824,4 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
       , "Embed": onConst (pure <<< denote <<< tpa)
       }
   in VariantF.onMatch contextual \v -> ReaderT \ctx ->
-      VariantF.match preservative (map (hoistCofree (runReaderT <@> ctx)) v :: VariantF.VariantF _ (Shallot _ _ m s a))
+      VariantF.match preservative (map (hoistCofree (runReaderT <@> ctx)) v)
