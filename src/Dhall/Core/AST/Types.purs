@@ -541,7 +541,7 @@ instance showExpr :: (TraversableWithIndex String m, Show s, Show a) => Show (Ex
             in "(mkTextLit " <> v e <> ")"
           )
       # VariantF.on (SProxy :: SProxy "Union")
-        (\a -> "(mkRecord " <> rec a <> ")")
+        (\a -> "(mkUnion " <> rec a <> ")")
       # VariantF.on (SProxy :: SProxy "UnionLit")
         (\(Product (Tuple (Tuple ty val) a)) -> "(mkUnionLit " <> ty <> val <> rec a <> ")")
       )

@@ -283,6 +283,8 @@ normalizeWith ctx = AST.rewriteBottomUp rules where
   judgEq = eq `on` (alphaNormalize >>> unsafeCoerce :: Expr m t a -> Expr m Void a)
 
   rules = identity
+    >>> VariantF.on (_s::S_ "Annot")
+      (\(AST.Pair e _) -> e)
     >>> VariantF.on (_s::S_ "BoolAnd")
       (unPairN AST._BoolLit \l r -> case _, _ of
         Just true, _ -> r -- (l = True) && r -> r
@@ -527,7 +529,7 @@ isNormalizedWith :: forall m s a. StrMapIsh m => Eq s => Eq a => Normalizer a ->
 isNormalizedWith ctx e0 = normalizeWith ctx e0 == e0
 
 -- | Detect if the given variable is free within the given expression
-freeIn :: forall m s a. Functor m => Eq1 m => Eq (m Unit) => Eq a => Var -> Expr m s a -> Boolean
+freeIn :: forall m s a. Functor m => Eq1 m => Eq a => Var -> Expr m s a -> Boolean
 freeIn variable expression =
     shift 1 variable strippedExpression /= strippedExpression
   where

@@ -2,10 +2,12 @@ module Dhall.Interactive where
 
 import Prelude
 
+import Complex.Validation.These as V
 import Control.Coroutine (consumer)
 import Control.Monad.Free (Free)
 import Control.Monad.Free as Free
 import Control.Monad.State (class MonadState, State, StateT(..), evalState)
+import Control.Monad.Writer (runWriterT)
 import Data.Array as Array
 import Data.Bifunctor (bimap, lmap)
 import Data.Const (Const(..))
@@ -19,15 +21,21 @@ import Data.Natural (Natural, intToNat)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Profunctor (dimap)
 import Data.Profunctor.Star (Star(..))
+import Data.String (joinWith)
 import Data.Symbol (SProxy(..))
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst)
+import Dhall.Context as Dhall.Context
 import Dhall.Core.AST as AST
+import Dhall.Core.Imports as Core.Imports
+import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Interactive.Halogen.Inputs as Inputs
 import Dhall.Interactive.Halogen.Types (DataComponent)
 import Dhall.Interactive.Halogen.Types as Types
 import Dhall.Interactive.Halogen.Types.Natural as Types.Natural
 import Dhall.Interactive.Types (InteractiveExpr, Annotation)
 import Dhall.Parser (parse')
+import Dhall.TypeCheck (typeWithA)
+import Dhall.TypeCheck as TypeCheck
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class.Console (logShow)
@@ -239,8 +247,20 @@ eval = (<<<) mkNaturalLit $ (>>>) unwrap $ cata $ (>>>) unwrap $ either absurd $
 
 parserC :: Types.RenderValue String
 parserC = Star \s -> HH.div [ HP.class_ $ H.ClassName "code" ]
+  let
+    parsed = parse' s
+    showError :: TypeCheck.TypeCheckError (TypeCheck.Errors () IOSM.InsOrdStrMap Void Core.Imports.Import) IOSM.InsOrdStrMap Void Core.Imports.Import -> String
+    showError = unsafeCoerce >>> _.tag >>> _.type
+    typechecked = bimap showError fst <<< runWriterT <<< typeWithA (\_ -> AST.mkType) Dhall.Context.empty =<< V.note "Parse fail" parsed
+    shown = case typechecked of
+      V.Error es _ -> (<>) "Errors: " $
+        joinWith "; " <<< Array.fromFoldable $
+          map (joinWith ", " <<< Array.fromFoldable) es
+      V.Success a -> "Success: " <> show a
+  in
   [ HH.div_ [ HH.input [ HE.onValueInput Just, HP.value s ] ]
-  , HH.div_ [ HH.text (show (parse' s)) ]
+  , HH.div_ [ HH.text (show parsed) ]
+  , HH.div_ [ HH.text shown ]
   ]
 
 main :: Effect Unit

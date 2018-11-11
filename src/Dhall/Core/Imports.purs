@@ -155,6 +155,9 @@ newtype Import = Import
   , importMode   :: ImportMode
   }
 
+derive instance eqImport :: Eq Import
+derive instance ordImport :: Ord Import
+
 instance semigroupImport :: Semigroup Import where
   append (Import i0) (Import i1) = Import
     { importHashed: i0.importHashed <> i1.importHashed

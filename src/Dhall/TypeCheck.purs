@@ -29,6 +29,7 @@ import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Maybe.First (First(..))
+import Data.Natural (Natural)
 import Data.Newtype (class Newtype, un, unwrap, wrap)
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Profunctor.Strong ((&&&))
@@ -219,9 +220,12 @@ ensureConsistency egal error = traverse_ (map absurd <<< error)
 ensureNodupes :: forall w r m s a v i. Ord i => FoldableWithIndex i m =>
   (NonEmptyList i -> Feedback w r m s a Void) ->
   m v -> Feedback w r m s a Unit
-ensureNodupes error = traverse_ error
-  <<< (foldMap (pure <<< pure) :: Array i -> Maybe (NonEmptyList i))
-  <<< map NEA.head
+ensureNodupes error = traverse_ error <<< findDupes
+
+findDupes :: forall i m v. Ord i => FoldableWithIndex i m =>
+  m v -> Maybe (NonEmptyList i)
+findDupes = (foldMap (pure <<< pure) :: Array i -> Maybe (NonEmptyList i))
+  <<< Array.mapMaybe (\a -> if NEA.length a > 1 then Just (NEA.head a) else Nothing)
   <<< Array.group
   <<< Array.sort
   <<< foldMapWithIndex (\i _ -> [i])
@@ -241,6 +245,7 @@ type Errors r m s a =
   , "Invalid list element" :: Int
   , "Mismatched list elements" :: Int
   , "Cannot append non-list" :: Tuple Boolean Unit
+  , "Cannot interpolate" :: Tuple Natural Unit
   , "List append mistmatch" :: Unit
   , "Invalid optional type" :: Unit
   , "Invalid optional element" :: Unit
@@ -499,7 +504,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                   -- then this is a non-dependent function
                   -- and its return type can be suggested
                   -- even if its argument does not have the right type
-                  (if Dhall.Core.freeIn name0 rty then suggest rty else identity) $
+                  (if not Dhall.Core.freeIn name0 rty then suggest rty else identity) $
                     errorSimple (_s::S_ "Type mismatch")
                       { function: term f
                       , expected: nf_aty0
@@ -550,7 +555,9 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
       , "DoubleLit": always $ AST.mkDouble
       , "DoubleShow": always $ AST.mkArrow AST.mkDouble AST.mkText
       , "Text": identity aType
-      , "TextLit": always $ AST.mkText
+      , "TextLit": \things -> suggest AST.mkText $
+          forWithIndex_ things \i expr -> ensure (_s::S_ "Text") expr
+            (errorSimple (_s::S_ "Cannot interpolate") <<< Tuple i)
       , "TextAppend": checkBinOp AST.mkText
       , "List": identity aFunctor
       , "ListLit": \(Product (Tuple mty lit)) -> AST.mkApp AST.mkList <$> do
@@ -759,7 +766,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                 AST.BindingBody name _ output <- ensure' (_s::S_ "Pi") item
                   (errorSimple (_s::S_ "Handler not a function"))
                 -- NOTE: the following check added
-                when (not Dhall.Core.freeIn (AST.V name 0) output)
+                when (Dhall.Core.freeIn (AST.V name 0) output)
                   (errorSimple (_s::S_ "Dependent handler function") unit)
                 pure $ Dhall.Core.shift (-1) (AST.V name 0) output
           forWithIndex_ ktsY \k tY -> do
@@ -772,7 +779,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                 (errorSimple (_s::S_ "Handler input type mismatch") unit)
             in do
               -- NOTE: the following check added
-              when (not Dhall.Core.freeIn (AST.V name 0) output)
+              when (Dhall.Core.freeIn (AST.V name 0) output)
                 (errorSimple (_s::S_ "Dependent handler function") unit)
               let output' = Dhall.Core.shift (-1) (AST.V name 0) output
               when (not Dhall.Core.judgmentallyEqual ty output')
