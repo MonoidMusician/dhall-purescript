@@ -7,29 +7,42 @@ import Control.Alternative (class Alternative)
 import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree (Cofree, hoistCofree)
 import Control.Comonad.Cofree as Cofree
+import Control.Comonad.Env (EnvT(..))
 import Control.Monad.Reader (ReaderT(..), runReaderT)
 import Control.Monad.Writer (WriterT(..))
 import Control.Plus (empty)
+import Data.Array (fold)
 import Data.Array as Array
+import Data.Array.NonEmpty (NonEmptyArray)
+import Data.Array.NonEmpty as NEA
 import Data.Bifunctor (lmap)
 import Data.Const as Const
 import Data.Const as ConstF
-import Data.Either (Either(..))
-import Data.Foldable (foldMap, for_)
-import Data.FoldableWithIndex (forWithIndex_, traverseWithIndex_)
+import Data.Either (Either(..), either)
+import Data.Foldable (class Foldable, foldMap, for_, traverse_)
+import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, foldlWithIndex, forWithIndex_, traverseWithIndex_)
+import Data.Function (on)
+import Data.Functor.Compose (Compose(..))
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (FProxy(..), SProxy(..))
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.List (List)
-import Data.Maybe (Maybe(..))
-import Data.Newtype (un, unwrap, wrap)
+import Data.List as List
+import Data.List.NonEmpty as NEL
+import Data.List.Types (NonEmptyList(..))
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe.First (First(..))
+import Data.Newtype (class Newtype, un, unwrap, wrap)
+import Data.NonEmpty (NonEmpty(..), (:|))
 import Data.Profunctor.Strong ((&&&))
+import Data.Semigroup.Foldable (class Foldable1)
+import Data.Set as Set
 import Data.Symbol (class IsSymbol)
-import Data.Traversable (class Traversable, for)
+import Data.Traversable (class Traversable, for, traverse)
 import Data.TraversableWithIndex (forWithIndex)
-import Data.Tuple (Tuple(..), fst)
+import Data.Tuple (Tuple(..), fst, uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Context (Context(..))
@@ -40,7 +53,7 @@ import Dhall.Core.AST (Const(..), Expr(..), Pair(..))
 import Dhall.Core.AST as AST
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
-import Matryoshka (class Recursive, project)
+import Matryoshka (class Recursive, ana, project)
 import Matryoshka as Matryoshka
 import Type.Row as R
 
@@ -155,7 +168,7 @@ recursor :: forall t f m. Recursive t f => Functor m =>
   (f (Cofree m t) -> m t) -> t -> m t
 recursor f = go where
   go :: t -> m t
-  go e = project e <#> Cofree.buildCofree (identity &&& go) # f
+  go e = project e <#> ana (EnvT <<< (identity &&& go)) # f
 
 -- typecheck :: forall w r m s a. Shallot w r m s a -> TypeChecked w r m s a
 -- typecheck :: forall w r m s a. CtxShallot w r m s a -> CtxTypeChecked w r m s a
@@ -171,6 +184,52 @@ kindcheck s = Cofree.tail s >>= typecheck
 -- term :: forall w r m s a. CtxShallot w r m s a -> Expr m s a
 term :: forall m a. Comonad m => m a -> a
 term = extract
+
+newtype Inconsistency a = Inconsistency (NonEmpty (NonEmpty List) a)
+derive instance newtypeInconsistency :: Newtype (Inconsistency a) _
+derive newtype instance functorInconsistency :: Functor Inconsistency
+derive newtype instance foldableInconsistency :: Foldable Inconsistency
+derive newtype instance foldable1Inconsistency :: Foldable1 Inconsistency
+derive newtype instance traversableInconsistency :: Traversable Inconsistency
+-- derive newtype instance traversable1Inconsistency :: Traversable1 Inconsistency
+tabulateGroupings :: forall k v.
+  (v -> v -> Boolean) ->
+  List { key :: k, value :: v } -> List (NonEmptyList { key :: k, value :: v })
+tabulateGroupings egal = go empty where
+  go accum = case _ of
+    List.Nil -> empty
+    List.Cons v0 rest -> go (insertGrouping v0 accum) rest
+  insertGrouping v0 = case _ of
+    List.Nil -> pure (pure v0)
+    List.Cons vn accum
+      | egal (extract vn).value v0.value ->
+        List.Cons (NEL.cons v0 vn) accum
+      | otherwise -> List.Cons vn (insertGrouping v0 accum)
+
+consistency :: forall a. List a -> Maybe (Inconsistency a)
+consistency (List.Cons a0 (List.Cons a1 an)) =
+  pure $ Inconsistency $ a0 :| a1 :| an
+consistency _ = empty
+
+ensureConsistency :: forall w r m s a v. StrMapIsh m =>
+  (v -> v -> Boolean) ->
+  (Inconsistency (NonEmptyList { key :: String, value :: v }) -> Feedback w r m s a Void) ->
+  m v -> Feedback w r m s a Unit
+ensureConsistency egal error = traverse_ (map absurd <<< error)
+  <<< consistency
+  <<< tabulateGroupings egal
+  <<< map (uncurry { key: _, value: _ })
+  <<< StrMapIsh.toUnfoldable
+
+ensureNodupes :: forall w r m s a v i. Ord i => FoldableWithIndex i m =>
+  (NonEmptyList i -> Feedback w r m s a Void) ->
+  m v -> Feedback w r m s a Unit
+ensureNodupes error = traverse_ error
+  <<< (foldMap (pure <<< pure) :: Array i -> Maybe (NonEmptyList i))
+  <<< map NEA.head
+  <<< Array.group
+  <<< Array.sort
+  <<< foldMapWithIndex (\i _ -> [i])
 
 {-| Generalization of `typeWith` that allows type-checking the `Embed`
     constructor with custom logic
@@ -507,25 +566,161 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
           AST.mkArrow (AST.mkApp AST.mkOptional a0) (optionalEnc a0)
       , "OptionalBuild": always $ AST.mkForall "a" $
           AST.mkArrow (optionalEnc a0) (AST.mkApp AST.mkOptional a0)
-      , "Record": ?help
-      , "RecordLit": ?help
+      , "Record": \kts ->
+          ensureNodupes
+            (errorSimple (_s::S_ "Duplicate record fields")) kts
+          *> do
+            kts' <- forWithIndex kts \field ty -> do
+              c <- unwrap <$> ensure (_s::S_ "Const") ty
+                (errorSimple (_s::S_ "Invalid field type") <<< Tuple field)
+              case c of
+                Kind | not Dhall.Core.judgmentallyEqual AST.mkKind (term ty) ->
+                  (errorSimple (_s::S_ "Invalid field type") <<< Tuple field) $ unit
+                _ -> pure unit
+              pure { kind: c, ty: term ty }
+            ensureConsistency (eq `on` _.kind)
+              (errorSimple (_s::S_ "Inconsistent field types")) kts'
+            pure $ AST.mkConst $ maybe Type _.kind $ un First $ foldMap pure kts'
+      , "RecordLit": \kvs ->
+          ensureNodupes
+            (errorSimple (_s::S_ "Duplicate record fields")) kvs
+          *> do
+            kts <- traverse Cofree.tail kvs
+            suggest (AST.mkRecord (term <$> kts)) do
+              kts' <- forWithIndex kts \field ty -> do
+                c <- unwrap <$> ensure (_s::S_ "Const") ty
+                  (errorSimple (_s::S_ "Invalid field type") <<< Tuple field)
+                case c of
+                  Kind | not Dhall.Core.judgmentallyEqual AST.mkKind (term ty) ->
+                    (errorSimple (_s::S_ "Invalid field type") <<< Tuple field) $ unit
+                  _ -> pure unit
+                pure { kind: c, ty: term ty }
+              ensureConsistency (eq `on` _.kind)
+                (errorSimple (_s::S_ "Inconsistent field types")) kts'
       , "Union": \kts ->
-          -- FIXME: should this be the largest of `Type` or `Kind` returned?
-          suggest AST.mkType $
-            forWithIndex_ kts \field ty -> do
-              void $ ensure (_s::S_ "Const") ty
+          ensureNodupes
+            (errorSimple (_s::S_ "Duplicate union fields")) kts
+          *> do
+            -- FIXME: should this be the largest of `Type` or `Kind` returned?
+            suggest AST.mkType $
+              forWithIndex_ kts \field ty -> do
+                void $ ensure (_s::S_ "Const") ty
+                  (errorSimple (_s::S_ "Invalid alternative type") <<< Tuple field)
+      , "UnionLit": \(Product (Tuple (Tuple field expr) kts)) ->
+          ensureNodupes
+            (errorSimple (_s::S_ "Duplicate union fields")) kts
+          *> do
+            ty <- Cofree.tail expr
+            let kts' = StrMapIsh.insert field ty kts
+            forWithIndex_ kts' \field kind -> do
+              void $ ensure (_s::S_ "Const") kind
                 (errorSimple (_s::S_ "Invalid alternative type") <<< Tuple field)
-      , "UnionLit": \(Product (Tuple (Tuple field expr) kts)) -> do
-          ty <- Cofree.tail expr
-          let kts' = StrMapIsh.insert field ty kts
-          forWithIndex_ kts' \field kind -> do
-            void $ ensure (_s::S_ "Const") kind
-              (errorSimple (_s::S_ "Invalid alternative type") <<< Tuple field)
-          pure $ AST.mkUnion $ term <$> kts'
-      , "Combine": ?help
-      , "CombineTypes": ?help
-      , "Prefer": ?help
-      , "Merge": ?help
+            pure $ AST.mkUnion $ term <$> kts'
+      , "Combine":
+          let
+            -- We manually pass the type and kind down .......
+            combineTypes (p :: Pair { ty :: Expr m s a, kind :: Expr m s a }) = do
+              AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
+                forWithIndex p \side kalls -> do
+                  kts <- ensure' (_s::S_ "Record") kalls.ty
+                    (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
+                  const <- unwrap <$> ensure' (_s::S_ "Const") kalls.kind
+                    (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
+                  pure { kts, const }
+              when (constL /= constR) $ errorSimple (_s::S_ "Record mismatch") unit
+              let ks = StrMapIsh.unionWith const ktsL ktsR
+              AST.mkRecord <$> forWithIndex ks \k _ -> do
+                case StrMapIsh.get k ktsL, StrMapIsh.get k ktsR of
+                  Just ktsL', Just ktsR' ->
+                    -- TODO: scope
+                    -- HACK: assume that the kind of the subrecord is the kind of the top record
+                    combineTypes (AST.Pair { ty: ktsL', kind: AST.mkConst constL } { ty: ktsR', kind: AST.mkConst constR })
+                  Nothing, Just t -> pure t
+                  Just t, Nothing -> pure t
+                  -- TODO: These
+                  Nothing, Nothing -> errorSimple (_s::S_ "Oops") unit
+          in \p -> combineTypes =<<
+            for p \v -> { ty: _, kind: _ } <$> typecheck v <*> kindcheck v
+      , "CombineTypes":
+          let
+            -- We manually pass the type and kind down .......
+            combineTypes (p :: Pair { ty :: Expr m s a, kind :: Expr m s a }) = do
+              AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
+                forWithIndex p \side kalls -> do
+                  kts <- ensure' (_s::S_ "Record") kalls.ty
+                    (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
+                  const <- unwrap <$> ensure' (_s::S_ "Const") kalls.kind
+                    (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
+                  pure { kts, const }
+              when (constL /= constR) $ errorSimple (_s::S_ "Record mismatch") unit
+              let ks = StrMapIsh.unionWith const ktsL ktsR
+              forWithIndex_ ks \k _ -> do
+                case StrMapIsh.get k ktsL, StrMapIsh.get k ktsR of
+                  Just ktsL', Just ktsR' ->
+                    -- TODO: scope
+                    -- HACK: assume that the kind of the subrecord is the kind of the top record
+                    void $ combineTypes (AST.Pair { ty: ktsL', kind: AST.mkConst constL } { ty: ktsR', kind: AST.mkConst constR })
+                  Nothing, Just t -> pure unit
+                  Just t, Nothing -> pure unit
+                  -- TODO: These
+                  Nothing, Nothing -> errorSimple (_s::S_ "Oops") unit
+              pure $ AST.mkConst $ constL
+          in \p -> combineTypes =<<
+            for p \ty -> { ty: term ty, kind: _ } <$> typecheck ty
+      , "Prefer": \p -> do
+          AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
+            forWithIndex p \side kvs -> do
+              ty <- Cofree.tail kvs
+              kts <- ensure' (_s::S_ "Record") (term ty)
+                (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
+              const <- unwrap <$> ensure (_s::S_ "Const") ty
+                (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
+              pure { kts, const }
+          when (constL /= constR) $ errorSimple (_s::S_ "Record mismatch") unit
+          pure $ AST.mkRecord $ StrMapIsh.unionWith const ktsR ktsL
+      , "Merge": \(AST.MergeF handlers cases mty) -> do
+          Pair ktsX ktsY <- Pair
+            <$> ensure (_s::S_ "Record") handlers
+              (errorSimple (_s::S_ "Must merge a record"))
+            <*> ensure (_s::S_ "Union") cases
+              (errorSimple (_s::S_ "Must merge a union"))
+          let
+            ksX = unit <$ ktsX # Set.fromFoldable
+            ksY = unit <$ ktsY # Set.fromFoldable
+            diffX = Set.difference ksX ksY
+            diffY = Set.difference ksY ksX
+          -- get the assumed type of the merge result
+          (ty :: Expr m s a) <- case mty of
+            -- either from annotation
+            Just ty -> pure (term ty)
+            -- or from the first handler
+            Nothing -> case un First $ foldMap pure ktsX of
+              Nothing -> errorSimple (_s::S_ "Missing merge type") $ unit
+              Just item0 -> do
+                AST.BindingBody name _ output <- ensure' (_s::S_ "Pi") item0
+                  (errorSimple (_s::S_ "Handler not a function"))
+                -- NOTE: the following check added
+                when (not Dhall.Core.freeIn (AST.V name 0) output)
+                  (errorSimple (_s::S_ "Dependent handler function") unit)
+                pure $ Dhall.Core.shift (-1) (AST.V name 0) output
+          forWithIndex_ ktsY \k tY -> do
+            tX <- StrMapIsh.get k ktsX #
+              noteSimple (_s::S_ "Missing handler") diffX
+            AST.BindingBody name input output <- ensure' (_s::S_ "Pi") tX
+              (errorSimple (_s::S_ "Handler not a function"))
+            ado
+              when (not Dhall.Core.judgmentallyEqual tY input)
+                (errorSimple (_s::S_ "Handler input type mismatch") unit)
+            in do
+              -- NOTE: the following check added
+              when (not Dhall.Core.freeIn (AST.V name 0) output)
+                (errorSimple (_s::S_ "Dependent handler function") unit)
+              let output' = Dhall.Core.shift (-1) (AST.V name 0) output
+              when (not Dhall.Core.judgmentallyEqual ty output')
+                (errorSimple (_s::S_ "Handler output type mismatch") unit)
+          pure ty <*
+            when (not Set.isEmpty diffX)
+              (errorSimple (_s::S_ "Unused handlers") diffX)
       , "Constructors": \(Identity ty) -> do
           void $ typecheck ty
           kts <- term ty # Dhall.Core.normalize # AST.projectW #
