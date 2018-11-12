@@ -16,6 +16,7 @@ import Data.Functor.Compose (Compose(..))
 import Data.Functor.Variant (FProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Identity (Identity(..))
+import Data.Lens (review, view)
 import Data.Maybe (Maybe(..))
 import Data.Natural (Natural, intToNat)
 import Data.Newtype (class Newtype, unwrap, wrap)
@@ -25,6 +26,8 @@ import Data.String (joinWith)
 import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..), fst)
 import Dhall.Context as Dhall.Context
+import Dhall.Core as Core
+import Dhall.Core as Dhall.Core
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports as Core.Imports
 import Dhall.Core.StrMapIsh as IOSM
@@ -39,6 +42,7 @@ import Dhall.TypeCheck as TypeCheck
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class.Console (logShow)
+import Effect.Unsafe (unsafePerformEffect)
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.Component as HC
@@ -245,22 +249,57 @@ eval = (<<<) mkNaturalLit $ (>>>) unwrap $ cata $ (>>>) unwrap $ either absurd $
   # VariantF.on (SProxy :: SProxy "NaturalPlus")
     (\(AST.Pair l r) -> l + r)
 
+denote :: forall s. AST.Expr IOSM.InsOrdStrMap s Core.Imports.Import -> AST.Expr IOSM.InsOrdStrMap Void Core.Imports.Import
+denote = Core.denote
+
 parserC :: Types.RenderValue String
 parserC = Star \s -> HH.div [ HP.class_ $ H.ClassName "code" ]
   let
     parsed = parse' s
     showError :: TypeCheck.TypeCheckError (TypeCheck.Errors () IOSM.InsOrdStrMap Void Core.Imports.Import) IOSM.InsOrdStrMap Void Core.Imports.Import -> String
     showError = unsafeCoerce >>> _.tag >>> _.type
-    typechecked = bimap showError fst <<< runWriterT <<< typeWithA (\_ -> AST.mkType) Dhall.Context.empty =<< V.note "Parse fail" parsed
+    ctx = Dhall.Context.empty # Dhall.Context.insert "Test/equal" do
+      AST.mkPi "a" AST.mkType (AST.mkPi "_" (AST.mkVar (AST.V "a" 0)) (AST.mkPi "_" (AST.mkVar (AST.V "a" 0)) AST.mkBool))
+    typechecked = bimap showError fst <<< runWriterT <<< typeWithA (\_ -> AST.mkType) ctx =<< V.note "Parse fail" parsed
     shown = case typechecked of
       V.Error es _ -> (<>) "Errors: " $
         joinWith "; " <<< Array.fromFoldable $
           map (joinWith ", " <<< Array.fromFoldable) es
       V.Success a -> "Success: " <> show a
+    normalized :: Maybe (AST.Expr IOSM.InsOrdStrMap Void Core.Imports.Import)
+    normalized = case typechecked of
+      V.Success _ ->
+        -- Funny thing: the `normalizer` does not obey any laws of normalization
+        -- because it inspects its arguments too much, takes them verbatim
+        -- and wholly consumes them ... due to a bug in my implementation
+        -- this means that it would see unnormalized terms, when let/lambda
+        -- bound variables are involved (since the normalization happens
+        -- bottom-to-top, and then the let/lambda bindings are renormalized
+        -- after substitution). So, to circumvent this, the normalizer is run
+        -- only after the regular normalization (and substituion) has happened.
+        Dhall.Core.normalizeWith normalizator <<< Dhall.Core.normalize <$> parsed
+      _ -> Nothing
+    normalizator :: forall s.
+      AST.Expr IOSM.InsOrdStrMap s Core.Imports.Import ->
+      AST.Expr IOSM.InsOrdStrMap s Core.Imports.Import ->
+      Maybe (AST.Expr IOSM.InsOrdStrMap s Core.Imports.Import)
+    normalizator f a = normalizer (view Core.apps (AST.mkApp f a))
+    normalizer :: forall s.
+      Dhall.Core.Apps IOSM.InsOrdStrMap s Core.Imports.Import ->
+      Maybe (AST.Expr IOSM.InsOrdStrMap s Core.Imports.Import)
+    normalizer (Core.App (Core.App (Core.App testequal t) x) y)
+      | Just (AST.V "Test/equal" 0) <- Core.noapplit AST._Var testequal
+      , x' <- denote $ review Core.apps x
+      , y' <- denote $ review Core.apps y =
+        Just (AST.mkBoolLit (Core.judgmentallyEqual x' y'))
+    normalizer _ =
+        Nothing
   in
-  [ HH.div_ [ HH.input [ HE.onValueInput Just, HP.value s ] ]
+  [ HH.div_ [ HH.textarea [ HE.onValueInput Just, HP.value s ] ]
   , HH.div_ [ HH.text (show parsed) ]
   , HH.div_ [ HH.text shown ]
+  , HH.div_ [ HH.text "Normalized: ", HH.text (show normalized) ]
+  , HH.div_ [ HH.text "abNormalized: ", HH.text (show (Dhall.Core.alphaNormalize <$> normalized)) ]
   ]
 
 main :: Effect Unit

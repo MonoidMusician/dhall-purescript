@@ -157,6 +157,16 @@ subst v@(V x n) e = AST.rewriteTopDown $ identity
       in mkLet f mt' r' b'
     )
 
+-- | The usual combination of subst and shift required for proper substitution.
+shiftSubstShift :: forall m s a. Var -> Expr m s a -> Expr m s a -> Expr m s a
+shiftSubstShift v a b = shift (-1) v (subst v (shift 1 v a) b)
+
+shiftSubstShift0 :: forall m s a. String ->  Expr m s a -> Expr m s a -> Expr m s a
+shiftSubstShift0 v = shiftSubstShift $ AST.V v 0
+
+rename :: forall m s a. Var -> Var -> Expr m s a -> Expr m s a
+rename v0 v1 = shift (-1) v0 <<< subst v0 (mkVar v1) <<< shift 1 v1
+
 -- | α-normalize an expression by renaming all variables to `"_"` and using
 -- | De Bruijn indices to distinguish them
 alphaNormalize :: forall m s a. Expr m s a -> Expr m s a
@@ -165,30 +175,21 @@ alphaNormalize = AST.rewriteTopDown $ identity
     (\(BindingBody x _A b_0) ->
       if x == "_" then mkLam x (alphaNormalize _A) (alphaNormalize b_0) else
       let
-        b_1 = shift 1 (V "_" 0) b_0
-        b_2 = subst (V x 0) (mkVar (V "_" 0)) b_1
-        b_3 = shift (-1) (V x 0) b_2
-        b_4 = alphaNormalize b_3
+        b_4 = alphaNormalize $ rename (V x 0) (V "_" 0) b_0
       in mkLam "_" (alphaNormalize _A) b_4
     )
   >>> VariantF.on (_s::S_ "Pi")
     (\(BindingBody x _A _B_0) ->
       if x == "_" then mkPi x (alphaNormalize _A) (alphaNormalize _B_0) else
       let
-        _B_1 = shift 1 (V "_" 0) _B_0
-        _B_2 = subst (V x 0) (mkVar (V "_" 0)) _B_1
-        _B_3 = shift (-1) (V x 0) _B_2
-        _B_4 = alphaNormalize _B_3
+        _B_3 = alphaNormalize $ rename (V x 0) (V "_" 0) _B_0
       in mkPi "_" (alphaNormalize _A) _B_3
     )
   >>> VariantF.on (_s::S_ "Let")
     (\(LetF x mt a b_0) ->
       if x == "_" then mkLet x (alphaNormalize <$> mt) (alphaNormalize a) (alphaNormalize b_0) else
       let
-        b_1 = shift 1 (V "_" 0) b_0
-        b_2 = subst (V x 0) (mkVar (V "_" 0)) b_1
-        b_3 = shift (-1) (V x 0) b_2
-        b_4 = alphaNormalize b_3
+        b_3 = alphaNormalize $ rename (V x 0) (V "_" 0) b_0
       in mkLet "_" (alphaNormalize <$> mt) (alphaNormalize a) b_3
     )
 
@@ -219,16 +220,16 @@ denote = AST.rewriteBottomUp (VariantF.on (_s::S_ "Note") snd)
 
 -- | Use this to wrap you embedded functions (see `normalizeWith`) to make them
 -- | polymorphic enough to be used.
-type Normalizer a = forall m s. Expr m s a -> Expr m s a -> Maybe (Expr m s a)
+type Normalizer m a = forall s. Expr m s a -> Expr m s a -> Maybe (Expr m s a)
 
-newtype WrappedNormalizer a = WrappedNormalizer (Normalizer a)
+newtype WrappedNormalizer m a = WrappedNormalizer (Normalizer m a)
 -- not Alt, because it is not a covariant functor
-instance semigroupWrappedNormalizer :: Semigroup (WrappedNormalizer a) where
+instance semigroupWrappedNormalizer :: Semigroup (WrappedNormalizer m a) where
   append (WrappedNormalizer n) (WrappedNormalizer m) = WrappedNormalizer \fn arg ->
     case n fn arg of
       Just r -> Just r
       Nothing -> m fn arg
-instance monoidWrappedNormalizer :: Monoid (WrappedNormalizer a) where
+instance monoidWrappedNormalizer :: Monoid (WrappedNormalizer m a) where
   mempty = WrappedNormalizer \_ _ -> Nothing
 
 type Preview' a b = Lens.Fold (First b) a a b b
@@ -244,7 +245,7 @@ type Preview' a b = Lens.Fold (First b) a a b b
     That is, if the functions in custom context are not total then the Dhall language, evaluated
     with those functions is not total either.
 -}
-normalizeWith :: forall m s t a. StrMapIsh m => Eq a => Normalizer a -> Expr m s a -> Expr m t a
+normalizeWith :: forall m s t a. StrMapIsh m => Eq a => Normalizer m a -> Expr m s a -> Expr m t a
 normalizeWith ctx = AST.rewriteBottomUp rules where
   onP :: forall e v r.
     Preview' e v ->
@@ -397,20 +398,16 @@ normalizeWith ctx = AST.rewriteBottomUp rules where
       )
     >>> onP AST._Let
       (\{ var, ty, value, body } ->
-        let v = AST.V var 0 in normalizeWith ctx $
-        shift (-1) v (subst v (shift 1 v (value)) (body))
+        normalizeWith ctx $ shiftSubstShift0 var value body
       )
     >>> VariantF.on (_s::S_ "Note") snd
     -- composing with <<< gives this case priority
     >>> identity <<< onP AST._App \{ fn, arg } ->
       onP AST._Lam
-        (\{ var: x, body } ->
-          let
-            v = AST.V x 0
-          in normalizeWith ctx $ shift (-1) v $
-            subst v (shift 1 v (arg)) (body)
+        (\{ var, body } ->
+          normalizeWith ctx $ shiftSubstShift0 var arg body
         ) <@> projectW fn $ \_ ->
-      case Lens.view apps (fn), Lens.view apps (arg) of
+      case Lens.view apps fn, Lens.view apps arg of
         -- build/fold fusion for `List`
         -- App (App ListBuild _) (App (App ListFold _) e') -> loop e'
         App listbuild _, App (App listfold _) e'
@@ -472,8 +469,9 @@ normalizeWith ctx = AST.rewriteBottomUp rules where
           | noapp AST._DoubleShow doubleshow
           , Just n <- noapplit AST._DoubleLit doublelit ->
             AST.mkTextLit (AST.TextLit (show n))
+        _, _ | Just ret <- ctx fn arg -> ret
         _, _ ->
-          AST.mkApp (fn) (arg)
+          AST.mkApp fn arg
 
 -- Little ADT to make destructuring applications easier for normalization
 data Apps m s a = App (Apps m s a) (Apps m s a) | NoApp (Expr m s a)
@@ -525,7 +523,7 @@ isNormalized :: forall m s a. StrMapIsh m => Eq s => Eq a => Expr m s a -> Boole
 isNormalized = isNormalizedWith (const (const Nothing))
 
 -- | ~Quickly~ Check if an expression is in normal form
-isNormalizedWith :: forall m s a. StrMapIsh m => Eq s => Eq a => Normalizer a -> Expr m s a -> Boolean
+isNormalizedWith :: forall m s a. StrMapIsh m => Eq s => Eq a => Normalizer m a -> Expr m s a -> Boolean
 isNormalizedWith ctx e0 = normalizeWith ctx e0 == e0
 
 -- | Detect if the given variable is free within the given expression

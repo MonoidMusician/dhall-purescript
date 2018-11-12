@@ -5,7 +5,7 @@ import Prelude
 import Complex.Validation.These as V
 import Control.Alternative (class Alternative)
 import Control.Comonad (class Comonad, extract)
-import Control.Comonad.Cofree (Cofree, hoistCofree)
+import Control.Comonad.Cofree (Cofree, buildCofree, hoistCofree)
 import Control.Comonad.Cofree as Cofree
 import Control.Comonad.Env (EnvT(..))
 import Control.Monad.Reader (ReaderT(..), runReaderT)
@@ -18,6 +18,8 @@ import Data.Const as Const
 import Data.Foldable (class Foldable, foldMap, for_, traverse_)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, forWithIndex_)
 import Data.Function (on)
+import Data.Functor.Compose (Compose(..))
+import Data.Functor.Mu (Mu, transMu)
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (FProxy, SProxy)
 import Data.Functor.Variant as VariantF
@@ -50,7 +52,7 @@ import Dhall.Core.AST (Const(..), Expr, Pair(..))
 import Dhall.Core.AST as AST
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
-import Matryoshka (class Recursive, ana, project)
+import Matryoshka (class Corecursive, class Recursive, ana, distApplicative, distGHisto, embed, project, transAna)
 import Type.Row as R
 
 axiom :: forall f. Alternative f => Const -> f Const
@@ -165,6 +167,68 @@ recursor :: forall t f m. Recursive t f => Functor m =>
 recursor f = go where
   go :: t -> m t
   go e = project e <#> ana (EnvT <<< (identity &&& go)) # f
+
+{-
+recursor' :: forall t f m. Recursive t f => Functor m =>
+  (f (Cofree m (Mu (Compose f (Cofree m)))) -> m t) -> t -> Cofree m (Mu (Compose f (Cofree m)))
+recursor' f = go where
+  go :: t -> Cofree m (Mu (Compose f (Cofree m)))
+  go t = project t <#> go # ana do
+    EnvT <<< ((embed <<< Compose) &&& (map (map go <<< project) <<< f))
+
+recursor'' :: forall t f m. Recursive t f => Functor m =>
+  (f (Cofree m t) -> m t) -> t -> Cofree m t
+recursor'' f = go where
+  go :: t -> Cofree m t
+  go t = ana (EnvT <<< (identity &&& (f <<< map go <<< project))) t
+
+recursor''' ::
+  forall t f m r.
+    Recursive t f =>
+    Corecursive r (Compose (Cofree m) f) =>
+    Traversable f =>
+    Applicative m =>
+  (f (Cofree m r) -> m t) -> t -> Cofree m r
+recursor''' f = go where
+  go :: t -> Cofree m r
+  go t = embed $ EnvT $ project t # map go # (&&&)
+    do embed <<< Compose <<< distGHisto distApplicative
+    do map go <<< f
+
+recursor''''' ::
+  forall t f m r.
+    Recursive t f =>
+    Corecursive r (Compose (Cofree m) f) =>
+    Traversable f =>
+    Applicative m =>
+  (f (Cofree m r) -> m t) -> t -> Cofree m r
+recursor''''' f = go where
+  go :: t -> Cofree m r
+  go = buildCofree \t ->
+    project t <#> go # flip (&&&) f do
+      embed <<< Compose <<< buildCofree do
+        map extract &&& traverse Cofree.tail
+
+recursor'''' ::
+  forall t f m r.
+    Recursive t f =>
+    Traversable f =>
+    Corecursive r (Compose (Cofree m) f) =>
+    Applicative m =>
+  (f (Cofree m r) -> m t) -> t -> Cofree m r
+recursor'''' f = go where
+  go :: t -> Cofree m r
+  go t = t # transAna do
+    EnvT <<< do
+      map go >>> do
+        (distGHisto distApplicative >>> Compose >>> embed) &&& f
+
+terms :: forall m f. Functor f => Functor m => Mu (Compose f (Cofree m)) -> Mu f
+terms = transMu (un Compose >>> map extract)
+
+typecheck_terms :: forall m f. Functor f => Functor m => Mu (Compose f (Cofree m)) -> m (Mu f)
+typecheck_terms = Cofree.tail >>> map terms
+-}
 
 -- typecheck :: forall w r m s a. Shallot w r m s a -> TypeChecked w r m s a
 -- typecheck :: forall w r m s a. CtxShallot w r m s a -> CtxTypeChecked w r m s a
@@ -391,11 +455,12 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
 
             -- TODO: Does this apply to Kind too?
             handleType Type = do
-              introize name ty $ fallback unit
+              introize name ty $ typecheck expr <#> substShiftOut
             handleType _ = fallback unit
 
-            fallback _ =
-              typecheck expr <#> substShiftOut
+            fallback _ = ReaderT \ctx ->
+              -- FIXME 👻
+              typeWithA tpa ctx (substShiftOut (term expr))
           kind # Dhall.Core.normalize # AST.projectW #
             VariantF.on (_s::S_ "Const")
               (unwrap >>> handleType)
@@ -491,11 +556,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
               let name0 = AST.V name 0 in
               if Dhall.Core.judgmentallyEqual aty0 aty1
                 then do
-                  -- TODO: abstract this out
-                  let a'    = Dhall.Core.shift   1  name0 (term a)
-                  let rty'  = Dhall.Core.subst      name0 a' rty
-                  let rty'' = Dhall.Core.shift (-1) name0    rty'
-                  pure rty''
+                  pure $ Dhall.Core.shiftSubstShift0 name (term a) rty
                 else do
                   let nf_aty0 = Dhall.Core.normalize aty0
                   let nf_aty1 = Dhall.Core.normalize aty1
@@ -640,7 +701,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
               c <- unwrap <$> ensure (_s::S_ "Const") ty
                 (errorSimple (_s::S_ "Invalid field type") <<< Tuple field)
               case c of
-                Kind | not Dhall.Core.judgmentallyEqual AST.mkKind (term ty) ->
+                Kind | not Dhall.Core.judgmentallyEqual AST.mkType (term ty) ->
                   (errorSimple (_s::S_ "Invalid field type") <<< Tuple field) $ unit
                 _ -> pure unit
               pure { kind: c, ty: term ty }
@@ -657,7 +718,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                 c <- unwrap <$> ensure (_s::S_ "Const") ty
                   (errorSimple (_s::S_ "Invalid field type") <<< Tuple field)
                 case c of
-                  Kind | not Dhall.Core.judgmentallyEqual AST.mkKind (term ty) ->
+                  Kind | not Dhall.Core.judgmentallyEqual AST.mkType (term ty) ->
                     (errorSimple (_s::S_ "Invalid field type") <<< Tuple field) $ unit
                   _ -> pure unit
                 pure { kind: c, ty: term ty }
