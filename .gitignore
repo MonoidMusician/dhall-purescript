@@ -9,3 +9,7 @@
 /.psa*
 
 \.history
+
+grammar\.html
+
+grammar\.js
