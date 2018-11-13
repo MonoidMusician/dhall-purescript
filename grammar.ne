@@ -507,7 +507,7 @@ annotated_expression ->
 		# "[]  : List     t"
 		# "[]  : Optional t"
 		# "[x] : Optional t"
-    | open_bracket (empty_collection | non_empty_optional) {% pass1 %}
+    | open_bracket (empty_collection | non_empty_optional) {% d => pass0(pass1(d)) %}
 		# "x : t"
     | operator_expression (colon expression):? {% d => d[1] == null ? d[0] : { type: "Annot", value: [d[0], d[1][1]] } %}
 
@@ -518,17 +518,17 @@ non_empty_optional -> expression close_bracket colon Optional import_expression 
 operator_expression -> import_alt_expression {% pass0 %}
 
 import_alt_expression    -> or_expression            (import_alt            or_expression):* {% binop("ImportAlt") %}
-or_expression            -> plus_expression          (or                    plus_expression         ):* {% binop("BinOr") %}
+or_expression            -> plus_expression          (or                    plus_expression         ):* {% binop("BoolOr") %}
 plus_expression          -> text_append_expression   (plus whitespace_chunk text_append_expression  ):* {% binop("NaturalPlus", 2) %}
 text_append_expression   -> list_append_expression   (text_append           list_append_expression  ):* {% binop("TextAppend") %}
 list_append_expression   -> and_expression           (list_append           and_expression          ):* {% binop("ListAppend") %}
-and_expression           -> combine_expression       (and                   combine_expression      ):* {% binop("BinAnd") %}
+and_expression           -> combine_expression       (and                   combine_expression      ):* {% binop("BoolAnd") %}
 combine_expression       -> prefer_expression        (combine               prefer_expression       ):* {% binop("Combine") %}
 prefer_expression        -> combine_types_expression (prefer                combine_types_expression):* {% binop("Prefer") %}
 combine_types_expression -> times_expression         (combine_types         times_expression        ):* {% binop("CombineTypes") %}
 times_expression         -> equal_expression         (times                 equal_expression        ):* {% binop("NaturalTimes") %}
-equal_expression         -> not_equal_expression     (double_equal          not_equal_expression    ):* {% binop("BinEQ") %}
-not_equal_expression     -> application_expression   (not_equal             application_expression  ):* {% binop("BinNE") %}
+equal_expression         -> not_equal_expression     (double_equal          not_equal_expression    ):* {% binop("BoolEQ") %}
+not_equal_expression     -> application_expression   (not_equal             application_expression  ):* {% binop("BoolNE") %}
 
 # Import expressions need to be separated by some whitespace, otherwise there
 # would be ambiguity: `./ab` could be interpreted as "import the file `./ab`",

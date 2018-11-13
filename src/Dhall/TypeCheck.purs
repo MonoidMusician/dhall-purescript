@@ -5,7 +5,7 @@ import Prelude
 import Complex.Validation.These as V
 import Control.Alternative (class Alternative)
 import Control.Comonad (class Comonad, extract)
-import Control.Comonad.Cofree (Cofree, buildCofree, hoistCofree)
+import Control.Comonad.Cofree (Cofree, hoistCofree)
 import Control.Comonad.Cofree as Cofree
 import Control.Comonad.Env (EnvT(..))
 import Control.Monad.Reader (ReaderT(..), runReaderT)
@@ -18,8 +18,6 @@ import Data.Const as Const
 import Data.Foldable (class Foldable, foldMap, for_, traverse_)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, forWithIndex_)
 import Data.Function (on)
-import Data.Functor.Compose (Compose(..))
-import Data.Functor.Mu (Mu, transMu)
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (FProxy, SProxy)
 import Data.Functor.Variant as VariantF
@@ -52,7 +50,7 @@ import Dhall.Core.AST (Const(..), Expr, Pair(..))
 import Dhall.Core.AST as AST
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
-import Matryoshka (class Corecursive, class Recursive, ana, distApplicative, distGHisto, embed, project, transAna)
+import Matryoshka (class Recursive, ana, project)
 import Type.Row as R
 
 axiom :: forall f. Alternative f => Const -> f Const

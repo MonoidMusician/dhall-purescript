@@ -2,6 +2,7 @@ module Dhall.Core ( module Dhall.Core ) where
 
 import Prelude
 
+import Control.Comonad (extract)
 import Data.Const as ConstF
 import Data.Eq (class Eq1)
 import Data.Function (on)
@@ -20,8 +21,8 @@ import Data.Set as Set
 import Data.Tuple (snd)
 import Dhall.Core.AST (AllTheThings, BuiltinBinOps, BuiltinFuncs, BuiltinOps, BuiltinTypes, BuiltinTypes2, Const(..), Expr(..), ExprRow, FunctorThings, LetF(..), Literals, Literals2, MergeF(..), Pair(..), SimpleThings, Syntax, Terminals, TextLitF(..), Triplet(..), Var(..), _Expr, _ExprF, coalesce1, unfurl) as Dhall.Core
 import Dhall.Core.AST (Expr, LetF(..), Var(..), mkLam, mkLet, mkPi, mkVar, projectW)
-import Dhall.Core.AST.Types.Basics (BindingBody(..))
 import Dhall.Core.AST as AST
+import Dhall.Core.AST.Types.Basics (BindingBody(..))
 import Dhall.Core.Imports (Directory(..), File(..), FilePrefix(..), Import(..), ImportHashed(..), ImportMode(..), ImportType(..), prettyDirectory, prettyFile, prettyFilePrefix, prettyImport, prettyImportHashed, prettyImportType) as Dhall.Core
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
@@ -218,6 +219,9 @@ boundedType _ = false
 denote :: forall m s t a. Functor m => Expr m s a -> Expr m t a
 denote = AST.rewriteBottomUp (VariantF.on (_s::S_ "Note") snd)
 
+denote' :: forall m s a. Functor m => Expr m s a -> Expr m Void a
+denote' = denote
+
 -- | Use this to wrap you embedded functions (see `normalizeWith`) to make them
 -- | polymorphic enough to be used.
 type Normalizer m a = forall s. Expr m s a -> Expr m s a -> Maybe (Expr m s a)
@@ -400,7 +404,21 @@ normalizeWith ctx = AST.rewriteBottomUp rules where
       (\{ var, ty, value, body } ->
         normalizeWith ctx $ shiftSubstShift0 var value body
       )
-    >>> VariantF.on (_s::S_ "Note") snd
+    >>> VariantF.on (_s::S_ "Note") extract
+    -- NOTE: eta-normalization, added
+    >>> onP AST._Lam
+      (\{ var, ty, body } ->
+        AST.projectW body #
+        let
+          default :: forall x. x -> Expr m t a
+          default _ = AST.embedW (Lens.review AST._Lam { var, ty, body })
+        in default # onP AST._App
+          \{ fn, arg } ->
+            let var0 = AST.V var 0 in
+            if judgEq arg (AST.mkVar var0) && not freeIn var0 fn
+              then fn
+              else default unit
+      )
     -- composing with <<< gives this case priority
     >>> identity <<< onP AST._App \{ fn, arg } ->
       onP AST._Lam
@@ -410,19 +428,19 @@ normalizeWith ctx = AST.rewriteBottomUp rules where
       case Lens.view apps fn, Lens.view apps arg of
         -- build/fold fusion for `List`
         -- App (App ListBuild _) (App (App ListFold _) e') -> loop e'
-        App listbuild _, App (App listfold _) e'
+        listbuild~_, listfold~_~e'
           | noapp AST._ListBuild listbuild
           , noapp AST._ListFold listfold ->
             Lens.review apps e'
         -- build/fold fusion for `Natural`
         -- App NaturalBuild (App NaturalFold e') -> loop e'
-        naturalbuild, App naturalfold e'
+        naturalbuild, naturalfold~e'
           | noapp AST._NaturalBuild naturalbuild
           , noapp AST._NaturalFold naturalfold ->
             Lens.review apps e'
         -- build/fold fusion for `Optional`
         -- App (App OptionalBuild _) (App (App OptionalFold _) e') -> loop e'
-        App optionalbuild _, App (App optionalfold _) e'
+        optionalbuild~_, optionalfold~_~e'
           | noapp AST._OptionalBuild optionalbuild
           , noapp AST._OptionalFold optionalfold ->
             Lens.review apps e'
@@ -475,6 +493,7 @@ normalizeWith ctx = AST.rewriteBottomUp rules where
 
 -- Little ADT to make destructuring applications easier for normalization
 data Apps m s a = App (Apps m s a) (Apps m s a) | NoApp (Expr m s a)
+infixl 0 App as ~
 
 noapplit :: forall m s a v.
   Lens.Prism'

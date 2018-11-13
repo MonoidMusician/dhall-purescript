@@ -26,6 +26,7 @@ import Data.String (joinWith)
 import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..), fst)
 import Dhall.Context as Dhall.Context
+import Dhall.Core ((~))
 import Dhall.Core as Core
 import Dhall.Core as Dhall.Core
 import Dhall.Core.AST as AST
@@ -42,7 +43,6 @@ import Dhall.TypeCheck as TypeCheck
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class.Console (logShow)
-import Effect.Unsafe (unsafePerformEffect)
 import Halogen as H
 import Halogen.Aff as HA
 import Halogen.Component as HC
@@ -287,7 +287,7 @@ parserC = Star \s -> HH.div [ HP.class_ $ H.ClassName "code" ]
     normalizer :: forall s.
       Dhall.Core.Apps IOSM.InsOrdStrMap s Core.Imports.Import ->
       Maybe (AST.Expr IOSM.InsOrdStrMap s Core.Imports.Import)
-    normalizer (Core.App (Core.App (Core.App testequal t) x) y)
+    normalizer (testequal~_~x~y)
       | Just (AST.V "Test/equal" 0) <- Core.noapplit AST._Var testequal
       , x' <- denote $ review Core.apps x
       , y' <- denote $ review Core.apps y =
