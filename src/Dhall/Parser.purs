@@ -20,15 +20,12 @@ import Foreign as Foreign
 import Partial.Unsafe (unsafeCrashWith)
 import Unsafe.Coerce (unsafeCoerce)
 
-type ParseExpr s = Expr IOSM.InsOrdStrMap s Import
+type ParseExpr = Expr IOSM.InsOrdStrMap Import
 
-parse :: forall s. String -> Maybe (ParseExpr s)
+parse :: String -> Maybe ParseExpr
 parse s = case Nullable.toMaybe (parseImpl s) of
   Just [r] -> Just (decodeFAST r)
   _ -> Nothing
-
-parse' :: String -> Maybe (ParseExpr Void)
-parse' = parse
 
 foreign import parseImpl :: String -> Nullable (Array (FAST Foreign))
 
@@ -51,10 +48,10 @@ decodeA :: forall r. (Foreign -> r) -> Foreign -> Array r
 decodeA decoder = map decoder
   <<< (unsafeCoerce :: Foreign -> Array Foreign)
 
-decodeFAST :: forall s. FAST Foreign -> ParseExpr s
+decodeFAST :: FAST Foreign -> ParseExpr
 decodeFAST (FAST r) =
   let
-    decodeF :: Foreign -> ParseExpr s
+    decodeF :: Foreign -> ParseExpr
     decodeF = unsafeCoerce decodeFAST
   in case r."type", r."value" of
     "Type", _ -> AST.mkConst Type
@@ -132,7 +129,7 @@ decodeFAST (FAST r) =
       }
     _, _ -> unsafeCrashWith "Unrecognized Expr"
 
-decodeTextLit :: forall s. Array Foreign -> TextLitF (ParseExpr s)
+decodeTextLit :: Array Foreign -> TextLitF ParseExpr
 decodeTextLit = Array.foldr f (TextLit "") where
   f next result = case runExcept (Foreign.readString next) of
     Left _ -> TextInterp "" (decodeFAST (fromForeign next)) result
@@ -141,7 +138,7 @@ decodeTextLit = Array.foldr f (TextLit "") where
         TextLit s -> TextLit (s' <> s)
         TextInterp s a t -> TextInterp (s' <> s) a t
 
-decodeLabelled :: forall s. Array Foreign -> IOSM.InsOrdStrMap (ParseExpr s)
+decodeLabelled :: Array Foreign -> IOSM.InsOrdStrMap ParseExpr
 decodeLabelled fs = IOSM.InsOrdStrMap $ Compose $ fs <#> unsafeCoerce >>>
   case _ of
     [s, a] -> Tuple (decodeS s) (decodeFAST (fromForeign a))

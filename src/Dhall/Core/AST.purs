@@ -55,9 +55,7 @@ import Dhall.Core.AST.Types
   , vfEqCase
   ) as Exports
 import Dhall.Core.AST.Operations
-  ( coalesce1
-  , unfurl
-  , rewriteBottomUp
+  ( rewriteBottomUp
   , rewriteTopDown
   ) as Exports
 import Dhall.Core.AST.Constructors
@@ -123,7 +121,6 @@ import Dhall.Core.AST.Constructors
   , _NaturalShow
   , _NaturalTimes
   , _NaturalToInteger
-  , _Note
   , _Optional
   , _OptionalBuild
   , _OptionalFold
@@ -198,7 +195,6 @@ import Dhall.Core.AST.Constructors
   , mkNaturalShow
   , mkNaturalTimes
   , mkNaturalToInteger
-  , mkNote
   , mkOptional
   , mkOptionalBuild
   , mkOptionalFold

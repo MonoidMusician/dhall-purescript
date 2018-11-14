@@ -36,8 +36,8 @@ import Dhall.Interactive.Halogen.Inputs as Inputs
 import Dhall.Interactive.Halogen.Types (DataComponent)
 import Dhall.Interactive.Halogen.Types as Types
 import Dhall.Interactive.Halogen.Types.Natural as Types.Natural
-import Dhall.Interactive.Types (InteractiveExpr, Annotation)
-import Dhall.Parser (parse')
+import Dhall.Interactive.Types (InteractiveExpr, Annotations)
+import Dhall.Parser (parse)
 import Dhall.TypeCheck (typeWithA)
 import Dhall.TypeCheck as TypeCheck
 import Effect (Effect)
@@ -170,15 +170,15 @@ type ExprRow =
 newtype Expr a = Expr (Free (VariantF ExprRow) a)
 derive instance newtypeExpr :: Newtype (Expr a) _
 
-upcast :: Expr Void -> InteractiveExpr Annotation
+upcast :: Expr Void -> InteractiveExpr Annotations
 upcast = unsafeCoerce
 
 instance showExpr :: Show (Expr Void) where
-  show a = show (upcast a :: InteractiveExpr Annotation)
+  show a = show (upcast a :: InteractiveExpr Annotations)
 instance eqExpr :: Eq (Expr Void) where
   eq a b = eq
-    (upcast a :: InteractiveExpr Annotation)
-    (upcast b :: InteractiveExpr Annotation)
+    (upcast a :: InteractiveExpr Annotations)
+    (upcast b :: InteractiveExpr Annotations)
 
 mkNaturalLit :: forall a. Natural -> Expr a
 mkNaturalLit n = Expr $ Free.wrap $
@@ -249,14 +249,11 @@ eval = (<<<) mkNaturalLit $ (>>>) unwrap $ cata $ (>>>) unwrap $ either absurd $
   # VariantF.on (SProxy :: SProxy "NaturalPlus")
     (\(AST.Pair l r) -> l + r)
 
-denote :: forall s. AST.Expr IOSM.InsOrdStrMap s Core.Imports.Import -> AST.Expr IOSM.InsOrdStrMap Void Core.Imports.Import
-denote = Core.denote
-
 parserC :: Types.RenderValue String
 parserC = Star \s -> HH.div [ HP.class_ $ H.ClassName "code" ]
   let
-    parsed = parse' s
-    showError :: TypeCheck.TypeCheckError (TypeCheck.Errors () IOSM.InsOrdStrMap Void Core.Imports.Import) IOSM.InsOrdStrMap Void Core.Imports.Import -> String
+    parsed = parse s
+    showError :: TypeCheck.TypeCheckError (TypeCheck.Errors () IOSM.InsOrdStrMap Core.Imports.Import) IOSM.InsOrdStrMap Core.Imports.Import -> String
     showError = unsafeCoerce >>> _.tag >>> _.type
     ctx = Dhall.Context.empty # Dhall.Context.insert "Test/equal" do
       AST.mkPi "a" AST.mkType (AST.mkPi "_" (AST.mkVar (AST.V "a" 0)) (AST.mkPi "_" (AST.mkVar (AST.V "a" 0)) AST.mkBool))
@@ -266,7 +263,7 @@ parserC = Star \s -> HH.div [ HP.class_ $ H.ClassName "code" ]
         joinWith "; " <<< Array.fromFoldable $
           map (joinWith ", " <<< Array.fromFoldable) es
       V.Success a -> "Success: " <> show a
-    normalized :: Maybe (AST.Expr IOSM.InsOrdStrMap Void Core.Imports.Import)
+    normalized :: Maybe (AST.Expr IOSM.InsOrdStrMap Core.Imports.Import)
     normalized = case typechecked of
       V.Success _ ->
         -- Funny thing: the `normalizer` does not obey any laws of normalization
@@ -279,18 +276,18 @@ parserC = Star \s -> HH.div [ HP.class_ $ H.ClassName "code" ]
         -- only after the regular normalization (and substituion) has happened.
         Dhall.Core.normalizeWith normalizator <<< Dhall.Core.normalize <$> parsed
       _ -> Nothing
-    normalizator :: forall s.
-      AST.Expr IOSM.InsOrdStrMap s Core.Imports.Import ->
-      AST.Expr IOSM.InsOrdStrMap s Core.Imports.Import ->
-      Maybe (AST.Expr IOSM.InsOrdStrMap s Core.Imports.Import)
+    normalizator ::
+      AST.Expr IOSM.InsOrdStrMap Core.Imports.Import ->
+      AST.Expr IOSM.InsOrdStrMap Core.Imports.Import ->
+      Maybe (AST.Expr IOSM.InsOrdStrMap Core.Imports.Import)
     normalizator f a = normalizer (view Core.apps (AST.mkApp f a))
-    normalizer :: forall s.
-      Dhall.Core.Apps IOSM.InsOrdStrMap s Core.Imports.Import ->
-      Maybe (AST.Expr IOSM.InsOrdStrMap s Core.Imports.Import)
+    normalizer ::
+      Dhall.Core.Apps IOSM.InsOrdStrMap Core.Imports.Import ->
+      Maybe (AST.Expr IOSM.InsOrdStrMap Core.Imports.Import)
     normalizer (testequal~_~x~y)
       | Just (AST.V "Test/equal" 0) <- Core.noapplit AST._Var testequal
-      , x' <- denote $ review Core.apps x
-      , y' <- denote $ review Core.apps y =
+      , x' <- review Core.apps x
+      , y' <- review Core.apps y =
         Just (AST.mkBoolLit (Core.judgmentallyEqual x' y'))
     normalizer _ =
         Nothing

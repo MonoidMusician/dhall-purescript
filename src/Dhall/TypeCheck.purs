@@ -13,7 +13,6 @@ import Control.Monad.Writer (WriterT)
 import Control.Plus (empty)
 import Data.Array as Array
 import Data.Array.NonEmpty as NEA
-import Data.Bifunctor (lmap)
 import Data.Const as Const
 import Data.Foldable (class Foldable, foldMap, for_, traverse_)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, forWithIndex_)
@@ -44,7 +43,7 @@ import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Context (Context)
 import Dhall.Context as Dhall.Context
-import Dhall.Core (S_, _s, denote)
+import Dhall.Core (S_, _s)
 import Dhall.Core as Dhall.Core
 import Dhall.Core.AST (Const(..), Expr, Pair(..))
 import Dhall.Core.AST as AST
@@ -75,32 +74,32 @@ rule _    _    = empty
 {-| Function that converts the value inside an `Embed` constructor into a new
     expression
 -}
-type Typer m a = forall s. a -> Expr m s a
+type Typer m a = a -> Expr m a
 
-suggest :: forall w r m s a x y. x -> Feedback w r m s a y -> Feedback w r m s a x
+suggest :: forall w r m a x y. x -> Feedback w r m a y -> Feedback w r m a x
 suggest a = (<<<) wrap $ unwrap >>> case _ of
   V.Success (Tuple _ accum) ->
     V.Success (Tuple a accum)
   V.Error es mtaccum ->
     V.Error es $ pure $ Tuple a $ foldMap extract mtaccum
 
-newtype TypeCheckError r m s a = TypeCheckError
+newtype TypeCheckError r m a = TypeCheckError
   -- The main location where the typechecking error occurred
-  { location :: List (AST.ExprRowVFI s a)
+  { location :: List (AST.ExprRowVFI a)
   -- The explanation, given as text interspersed with specific places to look at
   -- (for the user to read)
-  , explanation :: AST.TextLitF (Focus m s a)
+  , explanation :: AST.TextLitF (Focus m a)
   -- The tag for the specific error, mostly for machine purposes
   , tag :: Variant r
   }
 
 errorSimple ::
-  forall sym t r r' w m s a b.
+  forall sym t r r' w m a b.
     IsSymbol sym =>
     R.Cons sym t r' r =>
   SProxy sym ->
   t ->
-  Feedback w r m s a b
+  Feedback w r m a b
 errorSimple sym v = V.liftW $ V.erroring $ TypeCheckError
   { location: empty
   , explanation: AST.TextLit ""
@@ -108,13 +107,13 @@ errorSimple sym v = V.liftW $ V.erroring $ TypeCheckError
   }
 
 noteSimple ::
-  forall sym t r r' w m s a b.
+  forall sym t r r' w m a b.
     IsSymbol sym =>
     R.Cons sym t r' r =>
   SProxy sym ->
   t ->
   Maybe b ->
-  Feedback w r m s a b
+  Feedback w r m a b
 noteSimple sym v = (<<<) V.liftW $ V.note $ TypeCheckError
   { location: empty
   , explanation: AST.TextLit ""
@@ -123,38 +122,38 @@ noteSimple sym v = (<<<) V.liftW $ V.note $ TypeCheckError
 
 -- An expression for the user to look at when an error occurs, giving
 -- specific context for what went wrong.
-data Focus m s a
+data Focus m a
   -- Atomic: Pointer to a focus in the original tree
-  = ExistingFocus (List (AST.ExprRowVFI s a))
+  = ExistingFocus (List (AST.ExprRowVFI a))
   -- Derived: Point to the type of another focus
-  | TypeOfFocus (Focus m s a)
+  | TypeOfFocus (Focus m a)
   -- Atomic: A new expression, whose origin is shrouded in mystery ...
-  | ConstructedFocus (Expr m s a)
+  | ConstructedFocus (Expr m a)
 
-type Ctx m s a = Context (Expr m s a)
-type Feedback w r m s a = WriterT (Array (Variant w)) (V.Erroring (TypeCheckError r m s a))
-type CtxFeedback w r m s a = ReaderT (Ctx m s a) (Feedback w r m s a)
-type TypeChecked w r m s a = Feedback w r m s a (Expr m s a)
-type CtxTypeChecked w r m s a = CtxFeedback w r m s a (Expr m s a)
-type Shallot w r m s a = Cofree (Feedback w r m s a) (Expr m s a)
+type Ctx m a = Context (Expr m a)
+type Feedback w r m a = WriterT (Array (Variant w)) (V.Erroring (TypeCheckError r m a))
+type CtxFeedback w r m a = ReaderT (Ctx m a) (Feedback w r m a)
+type TypeChecked w r m a = Feedback w r m a (Expr m a)
+type CtxTypeChecked w r m a = CtxFeedback w r m a (Expr m a)
+type Shallot w r m a = Cofree (Feedback w r m a) (Expr m a)
 -- A shallot only has one context for the term, type, and kind
-type CtxShallot w r m s a = Cofree (ReaderT (Ctx m s a) (Feedback w r m s a)) (Expr m s a)
+type CtxShallot w r m a = Cofree (ReaderT (Ctx m a) (Feedback w r m a)) (Expr m a)
 
 -- This is `lift` for `ReaderT`, without the (`Monad`) constraints.
-oblivious :: forall w r m s a. Feedback w r m s a ~> CtxFeedback w r m s a
+oblivious :: forall w r m a. Feedback w r m a ~> CtxFeedback w r m a
 oblivious = ReaderT <<< const
 
 -- This is the proper way to introduce a type into the context.
-intro :: forall w r m s a. StrMapIsh m => Eq a => String -> CtxShallot w r m s a -> Ctx m s a -> Ctx m s a
+intro :: forall w r m a. StrMapIsh m => Eq a => String -> CtxShallot w r m a -> Ctx m a -> Ctx m a
 intro name ty ctx =
   Dhall.Core.shift 1 (AST.V name 0) <$>
     Dhall.Context.insert name (Dhall.Core.normalize (extract ty)) ctx
 
 -- This is `local` for `ReaderT`, without the (`Monad`) constraints.
-localize :: forall w r m s a. (Ctx m s a -> Ctx m s a) -> CtxFeedback w r m s a ~> CtxFeedback w r m s a
+localize :: forall w r m a. (Ctx m a -> Ctx m a) -> CtxFeedback w r m a ~> CtxFeedback w r m a
 localize f act = ReaderT $ f >>> runReaderT act
 
-introize :: forall w r m s a. StrMapIsh m => Eq a => String -> CtxShallot w r m s a -> CtxFeedback w r m s a ~> CtxFeedback w r m s a
+introize :: forall w r m a. StrMapIsh m => Eq a => String -> CtxShallot w r m a -> CtxFeedback w r m a ~> CtxFeedback w r m a
 introize name ty = localize (intro name ty)
 
 -- This is a weird kind of catamorphism that lazily gives access to
@@ -228,18 +227,18 @@ typecheck_terms :: forall m f. Functor f => Functor m => Mu (Compose f (Cofree m
 typecheck_terms = Cofree.tail >>> map terms
 -}
 
--- typecheck :: forall w r m s a. Shallot w r m s a -> TypeChecked w r m s a
--- typecheck :: forall w r m s a. CtxShallot w r m s a -> CtxTypeChecked w r m s a
+-- typecheck :: forall w r m a. Shallot w r m a -> TypeChecked w r m a
+-- typecheck :: forall w r m a. CtxShallot w r m a -> CtxTypeChecked w r m a
 typecheck :: forall f a. Functor f => Cofree f a -> f a
 typecheck s = Cofree.tail s <#> extract
 
--- kindcheck :: forall w r m s a. Shallot w r m s a -> TypeChecked w r m s a
--- kindcheck :: forall w r m s a. CtxShallot w r m s a -> CtxTypeChecked w r m s a
+-- kindcheck :: forall w r m a. Shallot w r m a -> TypeChecked w r m a
+-- kindcheck :: forall w r m a. CtxShallot w r m a -> CtxTypeChecked w r m a
 kindcheck :: forall f a. Bind f => Cofree f a -> f a
 kindcheck s = Cofree.tail s >>= typecheck
 
--- term :: forall w r m s a. Shallot w r m s a -> Expr m s a
--- term :: forall w r m s a. CtxShallot w r m s a -> Expr m s a
+-- term :: forall w r m a. Shallot w r m a -> Expr m a
+-- term :: forall w r m a. CtxShallot w r m a -> Expr m a
 term :: forall m a. Comonad m => m a -> a
 term = extract
 
@@ -269,19 +268,19 @@ consistency (List.Cons a0 (List.Cons a1 an)) =
   pure $ Inconsistency $ a0 :| a1 :| an
 consistency _ = empty
 
-ensureConsistency :: forall w r m s a v. StrMapIsh m =>
+ensureConsistency :: forall w r m a v. StrMapIsh m =>
   (v -> v -> Boolean) ->
-  (Inconsistency (NonEmptyList { key :: String, value :: v }) -> Feedback w r m s a Void) ->
-  m v -> Feedback w r m s a Unit
+  (Inconsistency (NonEmptyList { key :: String, value :: v }) -> Feedback w r m a Void) ->
+  m v -> Feedback w r m a Unit
 ensureConsistency egal error = traverse_ (map absurd <<< error)
   <<< consistency
   <<< tabulateGroupings egal
   <<< map (uncurry { key: _, value: _ })
   <<< StrMapIsh.toUnfoldable
 
-ensureNodupes :: forall w r m s a v i. Ord i => FoldableWithIndex i m =>
-  (NonEmptyList i -> Feedback w r m s a Void) ->
-  m v -> Feedback w r m s a Unit
+ensureNodupes :: forall w r m a v i. Ord i => FoldableWithIndex i m =>
+  (NonEmptyList i -> Feedback w r m a Void) ->
+  m v -> Feedback w r m a Unit
 ensureNodupes error = traverse_ error <<< findDupes
 
 findDupes :: forall i m v. Ord i => FoldableWithIndex i m =>
@@ -292,12 +291,12 @@ findDupes = (foldMap (pure <<< pure) :: Array i -> Maybe (NonEmptyList i))
   <<< Array.sort
   <<< foldMapWithIndex (\i _ -> [i])
 
-type Errors r m s a =
+type Errors r m a =
   ( "Not a function" :: Unit
-  , "Type mismatch" :: { function :: Expr m s a
-                       , expected :: Expr m s a
-                       , argument :: Expr m s a
-                       , actual :: Expr m s a
+  , "Type mismatch" :: { function :: Expr m a
+                       , expected :: Expr m a
+                       , argument :: Expr m a
+                       , actual :: Expr m a
                        }
   , "Invalid predicate" :: Unit
   , "If branch mismatch" :: Unit
@@ -318,7 +317,7 @@ type Errors r m s a =
                                     (NonEmptyList
                                        { key :: String
                                        , value :: { kind :: Const
-                                                  , ty :: Expr m s a
+                                                  , ty :: Expr m a
                                                   }
                                        }
                                     )
@@ -339,33 +338,33 @@ type Errors r m s a =
   , "Missing field" :: String
   , "Invalid input type" :: Unit
   , "Invalid output type" :: Unit
-  , "No dependent types" :: Tuple (Expr m s a) (Expr m s a)
+  , "No dependent types" :: Tuple (Expr m a) (Expr m a)
   , "Unbound variable" :: AST.Var
   , "Annotation mismatch" :: Unit
   , "`Kind` has no type" :: Unit
-  , "Expected type" :: { expected :: Expr m Void a
-                       , received :: Expr m Void a
+  , "Expected type" :: { expected :: Expr m a
+                       , received :: Expr m a
                        }
   , "Cannot access" :: String
   , "Constructors requires a union type" :: Unit
   | r
   )
-type FeedbackE w r m s a = WriterT (Array (Variant w)) (V.Erroring (TypeCheckError (Errors r m s a) m s a))
-type CtxFeedbackE w r m s a = ReaderT (Ctx m s a) (FeedbackE w r m s a)
-type TypeCheckedE w r m s a = FeedbackE w r m s a (Expr m s a)
-type CtxTypeCheckedE w r m s a = CtxFeedbackE w r m s a (Expr m s a)
-type ShallotE w r m s a = Cofree (FeedbackE w r m s a) (Expr m s a)
-type CtxShallotE w r m s a = Cofree (ReaderT (Ctx m s a) (FeedbackE w r m s a)) (Expr m s a)
+type FeedbackE w r m a = WriterT (Array (Variant w)) (V.Erroring (TypeCheckError (Errors r m a) m a))
+type CtxFeedbackE w r m a = ReaderT (Ctx m a) (FeedbackE w r m a)
+type TypeCheckedE w r m a = FeedbackE w r m a (Expr m a)
+type CtxTypeCheckedE w r m a = CtxFeedbackE w r m a (Expr m a)
+type ShallotE w r m a = Cofree (FeedbackE w r m a) (Expr m a)
+type CtxShallotE w r m a = Cofree (ReaderT (Ctx m a) (FeedbackE w r m a)) (Expr m a)
 
 {-| Generalization of `typeWith` that allows type-checking the `Embed`
     constructor with custom logic
 -}
-typeWithA :: forall w r m s a.
+typeWithA :: forall w r m a.
   Eq a => StrMapIsh m =>
   Typer m a ->
-  Context (Expr m s a) ->
-  Expr m s a ->
-  TypeCheckedE w r m s a
+  Context (Expr m a) ->
+  Expr m a ->
+  TypeCheckedE w r m a
 typeWithA tpa = flip $ compose runReaderT $ recursor $
   let
     -- Tag each error/warning with the index at which it occurred, recursively
@@ -378,11 +377,11 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
   let
     ensure' :: forall sym f r'.
       IsSymbol sym =>
-      R.Cons sym (FProxy f) r' (AST.ExprLayerRow m s a) =>
+      R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
       SProxy sym ->
-      Expr m s a ->
-      (Unit -> FeedbackE w r m s a Void) ->
-      FeedbackE w r m s a (f (Expr m s a))
+      Expr m a ->
+      (Unit -> FeedbackE w r m a Void) ->
+      FeedbackE w r m a (f (Expr m a))
     ensure' s ty error =
       let nf_ty = Dhall.Core.normalize ty in
       AST.projectW nf_ty # VariantF.on s pure
@@ -392,9 +391,9 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
     contextual =
       let
         ensureConst_ctx ::
-          CtxShallotE w r m s a ->
-          (Unit -> FeedbackE w r m s a Void) ->
-          CtxFeedbackE w r m s a Const
+          CtxShallotE w r m a ->
+          (Unit -> FeedbackE w r m a Void) ->
+          CtxFeedbackE w r m a Const
         ensureConst_ctx expr error = do
           ty <- typecheck expr
           oblivious $ unwrap <$> ensure' (_s::S_ "Const") ty error
@@ -467,15 +466,15 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
     preservative =
       let
         onConst :: forall x.
-          (x -> FeedbackE w r m s a (Expr m s a)) ->
-          Const.Const x (ShallotE w r m s a) ->
-          TypeCheckedE w r m s a
+          (x -> FeedbackE w r m a (Expr m a)) ->
+          Const.Const x (ShallotE w r m a) ->
+          TypeCheckedE w r m a
         onConst f (Const.Const c) = f c
-        always :: forall x y. x -> y -> FeedbackE w r m s a x
+        always :: forall x y. x -> y -> FeedbackE w r m a x
         always b _ = pure b
-        aType :: forall x. Const.Const x (ShallotE w r m s a) -> TypeCheckedE w r m s a
+        aType :: forall x. Const.Const x (ShallotE w r m a) -> TypeCheckedE w r m a
         aType = always $ AST.mkType
-        aFunctor :: forall x. Const.Const x (ShallotE w r m s a) -> TypeCheckedE w r m s a
+        aFunctor :: forall x. Const.Const x (ShallotE w r m a) -> TypeCheckedE w r m a
         aFunctor = always $ AST.mkArrow AST.mkType AST.mkType
         a0 = AST.mkVar (AST.V "a" 0)
 
@@ -483,10 +482,10 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
         -- Check a binary operation (`Pair` functor) against a simple, static,
         -- *normalized* type `t`.
         checkBinOp ::
-          Expr m Void a ->
-          Pair (ShallotE w r m s a) ->
-          TypeCheckedE w r m s a
-        checkBinOp t p = suggest (lmap absurd t) $ for_ p $
+          Expr m a ->
+          Pair (ShallotE w r m a) ->
+          TypeCheckedE w r m a
+        checkBinOp t p = suggest t $ for_ p $
           -- t should be simple enough that alphaNormalize is unnecessary
           \operand -> typecheck operand >>= Dhall.Core.normalize >>> case _ of
             ty_operand | t == ty_operand -> pure unit
@@ -516,11 +515,11 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
 
         ensure :: forall sym f r'.
           IsSymbol sym =>
-          R.Cons sym (FProxy f) r' (AST.ExprLayerRow m s a) =>
+          R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
           SProxy sym ->
-          ShallotE w r m s a ->
-          (Unit -> FeedbackE w r m s a Void) ->
-          FeedbackE w r m s a (f (Expr m s a))
+          ShallotE w r m a ->
+          (Unit -> FeedbackE w r m a Void) ->
+          FeedbackE w r m a (f (Expr m a))
         ensure s expr error = do
           ty <- typecheck expr
           ensure' s ty error
@@ -528,18 +527,18 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
         -- Ensure that the passed `expr` is a term; i.e. the type of its type
         -- is `Type`. Returns the type of the `expr`.
         ensureTerm ::
-          ShallotE w r m s a ->
-          (Unit -> FeedbackE w r m s a Void) ->
-          FeedbackE w r m s a (Expr m s a)
+          ShallotE w r m a ->
+          (Unit -> FeedbackE w r m a Void) ->
+          FeedbackE w r m a (Expr m a)
         ensureTerm expr error = do
           ty <- Cofree.tail expr
           term ty <$ ensureType ty error
 
         -- Ensure that the passed `ty` is a type; i.e. its type is `Type`.
         ensureType ::
-          ShallotE w r m s a ->
-          (Unit -> FeedbackE w r m s a Void) ->
-          FeedbackE w r m s a Unit
+          ShallotE w r m a ->
+          (Unit -> FeedbackE w r m a Void) ->
+          FeedbackE w r m a Unit
         ensureType ty error = do
           kind <- typecheck ty
           ensure' (_s::S_ "Const") kind error >>= case _ of
@@ -621,7 +620,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
       , "List": identity aFunctor
       , "ListLit": \(Product (Tuple mty lit)) -> AST.mkApp AST.mkList <$> do
           -- get the assumed type of the list
-          (ty :: Expr m s a) <- case mty of
+          (ty :: Expr m a) <- case mty of
             -- either from annotation
             Just ty -> suggest (term ty) $
               ensureType ty
@@ -744,7 +743,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
       , "Combine":
           let
             -- We manually pass the type and kind down .......
-            combineTypes (p :: Pair { ty :: Expr m s a, kind :: Expr m s a }) = do
+            combineTypes (p :: Pair { ty :: Expr m a, kind :: Expr m a }) = do
               AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
                 forWithIndex p \side kalls -> do
                   kts <- ensure' (_s::S_ "Record") kalls.ty
@@ -769,7 +768,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
       , "CombineTypes":
           let
             -- We manually pass the type and kind down .......
-            combineTypes (p :: Pair { ty :: Expr m s a, kind :: Expr m s a }) = do
+            combineTypes (p :: Pair { ty :: Expr m a, kind :: Expr m a }) = do
               AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
                 forWithIndex p \side kalls -> do
                   kts <- ensure' (_s::S_ "Record") kalls.ty
@@ -815,7 +814,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             diffX = Set.difference ksX ksY
             diffY = Set.difference ksY ksX
           -- get the assumed type of the merge result
-          (ty :: Expr m s a) <- case mty of
+          (ty :: Expr m a) <- case mty of
             -- either from annotation
             Just ty -> pure (term ty)
             -- or from the first handler
@@ -883,11 +882,10 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
           AST.mkRecord <$> forWithIndex ks \k (_ :: Unit) ->
             StrMapIsh.get k kts #
               (noteSimple (_s::S_ "Missing field") k)
-      , "Note": typecheck <<< extract
       , "ImportAlt": \(Pair l _r) ->
           -- FIXME???
           Dhall.Core.normalize <$> typecheck l
-      , "Embed": onConst (pure <<< denote <<< tpa)
+      , "Embed": onConst (pure <<< tpa)
       }
   in VariantF.onMatch contextual \v -> ReaderT \ctx ->
       VariantF.match preservative (map (hoistCofree (runReaderT <@> ctx)) v)

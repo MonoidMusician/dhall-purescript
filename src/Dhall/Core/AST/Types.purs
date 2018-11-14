@@ -3,14 +3,12 @@ module Dhall.Core.AST.Types where
 import Prelude
 
 import Control.Comonad (extract)
-import Control.Monad.Free (Free, hoistFree)
-import Data.Bifoldable (class Bifoldable, bifoldMap, bifoldl, bifoldr)
+import Control.Monad.Free (Free)
 import Data.Bifunctor (class Bifunctor, lmap)
-import Data.Bitraversable (class Bitraversable, bitraverse, bisequenceDefault)
 import Data.Const as ConstF
 import Data.Either (Either(..), either)
 import Data.Eq (class Eq1, eq1)
-import Data.Foldable (class Foldable, fold, foldMap, foldl, foldr)
+import Data.Foldable (class Foldable, fold, foldl, foldr)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex)
 import Data.Function (on)
 import Data.Functor.Product (Product(..))
@@ -24,7 +22,7 @@ import Data.Newtype (class Newtype, un, unwrap, wrap)
 import Data.Ord (class Ord1, compare1)
 import Data.String (joinWith)
 import Data.Symbol (class IsSymbol, SProxy(..))
-import Data.Traversable (class Traversable, sequence, traverse)
+import Data.Traversable (class Traversable, sequence)
 import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
@@ -368,73 +366,62 @@ type AllTheThings m v = SimpleThings m + FunctorThings m + v
 type AllTheThings' m m' v = SimpleThings' m m' + FunctorThings' m m' + v
 type AllTheThingsI v = SimpleThingsI + FunctorThingsI + v
 
--- A layer of Expr (within Free) is AllTheThings plus a Note constructor for `s`
-type ExprRow m s =
-  AllTheThings m
-    ( "Note" :: FProxy (Tuple s)
-    )
-type ExprRow' m m' s =
-  AllTheThings' m m'
-    ( "Note" :: FProxy (Tuple' s)
-    )
-type ExprRowI s =
-  AllTheThingsI ( "Note" :: Unit )
+-- A layer of Expr (within Free) is AllTheThings
+-- No Note constructor anymore!
+type ExprRow m = AllTheThings m ()
+type ExprRow' m m' = AllTheThings' m m' ()
+type ExprRowI = AllTheThingsI ()
 -- While a layer (within Mu, not Free) must also include the `a` parameter
 -- via the Embed constructor
-type ExprLayerRow m s a =
+type ExprLayerRow m a =
   AllTheThings m
-    ( "Note" :: FProxy (Tuple s)
-    , "Embed" :: CONST a
+    ( "Embed" :: CONST a
     )
-type ExprLayerRow' m m' s a =
+type ExprLayerRow' m m' a =
   AllTheThings' m m'
-    ( "Note" :: FProxy (Tuple' s)
-    , "Embed" :: VOID
+    ( "Embed" :: VOID
     )
-type ExprLayerRowI s a =
+type ExprLayerRowI a =
   AllTheThingsI
-    ( "Note" :: Unit
-    , "Embed" :: Void
+    ( "Embed" :: Void
     )
 -- The same, as a variant
 -- (This has a newtype in ExprRowVF)
-type ExprLayerF m s a = VariantF (ExprLayerRow m s a)
-type ExprLayerF' m m' s a = VariantF (ExprLayerRow' m m' s a)
-type ExprLayerFI s a = Variant (ExprLayerRowI s a)
+type ExprLayerF m a = VariantF (ExprLayerRow m a)
+type ExprLayerF' m m' a = VariantF (ExprLayerRow' m m' a)
+type ExprLayerFI a = Variant (ExprLayerRowI a)
 -- The same, but applied to Expr (this is isomorphic to Expr itself)
-type ExprLayer m s a = (ExprLayerF m s a) (Expr m s a)
+type ExprLayer m a = (ExprLayerF m a) (Expr m a)
 
 -- Expr itself, the type of AST nodes.
 --
 -- It is represented via a Free monad over the VariantF of the rows enumerated
 -- above. The VariantF thus gives the main syntax, where `m` specifies the
--- functor to use for records and unions and the like, and `s` is the type of
--- notes which can be added to each layer (as a separate constructor, not like
--- Cofree), and `a` is additional terminals (e.g. imports), which can be
--- mapped and applied and (bi)traversed over.
-newtype Expr m s a = Expr (Free (VariantF (ExprRow m s)) a)
-derive instance newtypeExpr :: Newtype (Expr m s a) _
+-- functor to use for records and unions and the like, and `a` is additional
+-- terminals (e.g. imports), which can be mapped and applied and traversed over.
+newtype Expr m a = Expr (Free (VariantF (ExprRow m)) a)
+derive instance newtypeExpr :: Newtype (Expr m a) _
 
 -- Give Expr its own Recursive instance with ExprRowVF (a newtype of ExprLayerF)
-instance recursiveExpr :: Recursive (Expr m s a) (ExprRowVF m s a) where
+instance recursiveExpr :: Recursive (Expr m a) (ExprRowVF m a) where
   project = unwrap >>> project >>> map Expr >>> unwrap >>> either
     (wrap >>> VariantF.inj (SProxy :: SProxy "Embed"))
     VariantF.expand >>> ERVF
 
-instance corecursiveExpr :: Corecursive (Expr m s a) (ExprRowVF m s a) where
+instance corecursiveExpr :: Corecursive (Expr m a) (ExprRowVF m a) where
   embed = wrap <<< embed <<< map (un Expr) <<< wrap <<<
     VariantF.on (SProxy :: SProxy "Embed") (Left <<< unwrap) Right <<< un ERVF
 
 -- Project and unwrap the ExprRowVF newtype, to allow instant handling of the
 -- cases via VariantF's api.
-projectW :: forall m s a. Expr m s a -> ExprLayer m s a
+projectW :: forall m a. Expr m a -> ExprLayer m a
 projectW = project >>> unwrap
 
-embedW :: forall m s a. ExprLayer m s a -> Expr m s a
+embedW :: forall m a. ExprLayer m a -> Expr m a
 embedW = embed <<< wrap
 
 -- Really ugly showing for Expr
-instance showExpr :: (TraversableWithIndex String m, Show s, Show a) => Show (Expr m s a) where
+instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) where
   show (Expr e0) = cata show1 e0 where
     lits e = "[" <> joinWith ", " e <> "]"
     rec e = lits $ foldMapWithIndex (\k v -> ["(Tuple " <> show k <> v <> ")"]) e
@@ -479,8 +466,6 @@ instance showExpr :: (TraversableWithIndex String m, Show s, Show a) => Show (Ex
         (\(Product (Tuple ty lit)) -> "(mkListLit " <> mb ty <> lits lit <> ")")
       # VariantF.on (SProxy :: SProxy "Merge")
         (\(MergeF a b c) -> "(mkMerge " <> a <> b <> mb c <> ")")
-      # VariantF.on (SProxy :: SProxy "Note")
-        (\(Tuple a b) -> "(mkNote (" <> show a <> ") " <> b <> ")")
       # VariantF.on (SProxy :: SProxy "OptionalLit")
         (\(Product (Tuple (Identity ty) lit)) -> "(mkOptionalLit " <> ty <> mb lit <> ")")
       # VariantF.on (SProxy :: SProxy "Pi")
@@ -546,13 +531,13 @@ instance showExpr :: (TraversableWithIndex String m, Show s, Show a) => Show (Ex
         (\(Product (Tuple (Tuple ty val) a)) -> "(mkUnionLit " <> ty <> val <> rec a <> ")")
       )
 
-instance eqExpr :: (Eq1 m, Eq s, Eq a) => Eq (Expr m s a) where
+instance eqExpr :: (Eq1 m, Eq a) => Eq (Expr m a) where
   eq e1 e2 = project e1 `eq1` project e2
-instance eq1Expr :: (Eq1 m, Eq s) => Eq1 (Expr m s) where
+instance eq1Expr :: (Eq1 m) => Eq1 (Expr m) where
   eq1 = eq
-instance ordExpr :: (Ord1 m, Ord s, Ord a) => Ord (Expr m s a) where
+instance ordExpr :: (Ord1 m, Ord a) => Ord (Expr m a) where
   compare e1 e2 = project e1 `compare1` project e2
-instance ord1Expr :: (Ord1 m, Ord s) => Ord1 (Expr m s) where
+instance ord1Expr :: (Ord1 m) => Ord1 (Expr m) where
   compare1 = compare
 
 vfCase ::
@@ -614,32 +599,36 @@ vfOrd1Case ::
 vfOrd1Case = vfCase LT compare1
 
 -- A newtype for ... reasons
-newtype ExprRowVF m s a b = ERVF (ExprLayerF m s a b)
-derive instance newtypeERVF :: Newtype (ExprRowVF m s a b) _
-derive newtype instance functorERVF :: Functor (ExprRowVF m s a)
-derive newtype instance foldableERVF :: Foldable m => Foldable (ExprRowVF m s a)
-derive newtype instance traversableERVF :: Traversable m => Traversable (ExprRowVF m s a)
-newtype ExprRowVF' m m' s a b = ERVF' (ExprLayerF' m m' s a b)
-derive instance newtypeERVF' :: Newtype (ExprRowVF' m m' s a b) _
-derive newtype instance functorERVF' :: Functor (ExprRowVF' m m' s a)
-derive newtype instance foldableERVF' :: (Foldable m, Foldable m') => Foldable (ExprRowVF' m m' s a)
-derive newtype instance traversableERVF' :: (Traversable m, Traversable m') => Traversable (ExprRowVF' m m' s a)
-newtype ExprRowVFI s a = ERVFI (ExprLayerFI s a)
-derive instance newtypeERVFI :: Newtype (ExprRowVFI s a) _
-derive newtype instance eqERVFI :: (Eq s, Eq a) => Eq (ExprRowVFI s a)
-derive newtype instance ordERVFI :: (Ord s, Ord a) => Ord (ExprRowVFI s a)
-instance functorWithIndexERVF :: FunctorWithIndex String m => FunctorWithIndex (ExprRowVFI s a) (ExprRowVF m s a) where
+newtype ExprRowVF m a b = ERVF (ExprLayerF m a b)
+derive instance newtypeERVF :: Newtype (ExprRowVF m a b) _
+derive newtype instance functorERVF :: Functor (ExprRowVF m a)
+derive newtype instance foldableERVF :: Foldable m => Foldable (ExprRowVF m a)
+derive newtype instance traversableERVF :: Traversable m => Traversable (ExprRowVF m a)
+instance bifunctorERVF :: Bifunctor (ExprRowVF m) where
+  bimap f g (ERVF v) = ERVF $ map g $ (#) v $
+    VariantF.expand # VariantF.on (SProxy :: SProxy "Embed")
+      (lmap f >>> VariantF.inj (SProxy :: SProxy "Embed"))
+newtype ExprRowVF' m m' a b = ERVF' (ExprLayerF' m m' a b)
+derive instance newtypeERVF' :: Newtype (ExprRowVF' m m' a b) _
+derive newtype instance functorERVF' :: Functor (ExprRowVF' m m' a)
+derive newtype instance foldableERVF' :: (Foldable m, Foldable m') => Foldable (ExprRowVF' m m' a)
+derive newtype instance traversableERVF' :: (Traversable m, Traversable m') => Traversable (ExprRowVF' m m' a)
+newtype ExprRowVFI a = ERVFI (ExprLayerFI a)
+derive instance newtypeERVFI :: Newtype (ExprRowVFI a) _
+derive newtype instance eqERVFI :: (Eq a) => Eq (ExprRowVFI a)
+derive newtype instance ordERVFI :: (Ord a) => Ord (ExprRowVFI a)
+instance functorWithIndexERVF :: FunctorWithIndex String m => FunctorWithIndex (ExprRowVFI a) (ExprRowVF m a) where
   mapWithIndex f (ERVF v) = ERVF (mapWithIndexV (f <<< ERVFI) v)
-instance foldableWithIndexERVF :: (FunctorWithIndex String m, FoldableWithIndex String m) => FoldableWithIndex (ExprRowVFI s a) (ExprRowVF m s a) where
+instance foldableWithIndexERVF :: (FunctorWithIndex String m, FoldableWithIndex String m) => FoldableWithIndex (ExprRowVFI a) (ExprRowVF m a) where
   foldrWithIndex f z = foldr (\(Tuple i a) z' -> f i a z') z <<< mapWithIndex Tuple
   foldlWithIndex f z = foldl (\z' (Tuple i a) -> f i z' a) z <<< mapWithIndex Tuple
   foldMapWithIndex f = fold <<< mapWithIndex f
-instance traversableWithIndexERVF :: TraversableWithIndex String m => TraversableWithIndex (ExprRowVFI s a) (ExprRowVF m s a) where
+instance traversableWithIndexERVF :: TraversableWithIndex String m => TraversableWithIndex (ExprRowVFI a) (ExprRowVF m a) where
   traverseWithIndex f = sequence <<< mapWithIndex f
 
-instance eqExprRowVF :: (Eq1 m, Eq s, Eq a, Eq b) => Eq (ExprRowVF m s a b) where
+instance eqExprRowVF :: (Eq1 m, Eq a, Eq b) => Eq (ExprRowVF m a b) where
   eq = eq1
-instance eq1ExprRowVF :: (Eq1 m, Eq s, Eq a) => Eq1 (ExprRowVF m s a) where
+instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
   eq1 (ERVF e1) (ERVF e2) =
     ( VariantF.case_
     # vfEqCase (SProxy :: SProxy "Annot")
@@ -690,7 +679,6 @@ instance eq1ExprRowVF :: (Eq1 m, Eq s, Eq a) => Eq1 (ExprRowVF m s a) where
     # vfEqCase (SProxy :: SProxy "NaturalTimes")
     # vfEqCase (SProxy :: SProxy "NaturalToInteger")
     # vfEqCase (SProxy :: SProxy "None")
-    # vfEqCase (SProxy :: SProxy "Note")
     # vfEqCase (SProxy :: SProxy "Optional")
     # vfEqCase (SProxy :: SProxy "OptionalBuild")
     # vfEqCase (SProxy :: SProxy "OptionalFold")
@@ -709,9 +697,9 @@ instance eq1ExprRowVF :: (Eq1 m, Eq s, Eq a) => Eq1 (ExprRowVF m s a) where
     # vfEqCase (SProxy :: SProxy "Var")
     ) e1 e2
 
-instance ordExprRowVF :: (Ord1 m, Ord s, Ord a, Ord b) => Ord (ExprRowVF m s a b) where
+instance ordExprRowVF :: (Ord1 m, Ord a, Ord b) => Ord (ExprRowVF m a b) where
   compare = compare1
-instance ord1ExprRowVF :: (Ord1 m, Ord s, Ord a) => Ord1 (ExprRowVF m s a) where
+instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
   compare1 (ERVF e1) (ERVF e2) =
     ( VariantF.case_
     # vfOrdCase (SProxy :: SProxy "Annot")
@@ -762,7 +750,6 @@ instance ord1ExprRowVF :: (Ord1 m, Ord s, Ord a) => Ord1 (ExprRowVF m s a) where
     # vfOrdCase (SProxy :: SProxy "NaturalTimes")
     # vfOrdCase (SProxy :: SProxy "NaturalToInteger")
     # vfOrdCase (SProxy :: SProxy "None")
-    # vfOrdCase (SProxy :: SProxy "Note")
     # vfOrdCase (SProxy :: SProxy "Optional")
     # vfOrdCase (SProxy :: SProxy "OptionalBuild")
     # vfOrdCase (SProxy :: SProxy "OptionalFold")
@@ -781,9 +768,9 @@ instance ord1ExprRowVF :: (Ord1 m, Ord s, Ord a) => Ord1 (ExprRowVF m s a) where
     # vfOrdCase (SProxy :: SProxy "Var")
     ) e1 e2
 
-instance eqExprRowVF' :: (Eq1 m, Eq1 m', Eq s, Eq a, Eq b) => Eq (ExprRowVF' m m' s a b) where
+instance eqExprRowVF' :: (Eq1 m, Eq1 m', Eq a, Eq b) => Eq (ExprRowVF' m m' a b) where
   eq = eq1
-instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq s, Eq a) => Eq1 (ExprRowVF' m m' s a) where
+instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
   eq1 (ERVF' e1) (ERVF' e2) =
     ( VariantF.case_
     # vfEqCase (SProxy :: SProxy "Annot")
@@ -834,7 +821,6 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq s, Eq a) => Eq1 (ExprRowVF' m m' s 
     # vfEqCase (SProxy :: SProxy "NaturalTimes")
     # vfEqCase (SProxy :: SProxy "NaturalToInteger")
     # vfEqCase (SProxy :: SProxy "None")
-    # vfEqCase (SProxy :: SProxy "Note")
     # vfEqCase (SProxy :: SProxy "Optional")
     # vfEqCase (SProxy :: SProxy "OptionalBuild")
     # vfEqCase (SProxy :: SProxy "OptionalFold")
@@ -853,9 +839,9 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq s, Eq a) => Eq1 (ExprRowVF' m m' s 
     # vfEqCase (SProxy :: SProxy "Var")
     ) e1 e2
 
-instance ordExprRowVF' :: (Ord1 m, Ord1 m', Ord s, Ord a, Ord b) => Ord (ExprRowVF' m m' s a b) where
+instance ordExprRowVF' :: (Ord1 m, Ord1 m', Ord a, Ord b) => Ord (ExprRowVF' m m' a b) where
   compare = compare1
-instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord s, Ord a) => Ord1 (ExprRowVF' m m' s a) where
+instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) where
   compare1 (ERVF' e1) (ERVF' e2) =
     ( VariantF.case_
     # vfOrdCase (SProxy :: SProxy "Annot")
@@ -906,7 +892,6 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord s, Ord a) => Ord1 (ExprRowVF' m
     # vfOrdCase (SProxy :: SProxy "NaturalTimes")
     # vfOrdCase (SProxy :: SProxy "NaturalToInteger")
     # vfOrdCase (SProxy :: SProxy "None")
-    # vfOrdCase (SProxy :: SProxy "Note")
     # vfOrdCase (SProxy :: SProxy "Optional")
     # vfOrdCase (SProxy :: SProxy "OptionalBuild")
     # vfOrdCase (SProxy :: SProxy "OptionalFold")
@@ -925,59 +910,20 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord s, Ord a) => Ord1 (ExprRowVF' m
     # vfOrdCase (SProxy :: SProxy "Var")
     ) e1 e2
 
-instance containerIERVF :: ContainerI String m' => ContainerI (ExprRowVFI s a) (ExprRowVF' m m' s a) where
+instance containerIERVF :: ContainerI String m' => ContainerI (ExprRowVFI a) (ExprRowVF' m m' a) where
   ixF (ERVF' e) = ERVFI (ixFV e)
 
-instance containerERVF :: (Ord s, Ord a, Functor m', Eq1 m, Eq (m Unit), Traversable m, Container String m m') => Container (ExprRowVFI s a) (ExprRowVF m s a) (ExprRowVF' m m' s a) where
+instance containerERVF :: (Ord a, Functor m', Eq1 m, Eq (m Unit), Traversable m, Container String m m') => Container (ExprRowVFI a) (ExprRowVF m a) (ExprRowVF' m m' a) where
   downZF (ERVF e) = ERVF (downZFV e <#> _contextZF ERVF')
   upZF (a :<-: e) = ERVF (upZFV (a :<-: pure (unwrap (extract e))))
 
-instance bifunctorExpr :: Functor m => Bifunctor (Expr m) where
-  bimap f g (Expr e) = Expr $ e <#> g # hoistFree
-    ( VariantF.expand
-    # VariantF.on (SProxy :: SProxy "Note")
-      (lmap f >>> VariantF.inj (SProxy :: SProxy "Note"))
-    )
-derive newtype instance functorExpr :: Functor (Expr m s)
-derive newtype instance applyExpr :: Apply (Expr m s)
-derive newtype instance applicativeExpr :: Applicative (Expr m s)
-derive newtype instance bindExpr :: Bind (Expr m s)
-derive newtype instance monadExpr :: Monad (Expr m s)
-
-instance bifoldableExpr :: Foldable m => Bifoldable (Expr m) where
-  bifoldMap f g e =
-    ( foldMap (bifoldMap f g)
-    # VariantF.on (SProxy :: SProxy "Embed") (unwrap >>> g)
-    # VariantF.on (SProxy :: SProxy "Note")
-      (\(Tuple s rest) -> f s <> bifoldMap f g rest)
-    ) $ projectW e
-  bifoldr f g c e =
-    ( foldr (\i a -> bifoldr f g a i) c
-    # VariantF.on (SProxy :: SProxy "Embed") (unwrap >>> g <@> c)
-    # VariantF.on (SProxy :: SProxy "Note")
-      (\(Tuple a rest) -> f a (bifoldr f g c rest))
-    ) $ projectW e
-  bifoldl f g c e =
-    ( foldl (\a i -> bifoldl f g a i) c
-    # VariantF.on (SProxy :: SProxy "Embed") (unwrap >>> g c)
-    # VariantF.on (SProxy :: SProxy "Note")
-      (\(Tuple a rest) -> bifoldl f g (f c a) rest)
-    ) $ projectW e
-derive newtype instance foldableExpr :: Foldable m => Foldable (Expr m s)
--- (Bi)traversable will allow running computations on the embedded data,
+derive newtype instance functorExpr :: Functor (Expr m)
+derive newtype instance applyExpr :: Apply (Expr m)
+derive newtype instance applicativeExpr :: Applicative (Expr m)
+derive newtype instance bindExpr :: Bind (Expr m)
+derive newtype instance monadExpr :: Monad (Expr m)
+derive newtype instance foldableExpr :: Foldable m => Foldable (Expr m)
+-- Traversable will allow running computations on the embedded data,
 -- e.g. using an error monad to get rid of holes, or using Aff to fill in
 -- imports (especially via URL).
-instance bitraversableExpr :: Traversable m => Bitraversable (Expr m) where
-  bisequence = bisequenceDefault
-  bitraverse f g e = map embedW $
-    ( ( traverse (bitraverse f g)
-    >>> map VariantF.expand
-      )
-    # VariantF.on (SProxy :: SProxy "Embed")
-      (unwrap >>> g >>> map (wrap >>> VariantF.inj (SProxy :: SProxy "Embed")))
-    # VariantF.on (SProxy :: SProxy "Note")
-      (\(Tuple a rest) -> Tuple <$> f a <*> bitraverse f g rest <#>
-        VariantF.inj (SProxy :: SProxy "Note")
-      )
-    ) $ projectW e
-derive newtype instance traversableExpr :: Traversable m => Traversable (Expr m s)
+derive newtype instance traversableExpr :: Traversable m => Traversable (Expr m)

@@ -19,9 +19,11 @@ derive instance eqHole :: Eq Hole
 instance showHole :: Show Hole where
   show Hole = "Hole"
 
-type InteractiveExpr v = Expr InsOrdStrMap (Set (Variant v)) (Either Import Hole)
-type Annotation =
+-- FIXME
+type InteractiveExpr (v :: # Type) = Expr InsOrdStrMap {-(Set (Variant v))-} (Either Import Hole)
+type Annotations =
   ( collapsed :: Boolean
   )
+type Annotation v = Set (Variant v)
 
-type DB = Map Import (InteractiveExpr Annotation)
+type DB = Map Import (InteractiveExpr Annotations)
