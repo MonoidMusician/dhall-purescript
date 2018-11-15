@@ -37,7 +37,7 @@ import Data.Semigroup.Foldable (class Foldable1)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Symbol (class IsSymbol)
-import Data.Traversable (class Traversable, for, traverse)
+import Data.Traversable (class Traversable, traverse)
 import Data.TraversableWithIndex (forWithIndex)
 import Data.Tuple (Tuple(..), uncurry)
 import Data.Variant (Variant)
@@ -741,57 +741,67 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
               void $ ensure (_s::S_ "Const") kind
                 (errorSimple (_s::S_ "Invalid alternative type") <<< Tuple field')
             pure $ AST.mkUnion $ term <$> kts'
-      , "Combine":
+      , "Combine": \p -> do
+          AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
+            forWithIndex p \side ty -> do
+              kalls <- { ty: _, kind: _ } <$> typecheck ty <*> kindcheck ty
+              kts <- ensure' (_s::S_ "Record") kalls.ty
+                (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
+              const <- unwrap <$> ensure' (_s::S_ "Const") kalls.kind
+                (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
+              pure { kts, const }
+          -- kind checking only needs to occur at the top level
+          -- since nested records will have the same (compatible) kinds
+          when (constL /= constR) $ errorSimple (_s::S_ "Record mismatch") unit
           let
-            -- We manually pass the type and kind down .......
-            combineTypes (p :: Pair { ty :: Expr m a, kind :: Expr m a }) = do
-              AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
-                forWithIndex p \side kalls -> do
-                  kts <- ensure' (_s::S_ "Record") kalls.ty
+            combineTypes (p' :: Pair (Expr m a)) = do
+              AST.Pair ktsL' ktsR' <-
+                forWithIndex p' \side ty -> do
+                  ensure' (_s::S_ "Record") ty
                     (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
-                  const <- unwrap <$> ensure' (_s::S_ "Const") kalls.kind
-                    (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
-                  pure { kts, const }
-              when (constL /= constR) $ errorSimple (_s::S_ "Record mismatch") unit
-              let ks = StrMapIsh.unionWith const ktsL ktsR
+              let ks = StrMapIsh.unionWith const ktsL' ktsR'
               AST.mkRecord <$> forWithIndex ks \k _ -> do
-                case StrMapIsh.get k ktsL, StrMapIsh.get k ktsR of
-                  Just ktsL', Just ktsR' ->
+                case StrMapIsh.get k ktsL', StrMapIsh.get k ktsR' of
+                  Just ktsL'', Just ktsR'' ->
                     -- TODO: scope
-                    -- HACK: assume that the kind of the subrecord is the kind of the top record
-                    combineTypes (AST.Pair { ty: ktsL', kind: AST.mkConst constL } { ty: ktsR', kind: AST.mkConst constR })
+                    combineTypes (AST.Pair ktsL'' ktsR'')
                   Nothing, Just t -> pure t
                   Just t, Nothing -> pure t
                   -- TODO: These
                   Nothing, Nothing -> errorSimple (_s::S_ "Oops") unit
-          in \p -> combineTypes =<<
-            for p \v -> { ty: _, kind: _ } <$> typecheck v <*> kindcheck v
-      , "CombineTypes":
-          let
-            -- We manually pass the type and kind down .......
-            combineTypes (p :: Pair { ty :: Expr m a, kind :: Expr m a }) = do
-              AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
-                forWithIndex p \side kalls -> do
-                  kts <- ensure' (_s::S_ "Record") kalls.ty
-                    (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
-                  const <- unwrap <$> ensure' (_s::S_ "Const") kalls.kind
-                    (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
-                  pure { kts, const }
-              when (constL /= constR) $ errorSimple (_s::S_ "Record mismatch") unit
-              let ks = StrMapIsh.unionWith const ktsL ktsR
-              forWithIndex_ ks \k _ -> do
-                case StrMapIsh.get k ktsL, StrMapIsh.get k ktsR of
-                  Just ktsL', Just ktsR' ->
-                    -- TODO: scope
-                    -- HACK: assume that the kind of the subrecord is the kind of the top record
-                    void $ combineTypes (AST.Pair { ty: ktsL', kind: AST.mkConst constL } { ty: ktsR', kind: AST.mkConst constR })
-                  Nothing, Just t -> pure unit
-                  Just t, Nothing -> pure unit
-                  -- TODO: These
-                  Nothing, Nothing -> errorSimple (_s::S_ "Oops") unit
-              pure $ AST.mkConst $ constL
-          in \p -> combineTypes =<<
-            for p \ty -> { ty: term ty, kind: _ } <$> typecheck ty
+          -- so just pass the types now
+          combineTypes =<< traverse typecheck p
+      , "CombineTypes": \p -> do
+          AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
+            forWithIndex p \side ty -> do
+              kalls <- { ty: _, kind: _ } <$> typecheck ty <*> kindcheck ty
+              kts <- ensure' (_s::S_ "Record") kalls.ty
+                (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
+              const <- unwrap <$> ensure' (_s::S_ "Const") kalls.kind
+                (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
+              pure { kts, const }
+          -- kind checking only needs to occur at the top level
+          -- since nested records will have the same (compatible) kinds
+          when (constL /= constR) $ errorSimple (_s::S_ "Record mismatch") unit
+          AST.mkConst constL <$ do
+            let
+              combineTypes (p' :: Pair (Expr m a)) = do
+                AST.Pair ktsL' ktsR' <-
+                  forWithIndex p' \side ty -> do
+                    ensure' (_s::S_ "Record") ty
+                      (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
+                let ks = StrMapIsh.unionWith const ktsL' ktsR'
+                forWithIndex_ ks \k _ -> do
+                  case StrMapIsh.get k ktsL', StrMapIsh.get k ktsR' of
+                    Just ktsL'', Just ktsR'' ->
+                      -- TODO: scope
+                      void $ combineTypes (AST.Pair ktsL'' ktsR'')
+                    Nothing, Just _ -> pure unit
+                    Just _, Nothing -> pure unit
+                    -- TODO: These
+                    Nothing, Nothing -> errorSimple (_s::S_ "Oops") unit
+            -- so just pass the types now
+            combineTypes =<< traverse typecheck p
       , "Prefer": \p -> do
           AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
             forWithIndex p \side kvs -> do
