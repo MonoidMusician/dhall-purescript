@@ -17,6 +17,7 @@ import Data.Const as Const
 import Data.Foldable (class Foldable, foldMap, for_, traverse_)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, forWithIndex_)
 import Data.Function (on)
+import Data.Functor.App (App(..))
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (FProxy, SProxy)
 import Data.Functor.Variant as VariantF
@@ -874,7 +875,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                       VariantF.on (_s::S_ "Union") handleType (\_ -> error unit)
                     _ -> error unit
           tyR # Dhall.Core.normalize # AST.projectW # casing
-      , "Project": \(Tuple ks expr) -> do
+      , "Project": \(Tuple (App ks) expr) -> do
           kts <- ensure (_s::S_ "Record") expr
             (errorSimple (_s::S_ "Cannot project"))
           -- FIXME

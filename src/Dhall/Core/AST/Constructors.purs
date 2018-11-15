@@ -1,8 +1,7 @@
 module Dhall.Core.AST.Constructors where
 
-import Prelude (class Functor, Unit, const, one, pure, unit, zero, (#), ($), (<<<))
-
 import Data.Const as ConstF
+import Data.Functor.App (App(..))
 import Data.Functor.Product (Product, product)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
@@ -14,10 +13,11 @@ import Data.Natural (Natural)
 import Data.Symbol (class IsSymbol, SProxy(..))
 import Data.Tuple (Tuple(..), swap)
 import Data.Variant.Internal (FProxy)
-import Dhall.Core.AST.Types.Basics (BindingBody(..), CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
 import Dhall.Core.AST.Types (Const(..), Expr, ExprLayerRow, Var, embedW, projectW)
+import Dhall.Core.AST.Types.Basics (BindingBody(..), CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
+import Prelude (class Functor, Unit, const, one, pure, unit, zero, (#), ($), (<<<))
 import Prim.Row as Row
 
 -- Constructors and prisms for each case of the AST
@@ -570,12 +570,14 @@ _Field = _ExprFPrism (SProxy :: SProxy "Field") <<< iso swap swap
 
 mkProject :: forall m a. Expr m a -> m Unit -> Expr m a
 mkProject expr fields = mkExprF (SProxy :: SProxy "Project")
-  (Tuple fields expr)
+  (Tuple (App fields) expr)
 
 _Project :: forall m r o. Prism'
-  (VariantF ( "Project" :: FProxy (Tuple (m Unit)) | r ) o)
+  (VariantF ( "Project" :: FProxy (Tuple (App m Unit)) | r ) o)
   (Tuple o (m Unit))
-_Project = _ExprFPrism (SProxy :: SProxy "Project") <<< iso swap swap
+_Project = _ExprFPrism (SProxy :: SProxy "Project") <<< iso
+  do \(Tuple (App a) o) -> Tuple o a
+  do \(Tuple o a) -> Tuple (App a) o
 
 mkImportAlt :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkImportAlt = mkBinOp (SProxy :: SProxy "ImportAlt")

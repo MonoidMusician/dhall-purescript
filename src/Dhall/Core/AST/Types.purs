@@ -11,6 +11,7 @@ import Data.Eq (class Eq1, eq1)
 import Data.Foldable (class Foldable, fold, foldl, foldr)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex)
 import Data.Function (on)
+import Data.Functor.App (App(..))
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
@@ -280,7 +281,7 @@ type BuiltinBinOpsI vs =
 type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
   ( "BoolIf" :: FProxy (Triplet)
   , "Field" :: FProxy (Tuple String)
-  , "Project" :: FProxy (Tuple (m Unit))
+  , "Project" :: FProxy (Tuple (App m Unit))
   , "Merge" :: FProxy (MergeF)
   , "Constructors" :: FProxy Identity
   | v
@@ -289,7 +290,7 @@ type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
 type BuiltinOps' (m :: Type -> Type) (m' :: Type -> Type) v = BuiltinBinOps' m m'
   ( "BoolIf" :: FProxy (Triplet')
   , "Field" :: FProxy (Tuple' String)
-  , "Project" :: FProxy (Tuple' (m Unit))
+  , "Project" :: FProxy (Tuple' (App m Unit))
   , "Merge" :: FProxy (MergeF')
   , "Constructors" :: FProxy Identity'
   | v
@@ -471,7 +472,7 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
       # VariantF.on (SProxy :: SProxy "Pi")
         (\(BindingBody n t b) -> "(mkPi " <> n <> t <> b <> ")")
       # VariantF.on (SProxy :: SProxy "Project")
-        (\(Tuple projs e) -> "(mkProject " <> e <> rec (show <$> projs) <> ")")
+        (\(Tuple (App projs) e) -> "(mkProject " <> e <> rec (show <$> projs) <> ")")
       # VariantF.on (SProxy :: SProxy "Record")
         (\a -> "(mkRecord " <> rec a <> ")")
       # VariantF.on (SProxy :: SProxy "RecordLit")
@@ -913,7 +914,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
 instance containerIERVF :: ContainerI String m' => ContainerI (ExprRowVFI a) (ExprRowVF' m m' a) where
   ixF (ERVF' e) = ERVFI (ixFV e)
 
-instance containerERVF :: (Ord a, Functor m', Eq1 m, Eq (m Unit), Traversable m, Container String m m') => Container (ExprRowVFI a) (ExprRowVF m a) (ExprRowVF' m m' a) where
+instance containerERVF :: (Ord a, Functor m', Eq1 m, Traversable m, Container String m m') => Container (ExprRowVFI a) (ExprRowVF m a) (ExprRowVF' m m' a) where
   downZF (ERVF e) = ERVF (downZFV e <#> _contextZF ERVF')
   upZF (a :<-: e) = ERVF (upZFV (a :<-: pure (unwrap (extract e))))
 
