@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Extend (extend)
 import Data.Array as Array
+import Data.Either (Either(..))
 import Data.Eq (class Eq1)
 import Data.Foldable (class Foldable, find, foldMap, foldl, foldr)
 import Data.FoldableWithIndex (class FoldableWithIndex)
@@ -16,6 +17,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, fromMaybe')
 import Data.Newtype (class Newtype, over, unwrap, wrap)
 import Data.Ord (class Ord1)
+import Data.These (These(..))
 import Data.Traversable (class Traversable, traverse)
 import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..), fst, snd, uncurry)
@@ -30,9 +32,15 @@ class (Ord1 m, TraversableWithIndex String m) <= StrMapIsh m where
   modify :: forall a. String -> (a -> Tuple String a) -> m a -> Maybe (m a)
   alter :: forall a. String -> (Maybe a -> Maybe a) -> m a -> m a
   delete :: forall a. String -> m a -> Maybe (m a)
-  unionWith :: forall a. (a -> a -> a) -> m a -> m a -> m a
+  unionWith :: forall a b c. (String -> These a b -> Maybe c) -> m a -> m b -> m c
   toUnfoldable :: forall f a. Unfoldable f => m a -> f (Tuple String a)
   fromFoldable :: forall f a. Foldable f => f (Tuple String a) -> m a
+
+symmetricDiff :: forall m a b. StrMapIsh m => m a -> m b -> m (Either a b)
+symmetricDiff = unionWith \_ -> case _ of
+  Both _ _ -> Nothing
+  This a -> Just (Left a)
+  That b -> Just (Right b)
 
 instance strMapMapString :: StrMapIsh (Map String) where
   empty = Map.empty
@@ -45,7 +53,17 @@ instance strMapMapString :: StrMapIsh (Map String) where
     pure $ Map.insert k' v' m'
   alter = flip Map.alter
   delete k m = Map.lookup k m $> Map.delete k m
-  unionWith = Map.unionWith
+  unionWith f ma mb =
+    let
+      combine = case _, _ of
+        This a, That b -> Both a b
+        That b, This a -> Both a b
+        Both a b, _ -> Both a b
+        This a, Both _ b -> Both a b
+        That b, Both a _ -> Both a b
+        That b, That _ -> That b
+        This a, This _ -> This a
+    in Map.mapMaybeWithKey f $ Map.unionWith combine (This <$> ma) (That <$> mb)
   toUnfoldable = Map.toUnfoldable
   fromFoldable = Map.fromFoldable
 
@@ -87,16 +105,26 @@ instance strMapIshIOSM :: StrMapIsh InsOrdStrMap where
   delete k (InsOrdStrMap (Compose as)) = wrap <<< wrap <$> do
     i <- Array.findIndex (fst >>> eq k) as
     Array.deleteAt i as
-  unionWith combine (InsOrdStrMap (Compose l')) (InsOrdStrMap (Compose r')) =
+  unionWith f (InsOrdStrMap (Compose l')) (InsOrdStrMap (Compose r')) =
     let
+      combine = case _, _ of
+        This a, That b -> Both a b
+        That b, This a -> Both a b
+        Both a b, _ -> Both a b
+        This a, Both _ b -> Both a b
+        That b, Both a _ -> Both a b
+        That b, That _ -> That b
+        This a, This _ -> This a
       l = Array.nubBy (compare `on` fst) l'
       r = Array.nubBy (compare `on` fst) r'
       inserting as (Tuple k v) = fromMaybe' (\_ -> as <> [Tuple k v]) do
         i <- Array.findIndex (fst >>> eq k) as
         Array.modifyAt i (map (combine <@> v)) as
-    in wrap $ wrap $ Array.foldl inserting l r
-  toUnfoldable = unwrap >>> unwrap >>> Array.toUnfoldable
-  fromFoldable = wrap <<< wrap <<< Array.nubBy (compare `on` fst) <<< Array.fromFoldable
+      finalize = Array.mapMaybe (\(Tuple k v) -> Tuple k <$> f k v)
+    in mkIOSM $ finalize $
+      Array.foldl inserting (map This <$> l) (map That <$> r)
+  toUnfoldable = unIOSM >>> Array.toUnfoldable
+  fromFoldable = mkIOSM <<< Array.nubBy (compare `on` fst) <<< Array.fromFoldable
 
 -- FIXME: I don't think this is what I want for this name?
 set :: forall m a. StrMapIsh m => String -> a -> m a -> Maybe (m a)

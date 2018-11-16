@@ -17,6 +17,7 @@ import Data.Natural (natToInt)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Set (Set)
 import Data.Set as Set
+import Data.These (These(..))
 import Dhall.Core.AST (AllTheThings, BuiltinBinOps, BuiltinFuncs, BuiltinOps, BuiltinTypes, BuiltinTypes2, Const(..), Expr(..), ExprRow, FunctorThings, LetF(..), Literals, Literals2, MergeF(..), Pair(..), SimpleThings, Syntax, Terminals, TextLitF(..), Triplet(..), Var(..), _Expr, _ExprF) as Dhall.Core
 import Dhall.Core.AST (Expr, LetF(..), Var(..), mkLam, mkLet, mkPi, mkVar, projectW)
 import Dhall.Core.AST as AST
@@ -359,27 +360,39 @@ normalizeWith ctx = AST.rewriteBottomUp rules where
       )
     >>> VariantF.on (_s::S_ "Combine")
       (let
+        decideThese = Just <<< case _ of
+          This a -> a
+          That b -> b
+          Both a b -> decide (AST.Pair a b)
         decide = unPair AST._RecordLit \l r -> case _, _ of
           Just a, Just b -> AST.mkRecordLit $
-            StrMapIsh.unionWith (\x y -> decide (AST.Pair x y)) a b
+            StrMapIsh.unionWith (pure decideThese) a b
           Just a, _ | StrMapIsh.isEmpty a -> r
           _, Just b | StrMapIsh.isEmpty b -> l
           _, _ -> AST.mkCombine (l) (r)
       in decide)
     >>> VariantF.on (_s::S_ "CombineTypes")
       (let
+        decideThese = Just <<< case _ of
+          This a -> a
+          That b -> b
+          Both a b -> decide (AST.Pair a b)
         decide = unPair AST._Record \l r -> case _, _ of
           Just a, Just b -> AST.mkRecord $
-            StrMapIsh.unionWith (\x y -> decide (AST.Pair x y)) a b
+            StrMapIsh.unionWith (pure decideThese) a b
           Just a, _ | StrMapIsh.isEmpty a -> r
           _, Just b | StrMapIsh.isEmpty b -> l
           _, _ -> AST.mkCombineTypes (l) (r)
       in decide)
     >>> VariantF.on (_s::S_ "Prefer")
       (let
+        preference = Just <<< case _ of
+          This a -> a
+          That b -> b
+          Both a _ -> a
         decide = unPair AST._RecordLit \l r -> case _, _ of
           Just a, Just b -> AST.mkRecordLit $
-            StrMapIsh.unionWith const a b
+            StrMapIsh.unionWith (pure preference) a b
           Just a, _ | StrMapIsh.isEmpty a -> r
           _, Just b | StrMapIsh.isEmpty b -> l
           _, _ -> AST.mkPrefer (l) (r)

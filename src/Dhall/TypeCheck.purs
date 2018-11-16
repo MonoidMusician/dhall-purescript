@@ -37,6 +37,7 @@ import Data.Semigroup.Foldable (class Foldable1)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Symbol (class IsSymbol)
+import Data.These (These(..))
 import Data.Traversable (class Traversable, traverse)
 import Data.TraversableWithIndex (forWithIndex)
 import Data.Tuple (Tuple(..), uncurry)
@@ -759,16 +760,14 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                 forWithIndex p' \side ty -> do
                   ensure' (_s::S_ "Record") ty
                     (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
-              let ks = StrMapIsh.unionWith const ktsL' ktsR'
-              AST.mkRecord <$> forWithIndex ks \k _ -> do
-                case StrMapIsh.get k ktsL', StrMapIsh.get k ktsR' of
-                  Just ktsL'', Just ktsR'' ->
+              let combined = StrMapIsh.unionWith (pure pure) ktsL' ktsR'
+              AST.mkRecord <$> forWithIndex combined \k ->
+                case _ of
+                  Both ktsL'' ktsR'' ->
                     -- TODO: scope
                     combineTypes (AST.Pair ktsL'' ktsR'')
-                  Nothing, Just t -> pure t
-                  Just t, Nothing -> pure t
-                  -- TODO: These
-                  Nothing, Nothing -> errorSimple (_s::S_ "Oops") unit
+                  This t -> pure t
+                  That t -> pure t
           -- so just pass the types now
           combineTypes =<< traverse typecheck p
       , "CombineTypes": \p -> do
@@ -790,16 +789,14 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                   forWithIndex p' \side ty -> do
                     ensure' (_s::S_ "Record") ty
                       (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
-                let ks = StrMapIsh.unionWith const ktsL' ktsR'
-                forWithIndex_ ks \k _ -> do
-                  case StrMapIsh.get k ktsL', StrMapIsh.get k ktsR' of
-                    Just ktsL'', Just ktsR'' ->
+                let combined = StrMapIsh.unionWith (pure pure) ktsL' ktsR'
+                AST.mkRecord <$> forWithIndex combined \k ->
+                  case _ of
+                    Both ktsL'' ktsR'' ->
                       -- TODO: scope
-                      void $ combineTypes (AST.Pair ktsL'' ktsR'')
-                    Nothing, Just _ -> pure unit
-                    Just _, Nothing -> pure unit
-                    -- TODO: These
-                    Nothing, Nothing -> errorSimple (_s::S_ "Oops") unit
+                      combineTypes (AST.Pair ktsL'' ktsR'')
+                    This t -> pure t
+                    That t -> pure t
             -- so just pass the types now
             combineTypes =<< traverse typecheck p
       , "Prefer": \p -> do
@@ -812,7 +809,12 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                 (errorSimple (_s::S_ "Must combine a record") <<< Tuple side)
               pure { kts, const }
           when (constL /= constR) $ errorSimple (_s::S_ "Record mismatch") unit
-          pure $ AST.mkRecord $ StrMapIsh.unionWith const ktsR ktsL
+          let
+            preference = Just <<< case _ of
+              This a -> a
+              That b -> b
+              Both a _ -> a
+          pure $ AST.mkRecord $ StrMapIsh.unionWith (pure preference) ktsR ktsL
       , "Merge": \(AST.MergeF handlers cases mty) -> do
           Pair ktsX ktsY <- Pair
             <$> ensure (_s::S_ "Record") handlers
