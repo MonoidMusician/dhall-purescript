@@ -44,31 +44,31 @@ renderCase :: forall a or. RenderValue a -> RenderVariantF' () or a
 renderCase _ = Star VariantF.case_
 
 renderOn ::
-  forall s f ir or ir' or' a h.
+  forall s f ir or ir' or' a h i.
     IsSymbol s =>
     Functor h =>
     Functor f =>
     Row.Cons s (FProxy f) ir' ir =>
     Row.Cons s (FProxy f) or' or =>
   SProxy s ->
-  (RenderValue_ h a -> RenderValue_ h (f a)) ->
-  (RenderValue_ h a -> RenderVariantF_' h ir' or' a) ->
-  (RenderValue_ h a -> RenderVariantF_' h ir or a)
+  (i -> RenderValue_ h (f a)) ->
+  (i -> RenderVariantF_' h ir' or' a) ->
+  (i -> RenderVariantF_' h ir or a)
 renderOn s h r a = Star $ VariantF.on s
   (unwrap $ map (VariantF.inj s) $ h a)
   (unwrap $ map unsafeCoerce $ r a)
 
 renderOnAnnot ::
-  forall s f ir or ir' or' a h annot.
+  forall s f ir or ir' or' a h annot i.
     IsSymbol s =>
     Functor h =>
     Functor f =>
     Row.Cons s (FProxy f) ir' ir =>
     Row.Cons s (FProxy f) or' or =>
   SProxy s ->
-  (RenderValue_ h a -> RenderValue_ h (EnvT annot f a)) ->
-  (RenderValue_ h a -> Star h (EnvT annot (VariantF ir') a) (EnvT annot (VariantF or') a)) ->
-  (RenderValue_ h a -> Star h (EnvT annot (VariantF ir) a) (EnvT annot (VariantF or) a))
+  (i -> RenderValue_ h (EnvT annot f a)) ->
+  (i -> Star h (EnvT annot (VariantF ir') a) (EnvT annot (VariantF or') a)) ->
+  (i -> Star h (EnvT annot (VariantF ir) a) (EnvT annot (VariantF or) a))
 renderOnAnnot s h r a = Star \(EnvT (Tuple annot v)) -> v #
   let
     addEnv :: forall m. m a -> EnvT annot m a
@@ -77,28 +77,47 @@ renderOnAnnot s h r a = Star \(EnvT (Tuple annot v)) -> v #
     ((>>>) addEnv $ unwrap $ map (mapEnvT (VariantF.inj s)) $ h a)
     ((>>>) addEnv $ unwrap $ map (mapEnvT unsafeCoerce) $ r a)
 
+renderOverAnnot ::
+  forall s f ir or ir' or' a h annot i.
+    IsSymbol s =>
+    Functor h =>
+    Functor f =>
+    Row.Cons s (FProxy f) ir' ir =>
+    Row.Cons s (FProxy f) or' or =>
+  SProxy s ->
+  (i -> RenderValue_ h (f a)) ->
+  (i -> Star h (EnvT annot (VariantF ir') a) (EnvT annot (VariantF or') a)) ->
+  (i -> Star h (EnvT annot (VariantF ir) a) (EnvT annot (VariantF or) a))
+renderOverAnnot s h r a = Star \(EnvT (Tuple annot v)) -> v #
+  let
+    addEnv :: forall m. m a -> EnvT annot m a
+    addEnv i = EnvT (Tuple annot i)
+  in VariantF.on s
+    (unwrap $ map (addEnv <<< VariantF.inj s) $ h a)
+    ((>>>) addEnv $ unwrap $ map (mapEnvT unsafeCoerce) $ r a)
+
 renderOnConst ::
-  forall s c ir or ir' or' a h.
+  forall s c ir or ir' or' a h i.
     IsSymbol s =>
     Functor h =>
     Row.Cons s (FProxy (Const c)) ir' ir =>
     Row.Cons s (FProxy (Const c)) or' or =>
   SProxy s ->
   (RenderValue_ h c) ->
-  (RenderValue_ h a -> RenderVariantF_' h ir' or' a) ->
-  (RenderValue_ h a -> RenderVariantF_' h ir or a)
+  (i -> RenderVariantF_' h ir' or' a) ->
+  (i -> RenderVariantF_' h ir or a)
 renderOnConst s h = renderOn s $ const $ _Newtype h
 
 renderName ::
-  forall s ir or ir' or' a h.
+  forall s ir or ir' or' a h i.
     IsSymbol s =>
     Functor h =>
     Row.Cons s UNIT ir' ir =>
     Row.Cons s UNIT or' or =>
   SProxy s ->
   (String -> h Unit) ->
-  (RenderValue_ h a -> RenderVariantF_' h ir' or' a) ->
-  (RenderValue_ h a -> RenderVariantF_' h ir or a)
+  (i -> RenderVariantF_' h ir' or' a) ->
+  (i -> RenderVariantF_' h ir or a)
 renderName s h = renderOnConst s $ Star \_ ->
   h (reflectSymbol s)
 

@@ -4,16 +4,21 @@ import Prelude
 
 import Control.Comonad (extract)
 import Control.Comonad.Env (EnvT)
+import Control.Plus (empty)
 import Data.Array as Array
 import Data.Bifunctor (bimap, lmap)
 import Data.Const (Const(..))
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
 import Data.Functor.Compose (Compose(..))
+import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (VariantF)
+import Data.FunctorWithIndex (mapWithIndex)
+import Data.Identity (Identity(..))
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
 import Data.Natural (intToNat, natToInt)
 import Data.Newtype (class Newtype, un, unwrap, wrap)
+import Data.Ord (lessThan, lessThanOrEq)
 import Data.Profunctor.Star (Star(..), hoistStar)
 import Data.Profunctor.Strong (first, second)
 import Data.Symbol (class IsSymbol, SProxy(..))
@@ -236,27 +241,35 @@ type Expandable r =
   )
 type ExpandableHTML r a = H.ComponentHTML' a (Expandable r) Aff
 
-mkRenderer :: forall e r.
+mkRenderer :: forall e r o.
+  Array (Array (SlottedHTML (Expandable r) o)) ->
   (Int -> String) ->
   String ->
   (Int -> e -> SlottedHTML (Expandable r) e) ->
-  Zuruzuru.Renderer (Expandable r) Aff Unit (Tuple String e)
-mkRenderer syntax close each = Zuruzuru.Renderer \datums { add, output } ->
+  Zuruzuru.Renderer (Expandable r) Aff (Either Unit o) (Tuple String e)
+mkRenderer prior syntax close each = Zuruzuru.Renderer \datums { add, output } ->
   HH.div [ HP.class_ $ H.ClassName "ast" ] $ pure $
   let postpend = add (Array.length datums) in
   if Array.null datums
   then HH.span_
-      [ HH.text $ syntax 0
+      [ HH.text $ syntax (-1)
       , Inputs.inline_feather_button_action (Just postpend) "plus-square"
       , HH.text close
       ]
   else HK.div [ HP.class_ $ H.ClassName "grid-container" ]
     let
-      items = datums <#> renderItems (SlottedHTML <<< HH.text <<< syntax) each output
-    in items <>
-      [ Tuple "" $ HH.div
+      items = datums <#> \r ->
+        renderItems (SlottedHTML <<< HH.text <<< syntax) each (output <<< Left)
+          (r { helpers { output = r.helpers.output <<< Left } })
+      before = prior # mapWithIndex \i e ->
+        Tuple ("before-"<>show i) $
+          HH.div
+          [ HP.class_ $ H.ClassName "row" ] $
+            un SlottedHTML <<< map (output <<< Right) <$> e
+    in before <> items <>
+      [ Tuple "last" $ HH.div
         [ HP.class_ $ H.ClassName "row" ]
-        [ Inputs.inline_feather_button_action (Just (output unit)) "minimize"
+        [ Inputs.inline_feather_button_action (Just (output (Left unit))) "minimize"
         , HH.text close
         , Inputs.inline_feather_button_action (Just postpend) "plus-square"
         ]
@@ -275,7 +288,7 @@ renderItems syntax each output { helpers, handle, info } =
     moving :: forall p i. HP.IProp ( style :: String | p ) i
     moving = HP.attr (H.AttrName "style") $
       "transform: translateY(" <> show info.offset <> "px)"
-  in Tuple info.key $ HH.div [ HP.class_ $ H.ClassName "row" ]
+  in Tuple ("item-"<>info.key) $ HH.div [ HP.class_ $ H.ClassName "row" ]
   [ Inputs.inline_feather_button_action (Just (output unit))
     if info.index == 0
     then "minimize"
@@ -314,6 +327,7 @@ annotatedF = _Newtype <<< annotated
 
 type Listicle r o e =
   ( listicle :: H.Slot (Const Void) (Either (o -> o) (IOSM.InsOrdStrMap e)) Slot
+  , "UnionLit" :: H.Slot (Const Void) (Either (Either (o -> o) (Tuple String e)) (IOSM.InsOrdStrMap e)) Slot
   | r
   )
 
@@ -336,32 +350,146 @@ zz_map_o adapt (Zuruzuru.Renderer r) = Zuruzuru.Renderer
         }
 
 type ExpandingListicle r o e = Expandable + Listicle r o e
-type RenderComplex r annot a = Star (SlottedHTML (ExpandingListicle r { collapsed :: Boolean | annot } a))
+type RenderComplex r annot a = Star
+  (SlottedHTML (ExpandingListicle r (Collapsible annot) a))
 type RenderComplexEnvT r annot a f = RenderComplex r annot a
-  (EnvT { collapsed :: Boolean | annot } f a)
-  (EnvT { collapsed :: Boolean | annot } f a)
+  (EnvT (Collapsible annot) f a)
+  (EnvT (Collapsible annot) f a)
+
+type Collapsible annot = { collapsed :: Boolean | annot }
+type Collapser annot = Collapsible annot -> Collapsible annot
+
+collapsible :: forall r annot e o.
+  SlottedHTML (ExpandingListicle r (Collapsible annot) e) Unit ->
+  Zuruzuru.Renderer (ExpandingListicle r (Collapsible annot) e) Aff
+    Unit
+    o ->
+  (Collapsible annot) ->
+  Zuruzuru.Renderer (ExpandingListicle r (Collapsible annot) e) Aff
+    (Collapser annot)
+    o
+collapsible collapsed renderer annot =
+  zz_map_o collapse $
+    if not annot.collapsed then renderer else
+      Zuruzuru.Renderer \_ { output } ->
+        un SlottedHTML $ output <$> collapsed
+  where collapse _ r = r { collapsed = not r.collapsed }
+
+renderIOSM :: forall a r annot.
+  a -> Slot ->
+  String -> String -> String -> String ->
+  (Slot -> RenderComplex r annot a a a) ->
+  RenderComplexEnvT r annot a IOSM.InsOrdStrMap
+renderIOSM default slot pre rel sep post renderA =
+  let
+    renderer = zz_map_o (either identity absurd) $
+      mkRenderer empty ((_ `lessThanOrEq` 0) >>> if _ then pre else sep) post \i -> unwrap (renderA [show i])
+    collapsed = SlottedHTML $ HH.span_
+      [ HH.text pre
+      , Inputs.inline_feather_button_action (Just unit) "maximize"
+      , HH.text post
+      ]
+  in listicleSlot default (collapsible collapsed renderer) slot
+  where
+    -- slots reset inside component
+    newSlot = mempty
 
 renderBuiltinTypes2 ::
   forall ir a r annot.
   { default :: a } ->
   Slot ->
-  (RenderComplex r annot a a a -> RenderComplexEnvT r annot a (VariantF ir)) ->
-  (RenderComplex r annot a a a -> RenderComplexEnvT r annot a (VariantF (AST.BuiltinTypes2 IOSM.InsOrdStrMap ir)))
+  ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF ir)) ->
+  ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF (AST.BuiltinTypes2 IOSM.InsOrdStrMap ir)))
 renderBuiltinTypes2 { default } slot = identity
-  >>> Types.renderOnAnnot (_s::S_ "Record") (renderIOSM "{" ":" "," "}")
-  >>> Types.renderOnAnnot (_s::S_ "Union") (renderIOSM "<" ":" "|" ">")
+  >>> Types.renderOnAnnot (_s::S_ "Record") (renderIOSM default slot "{" ":" "," "}")
+  >>> Types.renderOnAnnot (_s::S_ "Union") (renderIOSM default slot "<" ":" "|" ">")
+
+renderLiterals2 ::
+  forall ir a r annot.
+  { default :: a } ->
+  Slot ->
+  ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF ir)) ->
+  ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF (AST.Literals2 IOSM.InsOrdStrMap ir)))
+renderLiterals2 { default } slot = identity
+  >>> Types.renderOverAnnot (_s::S_ "None")
+    (const $ Star $ const $ SlottedHTML $ HH.text "None")
+  >>> Types.renderOverAnnot (_s::S_ "Some") renderSome
+    -- FIXME: empty case will look like {} instead of {=}
+  >>> Types.renderOnAnnot (_s::S_ "RecordLit") (renderIOSM default slot "{" "=" "," "}")
+  >>> Types.renderOnAnnot (_s::S_ "UnionLit") renderUnionLit
+  >>> Types.renderOnAnnot (_s::S_ "OptionalLit") renderOptionalLit
+  >>> Types.renderOnAnnot (_s::S_ "ListLit")
+    (const $ Star $ const $ SlottedHTML $ HH.text "Sorry, not implemented yet")
+  >>> Types.renderOnAnnot (_s::S_ "TextLit")
+    (const $ Star $ const $ SlottedHTML $ HH.text "Sorry, not implemented yet")
   where
-    renderIOSM pre rel sep post renderA =
-      let
-        renderer = mkRenderer (eq 0 >>> if _ then pre else sep) post \_ -> unwrap renderA
-        collapsed :: forall s io. Zuruzuru.Renderer s Aff Unit io
-        collapsed = Zuruzuru.Renderer \_ { output } -> HH.span_
-          [ HH.text pre
-          , Inputs.inline_feather_button_action (Just (output unit)) "plus-square"
-          , HH.text post
+    renderSome = \renderA -> Star \(Identity a) -> map Identity $ SlottedHTML $
+      HH.span_ [ HH.text "Some", HH.text " ", unwrap (unwrap (renderA slot) a) ]
+    renderOptionalLit ::
+      (Slot -> RenderComplex r annot a a a) ->
+      RenderComplexEnvT r annot a (Product Identity Maybe)
+    renderOptionalLit renderA = annotatedF $ \annot -> Star \(Product (Tuple (Identity ty) ma)) ->
+      SlottedHTML $ HH.span_ $ join
+        [ [ HH.text "[" ]
+        , case ma of
+            Nothing ->
+              let added = Product (Tuple (Identity ty) (Just default)) in
+              [ Inputs.inline_feather_button_action (Just (Right added)) "plus-square"
+              ]
+            Just a ->
+              let removed = Product (Tuple (Identity ty) Nothing) in
+              [ HH.text " "
+              , unwrap $ unwrap (renderA (slot <> ["OptionalLit value"])) a
+                  <#> Right <<< \a' -> Product (Tuple (Identity ty) (Just a'))
+              , HH.text " "
+              , Inputs.inline_feather_button_action (Just (Right removed)) "minus-square"
+              , HH.text " "
+              ]
+        , [ HH.text "]" ]
+        , [ HH.text " : " ]
+        , [ HH.text "Optional " ]
+        , [ unwrap $ unwrap (renderA (slot <> ["OptionalLit type"])) ty
+              <#> Right <<< \ty' -> Product (Tuple (Identity ty') ma)
           ]
-        annotatedRenderer annot =
-          if not annot.collapsed then renderer
-          else collapsed
-        collapse _ r = r { collapsed = not r.collapsed }
-      in listicleSlot default (zz_map_o collapse <<< annotatedRenderer) slot
+        ]
+    renderUnionLit ::
+      (Slot -> RenderComplex r annot a a a) ->
+      RenderComplexEnvT r annot a (Product (Tuple String) IOSM.InsOrdStrMap)
+    renderUnionLit renderA = annotatedF $ \annot -> Star \(Product (Tuple (Tuple label a) tys)) ->
+      let
+        renderer =
+          zz_map_o (lmap collapse) $
+            if not annot.collapsed then openRenderer else
+              Zuruzuru.Renderer \_ { output } ->
+                un SlottedHTML $ output <$> collapsed
+          where collapse (_ :: Unit) r = r { collapsed = not r.collapsed :: Boolean }
+
+        adapt (Left (Left l)) = Left l
+        adapt (Left (Right (Tuple label' a'))) =
+          Right (Product (Tuple (Tuple label' a') tys))
+        adapt (Right tys') =
+          Right (Product (Tuple (Tuple label a) tys'))
+
+        slotted = map adapt $ SlottedHTML $
+          HH.slot (SProxy :: SProxy "UnionLit") slot listicle
+            (Tuple { default, renderer } tys) pure
+        openRenderer = mkRenderer [firstLine] ((_ `lessThan` 0) >>> if _ then "|" else "|") ">" \i -> unwrap (renderA [show i])
+        collapsed = SlottedHTML $ HH.span_
+          [ HH.text "<"
+          , Inputs.inline_feather_button_action (Just (Left unit)) "maximize"
+          , HH.text ">"
+          ]
+        firstLine = SlottedHTML <$>
+          [ HH.div_ []
+          , HH.div_ [ HH.text "<" ]
+          , HH.div_ []
+          , HH.div_ []
+          , HH.span [ HP.class_ (H.ClassName "input-parent") ]
+            [ HH.slot (SProxy :: SProxy "expanding") []
+                (Inputs.expanding HP.InputText) label
+                (Just <<< (Tuple <@> a))
+            , un SlottedHTML $ unwrap (renderA [""]) a <#>
+                (Tuple label)
+            ]
+          ]
+      in slotted
