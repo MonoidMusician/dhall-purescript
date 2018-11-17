@@ -56,6 +56,13 @@ instance functorSlottedHTML :: Functor (SlottedHTML a) where
     mapSlot (HC.ThunkSlot s) = HC.ThunkSlot $ Thunk.hoist (lmap mapSlot) $ map f s
 derive instance newtypeSlottedHTML :: Newtype (SlottedHTML a o) _
 
+expanding :: forall o r. Slot -> String -> (String -> o) ->
+  SlottedHTML (Expandable r) o
+expanding slot value inj = SlottedHTML $
+  HH.slot (SProxy :: SProxy "expanding") (slot <> ["label"])
+    (Inputs.expanding HP.InputText) value
+    (Just <<< inj)
+
 renderLiterals ::
   forall i h ir or m a r. Functor h =>
   (SlottedHTML r ~> h) ->
@@ -115,23 +122,24 @@ renderBuiltinFuncs render = identity
 
 renderTerminals ::
   forall i h ir or m a r. Functor h =>
-  (SlottedHTML r ~> h) ->
+  (SlottedHTML (Expandable r) ~> h) ->
+  Slot ->
   (i -> RenderVariantF_' h ir or a) ->
   (i -> RenderVariantF_' h (AST.Terminals m ir) (AST.Terminals m or) a)
-renderTerminals render = identity
+renderTerminals render slot = identity
   >>> Types.renderOnConst (_s::S_ "Const")
     (Star case _ of
       AST.Type -> render (wrap (HH.text "Type")) $> AST.Type
       AST.Kind -> render (wrap (HH.text "Kind")) $> AST.Kind
     )
   >>> Types.renderOnConst (_s::S_ "Var")
-    (Star \(AST.V name ix) ->
-      let
-        Tuple name' ix' =
-          Tuple name (intToNat ix) #
-            Types.renderProd Types.stringH Types.naturalH
-      in render (wrap $ HH.span_ [ name', HH.text "@", ix' ]) <#>
-        \(Tuple name'' ix'') -> AST.V name'' (natToInt ix'')
+    (Star \(AST.V name ix) -> render $ SlottedHTML $
+      HH.span_
+        [ un SlottedHTML $ expanding slot name \name' -> AST.V name' ix
+        , HH.text "@"
+        , unwrap Types.naturalH (intToNat ix)
+          <#> \ix' -> AST.V name (natToInt ix')
+        ]
     )
 
 type LiftA2 f g = forall a b c.
@@ -736,12 +744,6 @@ renderSyntax { default } slot = identity
   >>> Types.renderOverAnnot (_s::S_ "Pi") (renderBindingBody "∀")
   >>> Types.renderOnAnnot (_s::S_ "Let") renderLet
   where
-    expanding :: forall o. String -> (String -> o) ->
-      SlottedHTML (ExpandingListicle r (Collapsible annot) a) o
-    expanding value inj = SlottedHTML $
-      HH.slot (SProxy :: SProxy "expanding") (slot <> ["label"])
-        (Inputs.expanding HP.InputText) value
-        (Just <<< inj)
     renderBindingBody ::
       String ->
       (Slot -> RenderComplex r annot a a a) ->
@@ -751,7 +753,7 @@ renderSyntax { default } slot = identity
         HH.span_
           [ HH.text syntax
           , HH.text "("
-          , un SlottedHTML $ expanding name \name' -> AST.BindingBody name' ty body
+          , un SlottedHTML $ expanding slot name \name' -> AST.BindingBody name' ty body
           , HH.text " : "
           , unwrap $ unwrap (renderA (slot <> ["ty"])) ty
             <#> \ty' -> AST.BindingBody name ty' body
@@ -770,7 +772,7 @@ renderSyntax { default } slot = identity
           Nothing ->
             HH.span_
               [ HH.text "let "
-              , un SlottedHTML $ expanding name \name' -> Right $ AST.LetF name' mty value body
+              , un SlottedHTML $ expanding slot name \name' -> Right $ AST.LetF name' mty value body
               , Inputs.inline_feather_button_action (Just (Right (AST.LetF name (Just default) value body))) "type"
               , HH.text " = "
               , unwrap $ unwrap (renderA (slot <> ["value"])) value
@@ -782,7 +784,7 @@ renderSyntax { default } slot = identity
           Just ty ->
             HH.span_
               [ HH.text "let "
-              , un SlottedHTML $ expanding name \name' -> Right $ AST.LetF name' mty value body
+              , un SlottedHTML $ expanding slot name \name' -> Right $ AST.LetF name' mty value body
               , HH.text " : "
               , unwrap $ unwrap (renderA (slot <> ["ty"])) ty
                 <#> \ty' -> Right $ AST.LetF name (Just ty') value body
@@ -797,12 +799,12 @@ renderSyntax { default } slot = identity
 
 renderSimpleThings ::
   forall r a i m.
-  i -> Types.RenderVariantF_ (SlottedHTML r) (AST.SimpleThings m ()) a
-renderSimpleThings = Types.renderCase
+  Slot -> i -> Types.RenderVariantF_ (SlottedHTML (Expandable r)) (AST.SimpleThings m ()) a
+renderSimpleThings slot = Types.renderCase
   # renderLiterals identity
   # renderBuiltinTypes identity
   # renderBuiltinFuncs identity
-  # renderTerminals identity
+  # renderTerminals identity slot
 
 renderFunctorThings ::
   forall r a annot.
@@ -827,7 +829,7 @@ renderAllTheThings ::
   RenderComplexEnvT r annot a (VariantF (AST.AllTheThings IOSM.InsOrdStrMap ()))
 renderAllTheThings { default } slot =
   overEnvT
-  ( renderSimpleThings
+  ( renderSimpleThings slot
   # renderBuiltinOps { default } slot
   )
   # renderLiterals2 { default } slot
