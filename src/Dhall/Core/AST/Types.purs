@@ -30,6 +30,7 @@ import Data.Variant (Variant)
 import Data.Variant.Internal (FProxy)
 import Dhall.Core.AST.Types.Basics (BindingBody(..), BindingBody', BindingBodyI, CONST, LetF(..), LetF', LetFI, MergeF(..), MergeF', MergeFI, Pair(..), Pair', PairI, TextLitF(..), TextLitF', TextLitFI, Triplet(..), Triplet', TripletI, UNIT, VOID)
 import Dhall.Core.Zippers (class Container, class ContainerI, Array', ArrayI, Identity', IdentityI, Maybe', MaybeI, Product', ProductI, Tuple', TupleI, _contextZF, downZFV, ixFV, mapWithIndexV, upZFV, (:<-:))
+import Dhall.Core.Zippers.Recursive (ZRec, Indices)
 import Matryoshka (class Corecursive, class Recursive, cata, embed, project)
 import Prim.Row as Row
 import Type.Row (type (+))
@@ -382,7 +383,7 @@ type ExprLayerRow' m m' a =
   AllTheThings' m m'
     ( "Embed" :: VOID
     )
-type ExprLayerRowI a =
+type ExprLayerRowI =
   AllTheThingsI
     ( "Embed" :: Void
     )
@@ -390,7 +391,7 @@ type ExprLayerRowI a =
 -- (This has a newtype in ExprRowVF)
 type ExprLayerF m a = VariantF (ExprLayerRow m a)
 type ExprLayerF' m m' a = VariantF (ExprLayerRow' m m' a)
-type ExprLayerFI a = Variant (ExprLayerRowI a)
+type ExprLayerFI = Variant ExprLayerRowI
 -- The same, but applied to Expr (this is isomorphic to Expr itself)
 type ExprLayer m a = (ExprLayerF m a) (Expr m a)
 
@@ -402,6 +403,9 @@ type ExprLayer m a = (ExprLayerF m a) (Expr m a)
 -- terminals (e.g. imports), which can be mapped and applied and traversed over.
 newtype Expr m a = Expr (Free (VariantF (ExprRow m)) a)
 derive instance newtypeExpr :: Newtype (Expr m a) _
+
+type Expr' m m' a = ZRec (ExprRowVF' m m' a) (Expr m a)
+type ExprI = Indices ExprLayerFI
 
 -- Give Expr its own Recursive instance with ExprRowVF (a newtype of ExprLayerF)
 instance recursiveExpr :: Recursive (Expr m a) (ExprRowVF m a) where
@@ -614,17 +618,18 @@ derive instance newtypeERVF' :: Newtype (ExprRowVF' m m' a b) _
 derive newtype instance functorERVF' :: Functor (ExprRowVF' m m' a)
 derive newtype instance foldableERVF' :: (Foldable m, Foldable m') => Foldable (ExprRowVF' m m' a)
 derive newtype instance traversableERVF' :: (Traversable m, Traversable m') => Traversable (ExprRowVF' m m' a)
-newtype ExprRowVFI a = ERVFI (ExprLayerFI a)
-derive instance newtypeERVFI :: Newtype (ExprRowVFI a) _
-derive newtype instance eqERVFI :: (Eq a) => Eq (ExprRowVFI a)
-derive newtype instance ordERVFI :: (Ord a) => Ord (ExprRowVFI a)
-instance functorWithIndexERVF :: FunctorWithIndex String m => FunctorWithIndex (ExprRowVFI a) (ExprRowVF m a) where
+newtype ExprRowVFI = ERVFI ExprLayerFI
+derive instance newtypeERVFI :: Newtype ExprRowVFI _
+derive newtype instance eqERVFI :: Eq ExprRowVFI
+derive newtype instance ordERVFI :: Ord ExprRowVFI
+
+instance functorWithIndexERVF :: FunctorWithIndex String m => FunctorWithIndex ExprRowVFI (ExprRowVF m a) where
   mapWithIndex f (ERVF v) = ERVF (mapWithIndexV (f <<< ERVFI) v)
-instance foldableWithIndexERVF :: (FunctorWithIndex String m, FoldableWithIndex String m) => FoldableWithIndex (ExprRowVFI a) (ExprRowVF m a) where
+instance foldableWithIndexERVF :: (FunctorWithIndex String m, FoldableWithIndex String m) => FoldableWithIndex ExprRowVFI (ExprRowVF m a) where
   foldrWithIndex f z = foldr (\(Tuple i a) z' -> f i a z') z <<< mapWithIndex Tuple
   foldlWithIndex f z = foldl (\z' (Tuple i a) -> f i z' a) z <<< mapWithIndex Tuple
   foldMapWithIndex f = fold <<< mapWithIndex f
-instance traversableWithIndexERVF :: TraversableWithIndex String m => TraversableWithIndex (ExprRowVFI a) (ExprRowVF m a) where
+instance traversableWithIndexERVF :: TraversableWithIndex String m => TraversableWithIndex ExprRowVFI (ExprRowVF m a) where
   traverseWithIndex f = sequence <<< mapWithIndex f
 
 instance eqExprRowVF :: (Eq1 m, Eq a, Eq b) => Eq (ExprRowVF m a b) where
@@ -911,10 +916,10 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (SProxy :: SProxy "Var")
     ) e1 e2
 
-instance containerIERVF :: ContainerI String m' => ContainerI (ExprRowVFI a) (ExprRowVF' m m' a) where
+instance containerIERVF :: ContainerI String m' => ContainerI ExprRowVFI (ExprRowVF' m m' a) where
   ixF (ERVF' e) = ERVFI (ixFV e)
 
-instance containerERVF :: (Ord a, Functor m', Eq1 m, Traversable m, Container String m m') => Container (ExprRowVFI a) (ExprRowVF m a) (ExprRowVF' m m' a) where
+instance containerERVF :: (Ord a, Functor m', Eq1 m, Traversable m, Container String m m') => Container ExprRowVFI (ExprRowVF m a) (ExprRowVF' m m' a) where
   downZF (ERVF e) = ERVF (downZFV e <#> _contextZF ERVF')
   upZF (a :<-: e) = ERVF (upZFV (a :<-: pure (unwrap (extract e))))
 

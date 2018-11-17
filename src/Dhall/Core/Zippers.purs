@@ -21,7 +21,7 @@ import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.FunctorWithIndex as FunctorWithIndex
 import Data.Identity (Identity(..))
 import Data.Lazy (Lazy, defer)
-import Data.Lens (Lens, Lens', Prism', elementsOf, firstOf, iso, lens, prism', re)
+import Data.Lens (Lens, Lens', Prism', Traversal', elementsOf, firstOf, iso, lens, prism', re)
 import Data.Lens.Indexed (itraversed, unIndex)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Map (Map)
@@ -40,8 +40,8 @@ import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Core.StrMapIsh (InsOrdStrMap(..), mkIOSM, unIOSM)
 import Partial.Unsafe (unsafePartial)
-import Type.Row (RLProxy(..), Nil)
 import Prim.RowList as RL
+import Type.Row (RLProxy(..), Nil)
 import Type.Row as Row
 
 {-
@@ -228,9 +228,13 @@ instance comonadZF :: Container i f f' => Comonad (ZF f) where
 ixZF :: forall i f x. ContainerI i f => ZF f x -> i
 ixZF (_ :<-: z) = ixF (extract z)
 
+-- Target an element by index
+_ix :: forall i f x. TraversableWithIndex i f => Eq i => i -> Traversal' (f x) x
+_ix i = unIndex $ elementsOf itraversed $ eq i
+
 -- Lookup a zipper by its index in the functor
 previewIndexZF :: forall i f f' x. Container i f f' => i -> f x -> Maybe (ZF f' x)
-previewIndexZF i = firstOf (unIndex $ elementsOf itraversed $ eq i) <<< downZF
+previewIndexZF i = firstOf (_ix i) <<< downZF
 
 unsafeGetIndexZF :: forall i f f' x. Container i f f' => Partial => i -> f x -> ZF f' x
 unsafeGetIndexZF i f = fromJust $ previewIndexZF i f

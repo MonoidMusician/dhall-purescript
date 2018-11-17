@@ -8,11 +8,12 @@ import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree (Cofree, hoistCofree)
 import Control.Comonad.Cofree as Cofree
 import Control.Comonad.Env (EnvT(..))
-import Control.Monad.Reader (ReaderT(..), runReaderT)
-import Control.Monad.Writer (WriterT)
+import Control.Monad.Reader (ReaderT(..), mapReaderT, runReaderT)
+import Control.Monad.Writer (WriterT, mapWriterT)
 import Control.Plus (empty)
 import Data.Array as Array
 import Data.Array.NonEmpty as NEA
+import Data.Bifunctor (lmap)
 import Data.Const as Const
 import Data.Foldable (class Foldable, foldMap, for_, traverse_)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, forWithIndex_)
@@ -23,6 +24,7 @@ import Data.Functor.Variant (FProxy, SProxy)
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Identity (Identity(..))
+import Data.Lazy (Lazy)
 import Data.List (List)
 import Data.List as List
 import Data.List.NonEmpty as NEL
@@ -47,7 +49,7 @@ import Dhall.Context (Context)
 import Dhall.Context as Dhall.Context
 import Dhall.Core (S_, _s)
 import Dhall.Core as Dhall.Core
-import Dhall.Core.AST (Const(..), Expr, Pair(..))
+import Dhall.Core.AST (Const(..), Expr, ExprRowVFI(..), Pair(..))
 import Dhall.Core.AST as AST
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
@@ -87,12 +89,20 @@ suggest a = (<<<) wrap $ unwrap >>> case _ of
 
 newtype TypeCheckError r m a = TypeCheckError
   -- The main location where the typechecking error occurred
-  { location :: List (AST.ExprRowVFI a)
+  { location :: Focus m a
   -- The explanation, given as text interspersed with specific places to look at
   -- (for the user to read)
   , explanation :: AST.TextLitF (Focus m a)
   -- The tag for the specific error, mostly for machine purposes
   , tag :: Variant r
+  }
+
+mapFocus :: forall r m a m' a'.
+  (Focus m a -> Focus m' a') ->
+  TypeCheckError r m a -> TypeCheckError r m' a'
+mapFocus f (TypeCheckError e) = TypeCheckError $ e
+  { location = f e.location
+  , explanation = map f e.explanation
   }
 
 errorSimple ::
@@ -103,7 +113,7 @@ errorSimple ::
   t ->
   Feedback w r m a b
 errorSimple sym v = V.liftW $ V.erroring $ TypeCheckError
-  { location: empty
+  { location: MainExpression
   , explanation: AST.TextLit ""
   , tag: Variant.inj sym v
   }
@@ -117,7 +127,7 @@ noteSimple ::
   Maybe b ->
   Feedback w r m a b
 noteSimple sym v = (<<<) V.liftW $ V.note $ TypeCheckError
-  { location: empty
+  { location: MainExpression
   , explanation: AST.TextLit ""
   , tag: Variant.inj sym v
   }
@@ -125,8 +135,10 @@ noteSimple sym v = (<<<) V.liftW $ V.note $ TypeCheckError
 -- An expression for the user to look at when an error occurs, giving
 -- specific context for what went wrong.
 data Focus m a
-  -- Atomic: Pointer to a focus in the original tree
-  = ExistingFocus (List (AST.ExprRowVFI a))
+  -- Atomic: The original tree being typechecked
+  = MainExpression
+  -- Derived: Pointer to a focus within the prior focus
+  | FocusWithin (Lazy ExprRowVFI) (Focus m a)
   -- Derived: Point to the type of another focus
   | TypeOfFocus (Focus m a)
   -- Atomic: A new expression, whose origin is shrouded in mystery ...
@@ -370,11 +382,15 @@ typeWithA :: forall w r m a.
 typeWithA tpa = flip $ compose runReaderT $ recursor $
   let
     -- Tag each error/warning with the index at which it occurred, recursively
-    indexFeedback = identity
-    -- mapWithIndex (map <<< map <<< V.scoped (_s::S_ "Within"))
+    indexFeedback :: ExprRowVFI -> FeedbackE w r m a ~> FeedbackE w r m a
+    indexFeedback i =
+      mapWriterT (lmap (mapFocus (FocusWithin (pure i))))
+    -- TODO: is this right?
+    indexFeedbackCF :: CtxShallotE w r m a -> CtxShallotE w r m a
+    indexFeedbackCF = hoistCofree (mapReaderT (mapWriterT (lmap (mapFocus TypeOfFocus))))
   in
   -- Before we pass it to the handler below, tag indices and then unwrap it
-  (>>>) indexFeedback $
+  (>>>) (mapWithIndex (\i -> indexFeedbackCF <<< hoistCofree (mapReaderT (indexFeedback i)))) $
   (>>>) unwrap $
   let
     ensure' :: forall sym f r'.
@@ -765,7 +781,8 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                 case _ of
                   Both ktsL'' ktsR'' ->
                     -- TODO: scope
-                    combineTypes (AST.Pair ktsL'' ktsR'')
+                    indexFeedback (ERVFI (Variant.inj (_s::S_ "Record") k)) $
+                      combineTypes (AST.Pair ktsL'' ktsR'')
                   This t -> pure t
                   That t -> pure t
           -- so just pass the types now
@@ -794,7 +811,8 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                   case _ of
                     Both ktsL'' ktsR'' ->
                       -- TODO: scope
-                      combineTypes (AST.Pair ktsL'' ktsR'')
+                      indexFeedback (ERVFI (Variant.inj (_s::S_ "Record") k)) $
+                        combineTypes (AST.Pair ktsL'' ktsR'')
                     This t -> pure t
                     That t -> pure t
             -- so just pass the types now

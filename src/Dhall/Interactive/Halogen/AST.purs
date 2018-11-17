@@ -642,8 +642,9 @@ renderLiterals2 { default } slot = identity
         slotted = map adapt $ SlottedHTML $
           HH.slot (SProxy :: SProxy "UnionLit") slot listicleIOSM
             (Tuple { default, renderer: renderer } tys) pure
+        -- FIXME: first line doesn't display when empty
         openRenderer = mkIOSMRenderer [firstLine]
-          ((_ `lessThan` 0) >>> if _ then "|" else "|") ">" ":"
+          ((_ `lessThan` 0) >>> if _ then "|" else "|") ":" ">"
           \k -> unwrap (renderA [k])
         collapsed = SlottedHTML $ HH.span_
           [ HH.text "<"
@@ -659,6 +660,7 @@ renderLiterals2 { default } slot = identity
             [ HH.slot (SProxy :: SProxy "expanding") []
                 (Inputs.expanding HP.InputText) label
                 (Just <<< (Tuple <@> a))
+            , HH.text "="
             , un SlottedHTML $ unwrap (renderA [""]) a <#>
                 (Tuple label)
             ]
