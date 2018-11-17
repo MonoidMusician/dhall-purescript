@@ -40,7 +40,7 @@ type RenderValue' = Star (HH.HTML Void)
 type RenderVariantF r a = RenderVariantF' r r a
 type RenderVariantF' ir or a = RenderValue' (VariantF ir a) (VariantF or a)
 
-renderCase :: forall a or. RenderValue a -> RenderVariantF' () or a
+renderCase :: forall i h a or. i -> Star h (VariantF () a) (VariantF or a)
 renderCase _ = Star VariantF.case_
 
 renderOn ::

@@ -2,7 +2,9 @@ module Dhall.Core.AST.Types.Basics where
 
 import Prelude
 
+import Control.Alt (class Alt, (<|>))
 import Control.Comonad (extract)
+import Control.Plus (class Plus)
 import Data.Const as ConstF
 import Data.Eq (class Eq1)
 import Data.Foldable (class Foldable, foldMap, foldl, foldr)
@@ -502,3 +504,17 @@ instance containerBindingBody :: Container (Boolean) BindingBody BindingBody' wh
 instance containerIBindingBody :: ContainerI (Boolean) BindingBody' where
   ixF (BindingBody0 _ _) = false
   ixF (BindingBody1 _ _) = true
+
+--------------------------------------------------
+-- | Additional instances for above datatypes | --
+--------------------------------------------------
+instance altTextLitF :: Alt TextLitF where
+  alt (TextLit s0) (TextLit s1) = TextLit (s0 <> s1)
+  alt (TextLit s0) (TextInterp s1 a1 l1) = TextInterp (s0 <> s1) a1 l1
+  alt (TextInterp s0 a0 l0) l1 = TextInterp s0 a0 (l0 <|> l1)
+instance plusTextLitF :: Plus TextLitF where
+  empty = TextLit mempty
+instance semigroupTextLitF :: Semigroup (TextLitF a) where
+  append = (<|>)
+instance monoidTextLitF :: Monoid (TextLitF a) where
+  mempty = TextLit mempty
