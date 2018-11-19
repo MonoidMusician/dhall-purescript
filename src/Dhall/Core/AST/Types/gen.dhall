@@ -346,9 +346,10 @@ in  let build_function2 =
                 )
                 ""
 
-in  let all_bindings
-        : ADT_case → Text
-        =   λ(case : ADT_case)
+in  let all_bindings_suffixed
+        : Text → ADT_case → Text
+        =   λ(suffix : Text)
+          → λ(case : ADT_case)
           →     case.name
             ++  List/foldl
                 { ix : Natural, arg : ADT_arg }
@@ -358,13 +359,16 @@ in  let all_bindings
                   → λ(arg : { ix : Natural, arg : ADT_arg })
                   → merge
                     { Const =
-                        λ(t : Const) → r ++ " " ++ t.name
+                        λ(t : Const) → r ++ " " ++ t.name ++ suffix
                     , Param =
-                        λ(p : Param) → r ++ " " ++ "a" ++ Natural/show arg.ix
+                          λ(p : Param)
+                        → r ++ " " ++ "a" ++ Natural/show arg.ix ++ suffix
                     }
                     arg.arg
                 )
                 ""
+
+in  let all_bindings = all_bindings_suffixed ""
 
 in  let param_bindings
         : ADT_case → Text
@@ -667,6 +671,54 @@ in  let traverseWithIndex
               
               else  "f " ++ p.index ++ " "
           )
+
+in  let diffWith =
+            λ(adt : ADT)
+          →     build_function2
+                Text
+                True
+                ""
+                (   λ(ix : Natural)
+                  → λ(r : Text)
+                  → λ(c : Const)
+                  →     r
+                    ++  " <*> (if "
+                    ++  c.name
+                    ++  "_l == "
+                    ++  c.name
+                    ++  "_r then Just "
+                    ++  c.name
+                    ++  "_l else Nothing)"
+                )
+                (   λ(ix : Natural)
+                  → λ(r : Text)
+                  → λ(p : Param)
+                  →     r
+                    ++  " <*> "
+                    ++  (if is_functor p then "(mergeWith " else "Just (")
+                    ++  "f a"
+                    ++  Natural/show ix
+                    ++  "_l a"
+                    ++  Natural/show ix
+                    ++  "_r)"
+                )
+                (   λ(case : ADT_case)
+                  → λ(r : { ix : Natural, value : Text })
+                  →     "  mergeWith f ("
+                    ++  all_bindings_suffixed "_l" case
+                    ++  ") ("
+                    ++  all_bindings_suffixed "_r" case
+                    ++  ") = pure "
+                    ++  case.name
+                    ++  r.value
+                )
+                adt
+            ++  (       if le 2 (List/length ADT_case adt.cases)
+                  
+                  then  "  mergeWith _ _ _ = Nothing"
+                  
+                  else  ""
+                )
 
 in  let declarate
         : ADT → Text
@@ -1189,6 +1241,11 @@ in  let instantiate =
                 ++  newline
                 ++  derivateFunctor "ord1" "Ord1" adt.type
                 ++  newline
+                ++  "type "
+                ++  adt.type
+                ++  "I = "
+                ++  adt.index
+                ++  newline
                 ++  render_simple_instance "functor" "Functor" [ map ] adt
                 ++  render_indexed_instance
                     "functorWithIndex"
@@ -1215,6 +1272,7 @@ in  let instantiate =
                     "TraversableWithIndex"
                     [ traverseWithIndex ]
                     adt
+                ++  render_simple_instance "merge" "Merge" [ diffWith ] adt
                 ++  newline
                 ++  differentiate adt
                 ++  newline
@@ -1237,6 +1295,7 @@ in  let instantiate =
                     "Traversable"
                     [ traverse, sequence ]
                     deriv
+                ++  render_simple_instance "merge" "Merge" [ diffWith ] deriv
                 ++  render_indexed_derivative_instance
                     "container"
                     "Container"
@@ -1436,6 +1495,31 @@ in  let Test
               "Test"
           , index =
               "Maybe Boolean"
+          }
+
+in  let NonEmpty
+        : ADT
+        = { cases =
+              [ { name =
+                    "NonEmpty"
+                , args =
+                    [ param "Nothing"
+                    , < Param =
+                          { functor =
+                              < F = { type = "f" } | I : {} >
+                          , index =
+                              "Just"
+                          }
+                      | Const :
+                          Const
+                      >
+                    ]
+                }
+              ]
+          , type =
+              "NonEmpty f"
+          , index =
+              "(Maybe i)"
           }
 
 in  instantiate_all [ Pair, Triplet, TextLitF, MergeF, LetF, BindingBody ]

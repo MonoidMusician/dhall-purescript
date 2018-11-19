@@ -11,13 +11,14 @@ import Data.Foldable (class Foldable, foldMap, foldl, foldr)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, foldlWithIndex, foldrWithIndex)
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Lazy (defer)
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
 import Data.Ord (class Ord1)
 import Data.Traversable (class Traversable, sequence, traverse)
 import Data.TraversableWithIndex (class TraversableWithIndex, traverseWithIndex)
 import Data.Variant.Internal (FProxy)
 import Dhall.Core.Zippers (class Container, class ContainerI, Maybe', _contextZF', downZF, ixF, upZF, (:<-:))
+import Dhall.Core.Zippers.Merge (class Merge, mergeWith)
 
 -- This file defines basic functor types used in the AST definition
 
@@ -66,6 +67,9 @@ instance traversablePair :: Traversable Pair where
 instance traversableWithIndexPair :: TraversableWithIndex (Boolean) Pair where
   traverseWithIndex f (Pair a0 a1) = Pair <$> f false a0 <*> f true a1
 
+instance mergePair :: Merge Pair where
+  mergeWith f (Pair a0_l a1_l) (Pair a0_r a1_r) = pure Pair <*> Just (f a0_l a0_r) <*> Just (f a1_l a1_r)
+
 data Pair' a = Pair0 {- a -} a | Pair1 a {- a -}
 derive instance eqPair' :: Eq a => Eq (Pair' a)
 derive instance ordPair' :: Ord a => Ord (Pair' a)
@@ -93,6 +97,10 @@ instance traversablePair' :: Traversable Pair' where
   sequence (Pair0 a0) = Pair0 <$> a0
   sequence (Pair1 a0) = Pair1 <$> a0
 
+instance mergePair' :: Merge Pair' where
+  mergeWith f (Pair0 a0_l) (Pair0 a0_r) = pure Pair0 <*> Just (f a0_l a0_r)
+  mergeWith f (Pair1 a0_l) (Pair1 a0_r) = pure Pair1 <*> Just (f a0_l a0_r)
+  mergeWith _ _ _ = Nothing
 instance containerPair :: Container (Boolean) Pair Pair' where
   upZF (a :<-: z) = case extract z of
     Pair0 {- a -} a1 -> Pair a a1
@@ -139,6 +147,9 @@ instance traversableTriplet :: Traversable Triplet where
 instance traversableWithIndexTriplet :: TraversableWithIndex (Three) Triplet where
   traverseWithIndex f (Triplet a0 a1 a2) = Triplet <$> f Three1 a0 <*> f Three2 a1 <*> f Three3 a2
 
+instance mergeTriplet :: Merge Triplet where
+  mergeWith f (Triplet a0_l a1_l a2_l) (Triplet a0_r a1_r a2_r) = pure Triplet <*> Just (f a0_l a0_r) <*> Just (f a1_l a1_r) <*> Just (f a2_l a2_r)
+
 data Triplet' a = Triplet0 {- a -} a a | Triplet1 a {- a -} a | Triplet2 a a {- a -}
 derive instance eqTriplet' :: Eq a => Eq (Triplet' a)
 derive instance ordTriplet' :: Ord a => Ord (Triplet' a)
@@ -172,6 +183,11 @@ instance traversableTriplet' :: Traversable Triplet' where
   sequence (Triplet1 a0 a1) = Triplet1 <$> a0 <*> a1
   sequence (Triplet2 a0 a1) = Triplet2 <$> a0 <*> a1
 
+instance mergeTriplet' :: Merge Triplet' where
+  mergeWith f (Triplet0 a0_l a1_l) (Triplet0 a0_r a1_r) = pure Triplet0 <*> Just (f a0_l a0_r) <*> Just (f a1_l a1_r)
+  mergeWith f (Triplet1 a0_l a1_l) (Triplet1 a0_r a1_r) = pure Triplet1 <*> Just (f a0_l a0_r) <*> Just (f a1_l a1_r)
+  mergeWith f (Triplet2 a0_l a1_l) (Triplet2 a0_r a1_r) = pure Triplet2 <*> Just (f a0_l a0_r) <*> Just (f a1_l a1_r)
+  mergeWith _ _ _ = Nothing
 instance containerTriplet :: Container (Three) Triplet Triplet' where
   upZF (a :<-: z) = case extract z of
     Triplet0 {- a -} a1 a2 -> Triplet a a1 a2
@@ -231,6 +247,10 @@ instance traversableWithIndexTextLitF :: TraversableWithIndex (Natural) TextLitF
   traverseWithIndex f (TextLit s) = pure (TextLit s)
   traverseWithIndex f (TextInterp s a0 a1) = TextInterp s <$> f zero a0 <*> traverseWithIndex (\i -> f (one + i)) a1
 
+instance mergeTextLitF :: Merge TextLitF where
+  mergeWith f (TextLit s_l) (TextLit s_r) = pure TextLit <*> (if s_l == s_r then Just s_l else Nothing)
+  mergeWith f (TextInterp s_l a0_l a1_l) (TextInterp s_r a0_r a1_r) = pure TextInterp <*> (if s_l == s_r then Just s_l else Nothing) <*> Just (f a0_l a0_r) <*> (mergeWith f a1_l a1_r)
+  mergeWith _ _ _ = Nothing
 data TextLitF' a = TextInterp0 String {- a -} (TextLitF a) | TextInterp1 String a (TextLitF' a)
 derive instance eqTextLitF' :: Eq a => Eq (TextLitF' a)
 derive instance ordTextLitF' :: Ord a => Ord (TextLitF' a)
@@ -258,6 +278,10 @@ instance traversableTextLitF' :: Traversable TextLitF' where
   sequence (TextInterp0 s a0) = TextInterp0 s <$> sequence a0
   sequence (TextInterp1 s a0 a1) = TextInterp1 s <$> a0 <*> sequence a1
 
+instance mergeTextLitF' :: Merge TextLitF' where
+  mergeWith f (TextInterp0 s_l a0_l) (TextInterp0 s_r a0_r) = pure TextInterp0 <*> (if s_l == s_r then Just s_l else Nothing) <*> (mergeWith f a0_l a0_r)
+  mergeWith f (TextInterp1 s_l a0_l a1_l) (TextInterp1 s_r a0_r a1_r) = pure TextInterp1 <*> (if s_l == s_r then Just s_l else Nothing) <*> Just (f a0_l a0_r) <*> (mergeWith f a1_l a1_r)
+  mergeWith _ _ _ = Nothing
 instance containerTextLitF :: Container (Natural) TextLitF TextLitF' where
   upZF (a :<-: z) = case extract z of
     TextInterp0 s {- a -} a1 -> TextInterp s a a1
@@ -305,6 +329,9 @@ instance traversableMergeF :: Traversable MergeF where
 instance traversableWithIndexMergeF :: TraversableWithIndex (Three) MergeF where
   traverseWithIndex f (MergeF a0 a1 a2) = MergeF <$> f Three1 a0 <*> f Three2 a1 <*> traverseWithIndex (\i -> f (const Three3 i)) a2
 
+instance mergeMergeF :: Merge MergeF where
+  mergeWith f (MergeF a0_l a1_l a2_l) (MergeF a0_r a1_r a2_r) = pure MergeF <*> Just (f a0_l a0_r) <*> Just (f a1_l a1_r) <*> (mergeWith f a2_l a2_r)
+
 data MergeF' a = MergeF0 {- a -} a (Maybe a) | MergeF1 a {- a -} (Maybe a) | MergeF2 a a (Maybe' a)
 derive instance eqMergeF' :: Eq a => Eq (MergeF' a)
 derive instance ordMergeF' :: Ord a => Ord (MergeF' a)
@@ -338,6 +365,11 @@ instance traversableMergeF' :: Traversable MergeF' where
   sequence (MergeF1 a0 a1) = MergeF1 <$> a0 <*> sequence a1
   sequence (MergeF2 a0 a1 a2) = MergeF2 <$> a0 <*> a1 <*> sequence a2
 
+instance mergeMergeF' :: Merge MergeF' where
+  mergeWith f (MergeF0 a0_l a1_l) (MergeF0 a0_r a1_r) = pure MergeF0 <*> Just (f a0_l a0_r) <*> (mergeWith f a1_l a1_r)
+  mergeWith f (MergeF1 a0_l a1_l) (MergeF1 a0_r a1_r) = pure MergeF1 <*> Just (f a0_l a0_r) <*> (mergeWith f a1_l a1_r)
+  mergeWith f (MergeF2 a0_l a1_l a2_l) (MergeF2 a0_r a1_r a2_r) = pure MergeF2 <*> Just (f a0_l a0_r) <*> Just (f a1_l a1_r) <*> (mergeWith f a2_l a2_r)
+  mergeWith _ _ _ = Nothing
 instance containerMergeF :: Container (Three) MergeF MergeF' where
   upZF (a :<-: z) = case extract z of
     MergeF0 {- a -} a1 a2 -> MergeF a a1 a2
@@ -386,6 +418,9 @@ instance traversableLetF :: Traversable LetF where
 instance traversableWithIndexLetF :: TraversableWithIndex (Three) LetF where
   traverseWithIndex f (LetF s a0 a1 a2) = LetF s <$> traverseWithIndex (\i -> f (const Three1 i)) a0 <*> f Three2 a1 <*> f Three3 a2
 
+instance mergeLetF :: Merge LetF where
+  mergeWith f (LetF s_l a0_l a1_l a2_l) (LetF s_r a0_r a1_r a2_r) = pure LetF <*> (if s_l == s_r then Just s_l else Nothing) <*> (mergeWith f a0_l a0_r) <*> Just (f a1_l a1_r) <*> Just (f a2_l a2_r)
+
 data LetF' a = LetF0 String (Maybe' a) a a | LetF1 String (Maybe a) {- a -} a | LetF2 String (Maybe a) a {- a -}
 derive instance eqLetF' :: Eq a => Eq (LetF' a)
 derive instance ordLetF' :: Ord a => Ord (LetF' a)
@@ -419,6 +454,11 @@ instance traversableLetF' :: Traversable LetF' where
   sequence (LetF1 s a0 a1) = LetF1 s <$> sequence a0 <*> a1
   sequence (LetF2 s a0 a1) = LetF2 s <$> sequence a0 <*> a1
 
+instance mergeLetF' :: Merge LetF' where
+  mergeWith f (LetF0 s_l a0_l a1_l a2_l) (LetF0 s_r a0_r a1_r a2_r) = pure LetF0 <*> (if s_l == s_r then Just s_l else Nothing) <*> (mergeWith f a0_l a0_r) <*> Just (f a1_l a1_r) <*> Just (f a2_l a2_r)
+  mergeWith f (LetF1 s_l a0_l a1_l) (LetF1 s_r a0_r a1_r) = pure LetF1 <*> (if s_l == s_r then Just s_l else Nothing) <*> (mergeWith f a0_l a0_r) <*> Just (f a1_l a1_r)
+  mergeWith f (LetF2 s_l a0_l a1_l) (LetF2 s_r a0_r a1_r) = pure LetF2 <*> (if s_l == s_r then Just s_l else Nothing) <*> (mergeWith f a0_l a0_r) <*> Just (f a1_l a1_r)
+  mergeWith _ _ _ = Nothing
 instance containerLetF :: Container (Three) LetF LetF' where
   upZF (a :<-: z) = case extract z of
     LetF0 s a0 a1 a2 -> LetF s (upZF (a :<-: pure a0)) a1 a2
@@ -467,6 +507,9 @@ instance traversableBindingBody :: Traversable BindingBody where
 instance traversableWithIndexBindingBody :: TraversableWithIndex (Boolean) BindingBody where
   traverseWithIndex f (BindingBody s a0 a1) = BindingBody s <$> f false a0 <*> f true a1
 
+instance mergeBindingBody :: Merge BindingBody where
+  mergeWith f (BindingBody s_l a0_l a1_l) (BindingBody s_r a0_r a1_r) = pure BindingBody <*> (if s_l == s_r then Just s_l else Nothing) <*> Just (f a0_l a0_r) <*> Just (f a1_l a1_r)
+
 data BindingBody' a = BindingBody0 String {- a -} a | BindingBody1 String a {- a -}
 derive instance eqBindingBody' :: Eq a => Eq (BindingBody' a)
 derive instance ordBindingBody' :: Ord a => Ord (BindingBody' a)
@@ -494,6 +537,10 @@ instance traversableBindingBody' :: Traversable BindingBody' where
   sequence (BindingBody0 s a0) = BindingBody0 s <$> a0
   sequence (BindingBody1 s a0) = BindingBody1 s <$> a0
 
+instance mergeBindingBody' :: Merge BindingBody' where
+  mergeWith f (BindingBody0 s_l a0_l) (BindingBody0 s_r a0_r) = pure BindingBody0 <*> (if s_l == s_r then Just s_l else Nothing) <*> Just (f a0_l a0_r)
+  mergeWith f (BindingBody1 s_l a0_l) (BindingBody1 s_r a0_r) = pure BindingBody1 <*> (if s_l == s_r then Just s_l else Nothing) <*> Just (f a0_l a0_r)
+  mergeWith _ _ _ = Nothing
 instance containerBindingBody :: Container (Boolean) BindingBody BindingBody' where
   upZF (a :<-: z) = case extract z of
     BindingBody0 s {- a -} a1 -> BindingBody s a a1

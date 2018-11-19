@@ -42,6 +42,7 @@ import Data.Tuple (Tuple(..), uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Core.StrMapIsh (InsOrdStrMap(..), mkIOSM, unIOSM)
+import Dhall.Core.Zippers.Merge (class Merge)
 import Partial.Unsafe (unsafePartial)
 import Prim.RowList as RL
 import Type.Row (RLProxy(..), Nil)
@@ -101,7 +102,7 @@ _ix_zipperE :: forall m s a. Prism' (Tuple (IExpr m (s) (a)) (Expr m s a)) (ZExp
 
 class ContainerI i f' | f' -> i where
   ixF :: forall x. f' x -> i
-class (Eq1 f, Eq1 f', Ord i, TraversableWithIndex i f, Traversable f', ContainerI i f', Functor f', Functor f) <= Container i f f' | f -> i f', f' -> i where
+class (Eq1 f, Eq1 f', Ord i, Merge f, Merge f', TraversableWithIndex i f, Traversable f', ContainerI i f', Functor f', Functor f) <= Container i f f' | f -> i f', f' -> i where
   upZF   :: forall x. ZF f' x  ->      f  x
   downZF :: forall x.    f  x -> f (ZF f' x)
 
@@ -355,7 +356,7 @@ instance containerICoproduct :: (ContainerI i f', ContainerI j g') => ContainerI
   ixF (Coproduct (Right cg)) = Right $ ixF cg
 
 -- Sum rule: (f + g)' = f' + g'
-instance containerCoproduct :: (Eq1 f, Eq1 g, Functor f', Functor g', Container i f f', Container j g g') =>
+instance containerCoproduct :: (Eq1 f, Eq1 g, Merge f, Merge g, Functor f', Functor g', Container i f f', Container j g g') =>
   Container (Either i j) (Coproduct f g) (Coproduct f' g') where
     downZF (Coproduct (Left f)) = downZF f # injector Coproduct.left Coproduct.left
     downZF (Coproduct (Right g)) = downZF g # injector Coproduct.right Coproduct.right
@@ -373,6 +374,7 @@ derive newtype instance ord1Product' :: (Ord1 f, Ord1 f', Ord1 g, Ord1 g') => Or
 derive newtype instance functorProduct' :: (Functor f, Functor f', Functor g, Functor g') => Functor (Product' f f' g g')
 derive newtype instance foldableProduct' :: (Foldable f, Foldable f', Foldable g, Foldable g') => Foldable (Product' f f' g g')
 derive newtype instance traversableProduct' :: (Traversable f, Traversable f', Traversable g, Traversable g') => Traversable (Product' f f' g g')
+derive newtype instance mergeProduct' :: (Merge f, Merge f', Merge g, Merge g') => Merge (Product' f f' g g')
 derive newtype instance functorWithIndexProduct' ::
   ( FunctorWithIndex i f
   , FunctorWithIndex i' f'
@@ -392,9 +394,9 @@ derive newtype instance traversableWithIndexProduct' ::
   , TraversableWithIndex j' g'
   ) => TraversableWithIndex (Either (Either i' j) (Either i j')) (Product' f f' g g')
 instance containerProduct' ::
-  ( Container i f f', Eq1 f, Traversable f
+  ( Container i f f', Eq1 f, Traversable f, Merge f
   , Container i' f' f'', Functor f''
-  , Container j g g', Eq1 g, Traversable g
+  , Container j g g', Eq1 g, Traversable g, Merge g
   , Container j' g' g'', Functor g''
   ) => Container (Either (Either i' j) (Either i j')) (Product' f f' g g')
     (Coproduct (Product' f' f'' g g') (Product' f f' g' g''))
@@ -407,7 +409,7 @@ instance containerIProduct :: (ContainerI i f', ContainerI j g') => ContainerI (
   ixF (Product' (Coproduct (Left (Product (Tuple cf _))))) = Left $ ixF cf
   ixF (Product' (Coproduct (Right (Product (Tuple _ cf))))) = Right $ ixF cf
 
-instance containerProduct :: (Eq1 f, Eq1 g, Functor f', Functor g', Traversable f, Traversable g, Container i f f', Container j g g') =>
+instance containerProduct :: (Eq1 f, Eq1 g, Functor f', Merge f, Merge g, Functor g', Traversable f, Traversable g, Container i f f', Container j g g') =>
   Container (Either i j) (Product f g) (Product' f f' g g') where
     downZF (Product (Tuple f g)) = Product $ Tuple
       (downZF f <#> _contextZF \cf ->
@@ -430,6 +432,7 @@ derive newtype instance ord1Compose' :: (Ord1 f', Ord1 g, Ord1 g') => Ord1 (Comp
 derive newtype instance functorCompose' :: (Functor f', Functor g, Functor g') => Functor (Compose' f' g g')
 derive newtype instance foldableCompose' :: (Foldable f', Foldable g, Foldable g') => Foldable (Compose' f' g g')
 derive newtype instance traversableCompose' :: (Traversable f', Traversable g, Traversable g') => Traversable (Compose' f' g g')
+derive newtype instance mergeCompose' :: (Merge f', Traversable f', Merge g, Merge g') => Merge (Compose' f' g g')
 derive newtype instance functorWithIndexCompose' ::
   ( FunctorWithIndex i' f'
   , FunctorWithIndex j g
@@ -446,8 +449,8 @@ derive newtype instance traversableWithIndexCompose' ::
   , TraversableWithIndex j' g'
   ) => TraversableWithIndex (Either (Tuple i' j) j') (Compose' f' g g')
 instance containerCompose' ::
-  ( Container i' f' f'', Eq1 f', Functor f'', Traversable f'
-  , Container j g g', Eq1 g, Traversable g
+  ( Container i' f' f'', Eq1 f', Functor f'', Traversable f', Merge f'
+  , Container j g g', Eq1 g, Traversable g, Merge g
   , Container j' g' g'', Functor g''
   ) => Container (Either (Tuple i' j) j') (Compose' f' g g')
     (Product' (Compose f' g) (Compose' f'' g g') g' g'')
@@ -460,7 +463,7 @@ instance containerICompose :: (ContainerI i f', ContainerI j g') =>
   ContainerI (Tuple i j) (Compose' f' g g') where
     ixF (Compose' (Product (Tuple (Compose f'g) g'))) = Tuple (ixF f'g) (ixF g')
 
-instance containerCompose :: (Eq1 f, Eq1 g, Functor f', Functor g', Traversable g, Container i f f', Container j g g') =>
+instance containerCompose :: (Eq1 f, Eq1 g, Traversable f, Merge f, Merge g, Functor f', Functor g', Traversable g, Container i f f', Container j g g') =>
   Container (Tuple i j) (Compose f g) (Compose' f' g g') where
     downZF (Compose fg) = Compose $ downZF fg <#> \(g :<-: f'g) ->
       downZF g <#> _contextZF \a ->
@@ -504,8 +507,9 @@ derive newtype instance ord1NonEmpty' :: (Ord1 f, Ord1 f') => Ord1 (NonEmpty' f 
 derive newtype instance functorNonEmpty' :: (Functor f, Functor f') => Functor (NonEmpty' f f')
 derive newtype instance foldableNonEmpty' :: (Foldable f, Foldable f') => Foldable (NonEmpty' f f')
 derive newtype instance traversableNonEmpty' :: (Traversable f, Traversable f') => Traversable (NonEmpty' f f')
+derive newtype instance mergeNonEmpty' :: (Merge f, Merge f') => Merge (NonEmpty' f f')
 
-instance containerNonEmpty :: (Eq1 f, Traversable f, Functor f', Container i f f') => Container (Maybe i) (NonEmpty f) (NonEmpty' f f') where
+instance containerNonEmpty :: (Eq1 f, Traversable f, Merge f, Functor f', Container i f f') => Container (Maybe i) (NonEmpty f) (NonEmpty' f f') where
   upZF (a :<-: z) = case extract z of
     NonEmpty' (Coproduct (Left fa)) -> NonEmpty a fa
     NonEmpty' (Coproduct (Right (Product (Tuple (Identity a0) f'a)))) ->
@@ -531,6 +535,7 @@ derive newtype instance traversableArray' :: Traversable Array'
 derive newtype instance functorWithIndexArray' :: FunctorWithIndex (Either Int Int) Array'
 derive newtype instance foldableWithIndexArray' :: FoldableWithIndex (Either Int Int) Array'
 derive newtype instance traversableWithIndexArray' :: TraversableWithIndex (Either Int Int) Array'
+derive newtype instance mergeArray' :: Merge Array'
 instance containerArray' :: Container (Either Int Int) Array' (Product' Array Array' Array Array') where
   upZF = ArrayN <<< upZF
   downZF = over ArrayN downZF
@@ -567,6 +572,7 @@ derive newtype instance traversableMap' :: Traversable (Map' k)
 derive newtype instance functorWithIndexMap' :: FunctorWithIndex (Either Void k) (Map' k)
 derive newtype instance foldableWithIndexMap' :: FoldableWithIndex (Either Void k) (Map' k)
 derive newtype instance traversableWithIndexMap' :: TraversableWithIndex (Either Void k) (Map' k)
+derive newtype instance mergeMap' :: Ord k => Merge (Map' k)
 instance containerMap' :: Ord k => Container (Either Void k) (Map' k) (Product' (Const k) (Const Void) (Map k) (Map' k)) where
   upZF = Map' <<< upZF
   downZF = over Map' downZF
@@ -590,6 +596,7 @@ derive newtype instance ord1InsOrdStrMap' :: Ord1 InsOrdStrMap'
 derive newtype instance functorInsOrdStrMap' :: Functor InsOrdStrMap'
 derive newtype instance foldableInsOrdStrMap' :: Foldable InsOrdStrMap'
 derive newtype instance traversableInsOrdStrMap' :: Traversable InsOrdStrMap'
+derive newtype instance mergeInsOrdStrMap' :: Merge InsOrdStrMap'
 derive newtype instance functorWithIndexInsOrdStrMap' :: FunctorWithIndex (Either Void (Either String String)) InsOrdStrMap'
 derive newtype instance foldableWithIndexInsOrdStrMap' :: FoldableWithIndex (Either Void (Either String String)) InsOrdStrMap'
 derive newtype instance traversableWithIndexInsOrdStrMap' :: TraversableWithIndex (Either Void (Either String String)) InsOrdStrMap'
