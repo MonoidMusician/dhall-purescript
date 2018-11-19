@@ -5,6 +5,8 @@ import Prelude
 import Control.Comonad (class Comonad, class Extend, extract)
 import Control.Comonad.Env (EnvT)
 import Data.Array as Array
+import Data.Array.NonEmpty (NonEmptyArray)
+import Data.Array.NonEmpty as NonEmptyArray
 import Data.Const (Const(..))
 import Data.Either (Either(..))
 import Data.Eq (class Eq1)
@@ -27,7 +29,8 @@ import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromJust)
-import Data.Newtype (class Newtype)
+import Data.Newtype (class Newtype, over)
+import Data.NonEmpty (NonEmpty(..))
 import Data.Ord (class Ord1)
 import Data.Profunctor.Strong ((&&&))
 import Data.Symbol (class IsSymbol)
@@ -370,6 +373,34 @@ derive newtype instance ord1Product' :: (Ord1 f, Ord1 f', Ord1 g, Ord1 g') => Or
 derive newtype instance functorProduct' :: (Functor f, Functor f', Functor g, Functor g') => Functor (Product' f f' g g')
 derive newtype instance foldableProduct' :: (Foldable f, Foldable f', Foldable g, Foldable g') => Foldable (Product' f f' g g')
 derive newtype instance traversableProduct' :: (Traversable f, Traversable f', Traversable g, Traversable g') => Traversable (Product' f f' g g')
+derive newtype instance functorWithIndexProduct' ::
+  ( FunctorWithIndex i f
+  , FunctorWithIndex i' f'
+  , FunctorWithIndex j g
+  , FunctorWithIndex j' g'
+  ) => FunctorWithIndex (Either (Either i' j) (Either i j')) (Product' f f' g g')
+derive newtype instance foldableWithIndexProduct' ::
+  ( FoldableWithIndex i f
+  , FoldableWithIndex i' f'
+  , FoldableWithIndex j g
+  , FoldableWithIndex j' g'
+  ) => FoldableWithIndex (Either (Either i' j) (Either i j')) (Product' f f' g g')
+derive newtype instance traversableWithIndexProduct' ::
+  ( TraversableWithIndex i f
+  , TraversableWithIndex i' f'
+  , TraversableWithIndex j g
+  , TraversableWithIndex j' g'
+  ) => TraversableWithIndex (Either (Either i' j) (Either i j')) (Product' f f' g g')
+instance containerProduct' ::
+  ( Container i f f', Eq1 f, Traversable f
+  , Container i' f' f'', Functor f''
+  , Container j g g', Eq1 g, Traversable g
+  , Container j' g' g'', Functor g''
+  ) => Container (Either (Either i' j) (Either i j')) (Product' f f' g g')
+    (Coproduct (Product' f' f'' g g') (Product' f f' g' g''))
+  where
+  upZF = Product' <<< upZF
+  downZF = over Product' downZF
 type ProductI = Either
 
 instance containerIProduct :: (ContainerI i f', ContainerI j g') => ContainerI (Either i j) (Product' f f' g g') where
@@ -399,6 +430,30 @@ derive newtype instance ord1Compose' :: (Ord1 f', Ord1 g, Ord1 g') => Ord1 (Comp
 derive newtype instance functorCompose' :: (Functor f', Functor g, Functor g') => Functor (Compose' f' g g')
 derive newtype instance foldableCompose' :: (Foldable f', Foldable g, Foldable g') => Foldable (Compose' f' g g')
 derive newtype instance traversableCompose' :: (Traversable f', Traversable g, Traversable g') => Traversable (Compose' f' g g')
+derive newtype instance functorWithIndexCompose' ::
+  ( FunctorWithIndex i' f'
+  , FunctorWithIndex j g
+  , FunctorWithIndex j' g'
+  ) => FunctorWithIndex (Either (Tuple i' j) j') (Compose' f' g g')
+derive newtype instance foldableWithIndexCompose' ::
+  ( FoldableWithIndex i' f'
+  , FoldableWithIndex j g
+  , FoldableWithIndex j' g'
+  ) => FoldableWithIndex (Either (Tuple i' j) j') (Compose' f' g g')
+derive newtype instance traversableWithIndexCompose' ::
+  ( TraversableWithIndex i' f'
+  , TraversableWithIndex j g
+  , TraversableWithIndex j' g'
+  ) => TraversableWithIndex (Either (Tuple i' j) j') (Compose' f' g g')
+instance containerCompose' ::
+  ( Container i' f' f'', Eq1 f', Functor f'', Traversable f'
+  , Container j g g', Eq1 g, Traversable g
+  , Container j' g' g'', Functor g''
+  ) => Container (Either (Tuple i' j) j') (Compose' f' g g')
+    (Product' (Compose f' g) (Compose' f'' g g') g' g'')
+  where
+  upZF = Compose' <<< upZF
+  downZF = over Compose' downZF
 type ComposeI = Tuple
 
 instance containerICompose :: (ContainerI i f', ContainerI j g') =>
@@ -440,6 +495,30 @@ instance containerTuple :: (Eq c) => Container Unit (Tuple c) (Const c) where
     Const c -> Tuple c a
   downZF (Tuple c a) = Tuple c (a :<-: pure (Const c))
 
+newtype NonEmpty' f f' a = NonEmpty' (Coproduct f (Product Identity f') a)
+derive instance newtypeNonEmpty' :: Newtype (NonEmpty' f f' a) _
+derive newtype instance eqNonEmpty' :: (Eq1 f, Eq1 f', Eq a) => Eq (NonEmpty' f f' a)
+derive newtype instance ordNonEmpty' :: (Ord1 f, Ord1 f', Ord a) => Ord (NonEmpty' f f' a)
+derive newtype instance eq1NonEmpty' :: (Eq1 f, Eq1 f') => Eq1 (NonEmpty' f f')
+derive newtype instance ord1NonEmpty' :: (Ord1 f, Ord1 f') => Ord1 (NonEmpty' f f')
+derive newtype instance functorNonEmpty' :: (Functor f, Functor f') => Functor (NonEmpty' f f')
+derive newtype instance foldableNonEmpty' :: (Foldable f, Foldable f') => Foldable (NonEmpty' f f')
+derive newtype instance traversableNonEmpty' :: (Traversable f, Traversable f') => Traversable (NonEmpty' f f')
+
+instance containerNonEmpty :: (Eq1 f, Traversable f, Functor f', Container i f f') => Container (Maybe i) (NonEmpty f) (NonEmpty' f f') where
+  upZF (a :<-: z) = case extract z of
+    NonEmpty' (Coproduct (Left fa)) -> NonEmpty a fa
+    NonEmpty' (Coproduct (Right (Product (Tuple (Identity a0) f'a)))) ->
+      NonEmpty a0 (upZF (a :<-: pure f'a))
+
+  downZF (NonEmpty a0 fa) = NonEmpty
+    (a0 :<-: defer \_ -> NonEmpty' (Coproduct (Left fa)))
+    (downZF fa <#> _contextZF' (map \f'a -> NonEmpty' (Coproduct (Right (Product (Tuple (Identity a0) f'a))))))
+
+instance containerINonEmpty :: ContainerI i f' => ContainerI (Maybe i) (NonEmpty' f f') where
+  ixF (NonEmpty' (Coproduct (Left _))) = Nothing
+  ixF (NonEmpty' (Coproduct (Right (Product (Tuple _ f'a))))) = Just (ixF f'a)
+
 newtype Array' a = ArrayN (Product Array Array a)
 derive instance newtypeArray' :: Newtype (Array' a) _
 derive newtype instance eqArray' :: Eq a => Eq (Array' a)
@@ -449,6 +528,12 @@ derive newtype instance ord1Array' :: Ord1 Array'
 derive newtype instance functorArray' :: Functor Array'
 derive newtype instance foldableArray' :: Foldable Array'
 derive newtype instance traversableArray' :: Traversable Array'
+derive newtype instance functorWithIndexArray' :: FunctorWithIndex (Either Int Int) Array'
+derive newtype instance foldableWithIndexArray' :: FoldableWithIndex (Either Int Int) Array'
+derive newtype instance traversableWithIndexArray' :: TraversableWithIndex (Either Int Int) Array'
+instance containerArray' :: Container (Either Int Int) Array' (Product' Array Array' Array Array') where
+  upZF = ArrayN <<< upZF
+  downZF = over ArrayN downZF
 type ArrayI = Int -- unfortunately
 
 arrayN :: forall a. Array a -> Array a -> Array' a
@@ -463,6 +548,13 @@ instance containerArray :: Container (Int) Array Array' where
   downZF as = let l = Array.length as in as # mapWithIndex \i a ->
     a :<-: defer \_ -> arrayN (Array.slice 0 i as) (Array.slice (i+1) l as)
 
+instance containerNonEmptyArray :: Container (Int) NonEmptyArray Array' where
+  upZF (a :<-: z) = case extract z of
+    ArrayN (Product (Tuple prev next)) ->
+      NonEmptyArray.appendArray (NonEmptyArray.snoc' prev a) next
+  downZF as = let l = NonEmptyArray.length as in as # mapWithIndex \i a ->
+    a :<-: defer \_ -> arrayN (NonEmptyArray.slice 0 i as) (NonEmptyArray.slice (i+1) l as)
+
 newtype Map' k a = Map' (Product (Const k) (Map k) a)
 derive instance newtypeMap' :: Newtype (Map' k a) _
 derive newtype instance eqMap' :: (Eq k, Eq a) => Eq (Map' k a)
@@ -472,6 +564,12 @@ derive newtype instance ord1Map' :: Ord k => Ord1 (Map' k)
 derive newtype instance functorMap' :: Functor (Map' k)
 derive newtype instance foldableMap' :: Foldable (Map' k)
 derive newtype instance traversableMap' :: Traversable (Map' k)
+derive newtype instance functorWithIndexMap' :: FunctorWithIndex (Either Void k) (Map' k)
+derive newtype instance foldableWithIndexMap' :: FoldableWithIndex (Either Void k) (Map' k)
+derive newtype instance traversableWithIndexMap' :: TraversableWithIndex (Either Void k) (Map' k)
+instance containerMap' :: Ord k => Container (Either Void k) (Map' k) (Product' (Const k) (Const Void) (Map k) (Map' k)) where
+  upZF = Map' <<< upZF
+  downZF = over Map' downZF
 type MapI k = k
 
 instance containerIMap :: ContainerI (k) (Map' k) where
@@ -492,6 +590,16 @@ derive newtype instance ord1InsOrdStrMap' :: Ord1 InsOrdStrMap'
 derive newtype instance functorInsOrdStrMap' :: Functor InsOrdStrMap'
 derive newtype instance foldableInsOrdStrMap' :: Foldable InsOrdStrMap'
 derive newtype instance traversableInsOrdStrMap' :: Traversable InsOrdStrMap'
+derive newtype instance functorWithIndexInsOrdStrMap' :: FunctorWithIndex (Either Void (Either String String)) InsOrdStrMap'
+derive newtype instance foldableWithIndexInsOrdStrMap' :: FoldableWithIndex (Either Void (Either String String)) InsOrdStrMap'
+derive newtype instance traversableWithIndexInsOrdStrMap' :: TraversableWithIndex (Either Void (Either String String)) InsOrdStrMap'
+instance containerInsOrdStrMap' :: Container
+  (Either Void (Either String String)) InsOrdStrMap'
+  (Product' (Const String) (Const Void)
+    (Product InsOrdStrMap InsOrdStrMap) (Product' InsOrdStrMap InsOrdStrMap' InsOrdStrMap InsOrdStrMap')
+  ) where
+  upZF = InsOrdStrMap' <<< upZF
+  downZF = over InsOrdStrMap' downZF
 type InsOrdStrMapI = String
 
 instance containerIIOSM :: ContainerI String InsOrdStrMap' where
