@@ -3,21 +3,34 @@ module Dhall.Parser where
 import Prelude
 
 import Control.Monad.Except (runExcept)
+import Data.Array (any)
 import Data.Array as Array
 import Data.Either (Either(..))
+import Data.Function (on)
 import Data.Functor.Compose (Compose(..))
+import Data.Functor.Variant (FProxy, SProxy, VariantF)
+import Data.Functor.Variant as VariantF
+import Data.HeytingAlgebra (ff, tt)
+import Data.Lens (preview)
 import Data.List (List)
 import Data.Maybe (Maybe(..))
+import Data.Monoid.Disj (Disj(..))
+import Data.Newtype (unwrap)
 import Data.Nullable (Nullable)
 import Data.Nullable as Nullable
+import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..))
-import Dhall.Core.AST (Const(..), Expr, TextLitF(..), Var(..))
+import Dhall.Core (S_, _s)
+import Dhall.Core.AST (Const(..), Expr, ExprLayerRow, TextLitF(..), Var(..), projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports (Directory, File(..), FilePrefix(..), Import(..), ImportHashed(..), ImportMode(..), ImportType(..), Scheme(..), URL(..))
 import Dhall.Core.StrMapIsh as IOSM
+import Dhall.Parser.Prioritize (POrdering)
+import Dhall.Parser.Prioritize as Prioritize
 import Foreign (Foreign)
 import Foreign as Foreign
 import Partial.Unsafe (unsafeCrashWith)
+import Prim.Row as Row
 import Unsafe.Coerce (unsafeCoerce)
 
 type ParseExpr = Expr IOSM.InsOrdStrMap Import
@@ -189,3 +202,51 @@ decodeURL [scheme, authority, dir, file, query, fragment, headers ] = URL
   , headers: decodeN (fromForeign >>> decodeImportHashed) headers
   }
 decodeURL _ = unsafeCrashWith "Unrecognized URL"
+
+disambiguate :: Array ParseExpr -> Array ParseExpr
+disambiguate [] = []
+disambiguate [e] = [e]
+disambiguate as = as
+  # Array.toUnfoldable
+  # Prioritize.prioritized priorities
+  # Array.fromFoldable
+
+prioritizeVF ::
+  forall s f r' r a.
+    IsSymbol s =>
+    Row.Cons s (FProxy f) r' r =>
+  SProxy s ->
+  (VariantF r a -> VariantF r a -> Maybe POrdering)
+prioritizeVF s = Prioritize.fromPredicate (VariantF.on s tt ff)
+
+pc ::
+  forall s f r'.
+    IsSymbol s =>
+    Row.Cons s (FProxy f) r' (ExprLayerRow IOSM.InsOrdStrMap Import) =>
+  SProxy s ->
+  (ParseExpr -> ParseExpr -> Maybe POrdering)
+pc s = prioritizeVF s `on` projectW
+
+priorities :: ParseExpr -> ParseExpr -> Maybe POrdering
+priorities = mempty
+  <> pc(_s::S_ "BoolIf")
+  <> Prioritize.fromRelation prioritizeEnv
+
+prioritizeEnv :: ParseExpr -> ParseExpr -> Disj Boolean
+prioritizeEnv = flip on projectW $
+  \a b -> Disj $ (&&)
+    do
+      let isEnv (Import { importHashed: ImportHashed { importType: Env _ }}) = true
+          isEnv _ = false
+      a # preview AST._Embed >>> any (isEnv <<< unwrap)
+    do b # preview AST._Annot >>> any
+        do _.value >>> projectW >>> preview AST._Var >>> any
+            do eq (AST.V "env" 0) <<< unwrap
+
+{-
+unsafePartial $ Nullable.toMaybe (Parser.parseImpl "env:Natural") <#> map Parser.decodeFAST >>> \r -> case r of [a,b] -> Parser.priorities a b
+unsafePartial $ Nullable.toMaybe (Parser.parseImpl "env:Natural") <#> map Parser.decodeFAST >>> \r -> case r of [a,b] -> Parser.priorities b a
+
+Nullable.toMaybe (Parser.parseImpl "env:Natural") <#> map Parser.decodeFAST >>> \r -> Tuple r (Parser.disambiguate r)
+
+-}

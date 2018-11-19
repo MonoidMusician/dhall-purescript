@@ -5,6 +5,7 @@ import Prelude
 import Data.Foldable (class Foldable, fold)
 import Data.List (List(..))
 import Data.Maybe (Maybe(..), maybe)
+import Data.Monoid.Disj (Disj(..))
 import Data.Tuple (Tuple(..))
 import Dhall.Core.Zippers.Merge (class Merge, mergeWith)
 import Matryoshka (class Recursive, project)
@@ -13,6 +14,12 @@ import Matryoshka (class Recursive, project)
 -- or uncomparable.
 data POrdering = PLT | PEQ | PGT | UNC
 derive instance eqPOrdering :: Eq POrdering
+instance showPOrdering :: Show POrdering where
+  show PLT = "PLT"
+  show PEQ = "PEQ"
+  show PGT = "PGT"
+  show UNC = "UNC"
+
 instance semigroupPOrdering :: Semigroup POrdering where
   append UNC _ = UNC
   append _ UNC = UNC
@@ -40,24 +47,39 @@ symmetricize f a b =
     Nothing, Nothing -> Nothing
     -- One result
     Just r, Nothing -> Just r
-    Nothing, Just r -> Just r
+    Nothing, Just r -> Just (inverse r)
     -- Agreeable results
     Just PLT, Just PGT -> Just PLT
     Just PGT, Just PLT -> Just PGT
     Just PEQ, Just PEQ -> Just PEQ
     -- If one side came up as uncomparable,
     -- take the other side instad
-    Just UNC, Just r -> Just r
     Just r, Just UNC -> Just r
+    Just UNC, Just r -> Just (inverse r)
     -- Any other combination is inconsistent/uncomparable
     _, _ -> Just UNC
 
 -- Turn an "is better than" relation into a partial partial ordering.
 fromRelation :: forall t. Eq t =>
-  (t -> t -> Boolean) ->
+  (t -> t -> Disj Boolean) ->
   (t -> t -> Maybe POrdering)
 fromRelation f = symmetricize \a b ->
-  if f a b then Just PGT else Nothing
+  case f a b of
+    Disj true -> Just PGT
+    Disj false -> Nothing
+
+fromPredicate :: forall t.
+  (t -> Boolean) ->
+  (t -> t -> Maybe POrdering)
+fromPredicate p a b = case p a, p b of
+  -- both match gives no priority
+  true, true -> Nothing
+  -- left match gets priority
+  true, false -> Just PGT
+  -- right match gets priority
+  false, true -> Just PLT
+  -- no match, no priority
+  false, false -> Nothing
 
 -- This ranks two trees based on the given algorithm to rank nodes, which
 -- is applied at each necessary level of the tree, top-down, with default
@@ -70,6 +92,7 @@ fromRelation f = symmetricize \a b ->
 -- is to allow sensible combination of child branches in the default
 -- case. (`Ordering` is not enough, because we want the result of
 -- `(P)LT <> (P)GT <> (P)LT` to be `UNC`, not `LT`.)
+-- It also gives the desired monoid to accumulate prioritizers.
 prioritize ::
   forall t f.
     Recursive t f =>
