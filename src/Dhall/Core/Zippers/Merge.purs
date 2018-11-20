@@ -43,6 +43,9 @@ import Type.Row (RLProxy(..))
 --   - Given Distributive f =>
 --       mergeWith f fa fb = Just (zipWithOf cotraversed f fa fb)
 --
+--   - Given Eq1 f =>
+--       any and (mergeWith eq fa fb) == eq1 fa fb
+--
 --   - (Tentative) Given Eq i and TraversableWithIndex i f =>
 --       merge fa fb = Just fc =>
 --       (traverseWithIndex \i a -> Tuple a <#> elementByIndex i fb) fa = Just fc
