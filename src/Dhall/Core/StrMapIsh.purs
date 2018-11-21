@@ -42,6 +42,22 @@ symmetricDiff = unionWith \_ -> case _ of
   This a -> Just (Left a)
   That b -> Just (Right b)
 
+-- | This is how I think a union of two maps is most properly defined ...
+unionWithMapThese :: forall k a b c. Ord k =>
+  (k -> These a b -> Maybe c) ->
+  Map k a -> Map k b -> Map k c
+unionWithMapThese f ma mb =
+  let
+    combine = case _, _ of
+      This a, That b -> Both a b
+      That b, This a -> Both a b
+      Both a b, _ -> Both a b
+      This a, Both _ b -> Both a b
+      That b, Both a _ -> Both a b
+      That b, That _ -> That b
+      This a, This _ -> This a
+  in Map.mapMaybeWithKey f $ Map.unionWith combine (This <$> ma) (That <$> mb)
+
 instance strMapMapString :: StrMapIsh (Map String) where
   empty = Map.empty
   isEmpty = Map.isEmpty
@@ -53,17 +69,7 @@ instance strMapMapString :: StrMapIsh (Map String) where
     pure $ Map.insert k' v' m'
   alter = flip Map.alter
   delete k m = Map.lookup k m $> Map.delete k m
-  unionWith f ma mb =
-    let
-      combine = case _, _ of
-        This a, That b -> Both a b
-        That b, This a -> Both a b
-        Both a b, _ -> Both a b
-        This a, Both _ b -> Both a b
-        That b, Both a _ -> Both a b
-        That b, That _ -> That b
-        This a, This _ -> This a
-    in Map.mapMaybeWithKey f $ Map.unionWith combine (This <$> ma) (That <$> mb)
+  unionWith = unionWithMapThese
   toUnfoldable = Map.toUnfoldable
   fromFoldable = Map.fromFoldable
 

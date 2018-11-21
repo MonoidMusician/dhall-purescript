@@ -21,9 +21,6 @@ data ZRec f x = ZRec x (ParentCtxs f x)
 type ZRecMu f = ZRec f (Mu f)
 infix 1 ZRec as :<<~:
 
-atTop :: forall f x. x -> ZRec f x
-atTop focus = ZRec focus Nil
-
 ixZRec :: forall i f x. ContainerI i f => ZRec f x -> Indices i
 ixZRec (_ :<<~: context) = ixParentContexts context
 
@@ -60,7 +57,7 @@ _ixes_wholeZRec ::
     Corecursive t f =>
   Prism' (Tuple (Indices i) t) (ZRec f' t)
 _ixes_wholeZRec = prism' (ixZRec &&& topZRec)
-  \(Tuple is f) -> previewIndicesZRec is (atTop f)
+  \(Tuple is f) -> previewIndicesZRec is (ZRec f Nil)
 
 downZRec ::
   forall t f f' i.

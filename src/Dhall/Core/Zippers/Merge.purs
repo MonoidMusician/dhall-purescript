@@ -2,6 +2,7 @@ module Dhall.Core.Zippers.Merge where
 
 import Prelude
 
+import Data.Array (any)
 import Data.Array as Array
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty as NonEmptyArray
@@ -15,12 +16,11 @@ import Data.Functor.Variant as VariantF
 import Data.Identity (Identity(..))
 import Data.List (List(..))
 import Data.Map (Map)
-import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Symbol (class IsSymbol)
 import Data.These (These(..))
-import Data.Traversable (class Traversable, sequence, traverse)
+import Data.Traversable (class Foldable, class Traversable, and, sequence)
 import Data.Tuple (Tuple(..))
 import Dhall.Core.StrMapIsh (InsOrdStrMap)
 import Dhall.Core.StrMapIsh as IOSM
@@ -43,8 +43,8 @@ import Type.Row (RLProxy(..))
 --   - Given Distributive f =>
 --       mergeWith f fa fb = Just (zipWithOf cotraversed f fa fb)
 --
---   - Given Eq1 f =>
---       any and (mergeWith eq fa fb) == eq1 fa fb
+--   - Given Eq1 f and Foldable f =>
+--       eq1OfMerge fa fb == eq1 fa fb
 --
 --   - (Tentative) Given Eq i and TraversableWithIndex i f =>
 --       merge fa fb = Just fc =>
@@ -56,9 +56,17 @@ class Functor f <= Merge f where
 merge :: forall f a b. Merge f => f a -> f b -> Maybe (f (Tuple a b))
 merge = mergeWith Tuple
 
+eq1OfMerge :: forall f a. Foldable f => Merge f => Eq a => f a -> f a -> Boolean
+eq1OfMerge fa fb = any and (mergeWith eq fa fb)
+
 viaThese :: forall a b c. (a -> b -> c) -> These a b -> Maybe c
 viaThese f (Both a b) = Just (f a b)
 viaThese _ _ = Nothing
+
+mergeWithOfStrMapIsh :: forall f a b c. IOSM.StrMapIsh f =>
+  (a -> b -> c) -> f a -> f b -> Maybe (f c)
+mergeWithOfStrMapIsh f ma mb =
+  sequence $ IOSM.unionWith (const (Just <<< viaThese f)) ma mb
 
 instance mergeIdentity :: Merge Identity where
   mergeWith f (Identity a) (Identity b) = Just (Identity (f a b))
@@ -82,15 +90,15 @@ instance mergeThese :: Eq a => Merge (These a) where
   mergeWith f = case _, _ of
     This l, This r | l == r -> Just (This l)
     That a, That b -> Just (That (f a b))
-    Both l a, Both r b -> Just (Both l (f a b))
+    Both l a, Both r b | l == r -> Just (Both l (f a b))
     _, _ -> Nothing
 instance mergeList :: Merge List where
   mergeWith f = case _, _ of
-    Cons a fa, Cons b fb -> Cons (f a b) <$> mergeWith f fa fb
+    Cons a fa, Cons b fb -> mergeWith f fa fb <#> \l -> Cons (f a b) l
     Nil, Nil -> Just Nil
     _, _ -> Nothing
 instance mergeNonEmpty :: Merge f => Merge (NonEmpty f) where
-  mergeWith f (a :| fa) (b :| fb) = (f a b :| _) <$> mergeWith f fa fb
+  mergeWith f (a :| fa) (b :| fb) = mergeWith f fa fb <#> \l -> f a b :| l
 instance mergeArray :: Merge Array where
   mergeWith f a b
     | Array.length a == Array.length b
@@ -115,20 +123,10 @@ instance mergeCompose :: (Traversable f, Merge f, Merge g) => Merge (Compose f g
 
 instance mergeMap :: Ord k => Merge (Map k) where
   mergeWith f ma mb =
-    let
-      combine = case _, _ of
-        This a, That b -> Both a b
-        That b, This a -> Both a b
-        Both a b, _ -> Both a b
-        This a, Both _ b -> Both a b
-        That b, Both a _ -> Both a b
-        That b, That _ -> That b
-        This a, This _ -> This a
-    in traverse (viaThese f) $ Map.unionWith combine (This <$> ma) (That <$> mb)
+    sequence $ IOSM.unionWithMapThese (const (Just <<< viaThese f)) ma mb
 
 instance mergeInsOrdStrMap :: Merge InsOrdStrMap where
-  mergeWith f ma mb =
-    sequence $ IOSM.unionWith (const (Just <<< viaThese f)) ma mb
+  mergeWith = mergeWithOfStrMapIsh
 
 mergeWithVF :: forall rl fs a b c.
   RL.RowToList fs rl =>
