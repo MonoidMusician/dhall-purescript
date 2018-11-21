@@ -3,7 +3,8 @@ module Dhall.Core.AST
 
 -- Just reexport all the other modules
 import Dhall.Core.AST.Types.Basics
-  ( BindingBody(..)
+  ( _S, S_
+  , BindingBody(..)
   , CONST
   , LetF(..)
   , MergeF(..)

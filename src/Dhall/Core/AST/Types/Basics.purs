@@ -14,6 +14,7 @@ import Data.Lazy (defer)
 import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
 import Data.Ord (class Ord1)
+import Data.Symbol (SProxy(..))
 import Data.Traversable (class Traversable, sequence, traverse)
 import Data.TraversableWithIndex (class TraversableWithIndex, traverseWithIndex)
 import Data.Variant.Internal (FProxy)
@@ -21,6 +22,9 @@ import Dhall.Core.Zippers (class Container, class ContainerI, Maybe', _contextZF
 import Dhall.Core.Zippers.Merge (class Merge, mergeWith)
 
 -- This file defines basic functor types used in the AST definition
+
+type S_ = SProxy
+_S = SProxy :: forall s. S_ s
 
 -- Convenience synonyms
 type CONST a = FProxy (ConstF.Const a)
