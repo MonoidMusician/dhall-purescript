@@ -1,0 +1,1 @@
+forall (forall (forall : forall) -> forall) (forall (forall : (forall (forall : forall) -> forall)) -> forall)

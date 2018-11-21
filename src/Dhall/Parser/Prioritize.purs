@@ -68,6 +68,12 @@ fromRelation f = symmetricize \a b ->
     Disj true -> Just PGT
     Disj false -> Nothing
 
+fromLRPredicates :: forall t. Eq t =>
+  (t -> Boolean) ->
+  (t -> Boolean) ->
+  (t -> t -> Maybe POrdering)
+fromLRPredicates p q = fromRelation \a b -> Disj $ p a && q b
+
 fromPredicate :: forall t.
   (t -> Boolean) ->
   (t -> t -> Maybe POrdering)
@@ -120,29 +126,42 @@ roundrobin :: forall a.
   (a -> a -> Ordering) ->
   List a -> List a
 roundrobin comparator = go Nil where
-  go Nil acc = acc
-  go (Cons hd tl) acc =
+  go acc Nil = acc
+  go acc (Cons hd tl) =
     let
       -- base case: scanning complete, continue with `go`
       -- with the list of items that survived the comparison
       -- with `hd`.
-      scanning Nil rem = Tuple rem (Cons hd acc)
+      scanning Nil rem = Tuple (Cons hd acc) rem
       scanning (Cons hd' tl') rem =
         case comparator hd hd' of
-          -- Continue to scan, placing `hd'` back
-          -- on the list of surviving items
-          EQ -> scanning tl' (Cons hd' rem)
           -- Return immediately, discarding `hd` but
           -- keeping `hd'` in the scanning pool,
           -- which consists of the *scanned* list,
           -- plus `hd'` and the unscanned list `tl'`.
-          LT -> Tuple (rem <> Cons hd' tl') acc
+          LT -> Tuple acc (rem <> Cons hd' tl')
+          -- Continue to scan, placing `hd'` back
+          -- on the list of surviving items
+          EQ -> scanning tl' (Cons hd' rem)
           -- Continue to scan, but discarding `hd'`
           -- from the surviving items
           GT -> scanning tl' rem
     in case scanning tl Nil of
       -- manual uncurry for TCO
       Tuple a b -> go a b
+
+isPrioritized ::
+  forall t f.
+    Recursive t f =>
+    Merge f =>
+    Foldable f =>
+  (t -> t -> Maybe POrdering) ->
+  (t -> t -> Boolean)
+isPrioritized comparator =
+  prioritize comparator >>> compose case _ of
+    PGT -> true
+    PEQ -> true
+    _ -> false
 
 -- Run the roundrobin algorithm on `priorize comparator`.
 prioritized ::

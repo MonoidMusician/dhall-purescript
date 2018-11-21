@@ -3,17 +3,20 @@ module Dhall.Parser where
 import Prelude
 
 import Control.Monad.Except (runExcept)
+import Control.MonadZero (guard)
 import Data.Array (any)
 import Data.Array as Array
 import Data.Either (Either(..))
+import Data.Foldable (oneOfMap)
 import Data.Function (on)
 import Data.Functor.Compose (Compose(..))
 import Data.Functor.Variant (FProxy, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff, tt)
-import Data.Lens (preview)
+import Data.Lens (Fold', preview)
 import Data.List (List)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), isJust)
+import Data.Maybe.First (First)
 import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (unwrap)
 import Data.Nullable (Nullable)
@@ -21,7 +24,7 @@ import Data.Nullable as Nullable
 import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..))
 import Dhall.Core (S_, _s)
-import Dhall.Core.AST (Const(..), Expr, ExprLayerRow, TextLitF(..), Var(..), projectW)
+import Dhall.Core.AST (Const(..), Expr, ExprLayerRow, TextLitF(..), Var(..), ExprLayer, projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports (Directory, File(..), FilePrefix(..), Import(..), ImportHashed(..), ImportMode(..), ImportType(..), Scheme(..), URL(..))
 import Dhall.Core.StrMapIsh as IOSM
@@ -39,6 +42,9 @@ parse :: String -> Maybe ParseExpr
 parse s = case Nullable.toMaybe (parseImpl s) of
   Just [r] -> Just (decodeFAST r)
   _ -> Nothing
+
+parseBasic :: String -> Maybe (Array ParseExpr)
+parseBasic s = Nullable.toMaybe (parseImpl s) <#> map decodeFAST
 
 foreign import parseImpl :: String -> Nullable (Array (FAST Foreign))
 
@@ -219,6 +225,10 @@ prioritizeVF ::
   (VariantF r a -> VariantF r a -> Maybe POrdering)
 prioritizeVF s = Prioritize.fromPredicate (VariantF.on s tt ff)
 
+firstVar :: ParseExpr -> Maybe AST.Var
+firstVar e = e # projectW #
+  VariantF.on (_s::S_ "Var") (pure <<< unwrap) (oneOfMap firstVar)
+
 pc ::
   forall s f r'.
     IsSymbol s =>
@@ -227,21 +237,73 @@ pc ::
   (ParseExpr -> ParseExpr -> Maybe POrdering)
 pc s = prioritizeVF s `on` projectW
 
-priorities :: ParseExpr -> ParseExpr -> Maybe POrdering
-priorities = mempty
-  <> pc(_s::S_ "BoolIf")
-  <> Prioritize.fromRelation prioritizeEnv
+keyword ::
+  forall s f r'.
+    IsSymbol s =>
+    Row.Cons s (FProxy f) r' (ExprLayerRow IOSM.InsOrdStrMap Import) =>
+  SProxy s ->
+  String ->
+  (ParseExpr -> ParseExpr -> Maybe POrdering)
+keyword s var = Prioritize.fromLRPredicates
+  do projectW >>> VariantF.on s tt ff
+  do \b -> firstVar b == Just (AST.V var 0)
 
-prioritizeEnv :: ParseExpr -> ParseExpr -> Disj Boolean
-prioritizeEnv = flip on projectW $
-  \a b -> Disj $ (&&)
-    do
-      let isEnv (Import { importHashed: ImportHashed { importType: Env _ }}) = true
-          isEnv _ = false
-      a # preview AST._Embed >>> any (isEnv <<< unwrap)
-    do b # preview AST._Annot >>> any
-        do _.value >>> projectW >>> preview AST._Var >>> any
-            do eq (AST.V "env" 0) <<< unwrap
+-- This will compare two notes to determine their priorities.
+-- Must be applied recursively through Prioritize.prioritize and helpers
+priorities :: ParseExpr -> ParseExpr -> Maybe POrdering
+priorities e1 e2 = (\f -> f e1 e2)
+  do mempty
+      <> keyword (_s::S_ "BoolIf") "if"
+      <> prioritize_forall
+      <> prioritize_env
+
+-- True if the left expression is more or equally prioritized than the right.
+isPrioritized :: ParseExpr -> ParseExpr -> Boolean
+isPrioritized e1 e2 = Prioritize.isPrioritized priorities e1 e2
+-- it's an arrow that points to the prioritized element <
+-- which is on the + side
+-- (as opposed to the worse one on the - side)
+-- but it also returns true for equality, so there's =
+infix 9 isPrioritized as <+-=
+
+-- Reveal the shape of a node if it matches the right constructor
+reveal :: forall a.
+  (Fold' (First a) (ExprLayer IOSM.InsOrdStrMap Import) a) ->
+  Expr IOSM.InsOrdStrMap Import ->
+  Maybe a
+reveal cons = projectW >>> preview cons
+
+-- Check if it fits the pattern, based on the constructor and the condition
+-- of the constructor data
+fits :: forall a.
+  (Fold' (First a) (ExprLayer IOSM.InsOrdStrMap Import) a) ->
+  (a -> Boolean) ->
+  Expr IOSM.InsOrdStrMap Import ->
+  Boolean
+fits cons pred = reveal cons >>> any pred
+
+-- Disambiguate `forall (v : ?t) -> ?b` from `(forall@0 (v@0 : ?t)) -> ?b`
+prioritize_forall :: ParseExpr -> ParseExpr -> Maybe POrdering
+prioritize_forall = Prioritize.fromRelation \better worse -> Disj $ isJust do
+  { var, ty, body } <- reveal AST._Pi better
+  { var: var', ty: _forall_app, body: body'} <- reveal AST._Pi worse
+  guard $ var' == "_"
+  guard $ body <+-= body'
+  { fn: _forall, arg: var_annot } <- reveal AST._App _forall_app
+  guard $ _forall == AST.mkVar (AST.V "forall" 0)
+  { value: _var, ty: ty' } <- reveal AST._Annot var_annot
+  guard $ _var == AST.mkVar (AST.V var 0)
+  guard $ ty <+-= ty'
+
+prioritize_env :: ParseExpr -> ParseExpr -> Maybe POrdering
+prioritize_env = Prioritize.fromLRPredicates
+  do
+    let isEnv (Import { importHashed: ImportHashed { importType: Env _ }}) = true
+        isEnv _ = false
+    fits AST._Embed $ unwrap >>> isEnv
+  do
+    fits AST._Annot $ flip compose _.value $
+      fits AST._Var $ unwrap >>> eq (AST.V "env" 0)
 
 {-
 unsafePartial $ Nullable.toMaybe (Parser.parseImpl "env:Natural") <#> map Parser.decodeFAST >>> \r -> case r of [a,b] -> Parser.priorities a b
