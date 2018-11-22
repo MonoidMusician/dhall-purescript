@@ -4,9 +4,12 @@ import Prelude
 
 import Control.Apply (lift2, lift3)
 import Control.Comonad (extract)
+import Data.Array as Array
 import Data.Const as ConstF
 import Data.Function (on)
+import Data.Functor.App as AppF
 import Data.Functor.Compose (Compose(..))
+import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (mapWithIndex)
@@ -15,18 +18,20 @@ import Data.Int (even, toNumber)
 import Data.Lazy (Lazy, defer)
 import Data.Lens as Lens
 import Data.Lens.Iso.Newtype (_Newtype)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Maybe.First (First)
 import Data.Monoid.Conj (Conj(..))
 import Data.Natural (natToInt)
 import Data.Newtype (class Newtype, un, unwrap)
 import Data.These (These(..))
+import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..))
 import Dhall.Core.AST (Expr, projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations (rewriteBottomUpA')
 import Dhall.Core.AST.Types.Basics (S_, _S)
 import Dhall.Core.StrMapIsh (class StrMapIsh)
+import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Core.StrMapIsh as StrMapIsh
 import Dhall.Variables as Variables
 import Matryoshka (class Recursive, project)
@@ -98,7 +103,11 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
     Just v -> this v
     _ -> other e
 
-  onPW p this other e = case Lens.preview p e of
+  onPW :: forall v r.
+    Preview' (AST.ExprLayer m a) v ->
+    (v -> r) -> (W (Expr m a) -> r) ->
+    W (Expr m a) -> r
+  onPW p this other e = case Lens.preview p (projectW (extractW e)) of
     Just v -> this v
     _ -> other e
 
@@ -245,6 +254,34 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
         _, Just b | b == one -> simpler l
         _, _ -> lift2 AST.mkNaturalTimes l r
       )
+    >>> VariantF.on (_S::S_ "TextLit")
+      (
+        let
+          go (AST.TextLit s) = pure (AST.TextLit s)
+          go (AST.TextInterp s v tl) =
+            (v # extractW # projectW # onP AST._TextLit
+              do \tl2 tl' -> ((AST.TextLit s <> tl2) <> _) <$> tl'
+              do \_ tl' -> lift2 (AST.TextInterp s) v tl'
+            ) (go tl)
+          finalize tl = case extractW tl of
+            AST.TextInterp "" v' (AST.TextLit "") -> instead \_ -> v'
+            _ -> AST.mkTextLit <$> tl
+        in finalize <<< go
+      )
+    >>> VariantF.on (_S::S_ "TextAppend")
+      (unPairW AST._TextLit \l r -> case _, _ of
+        Just a, Just b -> instead \_ -> AST.mkTextLit (a <> b)
+        Just a, _ | a == mempty -> simpler r
+        _, Just b | b == mempty -> simpler l
+        _, _ -> lift2 AST.mkTextAppend l r
+      )
+    >>> VariantF.on (_S::S_ "ListLit")
+      (\(Product (Tuple mty vs)) ->
+        -- Remove annotation on non-empty lists
+        if not Array.null vs && isJust mty
+          then simpler (AST.mkListLit Nothing <$> sequence vs)
+          else AST.mkListLit <$> sequence mty <*> sequence vs
+      )
     >>> VariantF.on (_S::S_ "ListAppend")
       (unPairW AST._ListLit \l r -> case _, _ of
         Just { ty, values: a }, Just { values: b } ->
@@ -252,6 +289,12 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
         Just { values: [] }, _ -> simpler r
         _, Just { values: [] } -> simpler l
         _, _ -> lift2 AST.mkListAppend l r
+      )
+    >>> VariantF.on (_S::S_ "OptionalLit")
+      (\(Product (Tuple (Identity ty) mv)) ->
+        case mv of
+          Nothing -> AST.mkApp AST.mkNone <$> ty
+          Just v -> AST.mkSome <$> v
       )
     >>> VariantF.on (_S::S_ "Combine")
       (let
@@ -307,8 +350,23 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
               StrMapIsh.unionWith (pure preference) a b
           Just a, _ | StrMapIsh.isEmpty a -> simpler r
           _, Just b | StrMapIsh.isEmpty b -> simpler l
-          _, _ -> lift2 AST.mkPrefer (l) (r)
+          _, _ -> lift2 AST.mkPrefer l r
       in decide)
+    >>> VariantF.on (_S::S_ "Merge")
+      (\(AST.MergeF x y mty) ->
+          let
+            default _ = AST.mkMerge <$> x <*> y <*> sequence mty
+          in x # onPW AST._RecordLit
+            do \kvsX ->
+              y # onPW AST._UnionLit
+                do \{ label: kY, value: vY } ->
+                    case IOSM.get kY kvsX of
+                      Just vX -> instead \_ ->
+                        normalizeWith ctx $ AST.mkApp vX vY
+                      _ -> default unit
+                do \_ -> default unit
+            do \_ -> default unit
+      )
     >>> VariantF.on (_S::S_ "Constructors")
       (un Identity >>> \e' -> case previewEW AST._Union e' of
         Just kts -> instead \_ ->
@@ -316,6 +374,42 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
             AST.mkLam k (t_) $ AST.mkUnionLit k (AST.mkVar (AST.V k 0)) $
               (fromMaybe <*> StrMapIsh.delete k) kts
         Nothing -> map AST.mkConstructors e'
+      )
+    >>> VariantF.on (_S::S_ "Field")
+      (\(Tuple k r) ->
+        let
+          default _ = AST.mkField <$> r <@> k
+        in r # onPW AST._RecordLit
+          do
+            \kvs ->
+              case IOSM.get k kvs of
+                Just v -> instead \_ -> v
+                _ -> default unit
+          do onPW AST._Union
+              do \kvs ->
+                case IOSM.get k kvs, IOSM.delete k kvs of
+                  Just ty, Just rest ->
+                    instead \_ -> normalizeWith ctx $
+                      AST.mkLam k ty $ AST.mkUnionLit k (AST.mkVar (AST.V k 0)) rest
+                  _, _ -> default unit
+              do \_ -> default unit
+      )
+    >>> VariantF.on (_S::S_ "Project")
+      (\(Tuple (AppF.App ks) r) ->
+        let
+          default _ = AST.mkProject <$> r <@> ks
+        in r # onPW AST._RecordLit
+          do
+            \kvs ->
+              let
+                adapt = case _ of
+                  Both (_ :: Unit) v -> Just v
+                  _ -> Nothing
+              in case sequence $ IOSM.unionWith (pure (pure <<< adapt)) ks kvs of
+                Just vs' -> instead \_ -> normalizeWith ctx $
+                  AST.mkRecordLit vs'
+                _ -> default unit
+          do \_ -> default unit
       )
     -- NOTE: eta-normalization, added
     >>> onP AST._Lam
