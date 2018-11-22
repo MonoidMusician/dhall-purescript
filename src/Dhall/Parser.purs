@@ -39,8 +39,8 @@ import Unsafe.Coerce (unsafeCoerce)
 type ParseExpr = Expr IOSM.InsOrdStrMap Import
 
 parse :: String -> Maybe ParseExpr
-parse s = case Nullable.toMaybe (parseImpl s) of
-  Just [r] -> Just (decodeFAST r)
+parse s = case parseBasic s <#> disambiguate of
+  Just [r] -> Just r
   _ -> Nothing
 
 parseBasic :: String -> Maybe (Array ParseExpr)

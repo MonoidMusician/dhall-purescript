@@ -46,9 +46,8 @@ import Dhall.Core.Imports
   ) as Exports
 import Dhall.Normalize
   ( Apps(..)
-  , Normalizer
   , Preview'
-  , WrappedNormalizer(..)
+  , Normalizer(..)
   , _NoApp
   , apps
   , boundedType

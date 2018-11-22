@@ -8,7 +8,7 @@ import Data.Array as Array
 import Data.Bifunctor (bimap)
 import Data.Either (Either(..))
 import Data.Functor (voidRight)
-import Data.Lens (review, view)
+import Data.Lens (review)
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Newtype (unwrap)
 import Data.String (joinWith)
@@ -74,19 +74,16 @@ parserC = H.component
               -- only after the regular normalization (and substituion) has happened.
               Dhall.Core.normalizeWith normalizator <<< Dhall.Core.normalize <$> parsed
             _ -> Nothing
-          normalizator ::
-            AST.Expr IOSM.InsOrdStrMap Core.Imports.Import ->
-            AST.Expr IOSM.InsOrdStrMap Core.Imports.Import ->
-            Maybe (AST.Expr IOSM.InsOrdStrMap Core.Imports.Import)
-          normalizator f a = normalizer (view Core.apps (AST.mkApp f a))
+          normalizator :: Dhall.Core.Normalizer IOSM.InsOrdStrMap Core.Imports.Import
+          normalizator = Dhall.Core.Normalizer normalizer
           normalizer ::
             Dhall.Core.Apps IOSM.InsOrdStrMap Core.Imports.Import ->
-            Maybe (AST.Expr IOSM.InsOrdStrMap Core.Imports.Import)
+            Maybe (Unit -> AST.Expr IOSM.InsOrdStrMap Core.Imports.Import)
           normalizer (testequal~_~x~y)
             | Just (AST.V "Test/equal" 0) <- Core.noapplit AST._Var testequal
             , x' <- review Core.apps x
             , y' <- review Core.apps y =
-              Just (AST.mkBoolLit (Core.judgmentallyEqual x' y'))
+              Just \_ -> AST.mkBoolLit (Core.judgmentallyEqual x' y')
           normalizer _ =
               Nothing
           ann = toAnnotatedHoley <<< voidRight unit <$> parsed
