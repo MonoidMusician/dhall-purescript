@@ -370,6 +370,12 @@ _TextLit_empty = _TextLit <<< prism' (const (TextLit ""))
     TextLit "" -> Just unit
     _ -> Nothing
 
+_TextLit_single :: forall r o. Prism' (VariantF ( "TextLit" :: FProxy TextLitF | r ) o) String
+_TextLit_single = _TextLit <<< prism' TextLit
+  case _ of
+    TextLit s -> Just s
+    _ -> Nothing
+
 mkTextAppend :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkTextAppend = mkBinOp (SProxy :: SProxy "TextAppend")
 

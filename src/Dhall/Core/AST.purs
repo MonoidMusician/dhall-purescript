@@ -141,6 +141,7 @@ import Dhall.Core.AST.Constructors
   , _TextAppend
   , _TextLit
   , _TextLit_empty
+  , _TextLit_single
   , _Union
   , _UnionLit
   , _Union_empty

@@ -82,7 +82,8 @@ parserC = H.component
           normalizer (testequal~_~x~y)
             | Just (AST.V "Test/equal" 0) <- Core.noapplit AST._Var testequal
             , x' <- review Core.apps x
-            , y' <- review Core.apps y =
+            , y' <- review Core.apps y
+            , Core.judgmentallyEqual x' y' =
               Just \_ -> AST.mkBoolLit (Core.judgmentallyEqual x' y')
           normalizer _ =
               Nothing

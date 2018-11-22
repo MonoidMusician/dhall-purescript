@@ -2,7 +2,9 @@ module Dhall.Core.StrMapIsh where
 
 import Prelude
 
+import Control.Alt (class Alt)
 import Control.Extend (extend)
+import Control.Plus (class Plus)
 import Data.Array as Array
 import Data.Either (Either(..))
 import Data.Eq (class Eq1)
@@ -86,6 +88,8 @@ unIOSM (InsOrdStrMap (Compose as)) = as
 derive newtype instance functorIOSM :: Functor InsOrdStrMap
 derive newtype instance foldableIOSM :: Foldable InsOrdStrMap
 derive newtype instance traversableIOSM :: Traversable InsOrdStrMap
+derive newtype instance altIOSM :: Alt InsOrdStrMap
+derive newtype instance plusIOSM :: Plus InsOrdStrMap
 instance functorWithIndexIOSM :: FunctorWithIndex String InsOrdStrMap where
   mapWithIndex f = over InsOrdStrMap $ over Compose $ map $ extend $ uncurry f
 instance foldableWithIndexIOSM :: FoldableWithIndex String InsOrdStrMap where
