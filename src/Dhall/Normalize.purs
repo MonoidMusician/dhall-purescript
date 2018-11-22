@@ -4,6 +4,8 @@ import Prelude
 
 import Control.Apply (lift2, lift3)
 import Control.Comonad (extract)
+import Control.Plus (empty)
+import Data.Array (foldr)
 import Data.Array as Array
 import Data.Const as ConstF
 import Data.Function (on)
@@ -21,7 +23,7 @@ import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Maybe.First (First)
 import Data.Monoid.Conj (Conj(..))
-import Data.Natural (natToInt)
+import Data.Natural (intToNat, natToInt, (+-))
 import Data.Newtype (class Newtype, un, unwrap)
 import Data.These (These(..))
 import Data.Traversable (sequence)
@@ -211,6 +213,8 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
     >>> VariantF.on (_S::S_ "BoolEQ")
       (unPairNW AST._BoolLit \l r -> case _, _ of
         Just a, Just b -> instead \_ -> AST.mkBoolLit (a == b)
+        Just true, _ -> simpler r
+        _, Just true -> simpler l
         _, _ ->
           if judgEq l r
           then instead \_ -> AST.mkBoolLit true
@@ -219,6 +223,8 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
     >>> VariantF.on (_S::S_ "BoolNE")
       (unPairNW AST._BoolLit \l r -> case _, _ of
         Just a, Just b -> instead \_ -> AST.mkBoolLit (a /= b)
+        Just false, _ -> simpler r
+        _, Just false -> simpler l
         _, _ ->
           if judgEq l r
           then instead \_ -> AST.mkBoolLit false
@@ -451,6 +457,29 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
           , noapp AST._OptionalFold optionalfold ->
             instead \_ -> Lens.review apps e'
 
+        -- App (App (App (App NaturalFold (NaturalLit n0)) t) succ') zero
+        naturalfold~naturallit~t~succ', zero'
+          | noapp AST._NaturalFold naturalfold
+          , Just n0 <- noapplit AST._NaturalLit naturallit -> instead \_ ->
+            let
+              t' = normalizeWith ctx (Lens.review apps t)
+              succE = Lens.review apps succ'
+              zeroE = Lens.review apps zero'
+            in if boundedType t'
+              then
+                let
+                  strictLoop n =
+                    if n > zero then
+                      normalizeWith ctx (AST.mkApp succE (strictLoop (n +- one)))
+                    else normalizeWith ctx zeroE
+                in strictLoop n0
+              else
+                let
+                  lazyLoop n =
+                    if n > zero then
+                      AST.mkApp succE (lazyLoop (n +- one))
+                    else zeroE
+                in normalizeWith ctx (lazyLoop n0)
         naturalbuild, g
           | noapp AST._NaturalBuild naturalbuild -> instead \_ ->
             let
@@ -493,6 +522,101 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
           | noapp AST._DoubleShow doubleshow
           , Just n <- noapplit AST._DoubleLit doublelit ->
             instead \_ -> AST.mkTextLit (AST.TextLit (show n))
+        optionalbuild~t, g
+          | noapp AST._OptionalBuild optionalbuild -> instead \_ ->
+            let
+              g' = Lens.review apps g
+              ty = Lens.review apps t
+              optional = AST.mkApp AST.mkOptional ty
+              just = AST.mkLam "a" ty (AST.mkSome (AST.mkVar (AST.V "a" 0)))
+              nothing = AST.mkApp AST.mkNone ty
+            in normalizeWith ctx
+              (AST.mkApp (AST.mkApp (AST.mkApp g' optional) just) nothing)
+        listbuild~t, g
+          | noapp AST._ListBuild listbuild -> instead \_ ->
+            let
+              g' = Lens.review apps g
+              ty = Lens.review apps t
+              ty' = Variables.shift 1 (AST.V "a" 0) ty
+              list = AST.mkApp AST.mkList ty
+              cons = AST.mkLam "a" ty $
+                AST.mkLam "as" (AST.mkApp AST.mkList ty') $
+                  AST.mkListAppend
+                    (AST.mkListLit Nothing (pure (AST.mkVar (AST.V "a" 0))))
+                    (AST.mkVar (AST.V "as" 0))
+              nil = AST.mkListLit (Just ty) empty
+            in normalizeWith ctx
+              (AST.mkApp (AST.mkApp (AST.mkApp g' list) cons) nil)
+        listfold~_~listlit~t~cons, nil
+          | noapp AST._ListFold listfold
+          , Just (Product (Tuple _ xs)) <- noapplit' (AST._ExprFPrism (_S::S_ "ListLit")) listlit ->
+            instead \_ ->
+            let
+              t' = normalizeWith ctx (Lens.review apps t)
+              consE = Lens.review apps cons
+              nilE = Lens.review apps nil
+            in if boundedType t'
+              then
+                let
+                  strictNil = normalizeWith ctx nilE
+                  strictCons y ys = normalizeWith ctx
+                    (AST.mkApp (AST.mkApp consE y) ys)
+                in foldr strictCons strictNil xs
+              else
+                let
+                  lazyNil = nilE
+                  lazyCons y ys = AST.mkApp (AST.mkApp consE y) ys
+                in normalizeWith ctx (foldr lazyCons lazyNil xs)
+        listlength~_, listlit
+          | noapp AST._ListLength listlength
+          , Just (Product (Tuple _ xs)) <- noapplit' (AST._ExprFPrism (_S::S_ "ListLit")) listlit ->
+            instead \_ ->
+              AST.mkNaturalLit (intToNat (Array.length xs))
+        listhead~t, listlit
+          | noapp AST._ListHead listhead
+          , Just (Product (Tuple _ xs)) <- noapplit' (AST._ExprFPrism (_S::S_ "ListLit")) listlit ->
+            instead \_ -> normalizeWith ctx $
+            case Array.head xs of
+              Just x -> AST.mkSome x
+              Nothing -> AST.mkApp AST.mkNone (Lens.review apps t)
+        listlast~t, listlit
+          | noapp AST._ListLast listlast
+          , Just (Product (Tuple _ xs)) <- noapplit' (AST._ExprFPrism (_S::S_ "ListLit")) listlit ->
+            instead \_ -> normalizeWith ctx $
+            case Array.last xs of
+              Just x -> AST.mkSome x
+              Nothing -> AST.mkApp AST.mkNone (Lens.review apps t)
+        listindexed~t, listlit
+          | noapp AST._ListIndexed listindexed
+          , Just (Product (Tuple _ xs)) <- noapplit' (AST._ExprFPrism (_S::S_ "ListLit")) listlit ->
+            instead \_ -> normalizeWith ctx $
+              let
+                mty' = if Array.null xs then Nothing else
+                  Just $ AST.mkRecord $ IOSM.fromFoldable
+                    [ Tuple "index" AST.mkNatural
+                    , Tuple "value" (Lens.review apps t)
+                    ]
+                adapt i x = AST.mkRecordLit $ IOSM.fromFoldable
+                  [ Tuple "index" (AST.mkNaturalLit (intToNat i))
+                  , Tuple "value" x
+                  ]
+              in AST.mkListLit mty' (mapWithIndex adapt xs)
+        listreverse~_, listlit
+          | noapp AST._ListReverse listreverse
+          , Just (Product (Tuple mty xs)) <- noapplit' (AST._ExprFPrism (_S::S_ "ListLit")) listlit ->
+            instead \_ -> normalizeWith ctx $
+              AST.mkListLit mty (Array.reverse xs)
+        optionalfold~_~(none~_)~_~_, nothing
+          | noapp AST._OptionalFold optionalfold
+          , noapp AST._None none -> instead \_ ->
+            -- TODO: I don't think this is necessary
+            -- normalizeWith ctx $
+            (Lens.review apps nothing)
+        optionalfold~_~some~_~just, _
+          | noapp AST._OptionalFold optionalfold
+          , Just (Identity x) <- noapplit' (AST._ExprFPrism (_S::S_ "Some")) some ->
+            instead \_ -> normalizeWith ctx $
+              AST.mkApp (Lens.review apps just) x
         _, _ | Just ret <- (ctx `on` extractW) fn arg -> instead \_ -> ret
         _, _ -> lift2 AST.mkApp fn arg
 
@@ -507,6 +631,14 @@ noapplit :: forall m a v.
   Apps m a ->
   Maybe v
 noapplit p = Lens.preview (_NoApp <<< AST._E p <<< _Newtype)
+
+noapplit' :: forall f m a. Functor f =>
+  Lens.Prism'
+    (VariantF (AST.ExprLayerRow m a) (Expr m a))
+    (f (Expr m a)) ->
+  Apps m a ->
+  Maybe (f (Expr m a))
+noapplit' p = Lens.preview (_NoApp <<< AST._E p)
 
 noapp :: forall f m a. Functor f =>
   Lens.Prism'

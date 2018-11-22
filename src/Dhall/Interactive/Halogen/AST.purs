@@ -27,7 +27,7 @@ import Data.Profunctor.Star (Star(..), hoistStar)
 import Data.Profunctor.Strong (first, second)
 import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..), fst)
-import Dhall.Core (S_, _s)
+import Dhall.Core (S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Interactive.Halogen.Inputs (QueryExpanding)
@@ -69,13 +69,13 @@ renderLiterals ::
   (i -> RenderVariantF_' h ir or a) ->
   (i -> RenderVariantF_' h (AST.Literals m ir) (AST.Literals m or) a)
 renderLiterals render = identity
-  >>> renderOnConst (_s::S_ "BoolLit")
+  >>> renderOnConst (_S::S_ "BoolLit")
     (Types.boolH # hoistStar (render <<< wrap))
-  >>> renderOnConst (_s::S_ "NaturalLit")
+  >>> renderOnConst (_S::S_ "NaturalLit")
     (Types.naturalH # hoistStar (render <<< wrap))
-  >>> renderOnConst (_s::S_ "IntegerLit")
+  >>> renderOnConst (_S::S_ "IntegerLit")
     (Types.intH # hoistStar (render <<< wrap))
-  >>> renderOnConst (_s::S_ "DoubleLit")
+  >>> renderOnConst (_S::S_ "DoubleLit")
     (Types.doubleH # hoistStar (render <<< wrap))
 
 renderBuiltinTypes ::
@@ -84,13 +84,13 @@ renderBuiltinTypes ::
   (i -> RenderVariantF_' h ir or a) ->
   (i -> RenderVariantF_' h (AST.BuiltinTypes m ir) (AST.BuiltinTypes m or) a)
 renderBuiltinTypes render = identity
-  >>> Types.renderName (_s::S_ "Bool") named
-  >>> Types.renderName (_s::S_ "Natural") named
-  >>> Types.renderName (_s::S_ "Integer") named
-  >>> Types.renderName (_s::S_ "Double") named
-  >>> Types.renderName (_s::S_ "Text") named
-  >>> Types.renderName (_s::S_ "List") named
-  >>> Types.renderName (_s::S_ "Optional") named
+  >>> Types.renderName (_S::S_ "Bool") named
+  >>> Types.renderName (_S::S_ "Natural") named
+  >>> Types.renderName (_S::S_ "Integer") named
+  >>> Types.renderName (_S::S_ "Double") named
+  >>> Types.renderName (_S::S_ "Text") named
+  >>> Types.renderName (_S::S_ "List") named
+  >>> Types.renderName (_S::S_ "Optional") named
   where named = render <<< wrap <<< HH.text
 
 renderBuiltinFuncs ::
@@ -99,25 +99,25 @@ renderBuiltinFuncs ::
   (i -> RenderVariantF_' h ir or a) ->
   (i -> RenderVariantF_' h (AST.BuiltinFuncs m ir) (AST.BuiltinFuncs m or) a)
 renderBuiltinFuncs render = identity
-  >>> Types.renderName (_s::S_ "NaturalFold") named
-  >>> Types.renderName (_s::S_ "NaturalBuild") named
-  >>> Types.renderName (_s::S_ "NaturalIsZero") named
-  >>> Types.renderName (_s::S_ "NaturalEven") named
-  >>> Types.renderName (_s::S_ "NaturalOdd") named
-  >>> Types.renderName (_s::S_ "NaturalToInteger") named
-  >>> Types.renderName (_s::S_ "NaturalShow") named
-  >>> Types.renderName (_s::S_ "IntegerShow") named
-  >>> Types.renderName (_s::S_ "IntegerToDouble") named
-  >>> Types.renderName (_s::S_ "DoubleShow") named
-  >>> Types.renderName (_s::S_ "ListBuild") named
-  >>> Types.renderName (_s::S_ "ListFold") named
-  >>> Types.renderName (_s::S_ "ListLength") named
-  >>> Types.renderName (_s::S_ "ListHead") named
-  >>> Types.renderName (_s::S_ "ListLast") named
-  >>> Types.renderName (_s::S_ "ListIndexed") named
-  >>> Types.renderName (_s::S_ "ListReverse") named
-  >>> Types.renderName (_s::S_ "OptionalFold") named
-  >>> Types.renderName (_s::S_ "OptionalBuild") named
+  >>> Types.renderName (_S::S_ "NaturalFold") named
+  >>> Types.renderName (_S::S_ "NaturalBuild") named
+  >>> Types.renderName (_S::S_ "NaturalIsZero") named
+  >>> Types.renderName (_S::S_ "NaturalEven") named
+  >>> Types.renderName (_S::S_ "NaturalOdd") named
+  >>> Types.renderName (_S::S_ "NaturalToInteger") named
+  >>> Types.renderName (_S::S_ "NaturalShow") named
+  >>> Types.renderName (_S::S_ "IntegerShow") named
+  >>> Types.renderName (_S::S_ "IntegerToDouble") named
+  >>> Types.renderName (_S::S_ "DoubleShow") named
+  >>> Types.renderName (_S::S_ "ListBuild") named
+  >>> Types.renderName (_S::S_ "ListFold") named
+  >>> Types.renderName (_S::S_ "ListLength") named
+  >>> Types.renderName (_S::S_ "ListHead") named
+  >>> Types.renderName (_S::S_ "ListLast") named
+  >>> Types.renderName (_S::S_ "ListIndexed") named
+  >>> Types.renderName (_S::S_ "ListReverse") named
+  >>> Types.renderName (_S::S_ "OptionalFold") named
+  >>> Types.renderName (_S::S_ "OptionalBuild") named
   where named = render <<< wrap <<< HH.text
 
 renderTerminals ::
@@ -127,12 +127,12 @@ renderTerminals ::
   (i -> RenderVariantF_' h ir or a) ->
   (i -> RenderVariantF_' h (AST.Terminals m ir) (AST.Terminals m or) a)
 renderTerminals render slot = identity
-  >>> Types.renderOnConst (_s::S_ "Const")
+  >>> Types.renderOnConst (_S::S_ "Const")
     (Star case _ of
       AST.Type -> render (wrap (HH.text "Type")) $> AST.Type
       AST.Kind -> render (wrap (HH.text "Kind")) $> AST.Kind
     )
-  >>> Types.renderOnConst (_s::S_ "Var")
+  >>> Types.renderOnConst (_S::S_ "Var")
     (Star \(AST.V name ix) -> render $ SlottedHTML $
       HH.span_
         [ un SlottedHTML $ expanding slot name \name' -> AST.V name' ix
@@ -153,18 +153,18 @@ renderBuiltinBinOps ::
   ((Slot -> RenderValue_ h a) -> RenderVariantF_' h ir or a) ->
   ((Slot -> RenderValue_ h a) -> RenderVariantF_' h (AST.BuiltinBinOps m ir) (AST.BuiltinBinOps m or) a)
 renderBuiltinBinOps renderPure renderLiftA2 slot = identity
-  >>> Types.renderOn (_s::S_ "BoolAnd") (renderBinOp renderPure renderLiftA2 slot "&&")
-  >>> Types.renderOn (_s::S_ "BoolOr") (renderBinOp renderPure renderLiftA2 slot "||")
-  >>> Types.renderOn (_s::S_ "BoolEQ") (renderBinOp renderPure renderLiftA2 slot "==")
-  >>> Types.renderOn (_s::S_ "BoolNE") (renderBinOp renderPure renderLiftA2 slot "!=")
-  >>> Types.renderOn (_s::S_ "NaturalPlus") (renderBinOp renderPure renderLiftA2 slot "+")
-  >>> Types.renderOn (_s::S_ "NaturalTimes") (renderBinOp renderPure renderLiftA2 slot "*")
-  >>> Types.renderOn (_s::S_ "TextAppend") (renderBinOp renderPure renderLiftA2 slot "++")
-  >>> Types.renderOn (_s::S_ "ListAppend") (renderBinOp renderPure renderLiftA2 slot "#")
-  >>> Types.renderOn (_s::S_ "Combine") (renderBinOp renderPure renderLiftA2 slot "∧")
-  >>> Types.renderOn (_s::S_ "CombineTypes") (renderBinOp renderPure renderLiftA2 slot "⩓")
-  >>> Types.renderOn (_s::S_ "Prefer") (renderBinOp renderPure renderLiftA2 slot "⫽")
-  >>> Types.renderOn (_s::S_ "ImportAlt") (renderBinOp renderPure renderLiftA2 slot "?")
+  >>> Types.renderOn (_S::S_ "BoolAnd") (renderBinOp renderPure renderLiftA2 slot "&&")
+  >>> Types.renderOn (_S::S_ "BoolOr") (renderBinOp renderPure renderLiftA2 slot "||")
+  >>> Types.renderOn (_S::S_ "BoolEQ") (renderBinOp renderPure renderLiftA2 slot "==")
+  >>> Types.renderOn (_S::S_ "BoolNE") (renderBinOp renderPure renderLiftA2 slot "!=")
+  >>> Types.renderOn (_S::S_ "NaturalPlus") (renderBinOp renderPure renderLiftA2 slot "+")
+  >>> Types.renderOn (_S::S_ "NaturalTimes") (renderBinOp renderPure renderLiftA2 slot "*")
+  >>> Types.renderOn (_S::S_ "TextAppend") (renderBinOp renderPure renderLiftA2 slot "++")
+  >>> Types.renderOn (_S::S_ "ListAppend") (renderBinOp renderPure renderLiftA2 slot "#")
+  >>> Types.renderOn (_S::S_ "Combine") (renderBinOp renderPure renderLiftA2 slot "∧")
+  >>> Types.renderOn (_S::S_ "CombineTypes") (renderBinOp renderPure renderLiftA2 slot "⩓")
+  >>> Types.renderOn (_S::S_ "Prefer") (renderBinOp renderPure renderLiftA2 slot "⫽")
+  >>> Types.renderOn (_S::S_ "ImportAlt") (renderBinOp renderPure renderLiftA2 slot "?")
 
 renderBinOp ::
   forall h a r. Functor h =>
@@ -199,11 +199,11 @@ renderBuiltinOps ::
   ((Slot -> RenderValue_ (SlottedHTML (Expandable r)) a) -> RenderVariantF_' (SlottedHTML (Expandable r)) ir or a) ->
   ((Slot -> RenderValue_ (SlottedHTML (Expandable r)) a) -> RenderVariantF_' (SlottedHTML (Expandable r)) (AST.BuiltinOps IOSM.InsOrdStrMap ir) (AST.BuiltinOps IOSM.InsOrdStrMap or) a)
 renderBuiltinOps { default } slot = renderBuiltinBinOps identity identity slot
-  >>> Types.renderOn (_s::S_ "Field") renderField
-  >>> Types.renderOn (_s::S_ "Constructors") renderConstructors
-  >>> Types.renderOn (_s::S_ "BoolIf") renderBoolIf
-  >>> Types.renderOn (_s::S_ "Merge") renderMerge
-  >>> Types.renderOn (_s::S_ "Project") renderProject
+  >>> Types.renderOn (_S::S_ "Field") renderField
+  >>> Types.renderOn (_S::S_ "Constructors") renderConstructors
+  >>> Types.renderOn (_S::S_ "BoolIf") renderBoolIf
+  >>> Types.renderOn (_S::S_ "Merge") renderMerge
+  >>> Types.renderOn (_S::S_ "Project") renderProject
   where
     renderField = \renderA -> Star \(Tuple field a) -> SlottedHTML $ HH.span_
       [ unwrap (Tuple field <$> unwrap (renderA (slot<>["fielded"])) a)
@@ -572,8 +572,8 @@ renderBuiltinTypes2 ::
   ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF ir)) ->
   ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF (AST.BuiltinTypes2 IOSM.InsOrdStrMap ir)))
 renderBuiltinTypes2 { default } slot = identity
-  >>> Types.renderOnAnnot (_s::S_ "Record") (renderIOSM default slot "{" ":" "," "}")
-  >>> Types.renderOnAnnot (_s::S_ "Union") (renderIOSM default slot "<" ":" "|" ">")
+  >>> Types.renderOnAnnot (_S::S_ "Record") (renderIOSM default slot "{" ":" "," "}")
+  >>> Types.renderOnAnnot (_S::S_ "Union") (renderIOSM default slot "<" ":" "|" ">")
 
 renderLiterals2 ::
   forall ir a r annot.
@@ -582,15 +582,15 @@ renderLiterals2 ::
   ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF ir)) ->
   ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF (AST.Literals2 IOSM.InsOrdStrMap ir)))
 renderLiterals2 { default } slot = identity
-  >>> Types.renderOverAnnot (_s::S_ "None")
+  >>> Types.renderOverAnnot (_S::S_ "None")
     (const $ Star $ const $ SlottedHTML $ HH.text "None")
-  >>> Types.renderOverAnnot (_s::S_ "Some") renderSome
+  >>> Types.renderOverAnnot (_S::S_ "Some") renderSome
     -- FIXME: empty case will look like {} instead of {=}
-  >>> Types.renderOnAnnot (_s::S_ "RecordLit") (renderIOSM default slot "{" "=" "," "}")
-  >>> Types.renderOnAnnot (_s::S_ "UnionLit") renderUnionLit
-  >>> Types.renderOnAnnot (_s::S_ "OptionalLit") renderOptionalLit
-  >>> Types.renderOnAnnot (_s::S_ "ListLit") renderListLit
-  >>> Types.renderOnAnnot (_s::S_ "TextLit") renderTextLit
+  >>> Types.renderOnAnnot (_S::S_ "RecordLit") (renderIOSM default slot "{" "=" "," "}")
+  >>> Types.renderOnAnnot (_S::S_ "UnionLit") renderUnionLit
+  >>> Types.renderOnAnnot (_S::S_ "OptionalLit") renderOptionalLit
+  >>> Types.renderOnAnnot (_S::S_ "ListLit") renderListLit
+  >>> Types.renderOnAnnot (_S::S_ "TextLit") renderTextLit
   where
     renderSome = \renderA -> Star \(Identity a) -> map Identity $ SlottedHTML $
       HH.span_ [ HH.text "Some", HH.text " ", unwrap (unwrap (renderA slot) a) ]
@@ -740,11 +740,11 @@ renderSyntax ::
   ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF ir)) ->
   ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF (AST.Syntax IOSM.InsOrdStrMap ir)))
 renderSyntax { default } slot = identity
-  >>> Types.renderOverAnnot (_s::S_ "App") (renderBinOp identity identity slot "·")
-  >>> Types.renderOverAnnot (_s::S_ "Annot") (renderBinOp identity identity slot " : ")
-  >>> Types.renderOverAnnot (_s::S_ "Lam") (renderBindingBody "λ")
-  >>> Types.renderOverAnnot (_s::S_ "Pi") (renderBindingBody "∀")
-  >>> Types.renderOnAnnot (_s::S_ "Let") renderLet
+  >>> Types.renderOverAnnot (_S::S_ "App") (renderBinOp identity identity slot "·")
+  >>> Types.renderOverAnnot (_S::S_ "Annot") (renderBinOp identity identity slot " : ")
+  >>> Types.renderOverAnnot (_S::S_ "Lam") (renderBindingBody "λ")
+  >>> Types.renderOverAnnot (_S::S_ "Pi") (renderBindingBody "∀")
+  >>> Types.renderOnAnnot (_S::S_ "Let") renderLet
   where
     renderBindingBody ::
       String ->
@@ -845,7 +845,7 @@ type AnnotatedHoley =
 
 toAnnotatedHoley :: AST.Expr IOSM.InsOrdStrMap Unit -> AnnotatedHoley
 toAnnotatedHoley = transCata $ unwrap
-  >>> VariantF.on (_s::S_ "Embed") (pure empty) (pure <<< F)
+  >>> VariantF.on (_S::S_ "Embed") (pure empty) (pure <<< F)
   >>> Compose >>> Tuple { collapsed: false } >>> EnvT
 
 renderAnnotatedHoley ::

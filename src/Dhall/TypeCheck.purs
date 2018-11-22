@@ -789,7 +789,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
       , "CombineTypes": \p -> do
           AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
             forWithIndex p \side ty -> do
-              kalls <- { ty: _, kind: _ } <$> typecheck ty <*> kindcheck ty
+              kalls <- { ty: _, kind: _ } <$> pure (term ty) <*> typecheck ty
               kts <- ensure' (_S::S_ "Record") kalls.ty
                 (errorSimple (_S::S_ "Must combine a record") <<< Tuple side)
               const <- unwrap <$> ensure' (_S::S_ "Const") kalls.kind
@@ -815,13 +815,14 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                     This t -> pure t
                     That t -> pure t
             -- so just pass the types now
-            combineTypes =<< traverse typecheck p
+            combineTypes (term <$> p)
       , "Prefer": \p -> do
           AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
             forWithIndex p \side kvs -> do
               ty <- Cofree.tail kvs
               kts <- ensure' (_S::S_ "Record") (term ty)
                 (errorSimple (_S::S_ "Must combine a record") <<< Tuple side)
+              k <- typecheck ty
               const <- unwrap <$> ensure (_S::S_ "Const") ty
                 (errorSimple (_S::S_ "Must combine a record") <<< Tuple side)
               pure { kts, const }

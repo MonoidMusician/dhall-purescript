@@ -23,7 +23,7 @@ import Data.Nullable (Nullable)
 import Data.Nullable as Nullable
 import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..))
-import Dhall.Core (S_, _s)
+import Dhall.Core (S_, _S)
 import Dhall.Core.AST (Const(..), Expr, ExprLayerRow, TextLitF(..), Var(..), ExprLayer, projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports (Directory, File(..), FilePrefix(..), Import(..), ImportHashed(..), ImportMode(..), ImportType(..), Scheme(..), URL(..))
@@ -227,7 +227,7 @@ prioritizeVF s = Prioritize.fromPredicate (VariantF.on s tt ff)
 
 firstVar :: ParseExpr -> Maybe AST.Var
 firstVar e = e # projectW #
-  VariantF.on (_s::S_ "Var") (pure <<< unwrap) (oneOfMap firstVar)
+  VariantF.on (_S::S_ "Var") (pure <<< unwrap) (oneOfMap firstVar)
 
 pc ::
   forall s f r'.
@@ -253,7 +253,7 @@ keyword s var = Prioritize.fromLRPredicates
 priorities :: ParseExpr -> ParseExpr -> Maybe POrdering
 priorities e1 e2 = (\f -> f e1 e2)
   do mempty
-      <> keyword (_s::S_ "BoolIf") "if"
+      <> keyword (_S::S_ "BoolIf") "if"
       <> prioritize_forall
       <> prioritize_env
 
