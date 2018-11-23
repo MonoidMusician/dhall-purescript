@@ -20,10 +20,13 @@ import Data.Tuple (Tuple(..))
 import Data.Unfoldable (class Unfoldable)
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Core (Expr, Pair(..), S_, _S)
-import Dhall.Core as Dhall.Core
+import Dhall.Context as Dhall.Context
+import Dhall.Core.AST (Expr, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Core.StrMapIsh as IOSM
+import Dhall.Normalize (Normalizer(..))
+import Dhall.Normalize as Dhall.Normalize
+import Dhall.Normalize.Apps (Apps(..), apps, noapplit)
 import Prim.Row as Row
 import Prim.RowList (Nil, Cons, class RowToList)
 import Record as Record
@@ -179,14 +182,6 @@ instance injectArray :: Inject a => Inject (Array a) where
 unfoldable :: forall f. Unfoldable f => TypeT f
 unfoldable = array >>> map Array.toUnfoldable
 
-instance interpretFn :: (Partial, Inject a, Interpret b) => Interpret (a -> b) where
-  autoWith opts = Type
-    { expected: AST.mkArrow a.declared b.expected
-    , extract: \e -> Just \i -> fromJust (b.extract (Dhall.Core.normalize (AST.mkApp e (a.embed i))))
-    } where
-      (InputType a :: InputType a) = injectWith opts
-      (Type b :: Type b) = autoWith opts
-
 instance interpretVariant ::
   (RowToList r rl, InterpretRL rl r) => Interpret (Variant r) where
     autoWith = variant
@@ -332,3 +327,56 @@ instance injectCons ::
     where
       (InputType t :: InputType t) = injectWith opts
       field = reflectSymbol (_S::S_ s)
+
+interpretFnWith :: forall a b. Partial =>
+  InputType a -> Type b ->
+  Normalizer IOSM.InsOrdStrMap Void ->
+  Type (a -> b)
+interpretFnWith (InputType a :: InputType a) (Type b :: Type b) ctx = Type
+  { expected: AST.mkArrow a.declared b.expected
+  , extract: \e -> Just \i -> fromJust (b.extract (Dhall.Normalize.normalizeWith ctx (AST.mkApp e (a.embed i))))
+  }
+
+type InjectFn instances fnty =
+  instances ->
+    { ty :: StandardExpr
+    , normalize :: String -> fnty -> Normalizer IOSM.InsOrdStrMap Void
+    }
+
+injectFnArg :: forall input instances fnty.
+  InjectFn instances fnty ->
+  InjectFn (Tuple (Type input) instances) (input -> fnty)
+injectFnArg mkRest (Tuple (Type input) instances) =
+  let rest = mkRest instances in
+  { ty: AST.mkArrow input.expected rest.ty
+  , normalize: \name fn -> Normalizer case _ of
+      App rest' arg
+        | Just arg' <- input.extract (Lens.review apps arg) ->
+          unwrap (rest.normalize name (fn arg')) rest'
+      _ -> Nothing
+  }
+
+injectFn :: forall i o. InjectFn (Tuple (Type i) (InputType o)) (i -> o)
+injectFn (Tuple (Type i :: Type i) (InputType o :: InputType o)) =
+  { ty: AST.mkArrow i.expected o.declared
+  , normalize: \name fn -> Normalizer case _ of
+    App namedfn arg
+      | Just (AST.V name' 0) <- noapplit AST._Var namedfn
+      , name' == name
+      , Just arg' <- i.extract (Lens.review apps arg) ->
+        Just \_ -> o.embed (fn arg')
+    _ -> Nothing
+  }
+
+injectToContext :: forall fnty.
+  { ty :: StandardExpr
+  , normalize :: String -> fnty -> Normalizer IOSM.InsOrdStrMap Void
+  } ->
+  String ->
+  { ctx :: Dhall.Context.Context StandardExpr
+  , normalize :: fnty -> Normalizer IOSM.InsOrdStrMap Void
+  }
+injectToContext { ty, normalize } name =
+  { ctx: Dhall.Context.Context $ pure $ Tuple name ty
+  , normalize: normalize name
+  }

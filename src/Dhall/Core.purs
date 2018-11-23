@@ -45,19 +45,20 @@ import Dhall.Core.Imports
   , prettyImportType
   ) as Exports
 import Dhall.Normalize
-  ( Apps(..)
-  , Preview'
-  , Normalizer(..)
-  , _NoApp
-  , apps
+  ( Normalizer(..)
   , boundedType
   , isNormalized
   , isNormalizedWith
   , judgmentallyEqual
-  , noapp
-  , noapplit
   , normalize
   , normalizeWith
+  ) as Exports
+import Dhall.Normalize.Apps
+  ( Apps(..)
+  , _NoApp
+  , apps
+  , noapp
+  , noapplit
   , (~)
   ) as Exports
 import Dhall.Variables
