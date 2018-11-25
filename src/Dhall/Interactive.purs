@@ -9,6 +9,7 @@ import Data.Bifunctor (bimap)
 import Data.Either (Either(..))
 import Data.Lens (review)
 import Data.Maybe (Maybe(..), isNothing)
+import Data.Monoid.Disj (Disj)
 import Data.Newtype (unwrap)
 import Data.String (joinWith)
 import Data.Tuple (fst)
@@ -17,6 +18,7 @@ import Dhall.Core ((~))
 import Dhall.Core as Core
 import Dhall.Core as Dhall.Core
 import Dhall.Core.AST as AST
+import Dhall.Core.AST.Noted as Ann
 import Dhall.Core.Imports as Core.Imports
 import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Interactive.Halogen.AST.Tree (renderExpr)
@@ -34,7 +36,7 @@ import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
 import Unsafe.Coerce (unsafeCoerce)
 
-parserC :: DataComponent (Either String (AST.Expr IOSM.InsOrdStrMap Core.Imports.Import)) Aff
+parserC :: DataComponent (Either String (Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe Core.Imports.Import))) Aff
 parserC = H.component
   { initializer: Nothing
   , finalizer: Nothing
@@ -97,14 +99,14 @@ parserC = H.component
         , HH.div_
           [ HH.button
             [ HP.disabled (isNothing parsed)
-            , HE.onClick (\_ -> Out unit <<< Right <$> parsed)
+            , HE.onClick (\_ -> Out unit <<< Right <<< Ann.innote mempty <<< map Just <$> parsed)
             ] [ HH.text "Click here to render and interact with it!" ]
           ]
         ]
       Right expr ->
         HH.div_
         [ HH.div [ HP.class_ $ H.ClassName "code" ]
-          [ unwrap <<< map (Out unit <<< Right) <<< renderExpr $ expr ]
+          [ unwrap <<< map (Out unit <<< Right) <<< renderExpr { interactive: true, editable: true } $ expr ]
         , HH.div_
           [ HH.button [ HE.onClick (pure (pure (Out unit (Left "")))) ] [ HH.text "Click here to enter another expression to parse" ]
           ]

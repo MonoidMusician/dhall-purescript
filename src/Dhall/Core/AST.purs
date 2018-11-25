@@ -34,6 +34,8 @@ import Dhall.Core.AST.Types
   , BuiltinTypes2I
   , Const(..)
   , Expr(..)
+  , Expr'
+  , ExprI
   , ExprLayer
   , ExprLayerF
   , ExprLayerRow
