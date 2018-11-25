@@ -7,7 +7,6 @@ import Control.Monad.Writer (runWriterT)
 import Data.Array as Array
 import Data.Bifunctor (bimap)
 import Data.Either (Either(..))
-import Data.Functor (voidRight)
 import Data.Lens (review)
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Newtype (unwrap)
@@ -20,7 +19,7 @@ import Dhall.Core as Dhall.Core
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports as Core.Imports
 import Dhall.Core.StrMapIsh as IOSM
-import Dhall.Interactive.Halogen.AST (AnnotatedHoley, renderAnnotatedHoley, toAnnotatedHoley)
+import Dhall.Interactive.Halogen.AST.Tree (renderExpr)
 import Dhall.Interactive.Halogen.Types (DataComponent, InOut(..))
 import Dhall.Parser (parse)
 import Dhall.TypeCheck (typeWithA)
@@ -35,7 +34,7 @@ import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
 import Unsafe.Coerce (unsafeCoerce)
 
-parserC :: DataComponent (Either String AnnotatedHoley) Aff
+parserC :: DataComponent (Either String (AST.Expr IOSM.InsOrdStrMap Core.Imports.Import)) Aff
 parserC = H.component
   { initializer: Nothing
   , finalizer: Nothing
@@ -87,8 +86,6 @@ parserC = H.component
               Just \_ -> AST.mkBoolLit (Core.judgmentallyEqual x' y')
           normalizer _ =
               Nothing
-          ann = toAnnotatedHoley <<< voidRight unit <$> parsed
-          annShow = unwrap <<< voidRight (Out unit (Left s)) <<< unwrap renderAnnotatedHoley <$> ann
         in
         [ HH.div [ HP.class_ $ H.ClassName "code" ]
           [ HH.div_ [ HH.textarea [ HE.onValueInput (Just <<< Out unit <<< Left), HP.value s ] ]
@@ -100,14 +97,14 @@ parserC = H.component
         , HH.div_
           [ HH.button
             [ HP.disabled (isNothing parsed)
-            , HE.onClick (\_ -> Out unit <<< Right <<< toAnnotatedHoley <<< voidRight unit <$> parsed)
+            , HE.onClick (\_ -> Out unit <<< Right <$> parsed)
             ] [ HH.text "Click here to render and interact with it!" ]
           ]
         ]
-      Right ann ->
+      Right expr ->
         HH.div_
         [ HH.div [ HP.class_ $ H.ClassName "code" ]
-          [ unwrap <<< map (Out unit <<< Right) <<< unwrap renderAnnotatedHoley $ ann ]
+          [ unwrap <<< map (Out unit <<< Right) <<< renderExpr $ expr ]
         , HH.div_
           [ HH.button [ HE.onClick (pure (pure (Out unit (Left "")))) ] [ HH.text "Click here to enter another expression to parse" ]
           ]
