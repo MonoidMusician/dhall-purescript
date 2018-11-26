@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Comonad (extract)
 import Data.Either (Either(..), either)
+import Data.FoldableWithIndex (class FoldableWithIndex, anyWithIndex)
 import Data.Functor.Mu (Mu)
 import Data.Lazy (Lazy)
 import Data.Lens (Iso', Prism', Traversal', firstOf, iso, prism')
@@ -26,6 +27,16 @@ ixZRec (_ :<<~: context) = ixParentContexts context
 
 ixParentContexts :: forall i f x. ContainerI i f => ParentCtxs f x -> Indices i
 ixParentContexts context = context <#> map ixF
+
+hasIndices ::
+  forall i f t.
+    Recursive t f =>
+    Eq i =>
+    FoldableWithIndex i f =>
+  Indices i -> t -> Boolean
+hasIndices Nil _ = true
+hasIndices (i : is) t = project t # anyWithIndex
+  \i' t' -> if extract i == i' then hasIndices is t' else false
 
 previewIndicesZRec ::
   forall i f f' t.

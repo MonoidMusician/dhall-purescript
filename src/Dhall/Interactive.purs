@@ -6,21 +6,24 @@ import Control.Monad.Writer (runWriterT)
 import Control.Plus (empty)
 import Data.Array as Array
 import Data.Bifunctor (bimap)
-import Data.Either (Either(..), either)
+import Data.Either (Either(..))
 import Data.Lens (review)
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Monoid.Disj (Disj)
 import Data.Newtype (unwrap)
 import Data.String (joinWith)
+import Data.These (these)
 import Data.Tuple (Tuple(..), fst)
 import Dhall.Context as Dhall.Context
 import Dhall.Core ((~))
 import Dhall.Core as Core
 import Dhall.Core as Dhall.Core
 import Dhall.Core.AST as AST
+import Dhall.Core.AST.Noted (denote)
 import Dhall.Core.AST.Noted as Ann
 import Dhall.Core.Imports as Core.Imports
 import Dhall.Core.StrMapIsh as IOSM
+import Dhall.Core.Zippers.Recursive as ZRec
 import Dhall.Interactive.Halogen.AST.Tree (renderExprSelectable)
 import Dhall.Interactive.Halogen.Types (DataComponent, InOut(..))
 import Dhall.Parser (parse)
@@ -37,7 +40,7 @@ import Halogen.VDom.Driver (runUI)
 import Unsafe.Coerce (unsafeCoerce)
 import Validation.These as V
 
-parserC :: DataComponent (Either String (Tuple AST.ExprI (Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe Core.Imports.Import)))) Aff
+parserC :: DataComponent (Either String (Tuple (Maybe AST.ExprI) (Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe Core.Imports.Import)))) Aff
 parserC = H.component
   { initializer: Nothing
   , finalizer: Nothing
@@ -103,11 +106,16 @@ parserC = H.component
             ] [ HH.text "Click here to render and interact with it!" ]
           ]
         ]
-      Right (Tuple selected expr) ->
+      Right dat ->
+        let streamThese f (Tuple a b) = f a b <#> these (Tuple <@> b) (Tuple a) Tuple
+            checkIndices (Tuple (Just i) e)
+              | ZRec.hasIndices i (denote e) = Tuple (Just i) e
+            checkIndices (Tuple _ e) = Tuple Nothing e
+        in
         HH.div_
         [ HH.div [ HP.class_ $ H.ClassName "code" ]
-          [ unwrap <<< map (Out unit <<< Right <<< either (Tuple <@> expr) (Tuple selected))
-            <<< renderExprSelectable { interactive: true, editable: true } selected $ expr
+          [ unwrap $ map (Out unit <<< Right <<< checkIndices) $
+            streamThese (renderExprSelectable { interactive: true, editable: true }) dat
           ]
         , HH.div_
           [ HH.button [ HE.onClick (pure (pure (Out unit (Left "")))) ] [ HH.text "Click here to enter another expression to parse" ]

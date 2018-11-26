@@ -2,12 +2,10 @@ module Dhall.Interactive.Halogen.AST.Tree where
 
 import Prelude
 
-import Control.Comonad (extract)
 import Control.Comonad.Env (EnvT(..), withEnvT)
 import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.Const (Const)
-import Data.Either (Either(..), either)
 import Data.Exists (Exists, mkExists, runExists)
 import Data.Functor.Compose (Compose(..))
 import Data.Functor.Variant (FProxy, VariantF)
@@ -28,13 +26,14 @@ import Data.Number as Number
 import Data.Ord (abs, signum)
 import Data.Profunctor.Star (Star(..))
 import Data.Symbol (class IsSymbol, SProxy, reflectSymbol)
+import Data.These (These(..), these)
 import Data.Tuple (Tuple(..))
 import Dhall.Core (S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Noted as Ann
 import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Interactive.Halogen.AST (SlottedHTML(..))
-import Dhall.Interactive.Halogen.Inputs (inline_feather_button_action)
+import Dhall.Interactive.Halogen.Inputs (icon_button_props, inline_feather_button_action)
 import Effect.Aff (Aff)
 import Halogen as H
 import Halogen.HTML as HH
@@ -44,11 +43,11 @@ import Matryoshka (embed, project, transCata)
 import Prim.Row as Row
 import Unsafe.Coerce (unsafeCoerce)
 
-type Rendering r m a = Star (Compose (SlottedHTML r) (Either m)) a a
-rendering :: forall r m a. (a -> H.ComponentHTML' (Either m a) r Aff) -> Rendering r m a
+type Rendering r m a = Star (Compose (SlottedHTML r) (These m)) a a
+rendering :: forall r m a. (a -> H.ComponentHTML' (These m a) r Aff) -> Rendering r m a
 rendering f = Star $ Compose <<< SlottedHTML <<< f
 renderingR :: forall r m a. (a -> H.ComponentHTML' a r Aff) -> Rendering r m a
-renderingR f = Star $ Compose <<< map Right <<< SlottedHTML <<< f
+renderingR f = Star $ Compose <<< map That <<< SlottedHTML <<< f
 type RenderAnd r m a = { df :: a, rndr :: Rendering r m a }
 type RenderingOptions =
   { interactive :: Boolean
@@ -71,8 +70,8 @@ data Action = SelectHere
 
 renderNode :: forall r m a.
   String ->
-  Array (Tuple String (Compose (SlottedHTML r) (Either m) a)) ->
-  Compose (SlottedHTML r) (Either m) a
+  Array (Tuple String (Compose (SlottedHTML r) (These m) a)) ->
+  Compose (SlottedHTML r) (These m) a
 renderNode name children = Compose $ SlottedHTML $ HH.div
   [ HP.class_ $ H.ClassName ("node " <> name) ] $
   Array.cons
@@ -81,7 +80,7 @@ renderNode name children = Compose $ SlottedHTML $ HH.div
         else [ HH.text name, HH.text ":" ]
     do children <#> \(Tuple childname (Compose (SlottedHTML child))) ->
         HH.div [ HP.class_ $ H.ClassName "node-child" ]
-          [ HH.span_ [ HH.text childname, HH.text ":" ], child ]
+          [ HH.span_ [ HH.text childname, HH.text ": " ], child ]
 
 data LensedF r m i e = LensedF (ALens' i e) (Rendering r m e)
 type Lensed r m i = Exists (LensedF r m i)
@@ -125,17 +124,17 @@ renderMaybe opts { df, rndr: renderA } = rendering \as ->
     case as of
       Nothing -> if not opts.editable then HH.text "(Nothing)" else
         HH.div [ HP.class_ $ H.ClassName "just button" ]
-        [ inline_feather_button_action (Just (Right (Just df))) "plus-square" ]
+        [ inline_feather_button_action (Just (That (Just df))) "plus-square" ]
       Just a -> HH.li_ $ join $
         [ guard opts.editable $ pure $ HH.div [ HP.class_ $ H.ClassName "pre button" ]
-          [ inline_feather_button_action (Just (Right Nothing)) "minus-square" ]
+          [ inline_feather_button_action (Just (That Nothing)) "minus-square" ]
         , pure $ unwrap $ unwrap $ Just <$> unwrap renderA a
         ]
 
 renderIxTraversal :: forall i r m s a. Eq i =>
   IndexedTraversal' i s a ->
   { df :: a, rndr :: i -> Rendering r m a } ->
-  (s -> Array (Compose (SlottedHTML r) (Either m) s))
+  (s -> Array (Compose (SlottedHTML r) (These m) s))
 renderIxTraversal foci { df, rndr: renderA } s =
   s # Lens.ifoldMapOf foci \i a ->
     [ unwrap (renderA i) a <#>
@@ -167,7 +166,7 @@ renderIOSM opts { df, rndr: renderA } = rendering \as ->
         [ HH.input
           [ HP.type_ HP.InputText
           , HP.value s
-          , HE.onValueInput \s' -> Just (Right (here (Tuple s' a)))
+          , HE.onValueInput \s' -> Just (That (here (Tuple s' a)))
           ]
         ]
       , HH.dd_ [ unwrap $ unwrap $ unwrap renderA a <#> Tuple s >>> here ]
@@ -202,7 +201,7 @@ renderBoolean { editable: false } = rendering $ HH.text <<<
 
 renderInt :: forall r m. RenderingOptions -> Rendering r m Int
 renderInt opts@{ editable: true } = rendering \v -> HH.span_
-  [ HH.button [ HE.onClick (pure (pure (pure (negate v)))) ]
+  [ HH.button [ HE.onClick (pure (pure (That (negate v)))) ]
     [ HH.text if v < 0 then "-" else "+" ]
   , unwrap $ unwrap $ unwrap (renderNatural opts) (intToNat v) <#> natToInt >>> mul (signum v)
   ]
@@ -442,17 +441,17 @@ renderExpr opts enn = map embed $ project enn # \(EnvT (Tuple ann e)) -> Slotted
       HH.div [ HP.class_ $ H.ClassName "pre button" ]
         let act = (Just (EnvT (Tuple (ann { collapsed = over Disj not ann.collapsed }) e)))
         in [ inline_feather_button_action act if unwrap ann.collapsed then "eye" else "eye-off" ]
-    , guard (not unwrap ann.collapsed) $ pure $ unwrap $ map (either absurd identity) $ unwrap $
+    , guard (not unwrap ann.collapsed) $ pure $ unwrap $ map (these absurd identity absurd) $ unwrap $
         map (EnvT <<< Tuple ann <<< AST.ERVF) $ unwrap e # unwrap do
-          renderAllTheThings opts { df, rndr: Star (Compose <<< map Right <<< renderExpr opts) } $ renderVFNone #
+          renderAllTheThings opts { df, rndr: Star (Compose <<< map That <<< renderExpr opts) } $ renderVFNone #
             renderVFLensed (_S::S_ "Embed")
               [ mkLensed "value" _Newtype $ rendering $ HH.text <<< maybe "_" show ]
     ]
 
 renderExprSelectable :: forall a. Show a =>
-  RenderingOptions -> AST.ExprI ->
+  RenderingOptions -> Maybe AST.ExprI ->
   Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe a) ->
-  SlottedHTML () (Either AST.ExprI (Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe a)))
+  SlottedHTML () (These (Maybe AST.ExprI) (Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe a)))
 renderExprSelectable opts topIx = lmap Tuple >>> Ann.notateIndex >>> go >>> map (map unindex) where
   unindex :: forall x.
     Ann.Expr IOSM.InsOrdStrMap (Tuple { collapsed :: Disj Boolean } AST.ExprI) x ->
@@ -460,20 +459,27 @@ renderExprSelectable opts topIx = lmap Tuple >>> Ann.notateIndex >>> go >>> map 
   unindex = transCata (withEnvT \(Tuple ann _) -> ann)
   go ::
     Ann.Expr IOSM.InsOrdStrMap (Tuple { collapsed :: Disj Boolean } AST.ExprI) (Maybe a) ->
-    SlottedHTML () (Either AST.ExprI (Ann.Expr IOSM.InsOrdStrMap (Tuple { collapsed :: Disj Boolean } AST.ExprI) (Maybe a)))
+    SlottedHTML () (These (Maybe AST.ExprI) (Ann.Expr IOSM.InsOrdStrMap (Tuple { collapsed :: Disj Boolean } AST.ExprI) (Maybe a)))
   go enn = map (map embed) $ project enn #
     \(EnvT (Tuple (Tuple ann hereIx) e)) -> SlottedHTML $
       let df = Ann.innote mempty (AST.mkEmbed Nothing)
-          focused = hereIx == topIx
+          focused = Just hereIx == topIx
       in
-      HH.div [ HP.class_ $ H.ClassName $ "expression" <> guard focused " focused" <> " " <> show (unwrap <<< extract <$> hereIx) ] $ join $
+      HH.div [ HP.class_ $ H.ClassName $ "expression" <> guard focused " focused" ] $ join $
         [ guard opts.interactive $ pure $
             HH.div [ HP.class_ $ H.ClassName "pre button" ]
-              let act = (Just (Left hereIx))
-              in [ inline_feather_button_action act if focused then "crosshair" else "disc" ]
+              let act = (Just (Both (Just hereIx) (EnvT (Tuple (Tuple ann { collapsed = Disj false } hereIx) e))))
+                  clr = (Just (This Nothing))
+              in
+              [ icon_button_props
+                [ HE.onClick (pure act)
+                , HE.onDoubleClick (pure clr)
+                ] (if focused then "crosshair" else "disc")
+                "feather inline active"
+              ]
         , guard opts.interactive $ pure $
             HH.div [ HP.class_ $ H.ClassName "pre button" ]
-              let act = (Just (Right (EnvT (Tuple (Tuple (ann { collapsed = over Disj not ann.collapsed }) hereIx) e))))
+              let act = (Just (That (EnvT (Tuple (Tuple (ann { collapsed = over Disj not ann.collapsed }) hereIx) e))))
               in [ inline_feather_button_action act if unwrap ann.collapsed then "eye" else "eye-off" ]
         , guard (not unwrap ann.collapsed) $ pure $ unwrap $ unwrap $
             map (EnvT <<< Tuple (Tuple ann hereIx) <<< AST.ERVF) $ unwrap e # unwrap do

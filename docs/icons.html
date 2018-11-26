@@ -125,11 +125,15 @@
     .node-child > span:first-child {
       color: hsla(120, 83%, 32%, 0.90);
     }
+    /* align icons on the same line as the following context */
+    .expression {
+      white-space: nowrap;
+    }
     .expression > *, .maybe > li > * {
       display: inline-block;
       vertical-align: top;
     }
-    .focused {
+    .expression.focused {
       outline: 4px auto cyan;
     }
     </style>
