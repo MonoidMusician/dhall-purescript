@@ -2,10 +2,14 @@ module Dhall.Interactive.Halogen.AST.Tree where
 
 import Prelude
 
-import Control.Comonad.Env (EnvT(..))
+import Control.Comonad (extract)
+import Control.Comonad.Env (EnvT(..), withEnvT)
 import Data.Array as Array
+import Data.Bifunctor (lmap)
 import Data.Const (Const)
+import Data.Either (Either(..), either)
 import Data.Exists (Exists, mkExists, runExists)
+import Data.Functor.Compose (Compose(..))
 import Data.Functor.Variant (FProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Int as Int
@@ -31,16 +35,21 @@ import Dhall.Core.AST.Noted as Ann
 import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Interactive.Halogen.AST (SlottedHTML(..))
 import Dhall.Interactive.Halogen.Inputs (inline_feather_button_action)
+import Effect.Aff (Aff)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Matryoshka (embed, project)
+import Matryoshka (embed, project, transCata)
 import Prim.Row as Row
 import Unsafe.Coerce (unsafeCoerce)
 
-type Rendering r a = Star (SlottedHTML r) a a
-type RenderAnd r a = { df :: a, rndr :: Rendering r a }
+type Rendering r m a = Star (Compose (SlottedHTML r) (Either m)) a a
+rendering :: forall r m a. (a -> H.ComponentHTML' (Either m a) r Aff) -> Rendering r m a
+rendering f = Star $ Compose <<< SlottedHTML <<< f
+renderingR :: forall r m a. (a -> H.ComponentHTML' a r Aff) -> Rendering r m a
+renderingR f = Star $ Compose <<< map Right <<< SlottedHTML <<< f
+type RenderAnd r m a = { df :: a, rndr :: Rendering r m a }
 type RenderingOptions =
   { interactive :: Boolean
   , editable :: Boolean
@@ -60,42 +69,42 @@ type RenderPlus r a =
 data Action = SelectHere
 -}
 
-renderNode :: forall r a.
+renderNode :: forall r m a.
   String ->
-  Array (Tuple String (SlottedHTML r a)) ->
-  SlottedHTML r a
-renderNode name children = SlottedHTML $ HH.div
+  Array (Tuple String (Compose (SlottedHTML r) (Either m) a)) ->
+  Compose (SlottedHTML r) (Either m) a
+renderNode name children = Compose $ SlottedHTML $ HH.div
   [ HP.class_ $ H.ClassName ("node " <> name) ] $
   Array.cons
     do HH.div [ HP.class_ $ H.ClassName "node-name" ]
         if Array.null children then [ HH.text name ]
         else [ HH.text name, HH.text ":" ]
-    do children <#> \(Tuple childname (SlottedHTML child)) ->
+    do children <#> \(Tuple childname (Compose (SlottedHTML child))) ->
         HH.div [ HP.class_ $ H.ClassName "node-child" ]
           [ HH.span_ [ HH.text childname, HH.text ":" ], child ]
 
-data LensedF r i e = LensedF (ALens' i e) (Rendering r e)
-type Lensed r i = Exists (LensedF r i)
+data LensedF r m i e = LensedF (ALens' i e) (Rendering r m e)
+type Lensed r m i = Exists (LensedF r m i)
 
-mkLensed :: forall r i a.
+mkLensed :: forall r m i a.
   String ->
   ALens' i a ->
-  Rendering r a ->
-  Tuple String (Exists (LensedF r i))
+  Rendering r m a ->
+  Tuple String (Exists (LensedF r m i))
 mkLensed name focus renderer = Tuple name $ mkExists $ LensedF focus renderer
 
-renderVFNone :: forall r a. Rendering r (VariantF () a)
+renderVFNone :: forall r m a. Rendering r m (VariantF () a)
 renderVFNone = Star VariantF.case_
 
 renderVFLensed ::
-  forall r f a sym conses conses'.
+  forall r m f a sym conses conses'.
     IsSymbol sym =>
     Row.Cons sym (FProxy f) conses' conses =>
     Functor f =>
   SProxy sym ->
-  Array (Tuple String (Lensed r (f a))) ->
-  Rendering r (VariantF conses' a) ->
-  Rendering r (VariantF conses a)
+  Array (Tuple String (Lensed r m (f a))) ->
+  Rendering r m (VariantF conses' a) ->
+  Rendering r m (VariantF conses a)
 renderVFLensed sym renderFA renderRest = Star $
   VariantF.on sym renderCase (unwrap renderRest >>> map unsafeCoerce) where
     renderCase fa = renderNode (reflectSymbol sym) $
@@ -104,52 +113,51 @@ renderVFLensed sym renderFA renderRest = Star $
           unwrap renderTarget (Lens.view (Lens.cloneLens target) fa) <#>
             flip (Lens.set (Lens.cloneLens target)) fa >>> VariantF.inj sym
 
-lensedConst :: forall r a b. String -> Rendering r a -> Array (Tuple String (Exists (LensedF r (Const a b))))
+lensedConst :: forall r m a b. String -> Rendering r m a -> Array (Tuple String (Exists (LensedF r m (Const a b))))
 lensedConst name renderer = pure $ Tuple name $ mkExists $ LensedF _Newtype renderer
 
-renderMaybe :: forall r a.
+renderMaybe :: forall r m a.
   RenderingOptions -> -- TODO
-  RenderAnd r a ->
-  Rendering r (Maybe a)
-renderMaybe opts { df, rndr: renderA } = Star \as -> SlottedHTML $
+  RenderAnd r m a ->
+  Rendering r m (Maybe a)
+renderMaybe opts { df, rndr: renderA } = rendering \as ->
   HH.ul [ HP.class_ $ H.ClassName "maybe" ] $ pure $
     case as of
       Nothing -> if not opts.editable then HH.text "(Nothing)" else
         HH.div [ HP.class_ $ H.ClassName "just button" ]
-        [ inline_feather_button_action (Just (Just df)) "plus-square" ]
+        [ inline_feather_button_action (Just (Right (Just df))) "plus-square" ]
       Just a -> HH.li_ $ join $
         [ guard opts.editable $ pure $ HH.div [ HP.class_ $ H.ClassName "pre button" ]
-          [ inline_feather_button_action (Just Nothing) "minus-square" ]
-        , pure $ unwrap $ Just <$> unwrap renderA a
+          [ inline_feather_button_action (Just (Right Nothing)) "minus-square" ]
+        , pure $ unwrap $ unwrap $ Just <$> unwrap renderA a
         ]
 
-renderIxTraversal :: forall i r s a. Eq i =>
+renderIxTraversal :: forall i r m s a. Eq i =>
   IndexedTraversal' i s a ->
-  { df :: a, rndr :: i -> Rendering r a } ->
-  (s -> Array (SlottedHTML r s))
+  { df :: a, rndr :: i -> Rendering r m a } ->
+  (s -> Array (Compose (SlottedHTML r) (Either m) s))
 renderIxTraversal foci { df, rndr: renderA } s =
   s # Lens.ifoldMapOf foci \i a ->
     [ unwrap (renderA i) a <#>
       flip (Lens.set (unIndex (Lens.elementsOf foci (eq i)))) s
     ]
 
-renderArray :: forall r a.
+renderArray :: forall r m a.
   RenderingOptions -> -- TODO
-  RenderAnd r a ->
-  Rendering r (Array a)
-renderArray opts { df, rndr: renderA } = Star \as -> SlottedHTML $
-  HH.ol [ HP.class_ $ H.ClassName "array" ] $ map unwrap $
+  RenderAnd r m a ->
+  Rendering r m (Array a)
+renderArray opts { df, rndr: renderA } = rendering \as ->
+  HH.ol [ HP.class_ $ H.ClassName "array" ] $ map (unwrap <<< unwrap) $
     as # renderIxTraversal itraversed
       { df
-      , rndr: \_ -> Star \a ->
-          SlottedHTML $ HH.li_ [ unwrap $ unwrap renderA a ]
+      , rndr: \_ -> rendering \a -> HH.li_ [ unwrap $ unwrap $ unwrap renderA a ]
       }
 
-renderIOSM :: forall r a.
+renderIOSM :: forall r m a.
   RenderingOptions -> -- TODO
-  RenderAnd r a ->
-  Rendering r (IOSM.InsOrdStrMap a)
-renderIOSM opts { df, rndr: renderA } = Star \as -> SlottedHTML $
+  RenderAnd r m a ->
+  Rendering r m (IOSM.InsOrdStrMap a)
+renderIOSM opts { df, rndr: renderA } = rendering \as ->
   HH.dl [ HP.class_ $ H.ClassName "strmap" ] $
     IOSM.unIOSM as # Lens.ifoldMapOf itraversed \i (Tuple s a) ->
       let here v = IOSM.mkIOSM $ IOSM.unIOSM as #
@@ -159,64 +167,60 @@ renderIOSM opts { df, rndr: renderA } = Star \as -> SlottedHTML $
         [ HH.input
           [ HP.type_ HP.InputText
           , HP.value s
-          , HE.onValueInput \s' -> Just (here (Tuple s' a))
+          , HE.onValueInput \s' -> Just (Right (here (Tuple s' a)))
           ]
         ]
-      , HH.dd_ [ unwrap $ unwrap renderA a <#> Tuple s >>> here ]
+      , HH.dd_ [ unwrap $ unwrap $ unwrap renderA a <#> Tuple s >>> here ]
       ]
 
-renderString :: forall r. RenderingOptions -> Rendering r String
+renderString :: forall r m. RenderingOptions -> Rendering r m String
 renderString { editable: true } =
-  Star \v -> SlottedHTML $ HH.input
+  renderingR \v -> HH.input
     [ HP.type_ HP.InputText
     , HP.value v
     , HE.onValueInput pure
     ]
 renderString { editable: false } =
-  Star $ SlottedHTML <<< HH.text
+  rendering HH.text
 
-renderNatural :: forall r. RenderingOptions -> Rendering r Natural
-renderNatural { editable: true } =
-  Star \v -> SlottedHTML $ HH.input
-    [ HP.type_ HP.InputNumber
-    , HP.min zero
-    , HP.step (HP.Step one)
-    , HP.value (show v)
-    , HE.onValueInput (Int.fromString >>> map intToNat)
-    ]
-renderNatural { editable: false } = Star $ SlottedHTML <<< HH.text <<< show <<< natToInt
+renderNatural :: forall r m. RenderingOptions -> Rendering r m Natural
+renderNatural { editable: true } = renderingR \v -> HH.input
+  [ HP.type_ HP.InputNumber
+  , HP.min zero
+  , HP.step (HP.Step one)
+  , HP.value (show v)
+  , HE.onValueInput (Int.fromString >>> map intToNat)
+  ]
+renderNatural { editable: false } = rendering $ HH.text <<< show <<< natToInt
 
-renderBoolean :: forall r. RenderingOptions -> Rendering r Boolean
-renderBoolean { editable: true } =
-  Star \v -> SlottedHTML $
-    HH.button [ HE.onClick (pure (pure (not v))) ]
-      [ HH.text if v then "True" else "False" ]
-renderBoolean { editable: false } = Star $ SlottedHTML <<< HH.text <<<
+renderBoolean :: forall r m. RenderingOptions -> Rendering r m Boolean
+renderBoolean { editable: true } = renderingR \v ->
+  HH.button [ HE.onClick (pure (pure (not v))) ]
+    [ HH.text if v then "True" else "False" ]
+renderBoolean { editable: false } = rendering $ HH.text <<<
   if _ then "True" else "False"
 
-renderInt :: forall r. RenderingOptions -> Rendering r Int
-renderInt opts@{ editable: true } =
-  Star \v -> SlottedHTML $ HH.span_
-    [ HH.button [ HE.onClick (pure (pure (negate v))) ]
-      [ HH.text if v < 0 then "-" else "+" ]
-    , unwrap $ unwrap (renderNatural opts) (intToNat v) <#> natToInt >>> mul (signum v)
-    ]
-renderInt { editable: false } = Star $ SlottedHTML <<< HH.text <<< show
+renderInt :: forall r m. RenderingOptions -> Rendering r m Int
+renderInt opts@{ editable: true } = rendering \v -> HH.span_
+  [ HH.button [ HE.onClick (pure (pure (pure (negate v)))) ]
+    [ HH.text if v < 0 then "-" else "+" ]
+  , unwrap $ unwrap $ unwrap (renderNatural opts) (intToNat v) <#> natToInt >>> mul (signum v)
+  ]
+renderInt { editable: false } = rendering $ HH.text <<< show
 
-renderNumber :: forall r. RenderingOptions -> Rendering r Number
-renderNumber { editable: true } =
-  Star \v -> SlottedHTML $ HH.input
-    [ HP.type_ HP.InputNumber
-    , HP.step (HP.Step 0.5)
-    , HP.value (show (abs v))
-    , HE.onValueInput Number.fromString
-    ]
-renderNumber { editable: false } = Star $ SlottedHTML <<< HH.text <<< show
+renderNumber :: forall r m. RenderingOptions -> Rendering r m Number
+renderNumber { editable: true } = renderingR \v -> HH.input
+  [ HP.type_ HP.InputNumber
+  , HP.step (HP.Step 0.5)
+  , HP.value (show (abs v))
+  , HE.onValueInput Number.fromString
+  ]
+renderNumber { editable: false } = rendering $ HH.text <<< show
 
-renderBindingBody :: forall r a.
+renderBindingBody :: forall r m a.
   RenderingOptions ->
-  Rendering r a ->
-  Array (Tuple String (Lensed r (AST.BindingBody a)))
+  Rendering r m a ->
+  Array (Tuple String (Lensed r m (AST.BindingBody a)))
 renderBindingBody opts renderA =
   let
     _name = lens' \(AST.BindingBody name a0 a1) -> Tuple name \name' -> AST.BindingBody name' a0 a1
@@ -228,19 +232,19 @@ renderBindingBody opts renderA =
   , Tuple "body" $ mkExists $ LensedF _a1 renderA
   ]
 
-type RenderChunk cases r a =
+type RenderChunk cases r m a =
   forall conses.
-  Rendering r (VariantF conses a) ->
-  Rendering r (VariantF (cases IOSM.InsOrdStrMap conses) a)
+  Rendering r m (VariantF conses a) ->
+  Rendering r m (VariantF (cases IOSM.InsOrdStrMap conses) a)
 
-renderLiterals :: forall r a. RenderingOptions -> RenderChunk AST.Literals r a
+renderLiterals :: forall r m a. RenderingOptions -> RenderChunk AST.Literals r m a
 renderLiterals opts = identity
   >>> renderVFLensed (_S::S_ "BoolLit") (lensedConst "value" (renderBoolean opts))
   >>> renderVFLensed (_S::S_ "NaturalLit") (lensedConst "value" (renderNatural opts))
   >>> renderVFLensed (_S::S_ "IntegerLit") (lensedConst "value" (renderInt opts))
   >>> renderVFLensed (_S::S_ "DoubleLit") (lensedConst "value" (renderNumber opts))
 
-renderBuiltinTypes :: forall r a. RenderingOptions -> RenderChunk AST.BuiltinTypes r a
+renderBuiltinTypes :: forall r m a. RenderingOptions -> RenderChunk AST.BuiltinTypes r m a
 renderBuiltinTypes _ = identity
   >>> renderVFLensed (_S::S_ "Bool") named
   >>> renderVFLensed (_S::S_ "Natural") named
@@ -251,7 +255,7 @@ renderBuiltinTypes _ = identity
   >>> renderVFLensed (_S::S_ "Optional") named
   where named = []
 
-renderBuiltinFuncs :: forall r a. RenderingOptions -> RenderChunk AST.BuiltinFuncs r a
+renderBuiltinFuncs :: forall r m a. RenderingOptions -> RenderChunk AST.BuiltinFuncs r m a
 renderBuiltinFuncs _ = identity
   >>> renderVFLensed (_S::S_ "NaturalFold") named
   >>> renderVFLensed (_S::S_ "NaturalBuild") named
@@ -274,12 +278,12 @@ renderBuiltinFuncs _ = identity
   >>> renderVFLensed (_S::S_ "OptionalBuild") named
   where named = []
 
-renderTerminals :: forall r a. RenderingOptions -> RenderChunk AST.Terminals r a
+renderTerminals :: forall r m a. RenderingOptions -> RenderChunk AST.Terminals r m a
 renderTerminals opts = identity
   >>> renderVFLensed (_S::S_ "Const") renderConst
   >>> renderVFLensed (_S::S_ "Var") renderVar
   where
-    renderConst = pure $ mkLensed "constant" _Newtype $ Star \v -> SlottedHTML $
+    renderConst = pure $ mkLensed "constant" _Newtype $ renderingR \v ->
       HH.select
         [ HE.onSelectedIndexChange (Array.(!!) [AST.Type, AST.Kind])
         ]
@@ -295,7 +299,7 @@ renderTerminals opts = identity
       , mkLensed "index" (_Newtype <<< _ix) (renderInt opts)
       ]
 
-renderBuiltinBinOps :: forall r a. RenderingOptions -> RenderAnd r a -> RenderChunk AST.BuiltinBinOps r a
+renderBuiltinBinOps :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.BuiltinBinOps r m a
 renderBuiltinBinOps _ { rndr: renderA } = identity
   >>> renderVFLensed (_S::S_ "BoolAnd") renderBinOp
   >>> renderVFLensed (_S::S_ "BoolOr") renderBinOp
@@ -317,7 +321,7 @@ renderBuiltinBinOps _ { rndr: renderA } = identity
       , mkLensed "R" _r renderA
       ]
 
-renderBuiltinOps :: forall r a. RenderingOptions -> RenderAnd r a -> RenderChunk AST.BuiltinOps r a
+renderBuiltinOps :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.BuiltinOps r m a
 renderBuiltinOps opts { df, rndr: renderA } = renderBuiltinBinOps opts { df, rndr: renderA }
   >>> renderVFLensed (_S::S_ "Field") renderField
   >>> renderVFLensed (_S::S_ "Constructors") [ mkLensed "argument" _Newtype renderA ]
@@ -348,17 +352,17 @@ renderBuiltinOps opts { df, rndr: renderA } = renderBuiltinBinOps opts { df, rnd
     renderProject =
       [ mkLensed "expression" Tuple._2 renderA
       , mkLensed "fields" (Tuple._1 <<< _Newtype)
-        (renderIOSM opts { df: unit, rndr: Star $ const $ SlottedHTML $ HH.text $ "<included>" })
+        (renderIOSM opts { df: unit, rndr: rendering $ const $ HH.text $ "<included>" })
       ]
 
-renderBuiltinTypes2 :: forall r a. RenderingOptions -> RenderAnd r a -> RenderChunk AST.BuiltinTypes2 r a
+renderBuiltinTypes2 :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.BuiltinTypes2 r m a
 renderBuiltinTypes2 opts { df, rndr: renderA } = identity
   >>> renderVFLensed (_S::S_ "Record")
     [ mkLensed "types" identity (renderIOSM opts { df, rndr: renderA }) ]
   >>> renderVFLensed (_S::S_ "Union")
     [ mkLensed "types" identity (renderIOSM opts { df, rndr: renderA }) ]
 
-renderLiterals2 :: forall r a. RenderingOptions -> RenderAnd r a -> RenderChunk AST.Literals2 r a
+renderLiterals2 :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.Literals2 r m a
 renderLiterals2 opts { df, rndr: renderA } = identity
   >>> renderVFLensed (_S::S_ "None") []
   >>> renderVFLensed (_S::S_ "Some") [ mkLensed "argument" _Newtype renderA ]
@@ -383,7 +387,7 @@ renderLiterals2 opts { df, rndr: renderA } = identity
       , mkLensed "values" Product._2 (renderArray opts { df, rndr: renderA })
       ]
 
-renderSyntax :: forall r a. RenderingOptions -> RenderAnd r a -> RenderChunk AST.Syntax r a
+renderSyntax :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.Syntax r m a
 renderSyntax opts { df, rndr: renderA } = identity
   >>> renderVFLensed (_S::S_ "App") renderApp
   >>> renderVFLensed (_S::S_ "Annot") renderAnnot
@@ -412,10 +416,10 @@ renderSyntax opts { df, rndr: renderA } = identity
       , mkLensed "body" _a2 renderA
       ]
 
-renderAllTheThings :: forall r a.
+renderAllTheThings :: forall r m a.
   RenderingOptions ->
-  RenderAnd r a ->
-  RenderChunk AST.AllTheThings r a
+  RenderAnd r m a ->
+  RenderChunk AST.AllTheThings r m a
 renderAllTheThings opts renderA = identity
   >>> renderLiterals opts
   >>> renderBuiltinTypes opts
@@ -438,9 +442,42 @@ renderExpr opts enn = map embed $ project enn # \(EnvT (Tuple ann e)) -> Slotted
       HH.div [ HP.class_ $ H.ClassName "pre button" ]
         let act = (Just (EnvT (Tuple (ann { collapsed = over Disj not ann.collapsed }) e)))
         in [ inline_feather_button_action act if unwrap ann.collapsed then "eye" else "eye-off" ]
-    , guard (not unwrap ann.collapsed) $ pure $ unwrap $
+    , guard (not unwrap ann.collapsed) $ pure $ unwrap $ map (either absurd identity) $ unwrap $
         map (EnvT <<< Tuple ann <<< AST.ERVF) $ unwrap e # unwrap do
-          renderAllTheThings opts { df, rndr: Star (renderExpr opts) } $ renderVFNone #
+          renderAllTheThings opts { df, rndr: Star (Compose <<< map Right <<< renderExpr opts) } $ renderVFNone #
             renderVFLensed (_S::S_ "Embed")
-              [ mkLensed "value" _Newtype $ Star $ SlottedHTML <<< HH.text <<< maybe "_" show ]
+              [ mkLensed "value" _Newtype $ rendering $ HH.text <<< maybe "_" show ]
     ]
+
+renderExprSelectable :: forall a. Show a =>
+  RenderingOptions -> AST.ExprI ->
+  Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe a) ->
+  SlottedHTML () (Either AST.ExprI (Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe a)))
+renderExprSelectable opts topIx = lmap Tuple >>> Ann.notateIndex >>> go >>> map (map unindex) where
+  unindex :: forall x.
+    Ann.Expr IOSM.InsOrdStrMap (Tuple { collapsed :: Disj Boolean } AST.ExprI) x ->
+    Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } x
+  unindex = transCata (withEnvT \(Tuple ann _) -> ann)
+  go ::
+    Ann.Expr IOSM.InsOrdStrMap (Tuple { collapsed :: Disj Boolean } AST.ExprI) (Maybe a) ->
+    SlottedHTML () (Either AST.ExprI (Ann.Expr IOSM.InsOrdStrMap (Tuple { collapsed :: Disj Boolean } AST.ExprI) (Maybe a)))
+  go enn = map (map embed) $ project enn #
+    \(EnvT (Tuple (Tuple ann hereIx) e)) -> SlottedHTML $
+      let df = Ann.innote mempty (AST.mkEmbed Nothing)
+          focused = hereIx == topIx
+      in
+      HH.div [ HP.class_ $ H.ClassName $ "expression" <> guard focused " focused" <> " " <> show (unwrap <<< extract <$> hereIx) ] $ join $
+        [ guard opts.interactive $ pure $
+            HH.div [ HP.class_ $ H.ClassName "pre button" ]
+              let act = (Just (Left hereIx))
+              in [ inline_feather_button_action act if focused then "crosshair" else "disc" ]
+        , guard opts.interactive $ pure $
+            HH.div [ HP.class_ $ H.ClassName "pre button" ]
+              let act = (Just (Right (EnvT (Tuple (Tuple (ann { collapsed = over Disj not ann.collapsed }) hereIx) e))))
+              in [ inline_feather_button_action act if unwrap ann.collapsed then "eye" else "eye-off" ]
+        , guard (not unwrap ann.collapsed) $ pure $ unwrap $ unwrap $
+            map (EnvT <<< Tuple (Tuple ann hereIx) <<< AST.ERVF) $ unwrap e # unwrap do
+              renderAllTheThings opts { df, rndr: Star (Compose <<< go) } $ renderVFNone #
+                renderVFLensed (_S::S_ "Embed")
+                  [ mkLensed "value" _Newtype $ rendering $ HH.text <<< maybe "_" show ]
+        ]

@@ -2,17 +2,17 @@ module Dhall.Interactive where
 
 import Prelude
 
-import Complex.Validation.These as V
 import Control.Monad.Writer (runWriterT)
+import Control.Plus (empty)
 import Data.Array as Array
 import Data.Bifunctor (bimap)
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
 import Data.Lens (review)
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Monoid.Disj (Disj)
 import Data.Newtype (unwrap)
 import Data.String (joinWith)
-import Data.Tuple (fst)
+import Data.Tuple (Tuple(..), fst)
 import Dhall.Context as Dhall.Context
 import Dhall.Core ((~))
 import Dhall.Core as Core
@@ -21,7 +21,7 @@ import Dhall.Core.AST as AST
 import Dhall.Core.AST.Noted as Ann
 import Dhall.Core.Imports as Core.Imports
 import Dhall.Core.StrMapIsh as IOSM
-import Dhall.Interactive.Halogen.AST.Tree (renderExpr)
+import Dhall.Interactive.Halogen.AST.Tree (renderExprSelectable)
 import Dhall.Interactive.Halogen.Types (DataComponent, InOut(..))
 import Dhall.Parser (parse)
 import Dhall.TypeCheck (typeWithA)
@@ -35,8 +35,9 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
 import Unsafe.Coerce (unsafeCoerce)
+import Validation.These as V
 
-parserC :: DataComponent (Either String (Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe Core.Imports.Import))) Aff
+parserC :: DataComponent (Either String (Tuple AST.ExprI (Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe Core.Imports.Import)))) Aff
 parserC = H.component
   { initializer: Nothing
   , finalizer: Nothing
@@ -59,8 +60,7 @@ parserC = H.component
           typechecked = bimap showError fst <<< runWriterT <<< typeWithA (\_ -> AST.mkType) ctx =<< V.note "Parse fail" parsed
           shown = case typechecked of
             V.Error es _ -> (<>) "Errors: " $
-              joinWith "; " <<< Array.fromFoldable $
-                map (joinWith ", " <<< Array.fromFoldable) es
+              joinWith ", " <<< Array.fromFoldable $ es
             V.Success a -> "Success: " <> show a
           normalized :: Maybe (AST.Expr IOSM.InsOrdStrMap Core.Imports.Import)
           normalized = case typechecked of
@@ -99,14 +99,16 @@ parserC = H.component
         , HH.div_
           [ HH.button
             [ HP.disabled (isNothing parsed)
-            , HE.onClick (\_ -> Out unit <<< Right <<< Ann.innote mempty <<< map Just <$> parsed)
+            , HE.onClick (\_ -> Out unit <<< Right <<< Tuple empty <<< Ann.innote mempty <<< map Just <$> parsed)
             ] [ HH.text "Click here to render and interact with it!" ]
           ]
         ]
-      Right expr ->
+      Right (Tuple selected expr) ->
         HH.div_
         [ HH.div [ HP.class_ $ H.ClassName "code" ]
-          [ unwrap <<< map (Out unit <<< Right) <<< renderExpr { interactive: true, editable: true } $ expr ]
+          [ unwrap <<< map (Out unit <<< Right <<< either (Tuple <@> expr) (Tuple selected))
+            <<< renderExprSelectable { interactive: true, editable: true } selected $ expr
+          ]
         , HH.div_
           [ HH.button [ HE.onClick (pure (pure (Out unit (Left "")))) ] [ HH.text "Click here to enter another expression to parse" ]
           ]

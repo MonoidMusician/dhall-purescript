@@ -35,6 +35,10 @@ type VOID = CONST Void
 data Three = Three1 | Three2 | Three3
 derive instance eqThree :: Eq Three
 derive instance ordThree :: Ord Three
+instance showThree :: Show Three where
+  show Three1 = "Three1"
+  show Three2 = "Three2"
+  show Three3 = "Three3"
 
 data Pair a = Pair a a
 derive instance eqPair :: Eq a => Eq (Pair a)

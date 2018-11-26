@@ -6,6 +6,8 @@ import Control.Comonad (extract)
 import Control.Comonad.Env (EnvT(..), mapEnvT, runEnvT, withEnvT)
 import Data.Bifunctor (class Bifunctor, lmap)
 import Data.Functor.Mu (Mu)
+import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
+import Data.List (List(..), (:))
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Tuple (Tuple(..))
 import Dhall.Core.AST.Types (ExprRowVF)
@@ -27,3 +29,9 @@ denote = transCata $ runEnvT >>> extract
 
 innote :: forall m s a. s -> Types.Expr m a -> Expr m s a
 innote s = transCata $ EnvT <<< Tuple s
+
+notateIndex :: forall m s a. FunctorWithIndex String m => Expr m (Types.ExprI -> s) a -> Expr m s a
+notateIndex = go Nil where
+  go ix e = embed $ e # project
+    # withEnvT ((#) ix)
+    # mapEnvT (mapWithIndex \i' -> go $ pure i' : ix)

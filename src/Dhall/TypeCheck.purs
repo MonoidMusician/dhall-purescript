@@ -2,7 +2,7 @@ module Dhall.TypeCheck where
 
 import Prelude
 
-import Complex.Validation.These as V
+import Validation.These as V
 import Control.Alternative (class Alternative)
 import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree (Cofree, hoistCofree)

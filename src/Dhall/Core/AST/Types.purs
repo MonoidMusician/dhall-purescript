@@ -406,7 +406,7 @@ newtype Expr m a = Expr (Free (VariantF (ExprRow m)) a)
 derive instance newtypeExpr :: Newtype (Expr m a) _
 
 type Expr' m m' a = ZRec (ExprRowVF' m m' a) (Expr m a)
-type ExprI = Indices ExprLayerFI
+type ExprI = Indices ExprRowVFI
 
 -- Give Expr its own Recursive instance with ExprRowVF (a newtype of ExprLayerF)
 instance recursiveExpr :: Recursive (Expr m a) (ExprRowVF m a) where
