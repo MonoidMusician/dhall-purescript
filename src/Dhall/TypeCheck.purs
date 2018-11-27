@@ -2,7 +2,6 @@ module Dhall.TypeCheck where
 
 import Prelude
 
-import Validation.These as V
 import Control.Alternative (class Alternative)
 import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree (Cofree, hoistCofree)
@@ -29,7 +28,7 @@ import Data.List (List)
 import Data.List as List
 import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Maybe.First (First(..))
 import Data.Natural (Natural)
 import Data.Newtype (class Newtype, un, unwrap, wrap)
@@ -40,9 +39,9 @@ import Data.Set (Set)
 import Data.Set as Set
 import Data.Symbol (class IsSymbol)
 import Data.These (These(..))
-import Data.Traversable (class Traversable, traverse)
+import Data.Traversable (class Traversable, for, traverse)
 import Data.TraversableWithIndex (forWithIndex)
-import Data.Tuple (Tuple(..), uncurry)
+import Data.Tuple (Tuple(..), curry, uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Context (Context)
@@ -54,6 +53,7 @@ import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
 import Matryoshka (class Recursive, ana, project)
 import Type.Row as R
+import Validation.These as V
 
 axiom :: forall f. Alternative f => Const -> f Const
 axiom Type = pure Kind
@@ -89,9 +89,6 @@ suggest a = (<<<) wrap $ unwrap >>> case _ of
 newtype TypeCheckError r m a = TypeCheckError
   -- The main location where the typechecking error occurred
   { location :: Focus m a
-  -- The explanation, given as text interspersed with specific places to look at
-  -- (for the user to read)
-  , explanation :: AST.TextLitF (Focus m a)
   -- The tag for the specific error, mostly for machine purposes
   , tag :: Variant r
   }
@@ -99,10 +96,7 @@ newtype TypeCheckError r m a = TypeCheckError
 mapFocus :: forall r m a m' a'.
   (Focus m a -> Focus m' a') ->
   TypeCheckError r m a -> TypeCheckError r m' a'
-mapFocus f (TypeCheckError e) = TypeCheckError $ e
-  { location = f e.location
-  , explanation = map f e.explanation
-  }
+mapFocus f (TypeCheckError e) = TypeCheckError (e { location = f e.location })
 
 errorSimple ::
   forall sym t r r' w m a b.
@@ -113,7 +107,6 @@ errorSimple ::
   Feedback w r m a b
 errorSimple sym v = V.liftW $ V.erroring $ TypeCheckError
   { location: MainExpression
-  , explanation: AST.TextLit ""
   , tag: Variant.inj sym v
   }
 
@@ -127,7 +120,6 @@ noteSimple ::
   Feedback w r m a b
 noteSimple sym v = (<<<) V.liftW $ V.note $ TypeCheckError
   { location: MainExpression
-  , explanation: AST.TextLit ""
   , tag: Variant.inj sym v
   }
 
@@ -304,65 +296,53 @@ findDupes = (foldMap (pure <<< pure) :: Array i -> Maybe (NonEmptyList i))
   <<< Array.sort
   <<< foldMapWithIndex (\i _ -> [i])
 
-type Errors r m a =
+type Errors r =
   ( "Not a function" :: Unit
-  , "Type mismatch" :: { function :: Expr m a
-                       , expected :: Expr m a
-                       , argument :: Expr m a
-                       , actual :: Expr m a
-                       }
+  , "Type mismatch" :: Unit
   , "Invalid predicate" :: Unit
   , "If branch mismatch" :: Unit
-  , "If branch must be term" :: Tuple Boolean Unit
+  , "If branch must be term" :: Boolean
   , "Invalid list type" :: Unit
   , "Missing list type" :: Unit
   , "Invalid list element" :: Int
   , "Mismatched list elements" :: Int
-  , "Cannot append non-list" :: Tuple Boolean Unit
-  , "Cannot interpolate" :: Tuple Natural Unit
-  , "List append mistmatch" :: Unit
+  , "Cannot append non-list" :: Boolean
+  , "Cannot interpolate" :: Natural
+  , "List append mismatch" :: Unit
   , "Invalid optional type" :: Unit
   , "Invalid optional element" :: Unit
   , "Invalid `Some`" :: Unit
   , "Duplicate record fields" :: NonEmptyList String
-  , "Invalid field type" :: Tuple String Unit
-  , "Inconsistent field types" :: Inconsistency
-                                    (NonEmptyList
-                                       { key :: String
-                                       , value :: { kind :: Const
-                                                  , ty :: Expr m a
-                                                  }
-                                       }
-                                    )
+  , "Invalid field type" :: String
+  , "Inconsistent field types" :: Inconsistency (NonEmptyList String)
   , "Duplicate union fields" :: NonEmptyList String
-  , "Invalid alternative type" :: Tuple String Unit
-  , "Must combine a record" :: Tuple Boolean Unit
+  , "Invalid alternative type" :: String
+  , "Must combine a record" :: Boolean
   , "Record mismatch" :: Unit
   , "Oops" :: Unit
   , "Must merge a record" :: Unit
   , "Must merge a union" :: Unit
   , "Missing merge type" :: Unit
-  , "Handler not a function" :: Unit
-  , "Dependent handler function" :: Unit
+  , "Handler not a function" :: String
+  , "Dependent handler function" :: String
   , "Missing handler" :: Set Unit
-  , "Handler input type mismatch" :: Unit
+  , "Handler input type mismatch" :: String
+  , "Handler output type mismatch" :: String
   , "Unused handlers" :: Set Unit
   , "Cannot project" :: Unit
   , "Missing field" :: String
   , "Invalid input type" :: Unit
   , "Invalid output type" :: Unit
-  , "No dependent types" :: Tuple (Expr m a) (Expr m a)
+  , "No dependent types" :: Unit
   , "Unbound variable" :: AST.Var
   , "Annotation mismatch" :: Unit
   , "`Kind` has no type" :: Unit
-  , "Expected type" :: { expected :: Expr m a
-                       , received :: Expr m a
-                       }
+  , "Unexpected type" :: Boolean
   , "Cannot access" :: String
   , "Constructors requires a union type" :: Unit
   | r
   )
-type FeedbackE w r m a = WriterT (Array (Variant w)) (V.Erroring (TypeCheckError (Errors r m a) m a))
+type FeedbackE w r m a = WriterT (Array (Variant w)) (V.Erroring (TypeCheckError (Errors r) m a))
 type CtxFeedbackE w r m a = ReaderT (Ctx m a) (FeedbackE w r m a)
 type TypeCheckedE w r m a = FeedbackE w r m a (Expr m a)
 type CtxTypeCheckedE w r m a = CtxFeedbackE w r m a (Expr m a)
@@ -404,6 +384,20 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
       AST.projectW nf_ty # VariantF.on s pure
         \_ -> absurd <$> error unit
 
+    checkEqL ::
+      Expr m a -> Expr m a ->
+      (Unit -> FeedbackE w r m a Void) ->
+      FeedbackE w r m a (Expr m a)
+    checkEqL ty0 ty1 error = suggest ty0 $
+      when (not Dhall.Core.judgmentallyEqual ty0 ty1) $
+        absurd <$> error unit
+    checkEqR ::
+      Expr m a -> Expr m a ->
+      (Unit -> FeedbackE w r m a Void) ->
+      FeedbackE w r m a (Expr m a)
+    checkEqR ty0 ty1 error = suggest ty1 $
+      when (not Dhall.Core.judgmentallyEqual ty0 ty1) $
+        absurd <$> error unit
   in let
     contextual =
       let
@@ -431,7 +425,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             kB <- ensureConst_ctx ty_body
               (errorSimple (_S::S_ "Invalid output type"))
             _ <- rule kA kB #
-              oblivious <<< noteSimple (_S::S_ "No dependent types") (Tuple (term ty) (term ty_body))
+              oblivious <<< noteSimple (_S::S_ "No dependent types") unit
             pure $ AST.mkPi name (term ty) (term ty_body)
       , "Pi": \(AST.BindingBody name ty ty_body) -> do
           kA <- ensureConst_ctx ty
@@ -442,13 +436,13 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             kB <- ensureConst_ctx ty_body
               (errorSimple (_S::S_ "Invalid output type"))
             map AST.mkConst $ rule kA kB #
-              oblivious <<< noteSimple (_S::S_ "No dependent types") (Tuple (term ty) (term ty_body))
+              oblivious <<< noteSimple (_S::S_ "No dependent types") unit
       , "Let": \(AST.LetF name mty value expr) -> do
-          ty <- Cofree.tail value
-          for_ mty \ty' -> do
+          ty0 <- Cofree.tail value
+          ty <- fromMaybe ty0 <$> for mty \ty' -> do
             _ <- typecheck ty'
-            if Dhall.Core.judgmentallyEqual (term ty) (term ty') then pure unit else
-              oblivious <<< errorSimple (_S::S_ "Annotation mismatch") $ unit
+            oblivious $ ty' <$ checkEqR (term ty0) (term ty')
+              (errorSimple (_S::S_ "Annotation mismatch"))
           kind <- typecheck ty
           let
             name0 = AST.V name 0
@@ -502,12 +496,12 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
           Expr m a ->
           Pair (ShallotE w r m a) ->
           TypeCheckedE w r m a
-        checkBinOp t p = suggest t $ for_ p $
+        checkBinOp t p = suggest t $ forWithIndex_ p $
           -- t should be simple enough that alphaNormalize is unnecessary
-          \operand -> typecheck operand >>= Dhall.Core.normalize >>> case _ of
+          \side operand -> typecheck operand >>= Dhall.Core.normalize >>> case _ of
             ty_operand | t == ty_operand -> pure unit
               | otherwise -> errorSimple
-                (_S::S_ "Expected type") { expected: t, received: t }
+                (_S::S_ "Unexpected type") side
 
         naturalEnc =
           AST.mkForall "natural" $
@@ -572,27 +566,20 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                 then do
                   pure $ Dhall.Core.shiftSubstShift0 name (term a) rty
                 else do
-                  let nf_aty0 = Dhall.Core.normalize aty0
-                  let nf_aty1 = Dhall.Core.normalize aty1
                   -- SPECIAL!
                   -- Recovery case: if the variable is free in the return type
                   -- then this is a non-dependent function
                   -- and its return type can be suggested
                   -- even if its argument does not have the right type
                   (if not Dhall.Core.freeIn name0 rty then suggest rty else identity) $
-                    errorSimple (_S::S_ "Type mismatch")
-                      { function: term f
-                      , expected: nf_aty0
-                      , argument: term a
-                      , actual: nf_aty1
-                      }
+                    errorSimple (_S::S_ "Type mismatch") unit
           in join $ checkArg <$> checkFn <*> typecheck a
-      , "Annot": \(AST.Pair expr ty) ->
-          let
-            checkEq aty0 aty1 =
-              if Dhall.Core.judgmentallyEqual aty0 aty1 then pure aty0 else
-                errorSimple (_S::S_ "Annotation mismatch") $ unit
-          in join $ checkEq <$> typecheck expr <*> (term ty <$ typecheck ty)
+      , "Annot": \(AST.Pair expr ty) -> suggest (term ty) $
+          join $ checkEqR
+            <$> typecheck expr
+            <@> term ty
+            <@> errorSimple (_S::S_ "Annotation mismatch")
+            <* typecheck ty
       , "Bool": identity aType
       , "BoolLit": always $ AST.mkBool
       , "BoolAnd": checkBinOp AST.mkBool
@@ -601,16 +588,13 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
       , "BoolNE": checkBinOp AST.mkBool
       , "BoolIf": \(AST.Triplet c t f) ->
           ensure (_S::S_ "Bool") c
-            (errorSimple (_S::S_ "Invalid predicate")) *>
-          let
-            checkMatch ty_t ty_f =
-              if Dhall.Core.judgmentallyEqual ty_t ty_f then pure ty_t else
-                errorSimple (_S::S_ "If branch mismatch") $ unit
-          in join $ checkMatch
+            (errorSimple (_S::S_ "Invalid predicate")) *> do
+          join $ checkEqL
               <$> ensureTerm t
-                (errorSimple (_S::S_ "If branch must be term") <<< Tuple false)
+                (errorSimple (_S::S_ "If branch must be term") <<< const false)
               <*> ensureTerm f
-                (errorSimple (_S::S_ "If branch must be term") <<< Tuple true)
+                (errorSimple (_S::S_ "If branch must be term") <<< const true)
+              <@> errorSimple (_S::S_ "If branch mismatch")
       , "Natural": identity aType
       , "NaturalLit": always $ AST.mkNatural
       , "NaturalFold": always $ AST.mkArrow AST.mkNatural naturalEnc
@@ -632,7 +616,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
       , "Text": identity aType
       , "TextLit": \things -> suggest AST.mkText $
           forWithIndex_ things \i expr -> ensure (_S::S_ "Text") expr
-            (errorSimple (_S::S_ "Cannot interpolate") <<< Tuple i)
+            (errorSimple (_S::S_ "Cannot interpolate") <<< const i)
       , "TextAppend": checkBinOp AST.mkText
       , "List": identity aFunctor
       , "ListLit": \(Product (Tuple mty lit)) -> AST.mkApp AST.mkList <$> do
@@ -650,7 +634,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                   (errorSimple (_S::S_ "Invalid list type"))
           suggest ty $ forWithIndex_ lit \i item -> do
             ty' <- typecheck item
-            if Dhall.Core.judgmentallyEqual ty ty' then pure unit else
+            checkEqL ty ty' \_ ->
               case mty of
                 Nothing ->
                   errorSimple (_S::S_ "Invalid list element") $ i
@@ -658,15 +642,15 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                   errorSimple (_S::S_ "Mismatched list elements") $ i
       , "ListAppend": \p -> AST.mkApp AST.mkList <$> do
           AST.Pair ty_l ty_r <- forWithIndex p \side expr -> do
-            let error = errorSimple (_S::S_ "Cannot append non-list") <<< Tuple side
+            let error = errorSimple (_S::S_ "Cannot append non-list") <<< const side
             expr_ty <- typecheck expr
             AST.Pair list ty <- ensure' (_S::S_ "App") expr_ty error
             Dhall.Core.normalize list # AST.projectW #
               VariantF.on (_S::S_ "List") (const (pure unit))
                 \_ -> absurd <$> error unit
             pure ty
-          if Dhall.Core.judgmentallyEqual ty_l ty_r then pure ty_l else
-            errorSimple (_S::S_ "List append mistmatch") $ unit
+          checkEqL ty_l ty_r
+            (errorSimple (_S::S_ "List append mismatch"))
       , "ListBuild": always $ AST.mkForall "a" $
           AST.mkArrow (listEnc a0) (AST.mkApp AST.mkList a0)
       , "ListFold": always $ AST.mkForall "a" $
@@ -697,9 +681,9 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             (errorSimple (_S::S_ "Invalid optional type"))
           suggest (AST.mkApp AST.mkOptional (term ty)) $
             for_ mexpr \expr -> do
-              ty' <- typecheck expr
-              if Dhall.Core.judgmentallyEqual (term ty) ty' then pure unit else
-                errorSimple (_S::S_ "Invalid optional element") $ unit
+              join $ checkEqL (term ty)
+                <$> typecheck expr
+                <@> (errorSimple (_S::S_ "Invalid optional element"))
       , "Some": unwrap >>> \a ->
           AST.mkApp AST.mkOptional <$> ensureTerm a
             (errorSimple (_S::S_ "Invalid `Some`"))
@@ -713,14 +697,15 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
           *> do
             kts' <- forWithIndex kts \field ty -> do
               c <- unwrap <$> ensure (_S::S_ "Const") ty
-                (errorSimple (_S::S_ "Invalid field type") <<< Tuple field)
+                (errorSimple (_S::S_ "Invalid field type") <<< const field)
               case c of
-                Kind | not Dhall.Core.judgmentallyEqual AST.mkType (term ty) ->
-                  (errorSimple (_S::S_ "Invalid field type") <<< Tuple field) $ unit
+                Kind ->
+                  void $ checkEqL AST.mkType (term ty)
+                    (errorSimple (_S::S_ "Invalid field type") <<< const field)
                 _ -> pure unit
               pure { kind: c, ty: term ty }
             ensureConsistency (eq `on` _.kind)
-              (errorSimple (_S::S_ "Inconsistent field types")) kts'
+              (errorSimple (_S::S_ "Inconsistent field types") <<< (map <<< map) _.key) kts'
             pure $ AST.mkConst $ maybe Type _.kind $ un First $ foldMap pure kts'
       , "RecordLit": \kvs ->
           ensureNodupes
@@ -730,14 +715,15 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             suggest (AST.mkRecord (term <$> kts)) do
               kts' <- forWithIndex kts \field ty -> do
                 c <- unwrap <$> ensure (_S::S_ "Const") ty
-                  (errorSimple (_S::S_ "Invalid field type") <<< Tuple field)
+                  (errorSimple (_S::S_ "Invalid field type") <<< const field)
                 case c of
-                  Kind | not Dhall.Core.judgmentallyEqual AST.mkType (term ty) ->
-                    (errorSimple (_S::S_ "Invalid field type") <<< Tuple field) $ unit
+                  Kind ->
+                    void $ checkEqL AST.mkType (term ty)
+                      (errorSimple (_S::S_ "Invalid field type") <<< const field)
                   _ -> pure unit
                 pure { kind: c, ty: term ty }
               ensureConsistency (eq `on` _.kind)
-                (errorSimple (_S::S_ "Inconsistent field types")) kts'
+                (errorSimple (_S::S_ "Inconsistent field types") <<< (map <<< map) _.key) kts'
       , "Union": \kts ->
           ensureNodupes
             (errorSimple (_S::S_ "Duplicate union fields")) kts
@@ -746,7 +732,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             suggest AST.mkType $
               forWithIndex_ kts \field ty -> do
                 void $ ensure (_S::S_ "Const") ty
-                  (errorSimple (_S::S_ "Invalid alternative type") <<< Tuple field)
+                  (errorSimple (_S::S_ "Invalid alternative type") <<< const field)
       , "UnionLit": \(Product (Tuple (Tuple field expr) kts)) ->
           ensureNodupes
             (errorSimple (_S::S_ "Duplicate union fields")) kts
@@ -755,16 +741,16 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             let kts' = StrMapIsh.insert field ty kts
             forWithIndex_ kts' \field' kind -> do
               void $ ensure (_S::S_ "Const") kind
-                (errorSimple (_S::S_ "Invalid alternative type") <<< Tuple field')
+                (errorSimple (_S::S_ "Invalid alternative type") <<< const field')
             pure $ AST.mkUnion $ term <$> kts'
       , "Combine": \p -> do
           AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
             forWithIndex p \side ty -> do
               kalls <- { ty: _, kind: _ } <$> typecheck ty <*> kindcheck ty
               kts <- ensure' (_S::S_ "Record") kalls.ty
-                (errorSimple (_S::S_ "Must combine a record") <<< Tuple side)
+                (errorSimple (_S::S_ "Must combine a record") <<< const side)
               const <- unwrap <$> ensure' (_S::S_ "Const") kalls.kind
-                (errorSimple (_S::S_ "Must combine a record") <<< Tuple side)
+                (errorSimple (_S::S_ "Must combine a record") <<< const side)
               pure { kts, const }
           -- kind checking only needs to occur at the top level
           -- since nested records will have the same (compatible) kinds
@@ -774,7 +760,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
               AST.Pair ktsL' ktsR' <-
                 forWithIndex p' \side ty -> do
                   ensure' (_S::S_ "Record") ty
-                    (errorSimple (_S::S_ "Must combine a record") <<< Tuple side)
+                    (errorSimple (_S::S_ "Must combine a record") <<< const side)
               let combined = StrMapIsh.unionWith (pure pure) ktsL' ktsR'
               AST.mkRecord <$> forWithIndex combined \k ->
                 case _ of
@@ -791,9 +777,9 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             forWithIndex p \side ty -> do
               kalls <- { ty: _, kind: _ } <$> pure (term ty) <*> typecheck ty
               kts <- ensure' (_S::S_ "Record") kalls.ty
-                (errorSimple (_S::S_ "Must combine a record") <<< Tuple side)
+                (errorSimple (_S::S_ "Must combine a record") <<< const side)
               const <- unwrap <$> ensure' (_S::S_ "Const") kalls.kind
-                (errorSimple (_S::S_ "Must combine a record") <<< Tuple side)
+                (errorSimple (_S::S_ "Must combine a record") <<< const side)
               pure { kts, const }
           -- kind checking only needs to occur at the top level
           -- since nested records will have the same (compatible) kinds
@@ -804,7 +790,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                 AST.Pair ktsL' ktsR' <-
                   forWithIndex p' \side ty -> do
                     ensure' (_S::S_ "Record") ty
-                      (errorSimple (_S::S_ "Must combine a record") <<< Tuple side)
+                      (errorSimple (_S::S_ "Must combine a record") <<< const side)
                 let combined = StrMapIsh.unionWith (pure pure) ktsL' ktsR'
                 AST.mkRecord <$> forWithIndex combined \k ->
                   case _ of
@@ -821,10 +807,10 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             forWithIndex p \side kvs -> do
               ty <- Cofree.tail kvs
               kts <- ensure' (_S::S_ "Record") (term ty)
-                (errorSimple (_S::S_ "Must combine a record") <<< Tuple side)
+                (errorSimple (_S::S_ "Must combine a record") <<< const side)
               k <- typecheck ty
               const <- unwrap <$> ensure (_S::S_ "Const") ty
-                (errorSimple (_S::S_ "Must combine a record") <<< Tuple side)
+                (errorSimple (_S::S_ "Must combine a record") <<< const side)
               pure { kts, const }
           when (constL /= constR) $ errorSimple (_S::S_ "Record mismatch") unit
           let
@@ -849,31 +835,31 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             -- either from annotation
             Just ty -> pure (term ty)
             -- or from the first handler
-            Nothing -> case un First $ foldMap pure ktsX of
+            Nothing -> case un First $ foldMapWithIndex (curry pure) ktsX of
               Nothing -> errorSimple (_S::S_ "Missing merge type") $ unit
-              Just item -> do
+              Just (Tuple k item) -> do
                 AST.BindingBody name _ output <- ensure' (_S::S_ "Pi") item
-                  (errorSimple (_S::S_ "Handler not a function"))
+                  (errorSimple (_S::S_ "Handler not a function") <<< const k)
                 -- NOTE: the following check added
                 when (Dhall.Core.freeIn (AST.V name 0) output)
-                  (errorSimple (_S::S_ "Dependent handler function") unit)
+                  (errorSimple (_S::S_ "Dependent handler function") <<< const k $ unit)
                 pure $ Dhall.Core.shift (-1) (AST.V name 0) output
           forWithIndex_ ktsY \k tY -> do
             tX <- StrMapIsh.get k ktsX #
               noteSimple (_S::S_ "Missing handler") diffX
             AST.BindingBody name input output <- ensure' (_S::S_ "Pi") tX
-              (errorSimple (_S::S_ "Handler not a function"))
+              (errorSimple (_S::S_ "Handler not a function") <<< const k)
             ado
-              when (not Dhall.Core.judgmentallyEqual tY input)
-                (errorSimple (_S::S_ "Handler input type mismatch") unit)
+              void $ checkEqR tY input
+                (errorSimple (_S::S_ "Handler input type mismatch") <<< const k)
             in do
               -- NOTE: the following check added
               when (Dhall.Core.freeIn (AST.V name 0) output)
-                (errorSimple (_S::S_ "Dependent handler function") unit)
+                (errorSimple (_S::S_ "Dependent handler function") <<< const k $ unit)
               let output' = Dhall.Core.shift (-1) (AST.V name 0) output
-              when (not Dhall.Core.judgmentallyEqual ty output')
-                (errorSimple (_S::S_ "Handler output type mismatch") unit)
-          pure ty <*
+              void $ checkEqR ty output'
+                (errorSimple (_S::S_ "Handler output type mismatch") <<< const k)
+          suggest ty $
             when (not Set.isEmpty diffX)
               (errorSimple (_S::S_ "Unused handlers") diffX)
       , "Constructors": \(Identity ty) -> do
@@ -920,3 +906,17 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
       }
   in VariantF.onMatch contextual \v -> ReaderT \ctx ->
       VariantF.match preservative (map (hoistCofree (runReaderT <@> ctx)) v)
+
+-- The explanation, given as text interspersed with specific places to look at
+-- (for the user to read)
+explain ::
+  forall m a.
+    StrMapIsh m =>
+  Expr m a ->
+  Variant (Errors ()) ->
+  AST.TextLitF (Focus m a)
+explain origin =
+  let errorUnknownError = AST.TextLit "Sorry I don’t know how to explain this error"
+      nodeType = AST.projectW origin
+  in
+  Variant.default errorUnknownError

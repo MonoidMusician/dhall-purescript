@@ -56,7 +56,7 @@ parserC = H.component
       Left s -> HH.div_
         let
           parsed = parse s
-          showError :: TypeCheck.TypeCheckError (TypeCheck.Errors () IOSM.InsOrdStrMap Core.Imports.Import) IOSM.InsOrdStrMap Core.Imports.Import -> String
+          showError :: TypeCheck.TypeCheckError (TypeCheck.Errors ()) IOSM.InsOrdStrMap Core.Imports.Import -> String
           showError = unsafeCoerce >>> _.tag >>> _.type
           ctx = Dhall.Context.empty # Dhall.Context.insert "Test/equal" do
             AST.mkPi "a" AST.mkType (AST.mkPi "_" (AST.mkVar (AST.V "a" 0)) (AST.mkPi "_" (AST.mkVar (AST.V "a" 0)) AST.mkBool))
