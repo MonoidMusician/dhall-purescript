@@ -3,9 +3,9 @@ module Dhall.Core.AST.Noted where
 import Prelude
 
 import Control.Comonad (extract)
+import Control.Comonad.Cofree (Cofree)
 import Control.Comonad.Env (EnvT(..), mapEnvT, runEnvT, withEnvT)
 import Data.Bifunctor (class Bifunctor, lmap)
-import Data.Functor.Mu (Mu)
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.List (List(..), (:))
 import Data.Newtype (class Newtype, unwrap, wrap)
@@ -14,7 +14,7 @@ import Dhall.Core.AST.Types (ExprRowVF)
 import Dhall.Core.AST.Types as Types
 import Matryoshka (class Corecursive, class Recursive, embed, project, transCata)
 
-newtype Expr m s a = Expr (Mu (EnvT s (ExprRowVF m a)))
+newtype Expr m s a = Expr (Cofree (ExprRowVF m a) s)
 derive instance newtypeExpr :: Newtype (Expr m s a) _
 instance recursiveExpr :: Recursive (Expr m s a) (EnvT s (ExprRowVF m a)) where
   project = unwrap >>> project >>> map wrap

@@ -2,8 +2,12 @@ module Dhall.Context where
 
 import Prelude
 
+import Data.Foldable (class Foldable, foldMap, foldl, foldr)
+import Data.Functor.Compose (Compose(..))
 import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..))
+import Data.Newtype (class Newtype, unwrap)
+import Data.Traversable (class Traversable, sequence, traverse)
 import Data.Tuple (Tuple(..))
 
 -- | A `Context a` associates `Text` labels with values of type `a`.  Each
@@ -16,7 +20,15 @@ import Data.Tuple (Tuple(..))
 -- | lets you have multiple ordered occurrences of the same key and you can
 -- | query for the `n`th occurrence of a given key.
 newtype Context a = Context (List (Tuple String a))
+derive instance newtypeContext :: Newtype (Context a) _
 derive instance functorContext :: Functor Context
+instance foldableContext :: Foldable Context where
+  foldMap f = foldMap f <<< Compose <<< unwrap
+  foldr f c = foldr f c <<< Compose <<< unwrap
+  foldl f c = foldl f c <<< Compose <<< unwrap
+instance traversableContext :: Traversable Context where
+  traverse f (Context as) = Context <$> traverse (traverse f) as
+  sequence (Context as) = Context <$> traverse sequence as
 
 -- | An empty context with no key-value pairs
 empty :: forall a. Context a

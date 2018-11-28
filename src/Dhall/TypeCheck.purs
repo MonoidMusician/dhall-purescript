@@ -4,26 +4,30 @@ import Prelude
 
 import Control.Alternative (class Alternative)
 import Control.Comonad (class Comonad, extract)
-import Control.Comonad.Cofree (Cofree, hoistCofree)
+import Control.Comonad.Cofree (Cofree, buildCofree, hoistCofree)
 import Control.Comonad.Cofree as Cofree
-import Control.Comonad.Env (EnvT(..))
+import Control.Comonad.Env (EnvT(..), mapEnvT, runEnvT)
 import Control.Monad.Reader (ReaderT(..), mapReaderT, runReaderT)
 import Control.Monad.Writer (WriterT, mapWriterT)
 import Control.Plus (empty)
 import Data.Array as Array
 import Data.Array.NonEmpty as NEA
-import Data.Bifunctor (lmap)
+import Data.Bifoldable (bifoldMap, bifoldl, bifoldr)
+import Data.Bifunctor (bimap, lmap)
+import Data.Bitraversable (bisequence, bitraverse)
 import Data.Const as Const
-import Data.Foldable (class Foldable, foldMap, for_, traverse_)
+import Data.Foldable (class Foldable, foldMap, foldr, foldl, for_, traverse_)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, forWithIndex_)
 import Data.Function (on)
 import Data.Functor.App (App(..))
+import Data.Functor.Compose (Compose(..))
+import Data.Functor.Mu (Mu)
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (FProxy, SProxy)
 import Data.Functor.Variant as VariantF
-import Data.FunctorWithIndex (mapWithIndex)
+import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
-import Data.Lazy (Lazy)
+import Data.Lazy (Lazy, defer)
 import Data.List (List)
 import Data.List as List
 import Data.List.NonEmpty as NEL
@@ -39,7 +43,7 @@ import Data.Set (Set)
 import Data.Set as Set
 import Data.Symbol (class IsSymbol)
 import Data.These (These(..))
-import Data.Traversable (class Traversable, for, traverse)
+import Data.Traversable (class Traversable, for, sequence, traverse)
 import Data.TraversableWithIndex (forWithIndex)
 import Data.Tuple (Tuple(..), curry, uncurry)
 import Data.Variant (Variant)
@@ -49,9 +53,10 @@ import Dhall.Context as Dhall.Context
 import Dhall.Core as Dhall.Core
 import Dhall.Core.AST (_S, S_, Const(..), Expr, ExprRowVFI(..), Pair(..))
 import Dhall.Core.AST as AST
+import Dhall.Core.AST.Noted as Ann
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
-import Matryoshka (class Recursive, ana, project)
+import Matryoshka (class Corecursive, class Recursive, ana, embed, mapR, project, transCata)
 import Type.Row as R
 import Validation.These as V
 
@@ -132,6 +137,8 @@ data Focus m a
   | FocusWithin (Lazy ExprRowVFI) (Focus m a)
   -- Derived: Point to the type of another focus
   | TypeOfFocus (Focus m a)
+  -- Derived: Point to the same focus but normalized
+  | NormalizeFocus (Focus m a)
   -- Atomic: A new expression, whose origin is shrouded in mystery ...
   | ConstructedFocus (Expr m a)
 
@@ -170,67 +177,163 @@ recursor f = go where
   go :: t -> m t
   go e = project e <#> ana (EnvT <<< (identity &&& go)) # f
 
-{-
-recursor' :: forall t f m. Recursive t f => Functor m =>
-  (f (Cofree m (Mu (Compose f (Cofree m)))) -> m t) -> t -> Cofree m (Mu (Compose f (Cofree m)))
-recursor' f = go where
-  go :: t -> Cofree m (Mu (Compose f (Cofree m)))
-  go t = project t <#> go # ana do
-    EnvT <<< ((embed <<< Compose) &&& (map (map go <<< project) <<< f))
+-- I don't know how to explain this. I think it makes sense.
+type TwoD m f = Mu (Compose (Cofree m) f)
 
-recursor'' :: forall t f m. Recursive t f => Functor m =>
-  (f (Cofree m t) -> m t) -> t -> Cofree m t
-recursor'' f = go where
-  go :: t -> Cofree m t
-  go t = ana (EnvT <<< (identity &&& (f <<< map go <<< project))) t
-
-recursor''' ::
+recursor2D ::
   forall t f m r.
     Recursive t f =>
     Corecursive r (Compose (Cofree m) f) =>
     Traversable f =>
     Applicative m =>
   (f (Cofree m r) -> m t) -> t -> Cofree m r
-recursor''' f = go where
-  go :: t -> Cofree m r
-  go t = embed $ EnvT $ project t # map go # (&&&)
-    do embed <<< Compose <<< distGHisto distApplicative
-    do map go <<< f
-
-recursor''''' ::
-  forall t f m r.
-    Recursive t f =>
-    Corecursive r (Compose (Cofree m) f) =>
-    Traversable f =>
-    Applicative m =>
-  (f (Cofree m r) -> m t) -> t -> Cofree m r
-recursor''''' f = go where
+recursor2D f = go where
   go :: t -> Cofree m r
   go = buildCofree \t ->
     project t <#> go # flip (&&&) f do
       embed <<< Compose <<< buildCofree do
         map extract &&& traverse Cofree.tail
 
-recursor'''' ::
-  forall t f m r.
-    Recursive t f =>
-    Traversable f =>
+head2D ::
+  forall t f m r. Functor m =>
+    Recursive r (Compose (Cofree m) f) =>
+    Corecursive t f =>
+  r -> t
+head2D = transCata $ extract <<< un Compose
+
+step2D ::
+  forall f m r. Functor m =>
+    Recursive r (Compose (Cofree m) f) =>
     Corecursive r (Compose (Cofree m) f) =>
-    Applicative m =>
-  (f (Cofree m r) -> m t) -> t -> Cofree m r
-recursor'''' f = go where
-  go :: t -> Cofree m r
-  go t = t # transAna do
-    EnvT <<< do
-      map go >>> do
-        (distGHisto distApplicative >>> Compose >>> embed) &&& f
+  r -> m r
+step2D = project >>> un Compose >>> Cofree.tail >>> map (Compose >>> embed)
 
-terms :: forall m f. Functor f => Functor m => Mu (Compose f (Cofree m)) -> Mu f
-terms = transMu (un Compose >>> map extract)
+dubstep2D ::
+  forall f m r. Bind m =>
+    Recursive r (Compose (Cofree m) f) =>
+    Corecursive r (Compose (Cofree m) f) =>
+  r -> m r
+dubstep2D = step2D <=< step2D
 
-typecheck_terms :: forall m f. Functor f => Functor m => Mu (Compose f (Cofree m)) -> m (Mu f)
-typecheck_terms = Cofree.tail >>> map terms
--}
+headAndSpine ::
+  forall t a f.
+    Corecursive t f =>
+  Cofree f a -> Tuple a t
+headAndSpine = Cofree.head &&& transCata (runEnvT >>> extract)
+
+-- Expr with Focus for each node
+type Fxpr m a = Ann.Expr m (Focus m a) a
+-- Expr with Focus and Context
+-- (This value if `Let`-bound variable, That type if known)
+type Cxpr m a = Cofree (WithBiCtx (AST.ExprRowVF m a)) (Focus m a)
+type CxprF m a = EnvT (Focus m a) (WithBiCtx (AST.ExprRowVF m a))
+type BiContext a = Context (These a a)
+-- Product (Compose Context (Join These)) f, but without the newtypes
+data WithBiCtx f a = WithBiCtx (BiContext a) (f a)
+instance functorWithBiCtx :: Functor f => Functor (WithBiCtx f) where
+  map f (WithBiCtx ctx fa) = WithBiCtx (join bimap f <$> ctx) (f <$> fa)
+instance foldableWithBiCtx :: Foldable f => Foldable (WithBiCtx f) where
+  foldMap f (WithBiCtx ctx fa) = foldMap (join bifoldMap f) ctx <> foldMap f fa
+  foldr f c (WithBiCtx ctx fa) = foldr (flip $ join bifoldr f) (foldr f c fa) ctx
+  foldl f c (WithBiCtx ctx fa) = foldl f (foldl (join bifoldl f) c ctx) fa
+instance traversableWithBiCtx :: Traversable f => Traversable (WithBiCtx f) where
+  traverse f (WithBiCtx ctx fa) = WithBiCtx <$> traverse (join bitraverse f) ctx <*> traverse f fa
+  sequence (WithBiCtx ctx fa) = WithBiCtx <$> traverse bisequence ctx <*> sequence fa
+-- Operations that can be performed on AST nodes:
+--   Left (Lazy): normalization (idempotent, but this isn't enforced ...)
+--   Right (Lazy Feedback): typechecking
+type Operations w r m a = Product Lazy (Compose Lazy (Feedback w r m a))
+-- Expr with Focus and Context, along the dual axes of Operations and the AST
+type Oxpr w r m a = TwoD (Operations w r m a) (CxprF m a)
+type Operated w r m a = Cofree (Operations w r m a) (Oxpr w r m a)
+
+typecheckSketch :: forall w r m a. Eq a => StrMapIsh m =>
+  (AST.ExprRowVF m a (Operated w r m a) -> TypeChecked w r m a) ->
+  Cxpr m a -> Operated w r m a
+typecheckSketch typecheckAlgorithm = recursor2D \(EnvT (Tuple focus (WithBiCtx ctx e))) -> Product
+  let
+    ctx' :: Lazy (BiContext (Cxpr m a))
+    ctx' = defer \_ -> ctx <#> join bimap
+      -- Operated -> Oxpr -> Cxpr
+      (extract >>> head2D)
+    reconsitute :: (Focus m a -> Focus m a) -> Expr m a -> Cxpr m a
+    reconsitute newF e' =
+      -- Fxpr -> Cxpr
+      contextualizeWithin (extract ctx') $
+      -- Expr -> Fxpr
+      originateFrom (newF focus) $ e'
+  in Tuple
+      do defer \_ -> reconsitute NormalizeFocus $
+          Dhall.Core.normalize $ embed $ e <#>
+          -- Operated -> Oxpr -> Cxpr -> Fxpr -> Expr
+          (extract >>> head2D >>> dropContext >>> dropOrigin)
+      do Compose $ defer \_ -> reconsitute TypeOfFocus <$>
+          typecheckAlgorithm e
+
+normalizeOp :: forall w r m a b. Operations w r m a b -> b
+normalizeOp (Product (Tuple lz _)) = extract lz
+
+typecheckOp :: forall w r m a. Operations w r m a ~> Feedback w r m a
+typecheckOp (Product (Tuple _ (Compose lz))) = extract lz
+
+normalizeStep :: forall w r m a.
+  Oxpr w r m a -> Oxpr w r m a
+normalizeStep = step2D >>> normalizeOp
+
+typecheckStep :: forall w r m a.
+  Oxpr w r m a -> Feedback w r m a (Oxpr w r m a)
+typecheckStep = step2D >>> typecheckOp
+
+topCtxO :: forall w r m a.
+  Oxpr w r m a -> BiContext (Oxpr w r m a)
+topCtxO = project >>> unwrap >>> extract >>> unwrap >>> extract >>> case _ of
+  WithBiCtx ctx _ -> ctx
+
+topCtx :: forall m a.
+  Cxpr m a -> BiContext (Cxpr m a)
+topCtx = Cofree.tail >>> case _ of
+  WithBiCtx ctx _ -> ctx
+
+originateFrom :: forall m a. FunctorWithIndex String m =>
+  Focus m a -> Expr m a -> Fxpr m a
+originateFrom = go where
+  go focus e = embed $ EnvT $ Tuple focus $ e # project
+    # mapWithIndex \i' -> go $ FocusWithin (pure i') focus
+
+contextualizeWithin :: forall m a. FunctorWithIndex String m =>
+  Context (These (Cxpr m a) (Cxpr m a)) ->
+  Fxpr m a -> Cxpr m a
+contextualizeWithin = go where
+  go ctx = mapR $ mapEnvT $ (>>>) (un AST.ERVF) $ (<<<) (WithBiCtx ctx <<< AST.ERVF) $ do
+    (VariantF.expand <<< map (go ctx))
+    # VariantF.onMatch
+      { "Let": \(AST.LetF name mty value expr) -> VariantF.inj (_S::S_ "Let")
+        let
+          mty' = go ctx <$> mty
+          value' = go ctx value
+          entry = case mty' of
+            Nothing -> This value'
+            Just ty' -> Both value' ty'
+          ctx' = Dhall.Context.insert name entry ctx
+          expr' = go ctx' expr
+        in AST.LetF name mty' value' expr'
+      , "Lam": \(AST.BindingBody name ty body) -> VariantF.inj (_S::S_ "Lam")
+        let ty' = go ctx ty
+            ctx' = Dhall.Context.insert name (That ty') ctx
+        in AST.BindingBody name ty' (go ctx' body)
+      , "Pi": \(AST.BindingBody name ty body) -> VariantF.inj (_S::S_ "Pi")
+        let ty' = go ctx ty
+            ctx' = Dhall.Context.insert name (That ty') ctx
+        in AST.BindingBody name ty' (go ctx' body)
+      }
+
+dropOrigin :: forall m a. FunctorWithIndex String m =>
+  Fxpr m a -> Expr m a
+dropOrigin = transCata $ runEnvT >>> extract
+
+dropContext :: forall m a. FunctorWithIndex String m =>
+  Cxpr m a -> Fxpr m a
+dropContext = transCata $ mapEnvT \(WithBiCtx _ e) -> e
 
 -- typecheck :: forall w r m a. Shallot w r m a -> TypeChecked w r m a
 -- typecheck :: forall w r m a. CtxShallot w r m a -> CtxTypeChecked w r m a
@@ -384,20 +487,23 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
       AST.projectW nf_ty # VariantF.on s pure
         \_ -> absurd <$> error unit
 
+    checkEq ::
+      Expr m a -> Expr m a ->
+      (Unit -> FeedbackE w r m a Void) ->
+      FeedbackE w r m a Unit
+    checkEq ty0 ty1 error =
+      when (not Dhall.Core.judgmentallyEqual ty0 ty1) $
+        absurd <$> error unit
     checkEqL ::
       Expr m a -> Expr m a ->
       (Unit -> FeedbackE w r m a Void) ->
       FeedbackE w r m a (Expr m a)
-    checkEqL ty0 ty1 error = suggest ty0 $
-      when (not Dhall.Core.judgmentallyEqual ty0 ty1) $
-        absurd <$> error unit
+    checkEqL ty0 ty1 error = suggest ty0 $ checkEq ty0 ty1 error
     checkEqR ::
       Expr m a -> Expr m a ->
       (Unit -> FeedbackE w r m a Void) ->
       FeedbackE w r m a (Expr m a)
-    checkEqR ty0 ty1 error = suggest ty1 $
-      when (not Dhall.Core.judgmentallyEqual ty0 ty1) $
-        absurd <$> error unit
+    checkEqR ty0 ty1 error = suggest ty1 $ checkEq ty0 ty1 error
   in let
     contextual =
       let
@@ -441,7 +547,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
           ty0 <- Cofree.tail value
           ty <- fromMaybe ty0 <$> for mty \ty' -> do
             _ <- typecheck ty'
-            oblivious $ ty' <$ checkEqR (term ty0) (term ty')
+            oblivious $ ty' <$ checkEq (term ty0) (term ty')
               (errorSimple (_S::S_ "Annotation mismatch"))
           kind <- typecheck ty
           let
@@ -575,7 +681,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                     errorSimple (_S::S_ "Type mismatch") unit
           in join $ checkArg <$> checkFn <*> typecheck a
       , "Annot": \(AST.Pair expr ty) -> suggest (term ty) $
-          join $ checkEqR
+          join $ checkEq
             <$> typecheck expr
             <@> term ty
             <@> errorSimple (_S::S_ "Annotation mismatch")
@@ -634,7 +740,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                   (errorSimple (_S::S_ "Invalid list type"))
           suggest ty $ forWithIndex_ lit \i item -> do
             ty' <- typecheck item
-            checkEqL ty ty' \_ ->
+            checkEq ty ty' \_ ->
               case mty of
                 Nothing ->
                   errorSimple (_S::S_ "Invalid list element") $ i
@@ -681,7 +787,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             (errorSimple (_S::S_ "Invalid optional type"))
           suggest (AST.mkApp AST.mkOptional (term ty)) $
             for_ mexpr \expr -> do
-              join $ checkEqL (term ty)
+              join $ checkEq (term ty)
                 <$> typecheck expr
                 <@> (errorSimple (_S::S_ "Invalid optional element"))
       , "Some": unwrap >>> \a ->
@@ -700,7 +806,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                 (errorSimple (_S::S_ "Invalid field type") <<< const field)
               case c of
                 Kind ->
-                  void $ checkEqL AST.mkType (term ty)
+                  checkEq AST.mkType (term ty)
                     (errorSimple (_S::S_ "Invalid field type") <<< const field)
                 _ -> pure unit
               pure { kind: c, ty: term ty }
@@ -718,7 +824,7 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
                   (errorSimple (_S::S_ "Invalid field type") <<< const field)
                 case c of
                   Kind ->
-                    void $ checkEqL AST.mkType (term ty)
+                    checkEq AST.mkType (term ty)
                       (errorSimple (_S::S_ "Invalid field type") <<< const field)
                   _ -> pure unit
                 pure { kind: c, ty: term ty }
@@ -850,14 +956,14 @@ typeWithA tpa = flip $ compose runReaderT $ recursor $
             AST.BindingBody name input output <- ensure' (_S::S_ "Pi") tX
               (errorSimple (_S::S_ "Handler not a function") <<< const k)
             ado
-              void $ checkEqR tY input
+              checkEq tY input
                 (errorSimple (_S::S_ "Handler input type mismatch") <<< const k)
             in do
               -- NOTE: the following check added
               when (Dhall.Core.freeIn (AST.V name 0) output)
                 (errorSimple (_S::S_ "Dependent handler function") <<< const k $ unit)
               let output' = Dhall.Core.shift (-1) (AST.V name 0) output
-              void $ checkEqR ty output'
+              checkEq ty output'
                 (errorSimple (_S::S_ "Handler output type mismatch") <<< const k)
           suggest ty $
             when (not Set.isEmpty diffX)
