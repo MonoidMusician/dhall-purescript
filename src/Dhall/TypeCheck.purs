@@ -184,15 +184,13 @@ recursor2D ::
   forall t f m r.
     Recursive t f =>
     Corecursive r (Compose (Cofree m) f) =>
-    Traversable f =>
-    Applicative m =>
-  (f (Cofree m r) -> m t) -> t -> Cofree m r
+    Functor f =>
+    Functor m =>
+  (f r -> m t) -> t -> r
 recursor2D f = go where
-  go :: t -> Cofree m r
-  go = buildCofree \t ->
-    project t <#> go # flip (&&&) f do
-      embed <<< Compose <<< buildCofree do
-        map extract &&& traverse Cofree.tail
+  go :: t -> r
+  go = ana $ (<<<) Compose $ buildCofree do
+    project &&& \t -> project t <#> go # f
 
 head2D ::
   forall t f m r. Functor m =>
@@ -230,6 +228,10 @@ type CxprF m a = EnvT (Focus m a) (WithBiCtx (AST.ExprRowVF m a))
 type BiContext a = Context (These a a)
 -- Product (Compose Context (Join These)) f, but without the newtypes
 data WithBiCtx f a = WithBiCtx (BiContext a) (f a)
+getBiCtx :: forall f a. WithBiCtx f a -> BiContext a
+getBiCtx (WithBiCtx ctx _) = ctx
+dropBiCtx :: forall f a. WithBiCtx f a -> f a
+dropBiCtx (WithBiCtx _ fa) = fa
 instance functorWithBiCtx :: Functor f => Functor (WithBiCtx f) where
   map f (WithBiCtx ctx fa) = WithBiCtx (join bimap f <$> ctx) (f <$> fa)
 instance foldableWithBiCtx :: Foldable f => Foldable (WithBiCtx f) where
@@ -248,14 +250,14 @@ type Oxpr w r m a = TwoD (Operations w r m a) (CxprF m a)
 type Operated w r m a = Cofree (Operations w r m a) (Oxpr w r m a)
 
 typecheckSketch :: forall w r m a. Eq a => StrMapIsh m =>
-  (AST.ExprRowVF m a (Operated w r m a) -> TypeChecked w r m a) ->
-  Cxpr m a -> Operated w r m a
+  (AST.ExprRowVF m a (Oxpr w r m a) -> TypeChecked w r m a) ->
+  Cxpr m a -> Oxpr w r m a
 typecheckSketch typecheckAlgorithm = recursor2D \(EnvT (Tuple focus (WithBiCtx ctx e))) -> Product
   let
     ctx' :: Lazy (BiContext (Cxpr m a))
     ctx' = defer \_ -> ctx <#> join bimap
-      -- Operated -> Oxpr -> Cxpr
-      (extract >>> head2D)
+      -- Oxpr -> Cxpr
+      (head2D)
     reconsitute :: (Focus m a -> Focus m a) -> Expr m a -> Cxpr m a
     reconsitute newF e' =
       -- Fxpr -> Cxpr
@@ -265,8 +267,8 @@ typecheckSketch typecheckAlgorithm = recursor2D \(EnvT (Tuple focus (WithBiCtx c
   in Tuple
       do defer \_ -> reconsitute NormalizeFocus $
           Dhall.Core.normalize $ embed $ e <#>
-          -- Operated -> Oxpr -> Cxpr -> Fxpr -> Expr
-          (extract >>> head2D >>> dropContext >>> dropOrigin)
+          -- Oxpr -> Cxpr -> Fxpr -> Expr
+          (head2D >>> dropContext >>> dropOrigin)
       do Compose $ defer \_ -> reconsitute TypeOfFocus <$>
           typecheckAlgorithm e
 
@@ -286,13 +288,15 @@ typecheckStep = step2D >>> typecheckOp
 
 topCtxO :: forall w r m a.
   Oxpr w r m a -> BiContext (Oxpr w r m a)
-topCtxO = project >>> unwrap >>> extract >>> unwrap >>> extract >>> case _ of
-  WithBiCtx ctx _ -> ctx
+topCtxO = project >>> un Compose >>> extract >>> un EnvT >>> extract >>> getBiCtx
+
+unlayerO :: forall w r m a.
+  Oxpr w r m a -> AST.ExprRowVF m a (Oxpr w r m a)
+unlayerO = project >>> un Compose >>> extract >>> un EnvT >>> extract >>> dropBiCtx
 
 topCtx :: forall m a.
   Cxpr m a -> BiContext (Cxpr m a)
-topCtx = Cofree.tail >>> case _ of
-  WithBiCtx ctx _ -> ctx
+topCtx = Cofree.tail >>> getBiCtx
 
 originateFrom :: forall m a. FunctorWithIndex String m =>
   Focus m a -> Expr m a -> Fxpr m a
