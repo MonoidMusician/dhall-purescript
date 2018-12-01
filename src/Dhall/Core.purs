@@ -22,7 +22,7 @@ import Dhall.Core.AST
   , Pair(..)
   , SimpleThings
   , Syntax
-  , Terminals
+  , Variable
   , TextLitF(..)
   , Triplet(..)
   , Var(..)

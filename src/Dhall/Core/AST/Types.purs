@@ -116,6 +116,7 @@ type BuiltinTypes (m :: Type -> Type) vs =
   , "Text" :: UNIT
   , "List" :: UNIT
   , "Optional" :: UNIT
+  , "Const" :: CONST Const
   | vs
   )
 
@@ -127,6 +128,7 @@ type BuiltinTypes' (m :: Type -> Type) (m' :: Type -> Type) vs =
   , "Text" :: VOID
   , "List" :: VOID
   , "Optional" :: VOID
+  , "Const" :: VOID
   | vs
   )
 
@@ -138,6 +140,7 @@ type BuiltinTypesI vs =
   , "Text" :: Void
   , "List" :: Void
   , "Optional" :: Void
+  , "Const" :: Void
   | vs
   )
 
@@ -307,62 +310,58 @@ type BuiltinOpsI v = BuiltinBinOpsI
   | v
   )
 
--- Other terminals, the axioms of `Type` and `Kind`, as well as variables
-type Terminals (m :: Type -> Type) vs =
-  ( "Const" :: CONST Const
+type Variable (m :: Type -> Type) v =
+  ( "Lam" :: FProxy BindingBody
+  , "Pi" :: FProxy BindingBody
+  , "Let" :: FProxy LetF
   , "Var" :: CONST Var
-  | vs
+  | v
   )
 
-type Terminals' (m :: Type -> Type) (m' :: Type -> Type) vs =
-  ( "Const" :: VOID
+type Variable' (m :: Type -> Type) (m' :: Type -> Type) v =
+  ( "Lam" :: FProxy (BindingBody')
+  , "Pi" :: FProxy (BindingBody')
+  , "Let" :: FProxy LetF'
   , "Var" :: VOID
-  | vs
+  | v
   )
 
-type TerminalsI vs =
-  ( "Const" :: Void
+type VariableI v =
+  ( "Lam" :: BindingBodyI
+  , "Pi" :: BindingBodyI
+  , "Let" :: LetFI
   , "Var" :: Void
-  | vs
+  | v
   )
 
 -- Other things that have special/fundamental syntax
 type Syntax (m :: Type -> Type) v =
-  ( "Lam" :: FProxy (BindingBody)
-  , "Pi" :: FProxy (BindingBody)
-  , "App" :: FProxy (Pair)
-  , "Let" :: FProxy LetF
-  , "Annot" :: FProxy (Pair)
+  ( "App" :: FProxy Pair
+  , "Annot" :: FProxy Pair
   | v
   )
 
 type Syntax' (m :: Type -> Type) (m' :: Type -> Type) v =
-  ( "Lam" :: FProxy (BindingBody')
-  , "Pi" :: FProxy (BindingBody')
-  , "App" :: FProxy (Pair')
-  , "Let" :: FProxy LetF'
-  , "Annot" :: FProxy (Pair')
+  ( "App" :: FProxy Pair'
+  , "Annot" :: FProxy Pair'
   | v
   )
 
 type SyntaxI v =
-  ( "Lam" :: BindingBodyI
-  , "Pi" :: BindingBodyI
-  , "App" :: PairI
-  , "Let" :: LetFI
+  ( "App" :: PairI
   , "Annot" :: PairI
   | v
   )
 
 -- Non-recursive items
-type SimpleThings m vs = Literals m + BuiltinTypes m + BuiltinFuncs m + Terminals m + vs
-type SimpleThings' m m' vs = Literals' m m' + BuiltinTypes' m m' + BuiltinFuncs' m m' + Terminals' m m' + vs
-type SimpleThingsI vs = LiteralsI + BuiltinTypesI + BuiltinFuncsI + TerminalsI + vs
+type SimpleThings m vs = Literals m + BuiltinTypes m + BuiltinFuncs m + vs
+type SimpleThings' m m' vs = Literals' m m' + BuiltinTypes' m m' + BuiltinFuncs' m m' + vs
+type SimpleThingsI vs = LiteralsI + BuiltinTypesI + BuiltinFuncsI + vs
 
 -- Recursive items
-type FunctorThings m v = Literals2 m + BuiltinTypes2 m + BuiltinOps m + Syntax m + v
-type FunctorThings' m m' v = Literals2' m m' + BuiltinTypes2' m m' + BuiltinOps' m m' + Syntax' m m' + v
-type FunctorThingsI v = Literals2I + BuiltinTypes2I + BuiltinOpsI + SyntaxI + v
+type FunctorThings m v = Literals2 m + BuiltinTypes2 m + BuiltinOps m + Syntax m + Variable m + v
+type FunctorThings' m m' v = Literals2' m m' + BuiltinTypes2' m m' + BuiltinOps' m m' + Syntax' m m' + Variable' m m' + v
+type FunctorThingsI v = Literals2I + BuiltinTypes2I + BuiltinOpsI + SyntaxI + VariableI + v
 
 -- Both together
 type AllTheThings m v = SimpleThings m + FunctorThings m + v

@@ -91,6 +91,11 @@ renderBuiltinTypes render = identity
   >>> Types.renderName (_S::S_ "Text") named
   >>> Types.renderName (_S::S_ "List") named
   >>> Types.renderName (_S::S_ "Optional") named
+  >>> Types.renderOnConst (_S::S_ "Const")
+    (Star case _ of
+      AST.Type -> render (wrap (HH.text "Type")) $> AST.Type
+      AST.Kind -> render (wrap (HH.text "Kind")) $> AST.Kind
+    )
   where named = render <<< wrap <<< HH.text
 
 renderBuiltinFuncs ::
@@ -119,28 +124,6 @@ renderBuiltinFuncs render = identity
   >>> Types.renderName (_S::S_ "OptionalFold") named
   >>> Types.renderName (_S::S_ "OptionalBuild") named
   where named = render <<< wrap <<< HH.text
-
-renderTerminals ::
-  forall i h ir or m a r. Functor h =>
-  (SlottedHTML (Expandable r) ~> h) ->
-  Slot ->
-  (i -> RenderVariantF_' h ir or a) ->
-  (i -> RenderVariantF_' h (AST.Terminals m ir) (AST.Terminals m or) a)
-renderTerminals render slot = identity
-  >>> Types.renderOnConst (_S::S_ "Const")
-    (Star case _ of
-      AST.Type -> render (wrap (HH.text "Type")) $> AST.Type
-      AST.Kind -> render (wrap (HH.text "Kind")) $> AST.Kind
-    )
-  >>> Types.renderOnConst (_S::S_ "Var")
-    (Star \(AST.V name ix) -> render $ SlottedHTML $
-      HH.span_
-        [ un SlottedHTML $ expanding slot name \name' -> AST.V name' ix
-        , HH.text "@"
-        , unwrap Types.naturalH (intToNat ix)
-          <#> \ix' -> AST.V name (natToInt ix')
-        ]
-    )
 
 type LiftA2 f g = forall a b c.
   (f a -> f b -> f c) -> (g a -> g b -> g c)
@@ -733,15 +716,22 @@ renderLiterals2 { default } slot = identity
             ] <> map (map (AST.TextInterp s a)) (go (i+one) t)
       in HH.div [ HP.class_ (H.ClassName "TextLit") ] <<< go (zero :: Int)
 
-renderSyntax ::
+renderVariables ::
   forall ir a r annot.
   { default :: a } ->
   Slot ->
   ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF ir)) ->
-  ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF (AST.Syntax IOSM.InsOrdStrMap ir)))
-renderSyntax { default } slot = identity
-  >>> Types.renderOverAnnot (_S::S_ "App") (renderBinOp identity identity slot "·")
-  >>> Types.renderOverAnnot (_S::S_ "Annot") (renderBinOp identity identity slot " : ")
+  ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF (AST.Variable IOSM.InsOrdStrMap ir)))
+renderVariables { default } slot = identity
+  >>> Types.renderOverAnnot (_S::S_ "Var")
+    (\_ -> _Newtype $ Star \(AST.V name ix) -> SlottedHTML $
+      HH.span_
+        [ un SlottedHTML $ expanding slot name \name' -> AST.V name' ix
+        , HH.text "@"
+        , unwrap Types.naturalH (intToNat ix)
+          <#> \ix' -> AST.V name (natToInt ix')
+        ]
+    )
   >>> Types.renderOverAnnot (_S::S_ "Lam") (renderBindingBody "λ")
   >>> Types.renderOverAnnot (_S::S_ "Pi") (renderBindingBody "∀")
   >>> Types.renderOnAnnot (_S::S_ "Let") renderLet
@@ -799,6 +789,16 @@ renderSyntax { default } slot = identity
                 <#> \body' -> Right $ AST.LetF name mty value body'
               ]
 
+renderSyntax ::
+  forall ir a r annot.
+  { default :: a } ->
+  Slot ->
+  ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF ir)) ->
+  ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF (AST.Syntax IOSM.InsOrdStrMap ir)))
+renderSyntax { default } slot = identity
+  >>> Types.renderOverAnnot (_S::S_ "App") (renderBinOp identity identity slot "·")
+  >>> Types.renderOverAnnot (_S::S_ "Annot") (renderBinOp identity identity slot " : ")
+
 renderSimpleThings ::
   forall r a i m.
   Slot -> i -> Types.RenderVariantF_ (SlottedHTML (Expandable r)) (AST.SimpleThings m ()) a
@@ -806,7 +806,6 @@ renderSimpleThings slot = Types.renderCase
   # renderLiterals identity
   # renderBuiltinTypes identity
   # renderBuiltinFuncs identity
-  # renderTerminals identity slot
 
 renderFunctorThings ::
   forall r a annot.
@@ -822,6 +821,7 @@ renderFunctorThings { default } slot =
   # renderLiterals2 { default } slot
   # renderBuiltinTypes2 { default } slot
   # renderSyntax { default } slot
+  # renderVariables { default } slot
 
 renderAllTheThings ::
   forall r a annot.
@@ -837,6 +837,7 @@ renderAllTheThings { default } slot =
   # renderLiterals2 { default } slot
   # renderBuiltinTypes2 { default } slot
   # renderSyntax { default } slot
+  # renderVariables { default } slot
 
 newtype F a = F (VariantF (AST.AllTheThings IOSM.InsOrdStrMap ()) a)
 derive newtype instance functorF :: Functor F

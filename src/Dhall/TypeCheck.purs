@@ -42,7 +42,7 @@ import Data.Semigroup.Foldable (class Foldable1)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Symbol (class IsSymbol)
-import Data.These (These(..))
+import Data.These (These(..), theseLeft)
 import Data.Traversable (class Traversable, for, sequence, traverse)
 import Data.TraversableWithIndex (forWithIndex)
 import Data.Tuple (Tuple(..), curry, uncurry)
@@ -189,8 +189,8 @@ recursor2D ::
   (f r -> m t) -> t -> r
 recursor2D f = go where
   go :: t -> r
-  go = ana $ (<<<) Compose $ buildCofree do
-    project &&& \t -> project t <#> go # f
+  go = ana $ (<<<) Compose $ buildCofree $ (>>>) project $ do
+    identity &&& \ft -> ft <#> go # f
 
 head2D ::
   forall t f m r. Functor m =>
@@ -242,7 +242,7 @@ instance traversableWithBiCtx :: Traversable f => Traversable (WithBiCtx f) wher
   traverse f (WithBiCtx ctx fa) = WithBiCtx <$> traverse (join bitraverse f) ctx <*> traverse f fa
   sequence (WithBiCtx ctx fa) = WithBiCtx <$> traverse bisequence ctx <*> sequence fa
 -- Operations that can be performed on AST nodes:
---   Left (Lazy): normalization (idempotent, but this isn't enforced ...)
+--   Left (Lazy): substitution+normalization (idempotent, but this isn't enforced ...)
 --   Right (Lazy Feedback): typechecking
 type Operations w r m a = Product Lazy (Compose Lazy (Feedback w r m a))
 -- Expr with Focus and Context, along the dual axes of Operations and the AST
@@ -252,7 +252,7 @@ type Operated w r m a = Cofree (Operations w r m a) (Oxpr w r m a)
 typecheckSketch :: forall w r m a. Eq a => StrMapIsh m =>
   (AST.ExprRowVF m a (Oxpr w r m a) -> TypeChecked w r m a) ->
   Cxpr m a -> Oxpr w r m a
-typecheckSketch typecheckAlgorithm = recursor2D \(EnvT (Tuple focus (WithBiCtx ctx e))) -> Product
+typecheckSketch alg = recursor2D \(EnvT (Tuple focus (WithBiCtx ctx e))) -> Product
   let
     ctx' :: Lazy (BiContext (Cxpr m a))
     ctx' = defer \_ -> ctx <#> join bimap
@@ -267,10 +267,10 @@ typecheckSketch typecheckAlgorithm = recursor2D \(EnvT (Tuple focus (WithBiCtx c
   in Tuple
       do defer \_ -> reconsitute NormalizeFocus $
           Dhall.Core.normalize $ embed $ e <#>
+          -- TODO: preserve spans from original (when possible)
           -- Oxpr -> Cxpr -> Fxpr -> Expr
-          (head2D >>> dropContext >>> dropOrigin)
-      do Compose $ defer \_ -> reconsitute TypeOfFocus <$>
-          typecheckAlgorithm e
+          (head2D >>> substContext >>> dropOrigin)
+      do Compose $ defer \_ -> reconsitute TypeOfFocus <$> alg e
 
 normalizeOp :: forall w r m a b. Operations w r m a b -> b
 normalizeOp (Product (Tuple lz _)) = extract lz
@@ -304,6 +304,7 @@ originateFrom = go where
   go focus e = embed $ EnvT $ Tuple focus $ e # project
     # mapWithIndex \i' -> go $ FocusWithin (pure i') focus
 
+-- TODO: use a proper recurrimorphism
 contextualizeWithin :: forall m a. FunctorWithIndex String m =>
   Context (These (Cxpr m a) (Cxpr m a)) ->
   Fxpr m a -> Cxpr m a
@@ -338,6 +339,18 @@ dropOrigin = transCata $ runEnvT >>> extract
 dropContext :: forall m a. FunctorWithIndex String m =>
   Cxpr m a -> Fxpr m a
 dropContext = transCata $ mapEnvT \(WithBiCtx _ e) -> e
+
+substContext :: forall m a. FunctorWithIndex String m =>
+  Cxpr m a -> Fxpr m a
+substContext = transCata \(EnvT (Tuple focus (WithBiCtx ctx e))) -> unwrap e #
+  VariantF.onMatch
+    { "Var": unwrap >>> \(AST.V x n) ->
+        case theseLeft =<< Dhall.Context.lookup x n ctx of
+          Just value -> project value
+          Nothing -> EnvT (Tuple focus e)
+    , "Let": \(AST.LetF _ _ _ body) -> project body
+    }
+    \_ -> EnvT (Tuple focus e)
 
 -- typecheck :: forall w r m a. Shallot w r m a -> TypeChecked w r m a
 -- typecheck :: forall w r m a. CtxShallot w r m a -> CtxTypeChecked w r m a

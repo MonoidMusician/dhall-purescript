@@ -5,6 +5,7 @@ import Prelude
 import Data.Foldable (class Foldable, foldMap, foldl, foldr)
 import Data.Functor.Compose (Compose(..))
 import Data.List (List(..), (:))
+import Data.List as List
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 import Data.Traversable (class Traversable, sequence, traverse)
@@ -74,3 +75,6 @@ lookup x n (Context (Tuple k v : kvs)) =
 -- | ```
 toList :: forall a. Context a -> List (Tuple String a)
 toList (Context l) = l
+
+mapMaybe :: forall a b. (a -> Maybe b) -> Context a -> Context b
+mapMaybe f (Context l) = Context (List.mapMaybe (traverse f) l)

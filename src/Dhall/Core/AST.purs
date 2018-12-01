@@ -28,34 +28,53 @@ import Dhall.Core.AST.Types
   , BuiltinOpsI
   , BuiltinTypes
   , BuiltinTypes'
-  , BuiltinTypesI
   , BuiltinTypes2
   , BuiltinTypes2'
   , BuiltinTypes2I
+  , BuiltinTypesI
   , Const(..)
   , Expr(..)
   , Expr'
   , ExprI
   , ExprLayer
   , ExprLayerF
+  , ExprLayerF'
+  , ExprLayerFI
   , ExprLayerRow
   , ExprLayerRow'
   , ExprLayerRowI
   , ExprRow
+  , ExprRow'
+  , ExprRowI
   , ExprRowVF(..)
   , ExprRowVF'(..)
   , ExprRowVFI(..)
   , FunctorThings
+  , FunctorThings'
+  , FunctorThingsI
   , Literals
+  , Literals'
   , Literals2
+  , Literals2'
+  , Literals2I
+  , LiteralsI
   , SimpleThings
+  , SimpleThings'
+  , SimpleThingsI
   , Syntax
-  , Terminals
+  , Syntax'
+  , SyntaxI
   , Var(..)
+  , Variable
+  , Variable'
+  , VariableI
   , embedW
   , projectW
+  , vfCase
   , vfEq1Case
   , vfEqCase
+  , vfOrd1Case
+  , vfOrdCase
   ) as Exports
 import Dhall.Core.AST.Operations
   ( rewriteBottomUp

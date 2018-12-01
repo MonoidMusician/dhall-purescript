@@ -252,7 +252,16 @@ renderBuiltinTypes _ = identity
   >>> renderVFLensed (_S::S_ "Text") named
   >>> renderVFLensed (_S::S_ "List") named
   >>> renderVFLensed (_S::S_ "Optional") named
-  where named = []
+  >>> renderVFLensed (_S::S_ "Const") renderConst
+  where
+    named = []
+    renderConst = pure $ mkLensed "constant" _Newtype $ renderingR \v ->
+      HH.select
+        [ HE.onSelectedIndexChange (Array.(!!) [AST.Type, AST.Kind])
+        ]
+        [ HH.option [ HP.selected (v == AST.Type) ] [ HH.text "Type" ]
+        , HH.option [ HP.selected (v == AST.Kind) ] [ HH.text "Kind" ]
+        ]
 
 renderBuiltinFuncs :: forall r m a. RenderingOptions -> RenderChunk AST.BuiltinFuncs r m a
 renderBuiltinFuncs _ = identity
@@ -276,27 +285,6 @@ renderBuiltinFuncs _ = identity
   >>> renderVFLensed (_S::S_ "OptionalFold") named
   >>> renderVFLensed (_S::S_ "OptionalBuild") named
   where named = []
-
-renderTerminals :: forall r m a. RenderingOptions -> RenderChunk AST.Terminals r m a
-renderTerminals opts = identity
-  >>> renderVFLensed (_S::S_ "Const") renderConst
-  >>> renderVFLensed (_S::S_ "Var") renderVar
-  where
-    renderConst = pure $ mkLensed "constant" _Newtype $ renderingR \v ->
-      HH.select
-        [ HE.onSelectedIndexChange (Array.(!!) [AST.Type, AST.Kind])
-        ]
-        [ HH.option [ HP.selected (v == AST.Type) ] [ HH.text "Type" ]
-        , HH.option [ HP.selected (v == AST.Kind) ] [ HH.text "Kind" ]
-        ]
-    renderVar =
-      let
-        _identifier = lens' \(AST.V identifier ix) -> Tuple identifier \identifier' -> AST.V identifier' ix
-        _ix = lens' \(AST.V identifier ix) -> Tuple ix \ix' -> AST.V identifier ix'
-      in
-      [ mkLensed "identifier" (_Newtype <<< _identifier) (renderString opts)
-      , mkLensed "index" (_Newtype <<< _ix) (renderInt opts)
-      ]
 
 renderBuiltinBinOps :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.BuiltinBinOps r m a
 renderBuiltinBinOps _ { rndr: renderA } = identity
@@ -386,23 +374,20 @@ renderLiterals2 opts { df, rndr: renderA } = identity
       , mkLensed "values" Product._2 (renderArray opts { df, rndr: renderA })
       ]
 
-renderSyntax :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.Syntax r m a
-renderSyntax opts { df, rndr: renderA } = identity
-  >>> renderVFLensed (_S::S_ "App") renderApp
-  >>> renderVFLensed (_S::S_ "Annot") renderAnnot
+renderVariable :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.Variable r m a
+renderVariable opts { df, rndr: renderA } = identity
+  >>> renderVFLensed (_S::S_ "Var") renderVar
   >>> renderVFLensed (_S::S_ "Lam") (renderBindingBody opts renderA)
   >>> renderVFLensed (_S::S_ "Pi") (renderBindingBody opts renderA)
   >>> renderVFLensed (_S::S_ "Let") renderLet
   where
-    _l = lens' \(AST.Pair l r) -> Tuple l \l' -> AST.Pair l' r
-    _r = lens' \(AST.Pair l r) -> Tuple r \r' -> AST.Pair l r'
-    renderApp =
-      [ mkLensed "function" _l renderA
-      , mkLensed "argument" _r renderA
-      ]
-    renderAnnot =
-      [ mkLensed "value" _l renderA
-      , mkLensed "type" _r renderA
+    renderVar =
+      let
+        _identifier = lens' \(AST.V identifier ix) -> Tuple identifier \identifier' -> AST.V identifier' ix
+        _ix = lens' \(AST.V identifier ix) -> Tuple ix \ix' -> AST.V identifier ix'
+      in
+      [ mkLensed "identifier" (_Newtype <<< _identifier) (renderString opts)
+      , mkLensed "index" (_Newtype <<< _ix) (renderInt opts)
       ]
     _name = lens' \(AST.LetF name a0 a1 a2) -> Tuple name \name' -> AST.LetF name' a0 a1 a2
     _a0 = lens' \(AST.LetF name a0 a1 a2) -> Tuple a0 \a0' -> AST.LetF name a0' a1 a2
@@ -415,6 +400,22 @@ renderSyntax opts { df, rndr: renderA } = identity
       , mkLensed "body" _a2 renderA
       ]
 
+renderSyntax :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.Syntax r m a
+renderSyntax opts { df, rndr: renderA } = identity
+  >>> renderVFLensed (_S::S_ "App") renderApp
+  >>> renderVFLensed (_S::S_ "Annot") renderAnnot
+  where
+    _l = lens' \(AST.Pair l r) -> Tuple l \l' -> AST.Pair l' r
+    _r = lens' \(AST.Pair l r) -> Tuple r \r' -> AST.Pair l r'
+    renderApp =
+      [ mkLensed "function" _l renderA
+      , mkLensed "argument" _r renderA
+      ]
+    renderAnnot =
+      [ mkLensed "value" _l renderA
+      , mkLensed "type" _r renderA
+      ]
+
 renderAllTheThings :: forall r m a.
   RenderingOptions ->
   RenderAnd r m a ->
@@ -423,7 +424,7 @@ renderAllTheThings opts renderA = identity
   >>> renderLiterals opts
   >>> renderBuiltinTypes opts
   >>> renderBuiltinFuncs opts
-  >>> renderTerminals opts
+  >>> renderVariable opts renderA
   >>> renderBuiltinOps opts renderA
   >>> renderLiterals2 opts renderA
   >>> renderBuiltinTypes2 opts renderA
