@@ -5,11 +5,11 @@ import Prelude
 import Control.Comonad.Env (mapEnvT)
 import Data.Const (Const(..))
 import Data.Eq (class Eq1)
-import Data.Functor.Variant (class VariantFMapCases, class VariantFMaps, VariantF)
+import Data.Functor.Variant (class VariantFMapCases, class VariantFMaps, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff)
-import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Newtype (over, unwrap)
+import Data.Symbol (class IsSymbol)
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Data.Variant.Internal (class VariantTags)
@@ -82,81 +82,60 @@ import Type.Row as R
 shift :: forall m a. Int -> Var -> Expr m a -> Expr m a
 shift d v = AST.rewriteTopDown (shiftAlg d v)
 
--- TODO: factor out explicit recursion, generalize to Expr-like things
 type VariableAlg m a = forall r.
   (VariantF r (Expr m a) -> Expr m a) ->
   VariantF (Variable m + r) (Expr m a) ->
   Expr m a
 
 newtype SimpleMapCasesOn affected node = SimpleMapCasesOn
-  forall cases casesrl.
-    R.RowToList cases casesrl =>
-    VariantFMapCases casesrl affected affected node node =>
-  Record cases -> node -> node
+  (((VariantF affected node -> VariantF affected node) -> (node -> node)))
 
-run :: forall cases casesrl affected node.
+run :: forall cases casesrl affected affectedrl node.
     R.RowToList cases casesrl =>
     VariantFMapCases casesrl affected affected node node =>
+    R.RowToList affected affectedrl =>
+    VariantTags affectedrl =>
+    VariantFMaps affectedrl =>
+    R.Union affected () affected =>
   SimpleMapCasesOn affected node ->
+  (node -> node) ->
   Record cases -> node -> node
-run (SimpleMapCasesOn f) = f
+run (SimpleMapCasesOn f) rest cases = f (VariantF.mapSomeExpand cases rest)
 
-type GenericExprAlgebra (affected :: (Type -> Type) -> # Type -> # Type) i node = forall r m.
-  i ->
-  { layer :: VariantF (affected m + r) node -> node
-  , unlayer :: node -> VariantF (affected m + r) node
-  , overlayer :: SimpleMapCasesOn (affected m + ()) node
+type NodeOps affected i node r ops =
+  { unlayer :: node -> VariantF (affected + r) node
+  , overlayer :: SimpleMapCasesOn (affected + ()) node
   , recurse :: i -> node -> node
-  } ->
-  node -> node
+  | ops
+  }
+type ConsNodeOps affected i node r ops = NodeOps affected i node r
+  ( layer :: VariantF (affected + r) node -> node | ops )
 
-type GenericExprAlgebraV (affected :: (Type -> Type) -> # Type -> # Type) (i :: Type -> # Type -> # Type) = forall node.
-  GenericExprAlgebra affected (Variant (i node ())) node
+type GenericExprAlgebra' affected i node r =
+  ConsNodeOps affected i node r () -> node -> node
 
-type GenericExprAlgebraVT (affected :: (Type -> Type) -> # Type -> # Type) (i :: Type -> # Type -> # Type) = forall node v v' r m.
+type GenericExprAlgebra affected i node r =
+  i -> GenericExprAlgebra' affected i node r
+
+type GenericExprAlgebraV (affected :: # Type -> # Type) (i :: Type -> # Type -> # Type) node r =
+  GenericExprAlgebraV' affected i node r ()
+
+type GenericExprAlgebraV' (affected :: # Type -> # Type) (i :: Type -> # Type -> # Type) node r v' =
+  GenericExprAlgebraV'' affected i node r () v'
+
+type GenericExprAlgebraV'' (affected :: # Type -> # Type) (i :: Type -> # Type -> # Type) node r v v' =
+  Variant (i node v) -> GenericExprAlgebra' affected (Variant (i node v')) node r
+
+type GenericExprAlgebraVT (affected :: # Type -> # Type) (i :: Type -> # Type -> # Type) = forall node v v' r.
     -- R.Union v (i node ()) (i node v) =>
-  (Variant v -> GenericExprAlgebrarm' affected (Variant (i node v')) node r m) ->
-  (Variant (i node v) -> GenericExprAlgebrarm' affected (Variant (i node v')) node r m)
+  (Variant v -> GenericExprAlgebra' affected (Variant (i node v')) node r) ->
+  (Variant (i node v) -> GenericExprAlgebra' affected (Variant (i node v')) node r)
 
-type GenericExprAlgebra' (affected :: (Type -> Type) -> # Type -> # Type) i node = forall r m.
-  { layer :: VariantF (affected m + r) node -> node
-  , unlayer :: node -> VariantF (affected m + r) node
-  , overlayer :: SimpleMapCasesOn (affected m + ()) node
-  , recurse :: i -> node -> node
-  } ->
-  node -> node
+overlayerExpr :: forall m a. SimpleMapCasesOn (AST.ExprLayerRow m a) (Expr m a)
+overlayerExpr = SimpleMapCasesOn (_recurse <<< over AST.ERVF)
 
-type GenericExprAlgebrarm' (affected :: (Type -> Type) -> # Type -> # Type) i node r m =
-  { layer :: VariantF (affected m + r) node -> node
-  , unlayer :: node -> VariantF (affected m + r) node
-  , overlayer :: SimpleMapCasesOn (affected m + ()) node
-  , recurse :: i -> node -> node
-  } ->
-  node -> node
-
-overlayerExpr ::
-  forall m a cases casesrl r rl untouched.
-    R.RowToList cases casesrl =>
-    VariantFMapCases casesrl r r (Expr m a) (Expr m a) =>
-    R.RowToList r rl =>
-    VariantTags rl =>
-    VariantFMaps rl =>
-    R.Union r untouched (AST.ExprLayerRow m a) =>
-  Record cases -> Expr m a -> Expr m a
-overlayerExpr cases = _recurse <<< _Newtype $
-  VariantF.mapSomeExpand cases identity
-
-overlayerNoted ::
-  forall m s a cases casesrl r rl untouched.
-    R.RowToList cases casesrl =>
-    VariantFMapCases casesrl r r (Noted.Expr m s a) (Noted.Expr m s a) =>
-    R.RowToList r rl =>
-    VariantTags rl =>
-    VariantFMaps rl =>
-    R.Union r untouched (AST.ExprLayerRow m a) =>
-  Record cases -> Noted.Expr m s a -> Noted.Expr m s a
-overlayerNoted cases = _recurse $ mapEnvT $ over AST.ERVF $
-  VariantF.mapSomeExpand cases identity
+overlayerNoted :: forall m s a. SimpleMapCasesOn (AST.ExprLayerRow m a) (Noted.Expr m s a)
+overlayerNoted = SimpleMapCasesOn (_recurse <<< mapEnvT <<< over AST.ERVF)
 
 shiftAlg :: forall m a. Int -> Var -> VariableAlg m a
 shiftAlg d v@(V x n) = identity
@@ -191,10 +170,43 @@ shiftAlg d v@(V x n) = identity
       in mkLet f mt' r' e'
     )
 
+elim1 ::
+  forall sym i v v_ v' v'_ cases casesrl affected affectedrl node ops.
+    IsSymbol sym =>
+    R.Cons sym i v_ v =>
+    R.Cons sym i v'_ v' =>
+    R.RowToList cases casesrl =>
+    VariantFMapCases casesrl affected affected node node =>
+    R.RowToList affected affectedrl =>
+    VariantTags affectedrl =>
+    VariantFMaps affectedrl =>
+    R.Union affected () affected =>
+  SProxy sym ->
+  (i          ->
+  { overlayer :: SimpleMapCasesOn affected node
+  , recurse :: Variant v' -> node -> node
+  | ops
+  } -> Record cases
+  ) ->
+  (Variant v_ ->
+  { overlayer :: SimpleMapCasesOn affected node
+  , recurse :: Variant v' -> node -> node
+  | ops
+  } -> (node -> node)) ->
+  (Variant v  ->
+  { overlayer :: SimpleMapCasesOn affected node
+  , recurse :: Variant v' -> node -> node
+  | ops
+  } -> (node -> node))
+elim1 sym handler = Variant.on sym \i node ->
+  run node.overlayer
+    (node.recurse $ Variant.inj sym i)
+    (handler i node)
+
 type ShiftAlg node v = ( shift :: { delta :: Int, variable :: Var } | v )
-shiftAlgG :: GenericExprAlgebraVT Variable ShiftAlg
-shiftAlgG rest = rest # Variant.on (_S::S_ "shift")
-  \{ delta, variable: V x n } node -> run node.overlayer
+shiftAlgG :: forall m. GenericExprAlgebraVT (Variable m) ShiftAlg
+shiftAlgG = elim1 (_S::S_ "shift")
+  \i@{ delta, variable: V x n } node ->
     let recur = node.recurse <<< Variant.inj (_S::S_ "shift") <<< { delta, variable: _ } in
     { "Var": over Const \(V x' n') ->
       let n'' = if x == x' && n <= n' then n' + delta else n'
@@ -259,8 +271,9 @@ substAlg v@(V x n) e = identity
 
 type SubstAlg node v = ( subst :: { variable :: Var, substitution :: node } | v )
 type ShiftSubstAlg node v = ShiftAlg node + SubstAlg node + v
-shiftSubstAlgG :: GenericExprAlgebraVT Variable ShiftSubstAlg
-shiftSubstAlgG rest = rest # shiftAlgG <<< Variant.on (_S::S_ "subst") \{ variable: variable@(V x n), substitution } node -> run node.overlayer
+shiftSubstAlgG :: forall m. GenericExprAlgebraVT (Variable m) ShiftSubstAlg
+shiftSubstAlgG rest = rest # shiftAlgG <<< elim1 (_S::S_ "subst")
+  \i@{ variable: variable@(V x n), substitution } node ->
   let
     substIfTarget c = node.unlayer >>> VariantF.on (_S::S_ "Var")
       (eq (Const variable)) ff >>=
@@ -346,8 +359,8 @@ alphaNormalizeAlg = identity
     )
 
 type AlphaNormalizeAlg node v = ShiftSubstAlg node + ( "alphaNormalize" :: Unit | v )
-alphaNormalizeAlgG :: GenericExprAlgebraVT Variable AlphaNormalizeAlg
-alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< Variant.on (_S::S_ "alphaNormalize") \_ node -> run node.overlayer
+alphaNormalizeAlgG :: forall m. GenericExprAlgebraVT (Variable m) AlphaNormalizeAlg
+alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormalize") \_ node ->
   let
     norm = node.recurse <<< Variant.inj (_S::S_ "alphaNormalize") $ unit
     renam v0 v1 = norm <<< doRenameAlgG v0 v1 node

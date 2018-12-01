@@ -6,7 +6,7 @@ import Control.Alternative (class Alternative)
 import Control.Comonad (class Comonad, extract)
 import Control.Comonad.Cofree (Cofree, buildCofree, hoistCofree)
 import Control.Comonad.Cofree as Cofree
-import Control.Comonad.Env (EnvT(..), mapEnvT, runEnvT)
+import Control.Comonad.Env (EnvT(..), mapEnvT, runEnvT, withEnvT)
 import Control.Monad.Reader (ReaderT(..), mapReaderT, runReaderT)
 import Control.Monad.Writer (WriterT, mapWriterT)
 import Control.Plus (empty)
@@ -53,7 +53,6 @@ import Dhall.Context as Dhall.Context
 import Dhall.Core as Dhall.Core
 import Dhall.Core.AST (_S, S_, Const(..), Expr, ExprRowVFI(..), Pair(..))
 import Dhall.Core.AST as AST
-import Dhall.Core.AST.Noted as Ann
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
 import Matryoshka (class Corecursive, class Recursive, ana, embed, mapR, project, transCata)
@@ -219,12 +218,24 @@ headAndSpine ::
   Cofree f a -> Tuple a t
 headAndSpine = Cofree.head &&& transCata (runEnvT >>> extract)
 
+unEnvT :: forall e f a. EnvT e f a -> f a
+unEnvT (EnvT (Tuple _ fa)) = fa
+
 -- Expr with Focus for each node
-type Fxpr m a = Ann.Expr m (Focus m a) a
+type Ann m a = Cofree (AST.ExprRowVF m a)
+type F = Focus
+type D m a = List (Focus m a)
+type B m a = NonEmptyList (Focus m a)
+type Fxpr m a = Ann m a (F m a)
+type Dxpr m a = Ann m a (D m a)
+type Bxpr m a = Ann m a (B m a)
 -- Expr with Focus and Context
 -- (This value if `Let`-bound variable, That type if known)
-type Cxpr m a = Cofree (WithBiCtx (AST.ExprRowVF m a)) (Focus m a)
-type CxprF m a = EnvT (Focus m a) (WithBiCtx (AST.ExprRowVF m a))
+type Cxpr m a = Cofree (WithBiCtx (AST.ExprRowVF m a))
+type Cxpr_ f m a = Cofree (WithBiCtx (AST.ExprRowVF m a)) (f m a)
+type CxprB m a = Cxpr_ B m a
+type CxprF m a b = EnvT b (WithBiCtx (AST.ExprRowVF m a))
+type CxprF_ f m a = EnvT (f m a) (WithBiCtx (AST.ExprRowVF m a))
 type BiContext a = Context (These a a)
 -- Product (Compose Context (Join These)) f, but without the newtypes
 data WithBiCtx f a = WithBiCtx (BiContext a) (f a)
@@ -232,6 +243,8 @@ getBiCtx :: forall f a. WithBiCtx f a -> BiContext a
 getBiCtx (WithBiCtx ctx _) = ctx
 dropBiCtx :: forall f a. WithBiCtx f a -> f a
 dropBiCtx (WithBiCtx _ fa) = fa
+overBiCtx :: forall f g a. (f a -> g a) -> WithBiCtx f a -> WithBiCtx g a
+overBiCtx fg (WithBiCtx ctx fa) = WithBiCtx ctx (fg fa)
 instance functorWithBiCtx :: Functor f => Functor (WithBiCtx f) where
   map f (WithBiCtx ctx fa) = WithBiCtx (join bimap f <$> ctx) (f <$> fa)
 instance foldableWithBiCtx :: Foldable f => Foldable (WithBiCtx f) where
@@ -246,31 +259,31 @@ instance traversableWithBiCtx :: Traversable f => Traversable (WithBiCtx f) wher
 --   Right (Lazy Feedback): typechecking
 type Operations w r m a = Product Lazy (Compose Lazy (Feedback w r m a))
 -- Expr with Focus and Context, along the dual axes of Operations and the AST
-type Oxpr w r m a = TwoD (Operations w r m a) (CxprF m a)
+type Oxpr w r m a = TwoD (Operations w r m a) (CxprF_ B m a)
 type Operated w r m a = Cofree (Operations w r m a) (Oxpr w r m a)
 
 typecheckSketch :: forall w r m a. Eq a => StrMapIsh m =>
-  (AST.ExprRowVF m a (Oxpr w r m a) -> TypeChecked w r m a) ->
-  Cxpr m a -> Oxpr w r m a
+  (AST.ExprRowVF m a (Oxpr w r m a) -> Feedback w r m a (CxprB m a)) ->
+  CxprB m a -> Oxpr w r m a
 typecheckSketch alg = recursor2D \(EnvT (Tuple focus (WithBiCtx ctx e))) -> Product
   let
-    ctx' :: Lazy (BiContext (Cxpr m a))
+    ctx' :: Lazy (BiContext (CxprB m a))
     ctx' = defer \_ -> ctx <#> join bimap
       -- Oxpr -> Cxpr
       (head2D)
-    reconsitute :: (Focus m a -> Focus m a) -> Expr m a -> Cxpr m a
+    reconsitute :: (Focus m a -> Focus m a) -> Expr m a -> CxprB m a
     reconsitute newF e' =
-      -- Fxpr -> Cxpr
+      -- Bxpr -> CxprB
       contextualizeWithin (extract ctx') $
-      -- Expr -> Fxpr
-      originateFrom (newF focus) $ e'
+      -- Expr -> Bxpr
+      originateFromB (newF <$> focus) $ e'
   in Tuple
       do defer \_ -> reconsitute NormalizeFocus $
           Dhall.Core.normalize $ embed $ e <#>
           -- TODO: preserve spans from original (when possible)
           -- Oxpr -> Cxpr -> Fxpr -> Expr
-          (head2D >>> substContext >>> dropOrigin)
-      do Compose $ defer \_ -> reconsitute TypeOfFocus <$> alg e
+          (head2D >>> substContext >>> transCata unEnvT)
+      do Compose $ defer \_ -> alg e
 
 normalizeOp :: forall w r m a b. Operations w r m a b -> b
 normalizeOp (Product (Tuple lz _)) = extract lz
@@ -294,8 +307,8 @@ unlayerO :: forall w r m a.
   Oxpr w r m a -> AST.ExprRowVF m a (Oxpr w r m a)
 unlayerO = project >>> un Compose >>> extract >>> un EnvT >>> extract >>> dropBiCtx
 
-topCtx :: forall m a.
-  Cxpr m a -> BiContext (Cxpr m a)
+topCtx :: forall m a s.
+  Cxpr m a s -> BiContext (Cxpr m a s)
 topCtx = Cofree.tail >>> getBiCtx
 
 originateFrom :: forall m a. FunctorWithIndex String m =>
@@ -304,10 +317,23 @@ originateFrom = go where
   go focus e = embed $ EnvT $ Tuple focus $ e # project
     # mapWithIndex \i' -> go $ FocusWithin (pure i') focus
 
+originateFromB :: forall m a. FunctorWithIndex String m =>
+  NonEmptyList (Focus m a) -> Expr m a -> Bxpr m a
+originateFromB = go where
+  go focus e = embed $ EnvT $ Tuple focus $ e # project
+    # mapWithIndex \i' -> go $ FocusWithin (pure i') <$> focus
+
+alsoOriginateFrom :: forall m a. FunctorWithIndex String m =>
+  NonEmptyList (Focus m a) -> Dxpr m a -> Bxpr m a
+alsoOriginateFrom = go where
+  go focus e = embed $ e # project
+    # withEnvT (NEL.cons' (NEL.head focus) <<< (NEL.tail focus <> _))
+    # mapEnvT (mapWithIndex \i' -> go $ FocusWithin (pure i') <$> focus)
+
 -- TODO: use a proper recurrimorphism
-contextualizeWithin :: forall m a. FunctorWithIndex String m =>
-  Context (These (Cxpr m a) (Cxpr m a)) ->
-  Fxpr m a -> Cxpr m a
+contextualizeWithin :: forall m a s. FunctorWithIndex String m =>
+  Context (These (Cxpr m a s) (Cxpr m a s)) ->
+  Ann m a s -> Cxpr m a s
 contextualizeWithin = go where
   go ctx = mapR $ mapEnvT $ (>>>) (un AST.ERVF) $ (<<<) (WithBiCtx ctx <<< AST.ERVF) $ do
     (VariantF.expand <<< map (go ctx))
@@ -332,16 +358,12 @@ contextualizeWithin = go where
         in AST.BindingBody name ty' (go ctx' body)
       }
 
-dropOrigin :: forall m a. FunctorWithIndex String m =>
-  Fxpr m a -> Expr m a
-dropOrigin = transCata $ runEnvT >>> extract
-
-dropContext :: forall m a. FunctorWithIndex String m =>
-  Cxpr m a -> Fxpr m a
+dropContext :: forall m a s. FunctorWithIndex String m =>
+  Cxpr m a s -> Ann m a s
 dropContext = transCata $ mapEnvT \(WithBiCtx _ e) -> e
 
-substContext :: forall m a. FunctorWithIndex String m =>
-  Cxpr m a -> Fxpr m a
+substContext :: forall m a s. FunctorWithIndex String m =>
+  Cxpr m a s -> Ann m a s
 substContext = transCata \(EnvT (Tuple focus (WithBiCtx ctx e))) -> unwrap e #
   VariantF.onMatch
     { "Var": unwrap >>> \(AST.V x n) ->
