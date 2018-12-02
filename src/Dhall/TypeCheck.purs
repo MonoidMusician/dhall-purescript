@@ -3,11 +3,10 @@ module Dhall.TypeCheck where
 import Prelude
 
 import Control.Alternative (class Alternative)
-import Control.Comonad (class Comonad, extract)
+import Control.Comonad (extract)
 import Control.Comonad.Cofree (Cofree, buildCofree)
 import Control.Comonad.Cofree as Cofree
 import Control.Comonad.Env (EnvT(..), mapEnvT, runEnvT, withEnvT)
-import Control.Monad.Reader (ReaderT(..), runReaderT)
 import Control.Monad.Writer (WriterT)
 import Control.Plus (empty)
 import Data.Array as Array
@@ -90,42 +89,13 @@ suggest a = (<<<) wrap $ unwrap >>> case _ of
   V.Error es mtaccum ->
     V.Error es $ pure $ Tuple a $ foldMap extract mtaccum
 
-newtype TypeCheckError r m a = TypeCheckError
+newtype TypeCheckError r f = TypeCheckError
   -- The main location where the typechecking error occurred
-  { location :: Focus m a
+  { location :: f
   -- The tag for the specific error, mostly for machine purposes
   , tag :: Variant r
   }
-
-mapFocus :: forall r m a m' a'.
-  (Focus m a -> Focus m' a') ->
-  TypeCheckError r m a -> TypeCheckError r m' a'
-mapFocus f (TypeCheckError e) = TypeCheckError (e { location = f e.location })
-
-errorSimple ::
-  forall sym t r r' w m a b.
-    IsSymbol sym =>
-    R.Cons sym t r' r =>
-  SProxy sym ->
-  t ->
-  Feedback w r m a b
-errorSimple sym v = V.liftW $ V.erroring $ TypeCheckError
-  { location: MainExpression
-  , tag: Variant.inj sym v
-  }
-
-noteSimple ::
-  forall sym t r r' w m a b.
-    IsSymbol sym =>
-    R.Cons sym t r' r =>
-  SProxy sym ->
-  t ->
-  Maybe b ->
-  Feedback w r m a b
-noteSimple sym v = (<<<) V.liftW $ V.note $ TypeCheckError
-  { location: MainExpression
-  , tag: Variant.inj sym v
-  }
+derive instance functorTypeCheckError :: Functor (TypeCheckError r)
 
 -- An expression for the user to look at when an error occurs, giving
 -- specific context for what went wrong.
@@ -141,32 +111,8 @@ data Focus m a
   -- Atomic: A new expression, whose origin is shrouded in mystery ...
   | ConstructedFocus (Expr m a)
 
-type Ctx m a = Context (Expr m a)
 type WR w r = WriterT (Array (Variant w)) (V.Erroring (Variant r))
-type Feedback w r m a = WriterT (Array (Variant w)) (V.Erroring (TypeCheckError r m a))
-type CtxFeedback w r m a = ReaderT (Ctx m a) (Feedback w r m a)
-type TypeChecked w r m a = Feedback w r m a (Expr m a)
-type CtxTypeChecked w r m a = CtxFeedback w r m a (Expr m a)
-type Shallot w r m a = Cofree (Feedback w r m a) (Expr m a)
--- A shallot only has one context for the term, type, and kind
-type CtxShallot w r m a = Cofree (ReaderT (Ctx m a) (Feedback w r m a)) (Expr m a)
-
--- This is `lift` for `ReaderT`, without the (`Monad`) constraints.
-oblivious :: forall w r m a. Feedback w r m a ~> CtxFeedback w r m a
-oblivious = ReaderT <<< const
-
--- This is the proper way to introduce a type into the context.
-intro :: forall w r m a. StrMapIsh m => Eq a => String -> CtxShallot w r m a -> Ctx m a -> Ctx m a
-intro name ty ctx =
-  Dhall.Core.shift 1 (AST.V name 0) <$>
-    Dhall.Context.insert name (Dhall.Core.normalize (extract ty)) ctx
-
--- This is `local` for `ReaderT`, without the (`Monad`) constraints.
-localize :: forall w r m a. (Ctx m a -> Ctx m a) -> CtxFeedback w r m a ~> CtxFeedback w r m a
-localize f act = ReaderT $ f >>> runReaderT act
-
-introize :: forall w r m a. StrMapIsh m => Eq a => String -> CtxShallot w r m a -> CtxFeedback w r m a ~> CtxFeedback w r m a
-introize name ty = localize (intro name ty)
+type Feedback w r m a = WriterT (Array (Variant w)) (V.Erroring (TypeCheckError r (NonEmptyList (Focus m a))))
 
 -- This is a weird kind of catamorphism that lazily gives access to
 -- (potentially infinite) applications of itself to its output.
@@ -237,6 +183,7 @@ type Cxpr_ f m a = Cofree (WithBiCtx (AST.ExprRowVF m a)) (f m a)
 type CxprB m a = Cxpr_ B m a
 type CxprF m a b = EnvT b (WithBiCtx (AST.ExprRowVF m a))
 type CxprF_ f m a = EnvT (f m a) (WithBiCtx (AST.ExprRowVF m a))
+type CxprFB m a = CxprF_ B m a
 type BiContext a = Context (These a a)
 -- Product (Compose Context (Join These)) f, but without the newtypes
 data WithBiCtx f a = WithBiCtx (BiContext a) (f a)
@@ -260,14 +207,13 @@ instance traversableWithBiCtx :: Traversable f => Traversable (WithBiCtx f) wher
 --   Right (Lazy Feedback): typechecking
 type Operations w r m a = Product Lazy (Compose Lazy (Feedback w r m a))
 -- Expr with Focus and Context, along the dual axes of Operations and the AST
-type Oxpr w r m a = TwoD (Operations w r m a) (CxprF_ B m a)
+type Oxpr w r m a = TwoD (Operations w r m a) (CxprFB m a)
 type Operated w r m a = Cofree (Operations w r m a) (Oxpr w r m a)
-type OxprE w r m a = Oxpr w (Errors r) m a
 
 typecheckSketch :: forall w r m a. Eq a => StrMapIsh m =>
-  (WithBiCtx (AST.ExprLayerF m a) (Oxpr w r m a) -> Feedback w r m a (CxprB m a)) ->
+  (CxprFB m a (Oxpr w r m a) -> Feedback w r m a (CxprB m a)) ->
   CxprB m a -> Oxpr w r m a
-typecheckSketch alg = recursor2D \(EnvT (Tuple focus (WithBiCtx ctx e))) -> Product
+typecheckSketch alg = recursor2D \layer@(EnvT (Tuple focus (WithBiCtx ctx e))) -> Product
   let
     ctx' :: Lazy (BiContext (CxprB m a))
     ctx' = defer \_ -> ctx <#> join bimap
@@ -285,7 +231,7 @@ typecheckSketch alg = recursor2D \(EnvT (Tuple focus (WithBiCtx ctx e))) -> Prod
           -- TODO: preserve spans from original (when possible)
           -- Oxpr -> Cxpr -> Fxpr -> Expr
           (head2D >>> substContext >>> transCata unEnvT)
-      do Compose $ defer \_ -> alg (WithBiCtx ctx (unwrap e))
+      do Compose $ defer \_ -> alg layer
 
 normalizeOp :: forall w r m a b. Operations w r m a b -> b
 normalizeOp (Product (Tuple lz _)) = extract lz
@@ -364,11 +310,9 @@ noContext :: forall m a s.
   Ann m a s -> Cxpr m a s
 noContext = transCata $ mapEnvT (WithBiCtx Dhall.Context.empty)
 
-newborn :: forall m a.
+newborn :: forall m a. FunctorWithIndex String m =>
   Expr m a -> CxprB m a
-newborn e0 = e0 # transCata \e1 ->
-  -- FIXME: focus is wrong, whoops
-  EnvT (Tuple (pure (ConstructedFocus e0)) (WithBiCtx Dhall.Context.empty e1))
+newborn e0 = e0 # originateFromB (pure (ConstructedFocus e0)) # noContext
 
 newmother :: forall m a.
   AST.ExprLayerF m a (CxprB m a) -> CxprB m a
@@ -399,21 +343,6 @@ substContext = transCata \(EnvT (Tuple focus (WithBiCtx ctx e))) -> unwrap e #
     , "Let": \(AST.LetF _ _ _ body) -> project body
     }
     \_ -> EnvT (Tuple focus e)
-
--- typecheck :: forall w r m a. Shallot w r m a -> TypeChecked w r m a
--- typecheck :: forall w r m a. CtxShallot w r m a -> CtxTypeChecked w r m a
-typecheck :: forall f a. Functor f => Cofree f a -> f a
-typecheck s = Cofree.tail s <#> extract
-
--- kindcheck :: forall w r m a. Shallot w r m a -> TypeChecked w r m a
--- kindcheck :: forall w r m a. CtxShallot w r m a -> CtxTypeChecked w r m a
-kindcheck :: forall f a. Bind f => Cofree f a -> f a
-kindcheck s = Cofree.tail s >>= typecheck
-
--- term :: forall w r m a. Shallot w r m a -> Expr m a
--- term :: forall w r m a. CtxShallot w r m a -> Expr m a
-term :: forall m a. Comonad m => m a -> a
-term = extract
 
 newtype Inconsistency a = Inconsistency (NonEmpty (NonEmpty List) a)
 derive instance newtypeInconsistency :: Newtype (Inconsistency a) _
@@ -510,12 +439,8 @@ type Errors r =
   , "Constructors requires a union type" :: Unit
   | r
   )
-type FeedbackE w r m a = WriterT (Array (Variant w)) (V.Erroring (TypeCheckError (Errors r) m a))
-type CtxFeedbackE w r m a = ReaderT (Ctx m a) (FeedbackE w r m a)
-type TypeCheckedE w r m a = FeedbackE w r m a (Expr m a)
-type CtxTypeCheckedE w r m a = CtxFeedbackE w r m a (Expr m a)
-type ShallotE w r m a = Cofree (FeedbackE w r m a) (Expr m a)
-type CtxShallotE w r m a = Cofree (ReaderT (Ctx m a) (FeedbackE w r m a)) (Expr m a)
+type FeedbackE w r m a = Feedback w (Errors r) m a
+type OxprE w r m a = Oxpr w (Errors r) m a
 
 {-| Generalization of `typeWith` that allows type-checking the `Embed`
     constructor with custom logic
@@ -525,7 +450,7 @@ typeWithA :: forall w r m a.
   Typer m a ->
   Context (Expr m a) ->
   Expr m a ->
-  TypeCheckedE w r m a
+  FeedbackE w r m a (Expr m a)
 typeWithA tpa ctx e = typecheckSketch typecheckAlgebra
   ( contextualizeWithin (That <<< newborn <$> ctx)
   $ originateFromB (pure MainExpression)
@@ -533,9 +458,34 @@ typeWithA tpa ctx e = typecheckSketch typecheckAlgebra
   ) # typecheckStep # map (head2D >>> plain)
 
 typecheckAlgebra :: forall w r m a. Eq a => StrMapIsh m =>
-  WithBiCtx (AST.ExprLayerF m a) (OxprE w r m a) -> FeedbackE w r m a (CxprB m a)
-typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
+  CxprFB m a (OxprE w r m a) -> FeedbackE w r m a (CxprB m a)
+typecheckAlgebra (EnvT (Tuple focus (WithBiCtx ctx layer))) = unwrap layer # VariantF.match
   let
+    errorHere ::
+      forall sym t r' b.
+        IsSymbol sym =>
+        R.Cons sym t r' (Errors r) =>
+      SProxy sym ->
+      t ->
+      FeedbackE w r m a b
+    errorHere sym v = V.liftW $ V.erroring $ TypeCheckError
+      { location: focus
+      , tag: Variant.inj sym v
+      }
+
+    noteHere ::
+      forall sym t r' b.
+        IsSymbol sym =>
+        R.Cons sym t r' (Errors r) =>
+      SProxy sym ->
+      t ->
+      Maybe b ->
+      FeedbackE w r m a b
+    noteHere sym v = (<<<) V.liftW $ V.note $ TypeCheckError
+      { location: focus
+      , tag: Variant.inj sym v
+      }
+
     mkFunctor f a = mk (_S::S_ "App") $
       Pair (newborn f) a
     mk :: forall sym f r'.
@@ -608,7 +558,7 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
       -- t should be simple enough that alphaNormalize is unnecessary
       \side operand -> typecheckStep operand >>= normalizeStep >>> case _ of
         ty_operand | t == plain (head2D ty_operand) -> pure unit
-          | otherwise -> errorSimple
+          | otherwise -> errorHere
             (_S::S_ "Unexpected type") side
 
     naturalEnc =
@@ -666,47 +616,46 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
   in
   { "Const": unwrap >>> \c ->
       axiom c <#> newborn <<< AST.mkConst #
-        noteSimple (_S::S_ "`Kind` has no type") unit
+        noteHere (_S::S_ "`Kind` has no type") unit
   , "Var": unwrap >>> \v@(AST.V name idx) ->
       case Dhall.Context.lookup name idx ctx of
         Just (This value) -> head2D <$> typecheckStep value
         Just (That ty) -> pure $ head2D ty
         Just (Both _ ty) -> pure $ head2D ty
         Nothing ->
-          errorSimple (_S::S_ "Unbound variable") v
+          errorHere (_S::S_ "Unbound variable") v
   , "Lam": \(AST.BindingBody name ty body) -> do
       kA <- ensureConst ty
-        (errorSimple (_S::S_ "Invalid input type"))
+        (errorHere (_S::S_ "Invalid input type"))
       ty_body <- typecheckStep body
       kB <- ensureConst ty_body
-        (errorSimple (_S::S_ "Invalid output type"))
+        (errorHere (_S::S_ "Invalid output type"))
       _ <- rule kA kB #
-        noteSimple (_S::S_ "No dependent types") unit
+        noteHere (_S::S_ "No dependent types") unit
       pure $ mk(_S::S_"Pi") (AST.BindingBody name (head2D ty) (head2D ty_body))
   , "Pi": \(AST.BindingBody name ty ty_body) -> do
       kA <- ensureConst ty
-        (errorSimple (_S::S_ "Invalid input type"))
+        (errorHere (_S::S_ "Invalid input type"))
       kB <- ensureConst ty_body
-        (errorSimple (_S::S_ "Invalid output type"))
+        (errorHere (_S::S_ "Invalid output type"))
       map (newborn <<< AST.mkConst) $ rule kA kB #
-        noteSimple (_S::S_ "No dependent types") unit
+        noteHere (_S::S_ "No dependent types") unit
   , "Let": \(AST.LetF name mty value expr) -> do
       ty0 <- typecheckStep value
       ty <- fromMaybe ty0 <$> for mty \ty' -> do
         _ <- typecheckStep ty'
-        ty' <$ checkEq ty0 ty'
-          (errorSimple (_S::S_ "Annotation mismatch"))
-      kind <- typecheckStep ty
+        checkEqR ty0 ty'
+          (errorHere (_S::S_ "Annotation mismatch"))
       head2D <$> typecheckStep expr
   , "App": \(AST.Pair f a) ->
       let
         checkFn = ensure (_S::S_ "Pi") f
-          (errorSimple (_S::S_ "Not a function"))
+          (errorHere (_S::S_ "Not a function"))
         checkArg (AST.BindingBody name aty0 rty) aty1 =
           let name0 = AST.V name 0 in
           if Dhall.Core.judgmentallyEqual (plain $ head2D aty0) (plain $ head2D aty1)
             then do
-              -- FIXME: subsitute
+              -- FIXME: substitute
               -- pure $ Dhall.Core.shiftSubstShift0 name (head2D a) rty
               pure (head2D rty)
             else do
@@ -717,13 +666,13 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
               -- even if its argument does not have the right type
               -- TODO: use algebra
               (if not Dhall.Core.freeIn name0 (plain $ head2D rty) then suggest (head2D rty) else identity) $
-                errorSimple (_S::S_ "Type mismatch") unit
+                errorHere (_S::S_ "Type mismatch") unit
       in join $ checkArg <$> checkFn <*> typecheckStep a
-  , "Annot": \(AST.Pair expr ty) -> suggest (head2D ty) $
-      join $ checkEq
+  , "Annot": \(AST.Pair expr ty) ->
+      map head2D $ join $ checkEqR
         <$> typecheckStep expr
         <@> ty
-        <@> errorSimple (_S::S_ "Annotation mismatch")
+        <@> errorHere (_S::S_ "Annotation mismatch")
         <* typecheckStep ty
   , "Bool": identity aType
   , "BoolLit": always $ AST.mkBool
@@ -733,13 +682,13 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
   , "BoolNE": checkBinOp AST.mkBool
   , "BoolIf": \(AST.Triplet c t f) ->
       ensure (_S::S_ "Bool") c
-        (errorSimple (_S::S_ "Invalid predicate")) *> do
+        (errorHere (_S::S_ "Invalid predicate")) *> do
       map head2D $ join $ checkEqL
           <$> ensureTerm t
-            (errorSimple (_S::S_ "If branch must be term") <<< const false)
+            (errorHere (_S::S_ "If branch must be term") <<< const false)
           <*> ensureTerm f
-            (errorSimple (_S::S_ "If branch must be term") <<< const true)
-          <@> errorSimple (_S::S_ "If branch mismatch")
+            (errorHere (_S::S_ "If branch must be term") <<< const true)
+          <@> errorHere (_S::S_ "If branch mismatch")
   , "Natural": identity aType
   , "NaturalLit": always $ AST.mkNatural
   , "NaturalFold": always $ AST.mkArrow AST.mkNatural naturalEnc
@@ -761,7 +710,7 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
   , "Text": identity aType
   , "TextLit": \things -> suggest (newborn AST.mkText) $
       forWithIndex_ things \i expr -> ensure (_S::S_ "Text") expr
-        (errorSimple (_S::S_ "Cannot interpolate") <<< const i)
+        (errorHere (_S::S_ "Cannot interpolate") <<< const i)
   , "TextAppend": checkBinOp AST.mkText
   , "List": identity aFunctor
   , "ListLit": \(Product (Tuple mty lit)) -> mkFunctor AST.mkList <<< head2D <$> do
@@ -770,24 +719,24 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
         -- either from annotation
         Just ty -> suggest ty $
           ensureType ty
-            (errorSimple (_S::S_ "Invalid list type"))
+            (errorHere (_S::S_ "Invalid list type"))
         -- or from the first element
         Nothing -> case Array.head lit of
-          Nothing -> errorSimple (_S::S_ "Missing list type") $ unit
+          Nothing -> errorHere (_S::S_ "Missing list type") $ unit
           Just item -> do
             ensureTerm item
-              (errorSimple (_S::S_ "Invalid list type"))
+              (errorHere (_S::S_ "Invalid list type"))
       suggest ty $ forWithIndex_ lit \i item -> do
         ty' <- typecheckStep item
         checkEq ty ty' \_ ->
           case mty of
             Nothing ->
-              errorSimple (_S::S_ "Invalid list element") $ i
+              errorHere (_S::S_ "Invalid list element") $ i
             Just _ ->
-              errorSimple (_S::S_ "Mismatched list elements") $ i
+              errorHere (_S::S_ "Mismatched list elements") $ i
   , "ListAppend": \p -> mkFunctor AST.mkList <<< head2D <$> do
       AST.Pair ty_l ty_r <- forWithIndex p \side expr -> do
-        let error = errorSimple (_S::S_ "Cannot append non-list") <<< const side
+        let error = errorHere (_S::S_ "Cannot append non-list") <<< const side
         expr_ty <- typecheckStep expr
         AST.Pair list ty <- ensure' (_S::S_ "App") expr_ty error
         normalizeStep list # unlayerO #
@@ -795,7 +744,7 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
             \_ -> absurd <$> error unit
         pure ty
       checkEqL ty_l ty_r
-        (errorSimple (_S::S_ "List append mismatch"))
+        (errorHere (_S::S_ "List append mismatch"))
   , "ListBuild": always $ AST.mkForall "a" $
       AST.mkArrow (listEnc a0) (AST.mkApp AST.mkList a0)
   , "ListFold": always $ AST.mkForall "a" $
@@ -823,72 +772,74 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
         AST.mkApp AST.mkOptional (AST.mkVar (AST.V "A" 0))
   , "OptionalLit": \(Product (Tuple (Identity ty) mexpr)) -> do
       ensureType ty
-        (errorSimple (_S::S_ "Invalid optional type"))
+        (errorHere (_S::S_ "Invalid optional type"))
       suggest (mkFunctor AST.mkOptional (head2D ty)) $
         for_ mexpr \expr -> do
           join $ checkEq ty
             <$> typecheckStep expr
-            <@> (errorSimple (_S::S_ "Invalid optional element"))
+            <@> (errorHere (_S::S_ "Invalid optional element"))
   , "Some": unwrap >>> \a ->
       mkFunctor AST.mkOptional <<< head2D <$> ensureTerm a
-        (errorSimple (_S::S_ "Invalid `Some`"))
+        (errorHere (_S::S_ "Invalid `Some`"))
   , "OptionalFold": always $ AST.mkForall "a" $
       AST.mkArrow (AST.mkApp AST.mkOptional a0) (optionalEnc a0)
   , "OptionalBuild": always $ AST.mkForall "a" $
       AST.mkArrow (optionalEnc a0) (AST.mkApp AST.mkOptional a0)
   , "Record": \kts ->
       ensureNodupes
-        (errorSimple (_S::S_ "Duplicate record fields")) kts
+        (errorHere (_S::S_ "Duplicate record fields")) kts
       *> do
         kts' <- forWithIndex kts \field ty -> do
           c <- unwrap <$> ensure (_S::S_ "Const") ty
-            (errorSimple (_S::S_ "Invalid field type") <<< const field)
+            (errorHere (_S::S_ "Invalid field type") <<< const field)
           case c of
             Kind ->
-              -- FIXME
-              unlayerO ty # VariantF.on (_S::S_ "Const") (pure (pure unit))
-                (errorSimple (_S::S_ "Invalid field type") <<< const field)
+              let error _ = errorHere (_S::S_ "Invalid field type") field in
+              unlayerO ty # VariantF.on (_S::S_ "Const")
+                (unwrap >>> \c' -> when (c /= Type) (error unit))
+                (\_ -> error unit)
             _ -> pure unit
           pure { kind: c }
         ensureConsistency (eq `on` _.kind)
-          (errorSimple (_S::S_ "Inconsistent field types") <<< (map <<< map) _.key) kts'
+          (errorHere (_S::S_ "Inconsistent field types") <<< (map <<< map) _.key) kts'
         pure $ newborn $ AST.mkConst $ maybe Type _.kind $ un First $ foldMap pure kts'
   , "RecordLit": \kvs ->
       ensureNodupes
-        (errorSimple (_S::S_ "Duplicate record fields")) kvs
+        (errorHere (_S::S_ "Duplicate record fields")) kvs
       *> do
         kts <- traverse typecheckStep kvs
         suggest (mk(_S::S_"Record") (head2D <$> kts)) do
           kts' <- forWithIndex kts \field ty -> do
             c <- unwrap <$> ensure (_S::S_ "Const") ty
-              (errorSimple (_S::S_ "Invalid field type") <<< const field)
+              (errorHere (_S::S_ "Invalid field type") <<< const field)
             case c of
               Kind ->
-                -- FIXME
-                unlayerO ty # VariantF.on (_S::S_ "Const") (pure (pure unit))
-                  (errorSimple (_S::S_ "Invalid field type") <<< const field)
+                let error _ = errorHere (_S::S_ "Invalid field type") field in
+                unlayerO ty # VariantF.on (_S::S_ "Const")
+                  (unwrap >>> \c' -> when (c /= Type) (error unit))
+                  (\_ -> error unit)
               _ -> pure unit
             pure { kind: c }
           ensureConsistency (eq `on` _.kind)
-            (errorSimple (_S::S_ "Inconsistent field types") <<< (map <<< map) _.key) kts'
+            (errorHere (_S::S_ "Inconsistent field types") <<< (map <<< map) _.key) kts'
   , "Union": \kts ->
       ensureNodupes
-        (errorSimple (_S::S_ "Duplicate union fields")) kts
+        (errorHere (_S::S_ "Duplicate union fields")) kts
       *> do
         -- FIXME: should this be the largest of `Type` or `Kind` returned?
         suggest (newborn AST.mkType) $
           forWithIndex_ kts \field ty -> do
             void $ ensure (_S::S_ "Const") ty
-              (errorSimple (_S::S_ "Invalid alternative type") <<< const field)
+              (errorHere (_S::S_ "Invalid alternative type") <<< const field)
   , "UnionLit": \(Product (Tuple (Tuple field expr) kts)) ->
       ensureNodupes
-        (errorSimple (_S::S_ "Duplicate union fields")) kts
+        (errorHere (_S::S_ "Duplicate union fields")) kts
       *> do
         ty <- typecheckStep expr
         let kts' = StrMapIsh.insert field ty kts
         forWithIndex_ kts' \field' kind -> do
           void $ ensure (_S::S_ "Const") kind
-            (errorSimple (_S::S_ "Invalid alternative type") <<< const field')
+            (errorHere (_S::S_ "Invalid alternative type") <<< const field')
         pure $ mk(_S::S_"Union") $ head2D <$> kts'
   , "Combine":
       let
@@ -896,12 +847,12 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
           AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
             forWithIndex p \side ty -> do
               kts <- ensure' (_S::S_ "Record") ty
-                (errorSimple (_S::S_ "Must combine a record") <<< const side)
+                (errorHere (_S::S_ "Must combine a record") <<< const side)
               kind <- typecheckStep ty
               const <- ensureConst kind
-                (errorSimple (_S::S_ "Must combine a record") <<< const side)
+                (errorHere (_S::S_ "Must combine a record") <<< const side)
               pure { kts, const }
-          when (constL /= constR) $ errorSimple (_S::S_ "Record mismatch") unit
+          when (constL /= constR) $ errorHere (_S::S_ "Record mismatch") unit
           let combined = StrMapIsh.unionWith (pure pure) ktsL ktsR
           mk(_S::S_"Record") <$> forWithIndex combined \k ->
             case _ of
@@ -917,12 +868,12 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
           AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
             forWithIndex p \side ty -> do
               kts <- ensure' (_S::S_ "Record") ty
-                (errorSimple (_S::S_ "Must combine a record") <<< const side)
+                (errorHere (_S::S_ "Must combine a record") <<< const side)
               kind <- typecheckStep ty
               const <- ensureConst kind
-                (errorSimple (_S::S_ "Must combine a record") <<< const side)
+                (errorHere (_S::S_ "Must combine a record") <<< const side)
               pure { kts, const }
-          when (constL /= constR) $ errorSimple (_S::S_ "Record mismatch") unit
+          when (constL /= constR) $ errorHere (_S::S_ "Record mismatch") unit
           let combined = StrMapIsh.unionWith (pure pure) ktsL ktsR
           mk(_S::S_"Record") <$> forWithIndex combined \k ->
             case _ of
@@ -937,12 +888,12 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
         forWithIndex p \side kvs -> do
           ty <- typecheckStep kvs
           kts <- ensure' (_S::S_ "Record") ty
-            (errorSimple (_S::S_ "Must combine a record") <<< const side)
+            (errorHere (_S::S_ "Must combine a record") <<< const side)
           k <- typecheckStep ty
           const <- unwrap <$> ensure (_S::S_ "Const") ty
-            (errorSimple (_S::S_ "Must combine a record") <<< const side)
+            (errorHere (_S::S_ "Must combine a record") <<< const side)
           pure { kts, const }
-      when (constL /= constR) $ errorSimple (_S::S_ "Record mismatch") unit
+      when (constL /= constR) $ errorHere (_S::S_ "Record mismatch") unit
       let
         preference = Just <<< case _ of
           This a -> a
@@ -952,9 +903,9 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
   , "Merge": \(AST.MergeF handlers cases mty) -> do
       Pair ktsX ktsY <- Pair
         <$> ensure (_S::S_ "Record") handlers
-          (errorSimple (_S::S_ "Must merge a record"))
+          (errorHere (_S::S_ "Must merge a record"))
         <*> ensure (_S::S_ "Union") cases
-          (errorSimple (_S::S_ "Must merge a union"))
+          (errorHere (_S::S_ "Must merge a union"))
       let
         ksX = unit <$ ktsX # Set.fromFoldable
         ksY = unit <$ ktsY # Set.fromFoldable
@@ -966,52 +917,52 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
         Just ty -> pure ty
         -- or from the first handler
         Nothing -> case un First $ foldMapWithIndex (curry pure) ktsX of
-          Nothing -> errorSimple (_S::S_ "Missing merge type") $ unit
+          Nothing -> errorHere (_S::S_ "Missing merge type") $ unit
           Just (Tuple k item) -> do
             AST.BindingBody name _ output <- ensure' (_S::S_ "Pi") item
-              (errorSimple (_S::S_ "Handler not a function") <<< const k)
+              (errorHere (_S::S_ "Handler not a function") <<< const k)
             -- FIXME NOTE: the following check added
             when (Dhall.Core.freeIn (AST.V name 0) (plain $ head2D output))
-              (errorSimple (_S::S_ "Dependent handler function") <<< const k $ unit)
+              (errorHere (_S::S_ "Dependent handler function") <<< const k $ unit)
             pure output
-      forWithIndex_ ktsY \k tY -> do
-        tX <- StrMapIsh.get k ktsX #
-          noteSimple (_S::S_ "Missing handler") diffX
-        AST.BindingBody name input output <- ensure' (_S::S_ "Pi") tX
-          (errorSimple (_S::S_ "Handler not a function") <<< const k)
-        ado
-          checkEq tY input
-            (errorSimple (_S::S_ "Handler input type mismatch") <<< const k)
-        in do
-          -- FIXME NOTE: the following check added
-          when (Dhall.Core.freeIn (AST.V name 0) (plain $ head2D output))
-            (errorSimple (_S::S_ "Dependent handler function") <<< const k $ unit)
-          let output' = output
-          checkEq ty output'
-            (errorSimple (_S::S_ "Handler output type mismatch") <<< const k)
-      suggest (head2D ty) $
+      suggest (head2D ty) ado
         when (not Set.isEmpty diffX)
-          (errorSimple (_S::S_ "Unused handlers") diffX)
+          (errorHere (_S::S_ "Unused handlers") diffX)
+        forWithIndex_ ktsY \k tY -> do
+          tX <- StrMapIsh.get k ktsX #
+            noteHere (_S::S_ "Missing handler") diffX
+          AST.BindingBody name input output <- ensure' (_S::S_ "Pi") tX
+            (errorHere (_S::S_ "Handler not a function") <<< const k)
+          ado
+            checkEq tY input
+              (errorHere (_S::S_ "Handler input type mismatch") <<< const k)
+            -- FIXME NOTE: the following check added
+            when (Dhall.Core.freeIn (AST.V name 0) (plain $ head2D output))
+              (errorHere (_S::S_ "Dependent handler function") <<< const k $ unit)
+            checkEq ty output
+              (errorHere (_S::S_ "Handler output type mismatch") <<< const k)
+          in unit
+        in unit
   , "Constructors": \(Identity ty) -> do
       void $ typecheckStep ty
       kts <- ensure (_S::S_ "Union") ty
-          \_ -> errorSimple (_S::S_ "Constructors requires a union type") $ unit
+          \_ -> errorHere (_S::S_ "Constructors requires a union type") $ unit
       pure $ mk(_S::S_"Record") $ kts # mapWithIndex \field ty' ->
         mk(_S::S_"Pi") (AST.BindingBody field (head2D ty') (head2D ty))
   , "Field": \(Tuple field expr) -> do
       tyR <- typecheckStep expr
       let
-        error _ = errorSimple (_S::S_ "Cannot access") $ field
+        error _ = errorHere (_S::S_ "Cannot access") $ field
         handleRecord kts = do
           -- FIXME
           -- _ <- loop ctx t
           case StrMapIsh.get field kts of
             Just ty -> pure (head2D ty)
-            Nothing -> errorSimple (_S::S_ "Missing field") $ field
+            Nothing -> errorHere (_S::S_ "Missing field") $ field
         handleType kts = do
           case StrMapIsh.get field kts of
             Just ty -> pure $ mk(_S::S_"Pi") $ map head2D $ (AST.BindingBody field ty expr)
-            Nothing -> errorSimple (_S::S_ "Missing field") $ field
+            Nothing -> errorHere (_S::S_ "Missing field") $ field
         casing = (\_ -> error unit)
           # VariantF.on (_S::S_ "Record") handleRecord
           # VariantF.on (_S::S_ "Const") \(Const.Const c) ->
@@ -1022,16 +973,16 @@ typecheckAlgebra (WithBiCtx ctx layer) = layer # VariantF.match
       tyR # normalizeStep # unlayerO # casing
   , "Project": \(Tuple (App ks) expr) -> do
       kts <- ensure (_S::S_ "Record") expr
-        (errorSimple (_S::S_ "Cannot project"))
+        (errorHere (_S::S_ "Cannot project"))
       -- FIXME
       -- _ <- loop ctx t
       mk(_S::S_"Record") <<< map head2D <$> forWithIndex ks \k (_ :: Unit) ->
         StrMapIsh.get k kts #
-          (noteSimple (_S::S_ "Missing field") k)
+          (noteHere (_S::S_ "Missing field") k)
   , "ImportAlt": \(Pair l _r) ->
       -- FIXME???
       head2D <$> typecheckStep l
-  , "Embed": errorSimple (_S::S_ "Oops") <<< const unit -- TODO
+  , "Embed": errorHere (_S::S_ "Oops") <<< const unit -- TODO
   }
 
 -- The explanation, given as text interspersed with specific places to look at
