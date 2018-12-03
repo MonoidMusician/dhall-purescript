@@ -4,9 +4,10 @@ import Prelude
 
 import Control.Alternative (class Alternative)
 import Control.Comonad (extract)
-import Control.Comonad.Cofree (Cofree, buildCofree)
+import Control.Comonad.Cofree (Cofree, buildCofree, hoistCofree)
 import Control.Comonad.Cofree as Cofree
-import Control.Comonad.Env (EnvT(..), mapEnvT, runEnvT, withEnvT)
+import Control.Comonad.Env (EnvT(..), mapEnvT, runEnvT)
+import Control.Monad.Reader (ReaderT(..), runReaderT)
 import Control.Monad.Writer (WriterT)
 import Control.Plus (empty)
 import Data.Array as Array
@@ -27,21 +28,22 @@ import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Lazy (Lazy, defer)
-import Data.List (List)
+import Data.Lens.Iso.Newtype (_Newtype)
+import Data.List (List(..), (:))
 import Data.List as List
 import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Maybe.First (First(..))
 import Data.Natural (Natural)
-import Data.Newtype (class Newtype, un, unwrap, wrap)
+import Data.Newtype (class Newtype, over, un, unwrap, wrap)
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Profunctor.Strong ((&&&))
 import Data.Semigroup.Foldable (class Foldable1)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Symbol (class IsSymbol)
-import Data.These (These(..), theseLeft)
+import Data.These (These(..))
 import Data.Traversable (class Traversable, for, sequence, traverse)
 import Data.TraversableWithIndex (forWithIndex)
 import Data.Tuple (Tuple(..), curry, uncurry)
@@ -171,19 +173,10 @@ unEnvT (EnvT (Tuple _ fa)) = fa
 -- Expr with Focus for each node
 type Ann m a = Cofree (AST.ExprRowVF m a)
 type F = Focus
-type D m a = List (Focus m a)
 type B m a = NonEmptyList (Focus m a)
 type Fxpr m a = Ann m a (F m a)
-type Dxpr m a = Ann m a (D m a)
 type Bxpr m a = Ann m a (B m a)
--- Expr with Focus and Context
--- (This value if `Let`-bound variable, That type if known)
-type Cxpr m a = Cofree (WithBiCtx (AST.ExprRowVF m a))
-type Cxpr_ f m a = Cofree (WithBiCtx (AST.ExprRowVF m a)) (f m a)
-type CxprB m a = Cxpr_ B m a
-type CxprF m a b = EnvT b (WithBiCtx (AST.ExprRowVF m a))
-type CxprF_ f m a = EnvT (f m a) (WithBiCtx (AST.ExprRowVF m a))
-type CxprFB m a = CxprF_ B m a
+type BxprF m a = EnvT (B m a) (AST.ExprRowVF m a)
 type BiContext a = Context (These a a)
 -- Product (Compose Context (Join These)) f, but without the newtypes
 data WithBiCtx f a = WithBiCtx (BiContext a) (f a)
@@ -206,32 +199,28 @@ instance traversableWithBiCtx :: Traversable f => Traversable (WithBiCtx f) wher
 --   Left (Lazy): substitution+normalization (idempotent, but this isn't enforced ...)
 --   Right (Lazy Feedback): typechecking
 type Operations w r m a = Product Lazy (Compose Lazy (Feedback w r m a))
+type Operacions w r m a = ReaderT (BiContext (Oxpr w r m a)) (Operations w r m a)
 -- Expr with Focus and Context, along the dual axes of Operations and the AST
-type Oxpr w r m a = TwoD (Operations w r m a) (CxprFB m a)
+type Oxpr w r m a = TwoD (Operations w r m a) (BxprF m a)
+type Ocpr w r m a = TwoD (Operacions w r m a) (BxprF m a)
 type Operated w r m a = Cofree (Operations w r m a) (Oxpr w r m a)
 
 typecheckSketch :: forall w r m a. Eq a => StrMapIsh m =>
-  (CxprFB m a (Oxpr w r m a) -> Feedback w r m a (CxprB m a)) ->
-  CxprB m a -> Oxpr w r m a
-typecheckSketch alg = recursor2D \layer@(EnvT (Tuple focus (WithBiCtx ctx e))) -> Product
+  (WithBiCtx (BxprF m a) (Oxpr w r m a) -> Feedback w r m a (Bxpr m a)) ->
+  Bxpr m a -> Ocpr w r m a
+typecheckSketch alg = recursor2D \layer@(EnvT (Tuple focus e)) -> ReaderT \ctx -> Product
   let
-    ctx' :: Lazy (BiContext (CxprB m a))
-    ctx' = defer \_ -> ctx <#> join bimap
-      -- Oxpr -> Cxpr
-      (head2D)
-    reconsitute :: (Focus m a -> Focus m a) -> Expr m a -> CxprB m a
+    reconsitute :: (Focus m a -> Focus m a) -> Expr m a -> Bxpr m a
     reconsitute newF e' =
-      -- Bxpr -> CxprB
-      contextualizeWithin (extract ctx') $
       -- Expr -> Bxpr
       originateFromB (newF <$> focus) $ e'
   in Tuple
       do defer \_ -> reconsitute NormalizeFocus $
           Dhall.Core.normalize $ embed $ e <#>
           -- TODO: preserve spans from original (when possible)
-          -- Oxpr -> Cxpr -> Fxpr -> Expr
-          (head2D >>> substContext >>> transCata unEnvT)
-      do Compose $ defer \_ -> alg layer
+          -- Oxpr -> Bxpr -> Expr
+          (head2D >>> denote)
+      do Compose $ defer \_ -> alg (WithBiCtx ctx (layer <#> contextualizeWithin ctx))
 
 normalizeOp :: forall w r m a b. Operations w r m a b -> b
 normalizeOp (Product (Tuple lz _)) = extract lz
@@ -247,17 +236,9 @@ typecheckStep :: forall w r m a.
   Oxpr w r m a -> Feedback w r m a (Oxpr w r m a)
 typecheckStep = step2D >>> typecheckOp
 
-topCtxO :: forall w r m a.
-  Oxpr w r m a -> BiContext (Oxpr w r m a)
-topCtxO = project >>> un Compose >>> extract >>> un EnvT >>> extract >>> getBiCtx
-
 unlayerO :: forall w r m a.
   Oxpr w r m a -> AST.ExprLayerF m a (Oxpr w r m a)
-unlayerO = project >>> un Compose >>> extract >>> un EnvT >>> extract >>> dropBiCtx >>> unwrap
-
-topCtx :: forall m a s.
-  Cxpr m a s -> BiContext (Cxpr m a s)
-topCtx = Cofree.tail >>> getBiCtx
+unlayerO = project >>> un Compose >>> extract >>> un EnvT >>> extract >>> unwrap
 
 originateFrom :: forall m a. FunctorWithIndex String m =>
   Focus m a -> Expr m a -> Fxpr m a
@@ -271,22 +252,25 @@ originateFromB = go where
   go focus e = embed $ EnvT $ Tuple focus $ e # project
     # mapWithIndex \i' -> go $ FocusWithin (pure i') <$> focus
 
-alsoOriginateFrom :: forall m a. FunctorWithIndex String m =>
-  NonEmptyList (Focus m a) -> Dxpr m a -> Bxpr m a
-alsoOriginateFrom = go where
-  go focus e = embed $ e # project
-    # withEnvT (NEL.cons' (NEL.head focus) <<< (NEL.tail focus <> _))
-    # mapEnvT (mapWithIndex \i' -> go $ FocusWithin (pure i') <$> focus)
+typecheckStepCtx :: forall w r m a. FunctorWithIndex String m =>
+  BiContext (Oxpr w r m a) -> Ocpr w r m a -> Feedback w r m a (Oxpr w r m a)
+typecheckStepCtx ctx e = e # step2D
+  # flip runReaderT ctx
+  # typecheckOp
+  # map (contextualizeWithin ctx)
 
 -- TODO: use a proper recurrimorphism
-contextualizeWithin :: forall m a s. FunctorWithIndex String m =>
-  Context (These (Cxpr m a s) (Cxpr m a s)) ->
-  Ann m a s -> Cxpr m a s
+contextualizeWithin :: forall w r m a. FunctorWithIndex String m =>
+  Context (These (Oxpr w r m a) (Oxpr w r m a)) ->
+  Ocpr w r m a -> Oxpr w r m a
 contextualizeWithin = go where
-  go ctx = mapR $ mapEnvT $ (>>>) (un AST.ERVF) $ (<<<) (WithBiCtx ctx <<< AST.ERVF) $ do
-    (VariantF.expand <<< map (go ctx))
-    # VariantF.onMatch
-      { "Let": \(AST.LetF name mty value expr) -> VariantF.inj (_S::S_ "Let")
+  go ctx = mapR $ over Compose $ hoistCofree (runReaderT <@> ctx) >>> do
+    map $ mapEnvT $ _Newtype $ rest ctx
+  rest :: Context (These (Oxpr w r m a) (Oxpr w r m a)) ->
+    AST.ExprLayerF m a (Ocpr w r m a) -> AST.ExprLayerF m a (Oxpr w r m a)
+  rest ctx = go ctx #
+    VariantF.mapSomeExpand
+      { "Let": \(AST.LetF name mty value expr) ->
         let
           mty' = go ctx <$> mty
           value' = go ctx value
@@ -296,53 +280,30 @@ contextualizeWithin = go where
           ctx' = Dhall.Context.insert name entry ctx
           expr' = go ctx' expr
         in AST.LetF name mty' value' expr'
-      , "Lam": \(AST.BindingBody name ty body) -> VariantF.inj (_S::S_ "Lam")
+      , "Lam": \(AST.BindingBody name ty body) ->
         let ty' = go ctx ty
             ctx' = Dhall.Context.insert name (That ty') ctx
         in AST.BindingBody name ty' (go ctx' body)
-      , "Pi": \(AST.BindingBody name ty body) -> VariantF.inj (_S::S_ "Pi")
+      , "Pi": \(AST.BindingBody name ty body) ->
         let ty' = go ctx ty
             ctx' = Dhall.Context.insert name (That ty') ctx
         in AST.BindingBody name ty' (go ctx' body)
       }
 
-noContext :: forall m a s.
-  Ann m a s -> Cxpr m a s
-noContext = transCata $ mapEnvT (WithBiCtx Dhall.Context.empty)
-
 newborn :: forall m a. FunctorWithIndex String m =>
-  Expr m a -> CxprB m a
-newborn e0 = e0 # originateFromB (pure (ConstructedFocus e0)) # noContext
+  Expr m a -> Bxpr m a
+newborn e0 = e0 # originateFromB (pure (ConstructedFocus e0))
 
 newmother :: forall m a.
-  AST.ExprLayerF m a (CxprB m a) -> CxprB m a
+  AST.ExprLayerF m a (Bxpr m a) -> Bxpr m a
 newmother e0 =
-  let e_ = AST.embedW $ e0 <#> dropContext >>> denote
+  let e_ = AST.embedW $ e0 <#> denote
   in embed $
-  EnvT (Tuple (pure (ConstructedFocus e_)) (WithBiCtx Dhall.Context.empty (wrap e0)))
+  EnvT (Tuple (pure (ConstructedFocus e_)) (wrap e0))
 
 denote :: forall m a s.
   Ann m a s -> Expr m a
 denote = transCata unEnvT
-
-dropContext :: forall m a s.
-  Cxpr m a s -> Ann m a s
-dropContext = transCata $ mapEnvT \(WithBiCtx _ e) -> e
-
-plain :: forall m a s. Cxpr m a s -> Expr m a
-plain = dropContext >>> denote
-
-substContext :: forall m a s. FunctorWithIndex String m =>
-  Cxpr m a s -> Ann m a s
-substContext = transCata \(EnvT (Tuple focus (WithBiCtx ctx e))) -> unwrap e #
-  VariantF.onMatch
-    { "Var": unwrap >>> \(AST.V x n) ->
-        case theseLeft =<< Dhall.Context.lookup x n ctx of
-          Just value -> project value
-          Nothing -> EnvT (Tuple focus e)
-    , "Let": \(AST.LetF _ _ _ body) -> project body
-    }
-    \_ -> EnvT (Tuple focus e)
 
 newtype Inconsistency a = Inconsistency (NonEmpty (NonEmpty List) a)
 derive instance newtypeInconsistency :: Newtype (Inconsistency a) _
@@ -451,15 +412,19 @@ typeWithA :: forall w r m a.
   Context (Expr m a) ->
   Expr m a ->
   FeedbackE w r m a (Expr m a)
-typeWithA tpa ctx e = typecheckSketch typecheckAlgebra
-  ( contextualizeWithin (That <<< newborn <$> ctx)
-  $ originateFromB (pure MainExpression)
-  $ e
-  ) # typecheckStep # map (head2D >>> plain)
+typeWithA tpa (Dhall.Context.Context ctx0) e0 = denote <<< head2D <$> go ctx0 Dhall.Context.empty where
+  -- TODO: use a proper fold or something
+  tcIn :: Expr m a -> BiContext (OxprE w r m a) -> FeedbackE w r m a (OxprE w r m a)
+  tcIn e ctx = typecheckSketch typecheckAlgebra
+    (originateFromB (pure MainExpression) e)
+    # typecheckStepCtx ctx
+  go Nil ctx = tcIn e0 ctx
+  go (Tuple name ty : ctx') ctx = tcIn ty ctx >>= \ty' ->
+    go ctx' (Dhall.Context.insert name (That (ty' :: OxprE w r m a)) ctx)
 
 typecheckAlgebra :: forall w r m a. Eq a => StrMapIsh m =>
-  CxprFB m a (OxprE w r m a) -> FeedbackE w r m a (CxprB m a)
-typecheckAlgebra (EnvT (Tuple focus (WithBiCtx ctx layer))) = unwrap layer # VariantF.match
+  WithBiCtx (BxprF m a) (OxprE w r m a) -> FeedbackE w r m a (Bxpr m a)
+typecheckAlgebra (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer # VariantF.match
   let
     errorHere ::
       forall sym t r' b.
@@ -493,8 +458,8 @@ typecheckAlgebra (EnvT (Tuple focus (WithBiCtx ctx layer))) = unwrap layer # Var
       IsSymbol sym =>
       R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
       SProxy sym ->
-      f (CxprB m a) ->
-      CxprB m a
+      f (Bxpr m a) ->
+      Bxpr m a
     mk sym = newmother <<< VariantF.inj sym
     ensure' :: forall sym f r'.
       IsSymbol sym =>
@@ -520,7 +485,7 @@ typecheckAlgebra (EnvT (Tuple focus (WithBiCtx ctx layer))) = unwrap layer # Var
       (Unit -> FeedbackE w r m a Void) ->
       FeedbackE w r m a Unit
     checkEq ty0 ty1 error =
-      let Pair ty0' ty1' = Pair ty0 ty1 <#> normalizeStep >>> head2D >>> plain in
+      let Pair ty0' ty1' = Pair ty0 ty1 <#> normalizeStep >>> head2D >>> denote in
       when (ty0' /= ty1') $
         absurd <$> error unit
     checkEqL ::
@@ -537,13 +502,13 @@ typecheckAlgebra (EnvT (Tuple focus (WithBiCtx ctx layer))) = unwrap layer # Var
     onConst :: forall x.
       (x -> FeedbackE w r m a (Expr m a)) ->
       Const.Const x (OxprE w r m a) ->
-      FeedbackE w r m a (CxprB m a)
+      FeedbackE w r m a (Bxpr m a)
     onConst f (Const.Const c) = f c <#> newborn
-    always :: forall y. Expr m a -> y -> FeedbackE w r m a (CxprB m a)
+    always :: forall y. Expr m a -> y -> FeedbackE w r m a (Bxpr m a)
     always b _ = pure $ newborn $ b
-    aType :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (CxprB m a)
+    aType :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (Bxpr m a)
     aType = always $ AST.mkType
-    aFunctor :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (CxprB m a)
+    aFunctor :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (Bxpr m a)
     aFunctor = always $ AST.mkArrow AST.mkType AST.mkType
     a0 = AST.mkVar (AST.V "a" 0)
 
@@ -553,11 +518,11 @@ typecheckAlgebra (EnvT (Tuple focus (WithBiCtx ctx layer))) = unwrap layer # Var
     checkBinOp ::
       Expr m a ->
       Pair (OxprE w r m a) ->
-      FeedbackE w r m a (CxprB m a)
+      FeedbackE w r m a (Bxpr m a)
     checkBinOp t p = suggest (newborn t) $ forWithIndex_ p $
       -- t should be simple enough that alphaNormalize is unnecessary
       \side operand -> typecheckStep operand >>= normalizeStep >>> case _ of
-        ty_operand | t == plain (head2D ty_operand) -> pure unit
+        ty_operand | t == denote (head2D ty_operand) -> pure unit
           | otherwise -> errorHere
             (_S::S_ "Unexpected type") side
 
@@ -653,7 +618,7 @@ typecheckAlgebra (EnvT (Tuple focus (WithBiCtx ctx layer))) = unwrap layer # Var
           (errorHere (_S::S_ "Not a function"))
         checkArg (AST.BindingBody name aty0 rty) aty1 =
           let name0 = AST.V name 0 in
-          if Dhall.Core.judgmentallyEqual (plain $ head2D aty0) (plain $ head2D aty1)
+          if Dhall.Core.judgmentallyEqual (denote $ head2D aty0) (denote $ head2D aty1)
             then do
               pure $ mk(_S::S_"App") $ Pair
                 do mk(_S::S_"Lam") (head2D <$> AST.BindingBody name aty0 rty)
@@ -665,7 +630,7 @@ typecheckAlgebra (EnvT (Tuple focus (WithBiCtx ctx layer))) = unwrap layer # Var
               -- and its return type can be suggested
               -- even if its argument does not have the right type
               -- TODO: use algebra
-              (if not Dhall.Core.freeIn name0 (plain $ head2D rty) then suggest (head2D rty) else identity) $
+              (if not Dhall.Core.freeIn name0 (denote $ head2D rty) then suggest (head2D rty) else identity) $
                 errorHere (_S::S_ "Type mismatch") unit
       in join $ checkArg <$> checkFn <*> typecheckStep a
   , "Annot": \(AST.Pair expr ty) ->
@@ -922,7 +887,7 @@ typecheckAlgebra (EnvT (Tuple focus (WithBiCtx ctx layer))) = unwrap layer # Var
             AST.BindingBody name _ output <- ensure' (_S::S_ "Pi") item
               (errorHere (_S::S_ "Handler not a function") <<< const k)
             -- FIXME NOTE: the following check added
-            when (Dhall.Core.freeIn (AST.V name 0) (plain $ head2D output))
+            when (Dhall.Core.freeIn (AST.V name 0) (denote $ head2D output))
               (errorHere (_S::S_ "Dependent handler function") <<< const k $ unit)
             pure output
       suggest (head2D ty) ado
@@ -937,7 +902,7 @@ typecheckAlgebra (EnvT (Tuple focus (WithBiCtx ctx layer))) = unwrap layer # Var
             checkEq tY input
               (errorHere (_S::S_ "Handler input type mismatch") <<< const k)
             -- FIXME NOTE: the following check added
-            when (Dhall.Core.freeIn (AST.V name 0) (plain $ head2D output))
+            when (Dhall.Core.freeIn (AST.V name 0) (denote $ head2D output))
               (errorHere (_S::S_ "Dependent handler function") <<< const k $ unit)
             checkEq ty output
               (errorHere (_S::S_ "Handler output type mismatch") <<< const k)
