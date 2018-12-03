@@ -655,9 +655,9 @@ typecheckAlgebra (EnvT (Tuple focus (WithBiCtx ctx layer))) = unwrap layer # Var
           let name0 = AST.V name 0 in
           if Dhall.Core.judgmentallyEqual (plain $ head2D aty0) (plain $ head2D aty1)
             then do
-              -- FIXME: substitute
-              -- pure $ Dhall.Core.shiftSubstShift0 name (head2D a) rty
-              pure (head2D rty)
+              pure $ mk(_S::S_"App") $ Pair
+                do mk(_S::S_"Lam") (head2D <$> AST.BindingBody name aty0 rty)
+                do head2D aty1
             else do
               -- SPECIAL!
               -- Recovery case: if the variable is free in the return type
