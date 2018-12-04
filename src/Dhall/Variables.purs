@@ -2,24 +2,25 @@ module Dhall.Variables where
 
 import Prelude
 
+import Control.Comonad (extract)
 import Control.Comonad.Env (mapEnvT)
 import Data.Const (Const(..))
-import Data.Eq (class Eq1)
-import Data.Foldable (fold)
+import Data.Foldable (class Foldable, fold)
 import Data.Functor.Variant (class VariantFMapCases, class VariantFMaps, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff)
 import Data.Monoid.Disj (Disj(..))
-import Data.Newtype (over, unwrap)
+import Data.Newtype (over, unwrap, wrap)
 import Data.Symbol (class IsSymbol)
+import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Data.Variant.Internal (class VariantTags)
-import Dhall.Core.AST (BindingBody(..), Expr, LetF(..), S_, Var(..), Variable, CONST, _S, mkLam, mkLet, mkPi, mkVar)
+import Dhall.Core.AST (BindingBody(..), CONST, Expr, LetF(..), S_, Var(..), Variable, _S, mkVar)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Noted as Noted
 import Dhall.Core.Zippers.Recursive (_recurse)
-import Matryoshka (Algebra)
+import Matryoshka (Algebra, cata, embed, project)
 import Type.Row (type (+))
 import Type.Row as R
 
@@ -83,12 +84,8 @@ import Type.Row as R
 -- | descend into a lambda or let expression that binds a variable of the same
 -- | name in order to avoid shifting the bound variables by mistake.
 shift :: forall m a. Int -> Var -> Expr m a -> Expr m a
-shift d v = AST.rewriteTopDown (shiftAlg d v)
-
-type VariableAlg m a = forall r.
-  (VariantF r (Expr m a) -> Expr m a) ->
-  VariantF (Variable m + r) (Expr m a) ->
-  Expr m a
+shift d v = runAlgebraExpr (Variant.case_ # shiftAlgG) $
+  Variant.inj (_S::S_ "shift") { delta: d, variable: v }
 
 newtype SimpleMapCasesOn affected node = SimpleMapCasesOn
   (((VariantF affected node -> VariantF affected node) -> (node -> node)))
@@ -105,73 +102,49 @@ run :: forall cases casesrl affected affectedrl unaffected all node.
   Record cases -> node -> node
 run (SimpleMapCasesOn f) rest cases = f (VariantF.mapSomeExpand cases rest)
 
-type NodeOps affected i node r ops =
-  ( unlayer :: node -> VariantF (affected + r) node
-  , overlayer :: SimpleMapCasesOn (affected + r) node
+type NodeOps all i node ops =
+  ( unlayer :: node -> VariantF all node
+  , overlayer :: SimpleMapCasesOn all node
   , recurse :: i -> node -> node
   | ops
   )
-type ConsNodeOps affected i node r ops = NodeOps affected i node r +
-  ( layer :: VariantF (affected + r) node -> node | ops )
+type ConsNodeOps all i node ops = NodeOps all i node +
+  ( layer :: VariantF all node -> node | ops )
 
-type GenericExprAlgebra' ops' (ops :: (# Type -> # Type) -> Type -> Type -> # Type -> # Type -> # Type) affected i node r =
-  Record (ops affected i node r ops') -> node -> node
+type GenericExprAlgebra' ops i node =
+  Record ops -> node -> node
 
-type GenericExprAlgebra ops' ops affected i node r =
-  i -> GenericExprAlgebra' ops' ops affected i node r
+type GenericExprAlgebra ops i node =
+  i -> GenericExprAlgebra' ops i node
 
-type GenericExprAlgebraV ops' ops affected (i :: Type -> # Type -> # Type) node r =
-  GenericExprAlgebraV' ops' ops affected i node r ()
-
-type GenericExprAlgebraV' ops' ops affected (i :: Type -> # Type -> # Type) node r v' =
-  GenericExprAlgebraV'' ops' ops affected i node r () v'
-
-type GenericExprAlgebraV'' ops' ops affected (i :: Type -> # Type -> # Type) node r v v' =
-  Variant (i node v) -> GenericExprAlgebra' ops' ops affected (Variant (i node v')) node r
-
-type GenericExprAlgebraVT ops affected (i :: Type -> # Type -> # Type) = forall node v v' r ops'.
+type GenericExprAlgebraVT (ops :: # Type -> Type -> Type -> # Type -> # Type) affected (i :: Type -> # Type -> # Type) =
+  forall node v v' r ops'.
     -- R.Union v (i node ()) (i node v) =>
-  (Variant v -> GenericExprAlgebra' ops' ops affected (Variant (i node v')) node r) ->
-  (Variant (i node v) -> GenericExprAlgebra' ops' ops affected (Variant (i node v')) node r)
+  (Variant v -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> node) ->
+  (Variant (i node v) -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> node)
 
-overlayerExpr :: forall m a. SimpleMapCasesOn (AST.ExprLayerRow m a) (Expr m a)
-overlayerExpr = SimpleMapCasesOn (_recurse <<< over AST.ERVF)
+runAlgebraExpr :: forall i m a.
+  GenericExprAlgebra (ConsNodeOps (AST.ExprLayerRow m a) i (Expr m a) ()) i (Expr m a) ->
+  i -> Expr m a -> Expr m a
+runAlgebraExpr alg = go where
+  go i = alg i
+    { unlayer: project >>> unwrap
+    , layer: embed <<< wrap
+    , overlayer: SimpleMapCasesOn (_recurse <<< over AST.ERVF)
+    , recurse: go
+    }
 
-overlayerNoted :: forall m s a. SimpleMapCasesOn (AST.ExprLayerRow m a) (Noted.Expr m s a)
-overlayerNoted = SimpleMapCasesOn (_recurse <<< mapEnvT <<< over AST.ERVF)
-
-shiftAlg :: forall m a. Int -> Var -> VariableAlg m a
-shiftAlg d v@(V x n) = identity
-  >>> VariantF.on (_S::S_ "Var")
-    (unwrap >>> \(V x' n') ->
-      let n'' = if x == x' && n <= n' then n' + d else n'
-      in mkVar (V x' n'')
-    )
-  >>> VariantF.on (_S::S_ "Lam")
-    (\(BindingBody x' _A b) ->
-      let
-        _A' = shift d (V x n ) _A
-        b'  = shift d (V x n') b
-        n' = if x == x' then n + 1 else n
-      in mkLam x' _A' b'
-    )
-  >>> VariantF.on (_S::S_ "Pi")
-    (\(BindingBody x' _A _B) ->
-      let
-        _A' = shift d (V x n ) _A
-        _B' = shift d (V x n') _B
-        n' = if x == x' then n + 1 else n
-      in mkPi x' _A' _B'
-    )
-  >>> VariantF.on (_S::S_ "Let")
-    (\(LetF f mt r e) ->
-      let
-        n' = if x == f then n + 1 else n
-        e' =  shift d (V x n') e
-        mt' = shift d (V x n ) <$> mt
-        r'  = shift d (V x n ) r
-      in mkLet f mt' r' e'
-    )
+runAlgebraNoted :: forall i m a s.
+  s ->
+  GenericExprAlgebra (ConsNodeOps (AST.ExprLayerRow m a) i (Noted.Expr m s a) ()) i (Noted.Expr m s a) ->
+  i -> Noted.Expr m s a -> Noted.Expr m s a
+runAlgebraNoted df alg = go where
+  go i = alg i
+    { unlayer: project >>> unwrap >>> extract >>> unwrap
+    , layer: embed <<< wrap <<< Tuple df <<< wrap
+    , overlayer: SimpleMapCasesOn (_recurse <<< mapEnvT <<< over AST.ERVF)
+    , recurse: go
+    }
 
 elim1 ::
   forall sym i v v_ v' v'_ cases casesrl affected affectedrl unaffected all node ops.
@@ -259,39 +232,8 @@ freeInAlg layer v = layer # trackVar v ((#)) >>> fold
 -- | Substitute all occurrences of a variable with an expression
 -- | `subst x C B  ~  B[x := C]`
 subst :: forall m a. Var -> Expr m a -> Expr m a -> Expr m a
-subst v e = AST.rewriteTopDown (substAlg v e)
-
-substAlg :: forall m a. Var -> Expr m a -> VariableAlg m a
-substAlg v@(V x n) e = identity
-  >>> VariantF.on (_S::S_ "Var")
-    (unwrap >>> \(V x' n') ->
-      if x == x' && n == n' then e else mkVar (V x' n')
-    )
-  >>> VariantF.on (_S::S_ "Lam")
-    (\(BindingBody y _A b) ->
-      let
-        _A' = subst (V x n )                  e  _A
-        b'  = subst (V x n') (shift 1 (V y 0) e) b
-        n'  = if x == y then n + 1 else n
-      in mkLam y _A' b'
-    )
-  >>> VariantF.on (_S::S_ "Pi")
-    (\(BindingBody y _A _B) ->
-      let
-        _A' = subst (V x n )                  e  _A
-        _B' = subst (V x n') (shift 1 (V y 0) e) _B
-        n'  = if x == y then n + 1 else n
-      in mkPi y _A' _B'
-    )
-  >>> VariantF.on (_S::S_ "Let")
-    (\(LetF f mt r b) ->
-      let
-        n' = if x == f then n + 1 else n
-        b'  = subst (V x n') (shift 1 (V f 0) e) b
-        mt' = subst (V x n) e <$> mt
-        r'  = subst (V x n) e r
-      in mkLet f mt' r' b'
-    )
+subst v e = runAlgebraExpr (Variant.case_ # shiftSubstAlgG) $
+  Variant.inj (_S::S_ "subst") { variable: v, substitution: e }
 
 type SubstAlg node v = ( subst :: { variable :: Var, substitution :: node } | v )
 type ShiftSubstAlg node v = ShiftAlg node + SubstAlg node + v
@@ -349,38 +291,14 @@ doRenameAlgG v0 v1 node = identity
 -- | α-normalize an expression by renaming all variables to `"_"` and using
 -- | De Bruijn indices to distinguish them
 alphaNormalize :: forall m a. Expr m a -> Expr m a
-alphaNormalize e = AST.rewriteTopDown alphaNormalizeAlg e
+alphaNormalize = runAlgebraExpr (Variant.case_ # alphaNormalizeAlgG) $
+  Variant.inj (_S::S_ "alphaNormalize") {}
 
-alphaNormalizeAlg :: forall m a. VariableAlg m a
-alphaNormalizeAlg = identity
-  >>> VariantF.on (_S::S_ "Var") (unwrap >>> mkVar)
-  >>> VariantF.on (_S::S_ "Lam")
-    (\(BindingBody x _A b_0) ->
-      if x == "_" then mkLam x (alphaNormalize _A) (alphaNormalize b_0) else
-      let
-        b_4 = alphaNormalize $ rename (V x 0) (V "_" 0) b_0
-      in mkLam "_" (alphaNormalize _A) b_4
-    )
-  >>> VariantF.on (_S::S_ "Pi")
-    (\(BindingBody x _A _B_0) ->
-      if x == "_" then mkPi x (alphaNormalize _A) (alphaNormalize _B_0) else
-      let
-        _B_3 = alphaNormalize $ rename (V x 0) (V "_" 0) _B_0
-      in mkPi "_" (alphaNormalize _A) _B_3
-    )
-  >>> VariantF.on (_S::S_ "Let")
-    (\(LetF x mt a b_0) ->
-      if x == "_" then mkLet x (alphaNormalize <$> mt) (alphaNormalize a) (alphaNormalize b_0) else
-      let
-        b_3 = alphaNormalize $ rename (V x 0) (V "_" 0) b_0
-      in mkLet "_" (alphaNormalize <$> mt) (alphaNormalize a) b_3
-    )
-
-type AlphaNormalizeAlg node v = ShiftSubstAlg node + ( "alphaNormalize" :: Unit | v )
+type AlphaNormalizeAlg node v = ShiftSubstAlg node + ( "alphaNormalize" :: {} | v )
 alphaNormalizeAlgG :: forall m. GenericExprAlgebraVT ConsNodeOps (Variable m) AlphaNormalizeAlg
 alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormalize") \_ node ->
   let
-    norm = node.recurse <<< Variant.inj (_S::S_ "alphaNormalize") $ unit
+    norm = node.recurse <<< Variant.inj (_S::S_ "alphaNormalize") $ {}
     renam "_" = norm
     renam x = norm <<< doRenameAlgG (V x 0) (V "_" 0) node
   in
@@ -394,6 +312,5 @@ alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormaliz
   }
 
 -- | Detect if the given variable is free within the given expression
-freeIn :: forall m a. Functor m => Eq1 m => Eq a => Var -> Expr m a -> Boolean
-freeIn variable expression =
-    shift 1 variable expression /= expression
+freeIn :: forall m a. Foldable m => Var -> Expr m a -> Disj Boolean
+freeIn = flip $ cata \e v -> freeInAlg (unwrap e) v
