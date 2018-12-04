@@ -53,11 +53,12 @@ import Data.Variant as Variant
 import Dhall.Context (Context)
 import Dhall.Context as Dhall.Context
 import Dhall.Core as Dhall.Core
-import Dhall.Core.AST (Const(..), Expr, ExprRowVFI, Pair(..), S_, _S)
+import Dhall.Core.AST (Const(..), Expr, ExprRowVF(..), ExprRowVFI, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
+import Dhall.Core.AST.Operations.Transformations (OverCases(..))
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
-import Dhall.Variables (SimpleMapCasesOn(..), freeInAlg, shiftAlgG)
+import Dhall.Variables (freeInAlg, shiftAlgG)
 import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, mapR, project, transCata)
 import Type.Row as R
 import Validation.These as V
@@ -247,6 +248,11 @@ unlayerO :: forall w r m a.
   Oxpr w r m a -> AST.ExprLayerF m a (Oxpr w r m a)
 unlayerO = project >>> un Compose >>> extract >>> un EnvT >>> extract >>> unwrap
 
+overlayerO :: forall w r m a.
+  (AST.ExprLayerF m a (Oxpr w r m a) -> AST.ExprLayerF m a (Oxpr w r m a)) ->
+  Oxpr w r m a -> Oxpr w r m a
+overlayerO = mapR <<< over Compose <<< map <<< over EnvT <<< map <<< over ERVF
+
 originateFrom :: forall m a. FunctorWithIndex String m =>
   NonEmptyList (Focus m a) -> Expr m a -> Fxpr m a
 originateFrom = go where
@@ -317,7 +323,7 @@ runFxprAlg :: forall m a i.
   (
     i ->
     { unlayer :: Fxpr m a -> AST.ExprLayerF m a (Fxpr m a)
-    , overlayer :: SimpleMapCasesOn (AST.ExprLayerRow m a) (Fxpr m a)
+    , overlayer :: OverCases (AST.ExprLayerRow m a) (Fxpr m a)
     , recurse :: i -> Fxpr m a -> Fxpr m a
     } -> Fxpr m a -> Fxpr m a
   ) ->
@@ -325,7 +331,23 @@ runFxprAlg :: forall m a i.
 runFxprAlg alg = go where
   go i = alg i
     { unlayer: project >>> unEnvT >>> unwrap
-    , overlayer: SimpleMapCasesOn $ mapR <<< mapEnvT <<< over AST.ERVF
+    , overlayer: OverCases $ mapR <<< mapEnvT <<< over AST.ERVF
+    , recurse: go
+    }
+
+runOxprAlg :: forall w r m a i.
+  (
+    i ->
+    { unlayer :: Oxpr w r m a -> AST.ExprLayerF m a (Oxpr w r m a)
+    , overlayer :: OverCases (AST.ExprLayerRow m a) (Oxpr w r m a)
+    , recurse :: i -> Oxpr w r m a -> Oxpr w r m a
+    } -> Oxpr w r m a -> Oxpr w r m a
+  ) ->
+  i -> Oxpr w r m a -> Oxpr w r m a
+runOxprAlg alg = go where
+  go i = alg i
+    { unlayer: unlayerO
+    , overlayer: OverCases overlayerO
     , recurse: go
     }
 
@@ -339,15 +361,41 @@ shiftFxpr :: forall m a. Int -> AST.Var -> Fxpr m a -> Fxpr m a
 shiftFxpr delta variable = runFxprAlg (Variant.case_ # shiftAlgG) $
   Variant.inj (_S::S_ "shift") { delta, variable }
 
+shiftInFxpr :: forall m a. AST.Var -> Fxpr m a -> Fxpr m a
+shiftInFxpr = shiftFxpr 1
+
+shiftInFxpr0 :: forall m a. String -> Fxpr m a -> Fxpr m a
+shiftInFxpr0 v = shiftInFxpr (AST.V v 0)
+
 shiftOutFxpr :: forall m a. AST.Var -> Fxpr m a -> Fxpr m a
 shiftOutFxpr = shiftFxpr (-1)
 
-tryShiftOut :: forall m a. Foldable m => AST.Var -> Fxpr m a -> Maybe (Fxpr m a)
-tryShiftOut v e | un Disj (freeInFxpr v e) = Nothing
-tryShiftOut v e = Just (shiftOutFxpr v e)
+tryShiftOutFxpr :: forall m a. Foldable m => AST.Var -> Fxpr m a -> Maybe (Fxpr m a)
+tryShiftOutFxpr v e | un Disj (freeInFxpr v e) = Nothing
+tryShiftOutFxpr v e = Just (shiftOutFxpr v e)
 
-tryShiftOut0 :: forall m a. Foldable m => String -> Fxpr m a -> Maybe (Fxpr m a)
-tryShiftOut0 v = tryShiftOut (AST.V v 0)
+tryShiftOut0Fxpr :: forall m a. Foldable m => String -> Fxpr m a -> Maybe (Fxpr m a)
+tryShiftOut0Fxpr v = tryShiftOutFxpr (AST.V v 0)
+
+shiftOxpr :: forall w r m a. Int -> AST.Var -> Oxpr w r m a -> Oxpr w r m a
+shiftOxpr delta variable = runOxprAlg (Variant.case_ # shiftAlgG) $
+  Variant.inj (_S::S_ "shift") { delta, variable }
+
+shiftInOxpr :: forall w r m a. AST.Var -> Oxpr w r m a -> Oxpr w r m a
+shiftInOxpr = shiftOxpr 1
+
+shiftInOxpr0 :: forall w r m a. String -> Oxpr w r m a -> Oxpr w r m a
+shiftInOxpr0 v = shiftInOxpr (AST.V v 0)
+
+shiftOutOxpr :: forall w r m a. AST.Var -> Oxpr w r m a -> Oxpr w r m a
+shiftOutOxpr = shiftOxpr (-1)
+
+tryShiftOutOxpr :: forall w r m a. Foldable m => AST.Var -> Oxpr w r m a -> Maybe (Oxpr w r m a)
+tryShiftOutOxpr v e | un Disj (freeInOxpr v e) = Nothing
+tryShiftOutOxpr v e = Just (shiftOutOxpr v e)
+
+tryShiftOut0Oxpr :: forall w r m a. Foldable m => String -> Oxpr w r m a -> Maybe (Oxpr w r m a)
+tryShiftOut0Oxpr v = tryShiftOutOxpr (AST.V v 0)
 
 newtype Inconsistency a = Inconsistency (NonEmpty (NonEmpty List) a)
 derive instance newtypeInconsistency :: Newtype (Inconsistency a) _
@@ -463,8 +511,10 @@ typeWithA tpa (Dhall.Context.Context ctx0) e0 = plain <$> go ctx0 Dhall.Context.
     (originateFrom (pure MainExpression) e)
     # typecheckStepCtx ctx
   go Nil ctx = tcIn e0 ctx
-  go (Tuple name ty : ctx') ctx = tcIn ty ctx >>= \ty' ->
-    go ctx' (Dhall.Context.insert name (That (ty' :: OxprE w r m a)) ctx)
+  go (Tuple name ty : ctx') ctx = tcIn ty ctx >>= \ty' -> go ctx' $
+      Dhall.Context.insert name (That (ty' :: OxprE w r m a)) $
+        -- TODO: is this right?
+        join bimap (shiftInOxpr0 name) <$> ctx
 
 typecheckAlgebra :: forall w r m a. Eq a => StrMapIsh m =>
   WithBiCtx (FxprF m a) (OxprE w r m a) -> FeedbackE w r m a (Fxpr m a)
@@ -661,7 +711,7 @@ typecheckAlgebra (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer # Var
         checkFn = ensure (_S::S_ "Pi") f
           (errorHere (_S::S_ "Not a function"))
         checkArg (AST.BindingBody name aty0 rty) aty1 =
-          let shifted = tryShiftOut0 name (head2D rty) in
+          let shifted = tryShiftOut0Fxpr name (head2D rty) in
           if Dhall.Core.judgmentallyEqual (plain aty0) (plain aty1)
             then pure case shifted of
               Nothing -> mk(_S::S_"App") $ Pair
@@ -931,10 +981,9 @@ typecheckAlgebra (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer # Var
           Just (Tuple k item) -> do
             AST.BindingBody name _ output <- ensure' (_S::S_ "Pi") item
               (errorHere (_S::S_ "Handler not a function") <<< const k)
-            -- FIXME NOTE: the following check added
-            when (Dhall.Core.freeIn (AST.V name 0) (plain output))
-              (errorHere (_S::S_ "Dependent handler function") <<< const k $ unit)
-            pure output
+            output' <- tryShiftOut0Oxpr name output #
+              (noteHere (_S::S_ "Dependent handler function") <<< const k $ unit)
+            pure output'
       suggest (head2D ty) ado
         when (not Set.isEmpty diffX)
           (errorHere (_S::S_ "Unused handlers") diffX)
@@ -946,11 +995,11 @@ typecheckAlgebra (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer # Var
           ado
             checkEq tY input
               (errorHere (_S::S_ "Handler input type mismatch") <<< const k)
-            -- FIXME NOTE: the following check added
-            when (Dhall.Core.freeIn (AST.V name 0) (plain output))
-              (errorHere (_S::S_ "Dependent handler function") <<< const k $ unit)
-            checkEq ty output
-              (errorHere (_S::S_ "Handler output type mismatch") <<< const k)
+            do
+              output' <- tryShiftOut0Oxpr name output #
+                (noteHere (_S::S_ "Dependent handler function") <<< const k $ unit)
+              checkEq ty output'
+                (errorHere (_S::S_ "Handler output type mismatch") <<< const k)
           in unit
         in unit
   , "Constructors": \(Identity ty) -> do

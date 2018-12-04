@@ -21,6 +21,7 @@ import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Maybe.First (First)
 import Data.Monoid.Conj (Conj(..))
+import Data.Monoid.Disj (Disj(..))
 import Data.Natural (intToNat, natToInt, (+-))
 import Data.Newtype (class Newtype, un, unwrap)
 import Data.These (These(..))
@@ -424,7 +425,7 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
         # onP AST._App
           \{ fn, arg } ->
             let var0 = AST.V var 0 in
-            if arg == AST.mkVar var0 && not Variables.freeIn var0 fn
+            if arg == AST.mkVar var0 && not (un Disj (Variables.freeIn var0 fn))
               then instead \_ -> fn
               else deferred default
       )
