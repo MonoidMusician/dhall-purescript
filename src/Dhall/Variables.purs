@@ -5,9 +5,11 @@ import Prelude
 import Control.Comonad.Env (mapEnvT)
 import Data.Const (Const(..))
 import Data.Eq (class Eq1)
+import Data.Foldable (fold)
 import Data.Functor.Variant (class VariantFMapCases, class VariantFMaps, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff)
+import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (over, unwrap)
 import Data.Symbol (class IsSymbol)
 import Data.Variant (Variant)
@@ -17,6 +19,7 @@ import Dhall.Core.AST (BindingBody(..), Expr, LetF(..), S_, Var(..), Variable, C
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Noted as Noted
 import Dhall.Core.Zippers.Recursive (_recurse)
+import Matryoshka (Algebra)
 import Type.Row (type (+))
 import Type.Row as R
 
@@ -90,46 +93,46 @@ type VariableAlg m a = forall r.
 newtype SimpleMapCasesOn affected node = SimpleMapCasesOn
   (((VariantF affected node -> VariantF affected node) -> (node -> node)))
 
-run :: forall cases casesrl affected affectedrl node.
+run :: forall cases casesrl affected affectedrl unaffected all node.
     R.RowToList cases casesrl =>
     VariantFMapCases casesrl affected affected node node =>
     R.RowToList affected affectedrl =>
     VariantTags affectedrl =>
     VariantFMaps affectedrl =>
-    R.Union affected () affected =>
-  SimpleMapCasesOn affected node ->
+    R.Union affected unaffected all =>
+  SimpleMapCasesOn all node ->
   (node -> node) ->
   Record cases -> node -> node
 run (SimpleMapCasesOn f) rest cases = f (VariantF.mapSomeExpand cases rest)
 
 type NodeOps affected i node r ops =
-  { unlayer :: node -> VariantF (affected + r) node
-  , overlayer :: SimpleMapCasesOn (affected + ()) node
+  ( unlayer :: node -> VariantF (affected + r) node
+  , overlayer :: SimpleMapCasesOn (affected + r) node
   , recurse :: i -> node -> node
   | ops
-  }
-type ConsNodeOps affected i node r ops = NodeOps affected i node r
+  )
+type ConsNodeOps affected i node r ops = NodeOps affected i node r +
   ( layer :: VariantF (affected + r) node -> node | ops )
 
-type GenericExprAlgebra' affected i node r =
-  ConsNodeOps affected i node r () -> node -> node
+type GenericExprAlgebra' ops' (ops :: (# Type -> # Type) -> Type -> Type -> # Type -> # Type -> # Type) affected i node r =
+  Record (ops affected i node r ops') -> node -> node
 
-type GenericExprAlgebra affected i node r =
-  i -> GenericExprAlgebra' affected i node r
+type GenericExprAlgebra ops' ops affected i node r =
+  i -> GenericExprAlgebra' ops' ops affected i node r
 
-type GenericExprAlgebraV (affected :: # Type -> # Type) (i :: Type -> # Type -> # Type) node r =
-  GenericExprAlgebraV' affected i node r ()
+type GenericExprAlgebraV ops' ops affected (i :: Type -> # Type -> # Type) node r =
+  GenericExprAlgebraV' ops' ops affected i node r ()
 
-type GenericExprAlgebraV' (affected :: # Type -> # Type) (i :: Type -> # Type -> # Type) node r v' =
-  GenericExprAlgebraV'' affected i node r () v'
+type GenericExprAlgebraV' ops' ops affected (i :: Type -> # Type -> # Type) node r v' =
+  GenericExprAlgebraV'' ops' ops affected i node r () v'
 
-type GenericExprAlgebraV'' (affected :: # Type -> # Type) (i :: Type -> # Type -> # Type) node r v v' =
-  Variant (i node v) -> GenericExprAlgebra' affected (Variant (i node v')) node r
+type GenericExprAlgebraV'' ops' ops affected (i :: Type -> # Type -> # Type) node r v v' =
+  Variant (i node v) -> GenericExprAlgebra' ops' ops affected (Variant (i node v')) node r
 
-type GenericExprAlgebraVT (affected :: # Type -> # Type) (i :: Type -> # Type -> # Type) = forall node v v' r.
+type GenericExprAlgebraVT ops affected (i :: Type -> # Type -> # Type) = forall node v v' r ops'.
     -- R.Union v (i node ()) (i node v) =>
-  (Variant v -> GenericExprAlgebra' affected (Variant (i node v')) node r) ->
-  (Variant (i node v) -> GenericExprAlgebra' affected (Variant (i node v')) node r)
+  (Variant v -> GenericExprAlgebra' ops' ops affected (Variant (i node v')) node r) ->
+  (Variant (i node v) -> GenericExprAlgebra' ops' ops affected (Variant (i node v')) node r)
 
 overlayerExpr :: forall m a. SimpleMapCasesOn (AST.ExprLayerRow m a) (Expr m a)
 overlayerExpr = SimpleMapCasesOn (_recurse <<< over AST.ERVF)
@@ -171,7 +174,7 @@ shiftAlg d v@(V x n) = identity
     )
 
 elim1 ::
-  forall sym i v v_ v' v'_ cases casesrl affected affectedrl node ops.
+  forall sym i v v_ v' v'_ cases casesrl affected affectedrl unaffected all node ops.
     IsSymbol sym =>
     R.Cons sym i v_ v =>
     R.Cons sym i v'_ v' =>
@@ -180,21 +183,21 @@ elim1 ::
     R.RowToList affected affectedrl =>
     VariantTags affectedrl =>
     VariantFMaps affectedrl =>
-    R.Union affected () affected =>
+    R.Union affected unaffected all =>
   SProxy sym ->
   (i          ->
-  { overlayer :: SimpleMapCasesOn affected node
+  { overlayer :: SimpleMapCasesOn all node
   , recurse :: Variant v' -> node -> node
   | ops
   } -> Record cases
   ) ->
   (Variant v_ ->
-  { overlayer :: SimpleMapCasesOn affected node
+  { overlayer :: SimpleMapCasesOn all node
   , recurse :: Variant v' -> node -> node
   | ops
   } -> (node -> node)) ->
   (Variant v  ->
-  { overlayer :: SimpleMapCasesOn affected node
+  { overlayer :: SimpleMapCasesOn all node
   , recurse :: Variant v' -> node -> node
   | ops
   } -> (node -> node))
@@ -203,34 +206,55 @@ elim1 sym handler = Variant.on sym \i node ->
     (node.recurse $ Variant.inj sym i)
     (handler i node)
 
+trackVarBindingBody :: forall a b.
+  Var -> (Var -> a -> b) -> BindingBody a -> BindingBody b
+trackVarBindingBody (V x n) next (BindingBody x' _A b) =
+  let
+    _A' = next (V x n ) _A
+    b'  = next (V x n') b
+    n' = if x == x' then n + 1 else n
+  in BindingBody x' _A' b'
+
+trackVarLetF :: forall a b.
+  Var -> (Var -> a -> b) -> LetF a -> LetF b
+trackVarLetF (V x n) next (LetF x' mt r b) =
+  let
+    n' = if x == x' then n + 1 else n
+    b' =  next (V x n') b
+    mt' = next (V x n ) <$> mt
+    r'  = next (V x n ) r
+  in LetF x' mt' r' b'
+
+trackVar :: forall m v a b. Var -> (Var -> a -> b) ->
+  VariantF (Variable m + v) a -> VariantF (Variable m + v) b
+trackVar v@(V x n) next = VariantF.mapSomeExpand
+  { "Var": over Const identity
+  , "Lam": trackVarBindingBody v next
+  , "Pi": trackVarBindingBody v next
+  , "Let": trackVarLetF v next
+  }
+  (next v)
+
 type ShiftAlg node v = ( shift :: { delta :: Int, variable :: Var } | v )
-shiftAlgG :: forall m. GenericExprAlgebraVT (Variable m) ShiftAlg
+shiftAlgG :: forall m. GenericExprAlgebraVT NodeOps (Variable m) ShiftAlg
 shiftAlgG = elim1 (_S::S_ "shift")
-  \i@{ delta, variable: V x n } node ->
+  \i@{ delta, variable: v@(V x n) } node ->
     let recur = node.recurse <<< Variant.inj (_S::S_ "shift") <<< { delta, variable: _ } in
     { "Var": over Const \(V x' n') ->
       let n'' = if x == x' && n <= n' then n' + delta else n'
       in V x' n''
-    , "Lam": \(BindingBody x' _A b) ->
-        let
-          _A' = recur (V x n ) _A
-          b'  = recur (V x n') b
-          n' = if x == x' then n + 1 else n
-        in BindingBody x' _A' b'
-    , "Pi": \(BindingBody x' _A _B) ->
-        let
-          _A' = recur (V x n ) _A
-          _B'  = recur (V x n') _B
-          n' = if x == x' then n + 1 else n
-        in BindingBody x' _A' _B'
-    , "Let": \(LetF f mt r b) ->
-        let
-          n' = if x == f then n + 1 else n
-          b' =  recur (V x n') b
-          mt' = recur (V x n ) <$> mt
-          r'  = recur (V x n ) r
-        in LetF f mt' r' b'
+    , "Lam": trackVarBindingBody v recur
+    , "Pi": trackVarBindingBody v recur
+    , "Let": trackVarLetF v recur
     }
+
+freeInAlg ::
+  forall m v rl.
+    R.RowToList (Variable m + v) rl =>
+    VariantF.FoldableVFRL rl (Variable m + v) =>
+  Algebra (VariantF (Variable m + v)) (Var -> Disj Boolean)
+freeInAlg layer v | layer # VariantF.on (_S::S_ "Var") (eq (Const v)) ff = Disj true
+freeInAlg layer v = layer # trackVar v ((#)) >>> fold
 
 -- | Substitute all occurrences of a variable with an expression
 -- | `subst x C B  ~  B[x := C]`
@@ -271,7 +295,7 @@ substAlg v@(V x n) e = identity
 
 type SubstAlg node v = ( subst :: { variable :: Var, substitution :: node } | v )
 type ShiftSubstAlg node v = ShiftAlg node + SubstAlg node + v
-shiftSubstAlgG :: forall m. GenericExprAlgebraVT (Variable m) ShiftSubstAlg
+shiftSubstAlgG :: forall m. GenericExprAlgebraVT NodeOps (Variable m) ShiftSubstAlg
 shiftSubstAlgG rest = rest # shiftAlgG <<< elim1 (_S::S_ "subst")
   \i@{ variable: variable@(V x n), substitution } node ->
   let
@@ -282,25 +306,19 @@ shiftSubstAlgG rest = rest # shiftAlgG <<< elim1 (_S::S_ "subst")
     shift1 = node.recurse <<< Variant.inj (_S::S_ "shift") <<< { delta: 1, variable: _ }
   in
   { "Var": identity identity
-  , "Lam": \(BindingBody x' _A b) ->
-      let
-        _A' = subst1 (V x n )                  substitution  _A
-        b'  = subst1 (V x n') (shift1 (V x' 0) substitution) b
-        n'  = if x == x' then n + 1 else n
-      in BindingBody x' _A' b'
-  , "Pi": \(BindingBody x' _A _B) ->
-      let
-        _A' = subst1 (V x n )                  substitution  _A
-        _B' = subst1 (V x n') (shift1 (V x' 0) substitution) _B
-        n'  = if x == x' then n + 1 else n
-      in BindingBody x' _A' _B'
-  , "Let": \(LetF f mt r b) ->
-      let
-        n' = if x == f then n + 1 else n
-        b'  = subst1 (V x n') (shift1 (V f 0) substitution) b
-        mt' = subst1 (V x n) substitution <$> mt
-        r'  = subst1 (V x n) substitution r
-      in LetF f mt' r' b'
+  , "Lam": trackVarBindingBody variable subst1 >>>
+    \(BindingBody x' _A b) -> BindingBody x'
+        do _A $                 substitution
+        do b  $ shift1 (V x' 0) substitution
+  , "Pi": trackVarBindingBody variable subst1 >>>
+    \(BindingBody x' _A _B) -> BindingBody x'
+        do _A $                 substitution
+        do _B $ shift1 (V x' 0) substitution
+  , "Let": trackVarLetF variable subst1 >>>
+    \(LetF x' mt r b) -> LetF x'
+        do mt <@> substitution
+        do r   $  substitution
+        do b   $  shift1 (V x' 0) substitution
   }
 
 -- | The usual combination of subst and shift required for proper substitution.
@@ -359,19 +377,20 @@ alphaNormalizeAlg = identity
     )
 
 type AlphaNormalizeAlg node v = ShiftSubstAlg node + ( "alphaNormalize" :: Unit | v )
-alphaNormalizeAlgG :: forall m. GenericExprAlgebraVT (Variable m) AlphaNormalizeAlg
+alphaNormalizeAlgG :: forall m. GenericExprAlgebraVT ConsNodeOps (Variable m) AlphaNormalizeAlg
 alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormalize") \_ node ->
   let
     norm = node.recurse <<< Variant.inj (_S::S_ "alphaNormalize") $ unit
-    renam v0 v1 = norm <<< doRenameAlgG v0 v1 node
+    renam "_" = norm
+    renam x = norm <<< doRenameAlgG (V x 0) (V "_" 0) node
   in
   { "Var": identity identity
   , "Lam": \(BindingBody x _A b) ->
-      BindingBody "_" (norm _A) (renam (V x 0) (V "_" 0) b)
+      BindingBody "_" (norm _A) (renam x b)
   , "Pi": \(BindingBody x _A _B) ->
-      BindingBody "_" (norm _A) (renam (V x 0) (V "_" 0) _B)
+      BindingBody "_" (norm _A) (renam x _B)
   , "Let": \(LetF x mt a b) ->
-      LetF "_" (norm <$> mt) (norm a) (renam (V x 0) (V "_" 0) b)
+      LetF "_" (norm <$> mt) (norm a) (renam x b)
   }
 
 -- | Detect if the given variable is free within the given expression

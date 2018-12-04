@@ -35,6 +35,7 @@ import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Maybe.First (First(..))
+import Data.Monoid.Disj (Disj(..))
 import Data.Natural (Natural)
 import Data.Newtype (class Newtype, over, un, unwrap, wrap)
 import Data.NonEmpty (NonEmpty, (:|))
@@ -56,7 +57,8 @@ import Dhall.Core.AST (Const(..), Expr, ExprRowVFI, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
-import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, project, transCata)
+import Dhall.Variables (SimpleMapCasesOn(..), freeInAlg, shiftAlgG)
+import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, mapR, project, transCata)
 import Type.Row as R
 import Validation.These as V
 
@@ -310,6 +312,42 @@ plain ::
     Recursive t (Compose w (EnvT s (AST.ExprRowVF m a))) =>
   t -> Expr m a
 plain = head2D >>> denote
+
+runFxprAlg :: forall m a i.
+  (
+    i ->
+    { unlayer :: Fxpr m a -> AST.ExprLayerF m a (Fxpr m a)
+    , overlayer :: SimpleMapCasesOn (AST.ExprLayerRow m a) (Fxpr m a)
+    , recurse :: i -> Fxpr m a -> Fxpr m a
+    } -> Fxpr m a -> Fxpr m a
+  ) ->
+  i -> Fxpr m a -> Fxpr m a
+runFxprAlg alg = go where
+  go i = alg i
+    { unlayer: project >>> unEnvT >>> unwrap
+    , overlayer: SimpleMapCasesOn $ mapR <<< mapEnvT <<< over AST.ERVF
+    , recurse: go
+    }
+
+freeInOxpr :: forall w r m a. Foldable m => AST.Var -> Oxpr w r m a -> Disj Boolean
+freeInOxpr = flip $ cata $ un Compose >>> extract >>> unEnvT >>> unwrap >>> freeInAlg
+
+freeInFxpr :: forall m a. Foldable m => AST.Var -> Fxpr m a -> Disj Boolean
+freeInFxpr = flip $ cata $ unEnvT >>> unwrap >>> freeInAlg
+
+shiftFxpr :: forall m a. Int -> AST.Var -> Fxpr m a -> Fxpr m a
+shiftFxpr delta variable = runFxprAlg (Variant.case_ # shiftAlgG) $
+  Variant.inj (_S::S_ "shift") { delta, variable }
+
+shiftOutFxpr :: forall m a. AST.Var -> Fxpr m a -> Fxpr m a
+shiftOutFxpr = shiftFxpr (-1)
+
+tryShiftOut :: forall m a. Foldable m => AST.Var -> Fxpr m a -> Maybe (Fxpr m a)
+tryShiftOut v e | un Disj (freeInFxpr v e) = Nothing
+tryShiftOut v e = Just (shiftOutFxpr v e)
+
+tryShiftOut0 :: forall m a. Foldable m => String -> Fxpr m a -> Maybe (Fxpr m a)
+tryShiftOut0 v = tryShiftOut (AST.V v 0)
 
 newtype Inconsistency a = Inconsistency (NonEmpty (NonEmpty List) a)
 derive instance newtypeInconsistency :: Newtype (Inconsistency a) _
@@ -623,22 +661,22 @@ typecheckAlgebra (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer # Var
         checkFn = ensure (_S::S_ "Pi") f
           (errorHere (_S::S_ "Not a function"))
         checkArg (AST.BindingBody name aty0 rty) aty1 =
-          let name0 = AST.V name 0 in
+          let shifted = tryShiftOut0 name (head2D rty) in
           if Dhall.Core.judgmentallyEqual (plain aty0) (plain aty1)
-            then do
-              pure $ mk(_S::S_"App") $ Pair
-                -- FIXME: this Lam isn't always valid
+            then pure case shifted of
+              Nothing -> mk(_S::S_"App") $ Pair
                 do mk(_S::S_"Lam") (head2D <$> AST.BindingBody name aty0 rty)
                 do head2D aty1
+              Just rty' -> rty'
             else do
               -- SPECIAL!
-              -- Recovery case: if the variable is free in the return type
+              -- Recovery case: if the variable is unused in the return type
               -- then this is a non-dependent function
               -- and its return type can be suggested
               -- even if its argument does not have the right type
-              -- TODO: use algebra
-              (if not Dhall.Core.freeIn name0 (plain rty) then suggest (head2D rty) else identity) $
-                errorHere (_S::S_ "Type mismatch") unit
+              errorHere (_S::S_ "Type mismatch") unit # case shifted of
+                Nothing -> identity
+                Just rty' -> suggest rty'
       in join $ checkArg <$> checkFn <*> typecheckStep a
   , "Annot": \(AST.Pair expr ty) ->
       map head2D $ join $ checkEqR
