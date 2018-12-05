@@ -125,12 +125,12 @@ runAlgebraExpr :: forall i m a.
   GenericExprAlgebra (ConsNodeOps (AST.ExprLayerRow m a) i (Expr m a) ()) i (Expr m a) ->
   i -> Expr m a -> Expr m a
 runAlgebraExpr alg = go where
-  go i = alg i
+  go i e = alg i
     { unlayer: project >>> unwrap
     , layer: embed <<< wrap
     , overlayer: OverCases (_recurse <<< over AST.ERVF)
     , recurse: go
-    }
+    } e
 
 -- Run a generic algebra on an annotated `Noted.Expr` node
 runAlgebraNoted :: forall i m a s.
@@ -138,9 +138,9 @@ runAlgebraNoted :: forall i m a s.
   GenericExprAlgebra (ConsNodeOps (AST.ExprLayerRow m a) i (Noted.Expr m s a) ()) i (Noted.Expr m s a) ->
   i -> Noted.Expr m s a -> Noted.Expr m s a
 runAlgebraNoted df alg = go where
-  go i = alg i
+  go i e = alg i
     { unlayer: project >>> unwrap >>> extract >>> unwrap
     , layer: embed <<< wrap <<< Tuple df <<< wrap
     , overlayer: OverCases (_recurse <<< mapEnvT <<< over AST.ERVF)
     , recurse: go
-    }
+    } e

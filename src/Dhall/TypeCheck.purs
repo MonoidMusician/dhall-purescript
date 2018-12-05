@@ -219,6 +219,7 @@ typecheckSketch alg = recursor2D \layer@(EnvT (Tuple focus e)) -> ReaderT \ctx -
       originateFrom (newF <$> focus) $ e'
   in Tuple
       -- TODO: preserve spans from original (when possible)
+      -- TODO: substitute
       do defer \_ -> reconsitute NormalizeFocus $
           Dhall.Core.normalize $ embed $ plain <$> e
       -- TODO: add focus information
@@ -329,11 +330,11 @@ runFxprAlg :: forall m a i.
   ) ->
   i -> Fxpr m a -> Fxpr m a
 runFxprAlg alg = go where
-  go i = alg i
+  go i e = alg i
     { unlayer: project >>> unEnvT >>> unwrap
     , overlayer: OverCases $ mapR <<< mapEnvT <<< over AST.ERVF
     , recurse: go
-    }
+    } e
 
 runOxprAlg :: forall w r m a i.
   (
@@ -345,11 +346,11 @@ runOxprAlg :: forall w r m a i.
   ) ->
   i -> Oxpr w r m a -> Oxpr w r m a
 runOxprAlg alg = go where
-  go i = alg i
+  go i e = alg i
     { unlayer: unlayerO
     , overlayer: OverCases overlayerO
     , recurse: go
-    }
+    } e
 
 freeInOxpr :: forall w r m a. Foldable m => AST.Var -> Oxpr w r m a -> Disj Boolean
 freeInOxpr = flip $ cata $ un Compose >>> extract >>> unEnvT >>> unwrap >>> freeInAlg

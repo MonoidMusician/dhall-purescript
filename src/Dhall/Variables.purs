@@ -7,13 +7,14 @@ import Data.Foldable (class Foldable, fold)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff)
+import Data.Maybe (Maybe(..))
 import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (over, unwrap)
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Core.AST (BindingBody(..), CONST, Expr, LetF(..), S_, Var(..), Variable, _S, mkVar)
 import Dhall.Core.AST as AST
-import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, GenericExprAlgebraVT, NodeOps, elim1, runAlgebraExpr)
+import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, GenericExprAlgebraVT, NodeOps, elim1, runAlgebraExpr, runOverCases)
 import Matryoshka (Algebra, cata)
 import Type.Row (type (+))
 import Type.Row as R
@@ -95,6 +96,7 @@ shiftSubstShift0 :: forall m a. String ->  Expr m a -> Expr m a -> Expr m a
 shiftSubstShift0 v = shiftSubstShift $ AST.V v 0
 
 rename :: forall m a. Var -> Var -> Expr m a -> Expr m a
+rename v0 v1 | v0 == v1 = identity
 rename v0 v1 = shift (-1) v0 <<< subst v0 (mkVar v1) <<< shift 1 v1
 
 -- | α-normalize an expression by renaming all variables to `"_"` and using
@@ -105,42 +107,50 @@ alphaNormalize = runAlgebraExpr (Variant.case_ # alphaNormalizeAlgG) $
 
 -- | Detect if the given variable is free within the given expression
 freeIn :: forall m a. Foldable m => Var -> Expr m a -> Disj Boolean
-freeIn = flip $ cata \e v -> freeInAlg (unwrap e) v
+freeIn = flip $ cata $ freeInAlg <<< unwrap
 
 -----------------------------------------------------------------
 -- Helpers to track how certain functors affect variable scope --
 -----------------------------------------------------------------
 
 -- BindingBody binds in its last argument
-trackVarBindingBody :: forall a b.
-  Var -> (Var -> a -> b) -> BindingBody a -> BindingBody b
-trackVarBindingBody (V x n) next (BindingBody x' _A b) =
-  let
-    _A' = next (V x n ) _A
-    b'  = next (V x n') b
-    n' = if x == x' then n + 1 else n
-  in BindingBody x' _A' b'
+trackIntroBindingBody :: forall a b.
+  (Maybe String -> a -> b) -> BindingBody a -> BindingBody b
+trackIntroBindingBody next (BindingBody name ty body) = BindingBody name
+  do next Nothing ty
+  do next (Just name) body
 
 -- LetF binds in its last argument
-trackVarLetF :: forall a b.
-  Var -> (Var -> a -> b) -> LetF a -> LetF b
-trackVarLetF (V x n) next (LetF x' mt r b) =
-  let
-    n' = if x == x' then n + 1 else n
-    b' =  next (V x n') b
-    mt' = next (V x n ) <$> mt
-    r'  = next (V x n ) r
-  in LetF x' mt' r' b'
+trackIntroLetF :: forall a b.
+  (Maybe String -> a -> b) -> LetF a -> LetF b
+trackIntroLetF next (LetF name mty value body) = LetF name
+  do next Nothing <$> mty
+  do next Nothing value
+  do next (Just name) body
 
-trackVar :: forall m v a b. Var -> (Var -> a -> b) ->
+trackVar :: Var -> Maybe String -> Var
+trackVar v@(V x n) = case _ of
+  Just x' | x == x' -> V x (n+1)
+  _ -> v
+
+trackIntro :: forall m v a b. (Maybe String -> a -> b) ->
   VariantF (Variable m + v) a -> VariantF (Variable m + v) b
-trackVar v@(V x n) next = VariantF.mapSomeExpand
-  { "Var": over Const identity
-  , "Lam": trackVarBindingBody v next
-  , "Pi": trackVarBindingBody v next
-  , "Let": trackVarLetF v next
+trackIntro next = VariantF.mapSomeExpand
+  (trackIntroCases next)
+  (next Nothing)
+
+trackIntroCases :: forall a b. (Maybe String -> a -> b) ->
+  { "Var" :: Const Var a -> Const Var b
+  , "Lam" :: BindingBody a -> BindingBody b
+  , "Pi"  :: BindingBody a -> BindingBody b
+  , "Let" :: LetF a -> LetF b
   }
-  (next v)
+trackIntroCases next =
+  { "Var": over Const identity
+  , "Lam": trackIntroBindingBody next
+  , "Pi": trackIntroBindingBody next
+  , "Let": trackIntroLetF next
+  }
 
 -- A simple algebra for `freeIn`. Will work with anything that is
 -- vaguely like `Expr`.
@@ -150,7 +160,7 @@ freeInAlg ::
     VariantF.FoldableVFRL rl (Variable m + v) =>
   Algebra (VariantF (Variable m + v)) (Var -> Disj Boolean)
 freeInAlg layer v | layer # VariantF.on (_S::S_ "Var") (eq (Const v)) ff = Disj true
-freeInAlg layer v = layer # trackVar v ((#)) >>> fold
+freeInAlg layer v = layer # trackIntro ((#) <<< trackVar v) >>> fold
 
 -- Generic Algebra for shifting variable references.
 type ShiftAlg node v = ( shift :: { delta :: Int, variable :: Var } | v )
@@ -161,9 +171,9 @@ shiftAlgG = elim1 (_S::S_ "shift")
     { "Var": over Const \(V x' n') ->
       let n'' = if x == x' && n <= n' then n' + delta else n'
       in V x' n''
-    , "Lam": trackVarBindingBody v recur
-    , "Pi": trackVarBindingBody v recur
-    , "Let": trackVarLetF v recur
+    , "Lam": trackIntroBindingBody (recur <<< trackVar v)
+    , "Pi": trackIntroBindingBody (recur <<< trackVar v)
+    , "Let": trackIntroLetF (recur <<< trackVar v)
     }
 
 -- Generic Algebra for substituting variable references.
@@ -171,30 +181,24 @@ shiftAlgG = elim1 (_S::S_ "shift")
 type SubstAlg node v = ( subst :: { variable :: Var, substitution :: node } | v )
 type ShiftSubstAlg node v = ShiftAlg node + SubstAlg node + v
 shiftSubstAlgG :: forall m. GenericExprAlgebraVT NodeOps (Variable m) ShiftSubstAlg
-shiftSubstAlgG rest = rest # shiftAlgG <<< elim1 (_S::S_ "subst")
-  \i@{ variable: variable@(V x n), substitution } node ->
+shiftSubstAlgG rest = rest # shiftAlgG <<< Variant.on (_S::S_ "subst")
+  \i@{ variable: variable, substitution } node ->
   let
-    substIfTarget c = node.unlayer >>> VariantF.on (_S::S_ "Var")
-      (eq (Const variable)) ff >>=
-      if _ then pure substitution else c
+    isTarget = node.unlayer >>> VariantF.on (_S::S_ "Var")
+      (eq (Const variable)) ff
+    substIfTarget c = isTarget >>= if _ then pure substitution else c
     subst1 v' s' = node.recurse <<< Variant.inj (_S::S_ "subst") $ { variable: v', substitution: s' }
-    shift1 = node.recurse <<< Variant.inj (_S::S_ "shift") <<< { delta: 1, variable: _ }
+    shift1 name = node.recurse <<< Variant.inj (_S::S_ "shift") $ { delta: 1, variable: V name 0 }
+    -- If a variable is being introduced, shift it _in_ in the substitution
+    addShift1 = flip case _ of
+      Nothing -> identity
+      Just name -> shift1 name
+    -- And track if the variable being searched for should be changed as well
+    next = subst1 <$> trackVar variable <*> addShift1 substitution
   in
-  { "Var": identity identity
-  , "Lam": trackVarBindingBody variable subst1 >>>
-    \(BindingBody x' _A b) -> BindingBody x'
-        do _A $                 substitution
-        do b  $ shift1 (V x' 0) substitution
-  , "Pi": trackVarBindingBody variable subst1 >>>
-    \(BindingBody x' _A _B) -> BindingBody x'
-        do _A $                 substitution
-        do _B $ shift1 (V x' 0) substitution
-  , "Let": trackVarLetF variable subst1 >>>
-    \(LetF x' mt r b) -> LetF x'
-        do mt <@> substitution
-        do r   $  substitution
-        do b   $  shift1 (V x' 0) substitution
-  }
+    isTarget >>= if _
+      then pure substitution
+      else runOverCases node.overlayer (next Nothing) $ trackIntroCases next
 
 -- The Generic Algebra Command for renaming (which consists of shifting and
 -- substitution).
@@ -219,14 +223,8 @@ alphaNormalizeAlgG :: forall m. GenericExprAlgebraVT ConsNodeOps (Variable m) Al
 alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormalize") \_ node ->
   let
     norm = node.recurse <<< Variant.inj (_S::S_ "alphaNormalize") $ {}
-    renam "_" = norm
-    renam x = norm <<< doRenameAlgG (V x 0) (V "_" 0) node
+    renam Nothing = norm
+    renam (Just "_") = norm
+    renam (Just x) = norm <<< doRenameAlgG (V x 0) (V "_" 0) node
   in
-  { "Var": identity identity
-  , "Lam": \(BindingBody x _A b) ->
-      BindingBody "_" (norm _A) (renam x b)
-  , "Pi": \(BindingBody x _A _B) ->
-      BindingBody "_" (norm _A) (renam x _B)
-  , "Let": \(LetF x mt a b) ->
-      LetF "_" (norm <$> mt) (norm a) (renam x b)
-  }
+  trackIntroCases renam
