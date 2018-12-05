@@ -16,6 +16,7 @@ import Data.Bifoldable (bifoldMap, bifoldl, bifoldr)
 import Data.Bifunctor (bimap)
 import Data.Bitraversable (bisequence, bitraverse)
 import Data.Const as Const
+import Data.Either (Either(..))
 import Data.Foldable (class Foldable, foldMap, foldr, foldl, for_, traverse_)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, forWithIndex_)
 import Data.Function (on)
@@ -44,7 +45,7 @@ import Data.Semigroup.Foldable (class Foldable1)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Symbol (class IsSymbol)
-import Data.These (These(..))
+import Data.These (These(..), theseLeft)
 import Data.Traversable (class Traversable, for, sequence, traverse)
 import Data.TraversableWithIndex (forWithIndex)
 import Data.Tuple (Tuple(..), curry, uncurry)
@@ -58,7 +59,7 @@ import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Transformations (OverCases(..))
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
-import Dhall.Variables (freeInAlg, shiftAlgG)
+import Dhall.Variables (freeInAlg, shiftAlgG, trackIntro)
 import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, mapR, project, transCata)
 import Type.Row as R
 import Validation.These as V
@@ -213,23 +214,24 @@ typecheckSketch :: forall w r m a. Eq a => StrMapIsh m =>
   Fxpr m a -> Ocpr w r m a
 typecheckSketch alg = recursor2D \layer@(EnvT (Tuple focus e)) -> ReaderT \ctx -> Product
   let
+    ctx' = defer \_ -> ctx <#> join bimap plain
     reconsitute :: (Focus m a -> Focus m a) -> Expr m a -> Fxpr m a
     reconsitute newF e' =
       -- Expr -> Bxpr
       originateFrom (newF <$> focus) $ e'
   in Tuple
       -- TODO: preserve spans from original (when possible)
-      -- TODO: substitute
       do defer \_ -> reconsitute NormalizeFocus $
-          Dhall.Core.normalize $ embed $ plain <$> e
-      -- TODO: add focus information
-      do Compose $ defer \_ -> alg $ WithBiCtx ctx $ (((layer))) # (>>>)
-          -- for each child of layer, tell how it should be contextualized,
-          -- once the context is adapted for its place in the AST
-          -- (in particular, if `layer` is `Let`/`Pi`/`Lam`)
-          do map $ flip bicontextualizeWithin
-          -- and then give each branch of `layer` the proper context
-          do mapEnvT $ _Newtype $ bicontextualizeWithin1 ctx
+          Dhall.Core.normalize $
+          substContextExpr (extract ctx') $
+          embed $ plain <$> e
+      do Compose $ defer \_ ->
+          map (alsoOriginateFrom (TypeOfFocus <$> focus)) $
+          alg $ WithBiCtx ctx $ (((layer))) #
+            -- contextualize each child of `layer` in the proper context,
+            -- adapted for its place in the AST
+            -- (in particular, if `layer` is `Let`/`Pi`/`Lam`)
+            do mapEnvT $ _Newtype $ bicontextualizeWithin1 bicontextualizeWithin ctx
 
 normalizeOp :: forall w r m a b. Operations w r m a b -> b
 normalizeOp (Product (Tuple lz _)) = extract lz
@@ -260,6 +262,12 @@ originateFrom = go where
   go focus e = embed $ EnvT $ Tuple focus $ e # project
     # mapWithIndex \i' -> go $ FocusWithin (pure i') <$> focus
 
+alsoOriginateFrom :: forall m a. FunctorWithIndex String m =>
+  NonEmptyList (Focus m a) -> Fxpr m a -> Fxpr m a
+alsoOriginateFrom = go where
+  go focus e = embed $ EnvT $ Tuple (focus <> extract e) $ e # project # unwrap # extract
+    # mapWithIndex \i' -> go $ FocusWithin (pure i') <$> focus
+
 typecheckStepCtx :: forall w r m a. FunctorWithIndex String m =>
   BiContext (Oxpr w r m a) -> Ocpr w r m a -> Feedback w r m a (Oxpr w r m a)
 typecheckStepCtx ctx = typecheckOp <<< step2D <<< bicontextualizeWithin ctx
@@ -269,34 +277,46 @@ bicontextualizeWithin :: forall w r m a. FunctorWithIndex String m =>
   Ocpr w r m a -> Oxpr w r m a
 bicontextualizeWithin = flip <<< cata <<< flip $ \ctx -> (<<<) In $
   over Compose $ hoistCofree (runReaderT <@> ctx) >>> do
-    map $ mapEnvT $ _Newtype $ bicontextualizeWithin1 ctx
+    map $ mapEnvT $ _Newtype $ bicontextualizeWithin1 (#) ctx
 
-bicontextualizeWithin1 :: forall m a node.
-  BiContext node ->
-  AST.ExprLayerF m a (BiContext node -> node) ->
-  AST.ExprLayerF m a node
-bicontextualizeWithin1 ctx = go ctx #
-  VariantF.mapSomeExpand
-    { "Let": \(AST.LetF name mty value expr) ->
-      let
-        mty' = go ctx <$> mty
-        value' = go ctx value
-        entry = case mty' of
-          Nothing -> This value'
-          Just ty' -> Both value' ty'
-        ctx' = Dhall.Context.insert name entry ctx
-        expr' = go ctx' expr
-      in AST.LetF name mty' value' expr'
-    , "Lam": \(AST.BindingBody name ty body) ->
-      let ty' = go ctx ty
-          ctx' = Dhall.Context.insert name (That ty') ctx
-      in AST.BindingBody name ty' (go ctx' body)
-    , "Pi": \(AST.BindingBody name ty body) ->
-      let ty' = go ctx ty
-          ctx' = Dhall.Context.insert name (That ty') ctx
-      in AST.BindingBody name ty' (go ctx' body)
-    }
-  where go = (#)
+bicontextualizeWithin1 :: forall m a node node'.
+  (BiContext node' -> node -> node') ->
+  BiContext node' ->
+  AST.ExprLayerF m a node ->
+  AST.ExprLayerF m a node'
+bicontextualizeWithin1 go ctx = trackIntro case _ of
+  Nothing -> go ctx
+  Just (Tuple name introed) -> go $
+    Dhall.Context.insert name (join bimap (go ctx) introed) ctx
+
+substContext1 :: forall m a node node'.
+  (BiContext node' -> node -> node') ->
+  BiContext node' ->
+  AST.ExprLayerF m a node ->
+  Either node' (AST.ExprLayerF m a node')
+substContext1 go ctx = bicontextualizeWithin1 go ctx >>>
+  let
+    lookup (AST.V x n) = Dhall.Context.lookup x n ctx >>= theseLeft
+    obtain = VariantF.on (_S::S_ "Var") (unwrap >>> lookup) (pure Nothing)
+  in obtain >>= case _ of
+    Just e -> \_ -> Left e
+    _      -> \e -> Right e
+
+substContextFxpr :: forall m a.
+  BiContext (Fxpr m a) ->
+  Fxpr m a -> Fxpr m a
+substContextFxpr = flip $ cata \(EnvT (Tuple focus (AST.ERVF layer))) ctx ->
+  case substContext1 (#) ctx layer of
+    Left e -> e
+    Right layer' -> embed $ EnvT $ Tuple focus $ AST.ERVF layer'
+
+substContextExpr :: forall m a.
+  BiContext (Expr m a) ->
+  Expr m a -> Expr m a
+substContextExpr = flip $ cata \(AST.ERVF layer) ctx ->
+  case substContext1 (#) ctx layer of
+    Left e -> e
+    Right layer' -> embed $ AST.ERVF layer'
 
 newborn :: forall m a. FunctorWithIndex String m =>
   Expr m a -> Fxpr m a

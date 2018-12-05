@@ -10,6 +10,8 @@ import Data.HeytingAlgebra (ff)
 import Data.Maybe (Maybe(..))
 import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (over, unwrap)
+import Data.These (These(..))
+import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Core.AST (BindingBody(..), CONST, Expr, LetF(..), S_, Var(..), Variable, _S, mkVar)
@@ -113,33 +115,41 @@ freeIn = flip $ cata $ freeInAlg <<< unwrap
 -- Helpers to track how certain functors affect variable scope --
 -----------------------------------------------------------------
 
+type Intro node = Tuple String (These node node)
 -- BindingBody binds in its last argument
 trackIntroBindingBody :: forall a b.
-  (Maybe String -> a -> b) -> BindingBody a -> BindingBody b
+  (Maybe (Intro a) -> a -> b) -> BindingBody a -> BindingBody b
 trackIntroBindingBody next (BindingBody name ty body) = BindingBody name
   do next Nothing ty
-  do next (Just name) body
+  do next (Just (Tuple name (That ty))) body
 
 -- LetF binds in its last argument
 trackIntroLetF :: forall a b.
-  (Maybe String -> a -> b) -> LetF a -> LetF b
+  (Maybe (Intro a) -> a -> b) -> LetF a -> LetF b
 trackIntroLetF next (LetF name mty value body) = LetF name
   do next Nothing <$> mty
   do next Nothing value
-  do next (Just name) body
+  let
+    valty = case mty of
+      Nothing -> This value
+      Just ty -> Both value ty
+  in next (Just (Tuple name valty)) body
+
+trackIntroVar :: forall a. Maybe (Intro a) -> Maybe String
+trackIntroVar = map fst
 
 trackVar :: Var -> Maybe String -> Var
 trackVar v@(V x n) = case _ of
   Just x' | x == x' -> V x (n+1)
   _ -> v
 
-trackIntro :: forall m v a b. (Maybe String -> a -> b) ->
+trackIntro :: forall m v a b. (Maybe (Intro a) -> a -> b) ->
   VariantF (Variable m + v) a -> VariantF (Variable m + v) b
 trackIntro next = VariantF.mapSomeExpand
   (trackIntroCases next)
   (next Nothing)
 
-trackIntroCases :: forall a b. (Maybe String -> a -> b) ->
+trackIntroCases :: forall a b. (Maybe (Intro a) -> a -> b) ->
   { "Var" :: Const Var a -> Const Var b
   , "Lam" :: BindingBody a -> BindingBody b
   , "Pi"  :: BindingBody a -> BindingBody b
@@ -160,7 +170,7 @@ freeInAlg ::
     VariantF.FoldableVFRL rl (Variable m + v) =>
   Algebra (VariantF (Variable m + v)) (Var -> Disj Boolean)
 freeInAlg layer v | layer # VariantF.on (_S::S_ "Var") (eq (Const v)) ff = Disj true
-freeInAlg layer v = layer # trackIntro ((#) <<< trackVar v) >>> fold
+freeInAlg layer v = layer # trackIntro ((#) <<< trackVar v <<< trackIntroVar) >>> fold
 
 -- Generic Algebra for shifting variable references.
 type ShiftAlg node v = ( shift :: { delta :: Int, variable :: Var } | v )
@@ -171,9 +181,9 @@ shiftAlgG = elim1 (_S::S_ "shift")
     { "Var": over Const \(V x' n') ->
       let n'' = if x == x' && n <= n' then n' + delta else n'
       in V x' n''
-    , "Lam": trackIntroBindingBody (recur <<< trackVar v)
-    , "Pi": trackIntroBindingBody (recur <<< trackVar v)
-    , "Let": trackIntroLetF (recur <<< trackVar v)
+    , "Lam": trackIntroBindingBody (recur <<< trackVar v <<< trackIntroVar)
+    , "Pi": trackIntroBindingBody (recur <<< trackVar v <<< trackIntroVar)
+    , "Let": trackIntroLetF (recur <<< trackVar v <<< trackIntroVar)
     }
 
 -- Generic Algebra for substituting variable references.
@@ -198,7 +208,8 @@ shiftSubstAlgG rest = rest # shiftAlgG <<< Variant.on (_S::S_ "subst")
   in
     isTarget >>= if _
       then pure substitution
-      else runOverCases node.overlayer (next Nothing) $ trackIntroCases next
+      else runOverCases node.overlayer (next Nothing) $
+        trackIntroCases (next <<< trackIntroVar)
 
 -- The Generic Algebra Command for renaming (which consists of shifting and
 -- substitution).
@@ -227,4 +238,4 @@ alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormaliz
     renam (Just "_") = norm
     renam (Just x) = norm <<< doRenameAlgG (V x 0) (V "_" 0) node
   in
-  trackIntroCases renam
+  trackIntroCases (renam <<< trackIntroVar)
