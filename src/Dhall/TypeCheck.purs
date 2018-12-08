@@ -29,6 +29,7 @@ import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Lazy (Lazy, defer)
+import Data.Lens (preview)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.List (List(..), (:))
 import Data.List as List
@@ -47,18 +48,20 @@ import Data.Set as Set
 import Data.Symbol (class IsSymbol)
 import Data.These (These(..), theseLeft)
 import Data.Traversable (class Traversable, for, sequence, traverse)
-import Data.TraversableWithIndex (forWithIndex)
+import Data.TraversableWithIndex (class TraversableWithIndex, forWithIndex)
 import Data.Tuple (Tuple(..), curry, uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Context (Context)
+import Dhall.Context (Context(..))
 import Dhall.Context as Dhall.Context
+import Dhall.Core (Var, shift)
 import Dhall.Core as Dhall.Core
 import Dhall.Core.AST (Const(..), Expr, ExprRowVF(..), ExprRowVFI, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Transformations (OverCases(..))
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
+import Dhall.Core.Zippers (_ix)
 import Dhall.Variables (freeInAlg, shiftAlgG, trackIntro)
 import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, mapR, project, transCata)
 import Type.Row as R
@@ -105,29 +108,25 @@ derive instance functorTypeCheckError :: Functor (TypeCheckError r)
 
 -- An expression for the user to look at when an error occurs, giving
 -- specific context for what went wrong.
-data Focus m a
+data Location a
   -- Atomic: The original tree being typechecked
   = MainExpression
-  -- Derived: Pointer to a focus within the prior focus
-  | FocusWithin (Lazy ExprRowVFI) (Focus m a)
-  -- Derived: Point to the type of another focus
-  | TypeOfFocus (Focus m a)
-  -- Derived: Point to the same focus but normalized
-  | NormalizeFocus (Focus m a)
+  -- Derived: Pointer to a location within the prior location
+  | LocationWithin (Lazy ExprRowVFI) (Location a)
+  -- Derived: Point to the type of another location
+  | TypeOfLocation (Location a)
+  -- Derived: Point to the same location but normalized
+  | NormalizeLocation (Location a)
   -- Atomic: A new expression, whose origin is shrouded in mystery ...
-  | ConstructedFocus (Expr m a)
+  | Place a
+  -- Derived: The same expression, but with something different about it
+  | Substituted (Context (Maybe a)) (Location a)
+  -- Derived: The same expression, but with something _slightly_ different about it
+  | Shifted Int Var (Location a)
+type ExprLocation m a = Location (Expr m a)
 
-type WR w r = WriterT (Array (Variant w)) (V.Erroring (Variant r))
-type Feedback w r m a = WriterT (Array (Variant w)) (V.Erroring (TypeCheckError r (NonEmptyList (Focus m a))))
-
--- This is a weird kind of catamorphism that lazily gives access to
--- (potentially infinite) applications of itself to its output.
--- `para` on steroids.
-recursor :: forall t f m. Recursive t f => Functor m =>
-  (f (Cofree m t) -> m t) -> t -> m t
-recursor f = go where
-  go :: t -> m t
-  go e = project e <#> ana (EnvT <<< (identity &&& go)) # f
+type WR w e = WriterT (Array (Variant w)) (V.Erroring e)
+type Feedback w r m a = WR w (TypeCheckError r (L m a))
 
 -- I don't know how to explain this. I think it makes sense.
 type TwoD m f = Mu (Compose (Cofree m) f)
@@ -177,12 +176,28 @@ unEnvT (EnvT (Tuple _ fa)) = fa
 env :: forall e f a. EnvT e f a -> e
 env (EnvT (Tuple e _)) = e
 
--- Expr with Focus for each node
+mapEnv :: forall e e' f a. (e -> e') -> EnvT e f a -> EnvT e' f a
+mapEnv f (EnvT (Tuple e fa)) = EnvT (Tuple (f e) fa)
+
+bitransProduct :: forall f g a h l b. (f a -> h b) -> (g a -> l b) -> Product f g a -> Product h l b
+bitransProduct natF natG (Product e) = Product (bimap natF natG e)
+
 type Ann m a = Cofree (AST.ExprRowVF m a)
-type F m a = NonEmptyList (Focus m a)
-type Fxpr m a = Ann m a (F m a)
-type FxprF m a = EnvT (F m a) (AST.ExprRowVF m a)
+-- Expressions end up being associated with many locations, trust me on this ...
+type L m a = NonEmptyList (ExprLocation m a)
+-- Expr with Location for each node
+type Lxpr m a = Ann m a (L m a)
+-- Pattern Functor for Lxpr
+type LxprF m a = EnvT (L m a) (AST.ExprRowVF m a)
+
+-- Context of which variables have been introduced with their
+-- types and/or values:
+-- - `This`: `Let` binding with only a value and no type annotation
+-- - `Both`: `Let` binding with a value and its type annotation
+-- - `That`: `Lam`/`Pi` binding
 type BiContext a = Context (These a a)
+-- Context that only records which variables have concrete values in scope.
+type SubstContext a = Context (Maybe a)
 -- Product (Compose Context (Join These)) f, but without the newtypes
 data WithBiCtx f a = WithBiCtx (BiContext a) (f a)
 getBiCtx :: forall f a. WithBiCtx f a -> BiContext a
@@ -200,142 +215,223 @@ instance foldableWithBiCtx :: Foldable f => Foldable (WithBiCtx f) where
 instance traversableWithBiCtx :: Traversable f => Traversable (WithBiCtx f) where
   traverse f (WithBiCtx ctx fa) = WithBiCtx <$> traverse (join bitraverse f) ctx <*> traverse f fa
   sequence (WithBiCtx ctx fa) = WithBiCtx <$> traverse bisequence ctx <*> sequence fa
+
 -- Operations that can be performed on AST nodes:
 --   Left (Lazy): substitution+normalization (idempotent, but this isn't enforced ...)
 --   Right (Lazy Feedback): typechecking
+-- TODO: more operations? extensibility? connect to GenericExprAlgebra?
 type Operations w r m a = Product Lazy (Compose Lazy (Feedback w r m a))
 -- Operations, but requiring a context
 -- NOTE: the expression type is fixed to Oxpr here. It seems to work.
 type Operacions w r m a = ReaderT (BiContext (Oxpr w r m a)) (Operations w r m a)
--- Expr with Focus, along the dual axes of Operations and the AST
-type Oxpr w r m a = TwoD (Operations w r m a) (FxprF m a)
--- Oxpr, but where the operations need the context
-type Ocpr w r m a = TwoD (Operacions w r m a) (FxprF m a)
+-- Expr with Location, along the dual axes of Operations and the AST
+type Oxpr w r m a = TwoD (Operations w r m a) (LxprF m a)
+-- Oxpr, but where the operations still need the context
+type Ocpr w r m a = TwoD (Operacions w r m a) (LxprF m a)
 
+-- Transforms the simple "typecheck one thing" algorithm to the full-blown
+-- Lxpr -> Ocpr transformation (which includes typechecking and normalizing
+-- each node).
 typecheckSketch :: forall w r m a. Eq a => StrMapIsh m =>
-  (WithBiCtx (FxprF m a) (Oxpr w r m a) -> Feedback w r m a (Fxpr m a)) ->
-  Fxpr m a -> Ocpr w r m a
-typecheckSketch alg = recursor2D \layer@(EnvT (Tuple focus e)) -> ReaderT \ctx -> Product
+  (WithBiCtx (LxprF m a) (Oxpr w r m a) -> Feedback w r m a (Lxpr m a)) ->
+  Lxpr m a -> Ocpr w r m a
+typecheckSketch alg = recursor2D \layer@(EnvT (Tuple loc e)) -> ReaderT \ctx -> Product
   let
-    ctx' = defer \_ -> ctx <#> join bimap plain
-    reconsitute :: (Focus m a -> Focus m a) -> Expr m a -> Fxpr m a
+    ctx' = defer \_ -> ctx <#> theseLeft >>> map plain
+    reconsitute :: (ExprLocation m a -> ExprLocation m a) -> Expr m a -> Lxpr m a
     reconsitute newF e' =
       -- Expr -> Bxpr
-      originateFrom (newF <$> focus) $ e'
+      originateFrom (newF <$> loc) $ e'
   in Tuple
       -- TODO: preserve spans from original (when possible)
-      do defer \_ -> reconsitute NormalizeFocus $
+      do defer \_ -> reconsitute NormalizeLocation $
           Dhall.Core.normalize $
           substContextExpr (extract ctx') $
           embed $ plain <$> e
       do Compose $ defer \_ ->
-          map (alsoOriginateFrom (TypeOfFocus <$> focus)) $
+          map (alsoOriginateFrom (TypeOfLocation <$> loc)) $
           alg $ WithBiCtx ctx $ (((layer))) #
             -- contextualize each child of `layer` in the proper context,
             -- adapted for its place in the AST
             -- (in particular, if `layer` is `Let`/`Pi`/`Lam`)
-            do mapEnvT $ _Newtype $ bicontextualizeWithin1 bicontextualizeWithin ctx
+            do mapEnvT $ _Newtype $ bicontextualizeWithin1 shiftInOxpr0 bicontextualizeWithin ctx
 
+-- Run the normalization operation.
 normalizeOp :: forall w r m a b. Operations w r m a b -> b
 normalizeOp (Product (Tuple lz _)) = extract lz
 
+-- Run the typechecking operation.
 typecheckOp :: forall w r m a. Operations w r m a ~> Feedback w r m a
 typecheckOp (Product (Tuple _ (Compose lz))) = extract lz
 
+-- Normalize an Oxpr (once).
 normalizeStep :: forall w r m a.
   Oxpr w r m a -> Oxpr w r m a
 normalizeStep = step2D >>> normalizeOp
 
+-- Typecheck an Oxpr (once).
 typecheckStep :: forall w r m a.
   Oxpr w r m a -> Feedback w r m a (Oxpr w r m a)
 typecheckStep = step2D >>> typecheckOp
 
+-- Unwrap the Expr layer at the top of an Oxpr.
 unlayerO :: forall w r m a.
   Oxpr w r m a -> AST.ExprLayerF m a (Oxpr w r m a)
 unlayerO = project >>> un Compose >>> extract >>> unEnvT >>> unwrap
 
+-- Modify the Expr layer at the top of an Oxpr.
 overlayerO :: forall w r m a.
   (AST.ExprLayerF m a (Oxpr w r m a) -> AST.ExprLayerF m a (Oxpr w r m a)) ->
   Oxpr w r m a -> Oxpr w r m a
 overlayerO = mapR <<< over Compose <<< map <<< mapEnvT <<< over ERVF
 
+-- Add the locations to an expression with locations, starting with the given
+-- one at top, and adapting the locations to the tree (i.e. adding LocationWithin).
 originateFrom :: forall m a. FunctorWithIndex String m =>
-  NonEmptyList (Focus m a) -> Expr m a -> Fxpr m a
+  L m a -> Expr m a -> Lxpr m a
 originateFrom = flip <<< cata <<< flip $ go where
-  go focus e = embed $ EnvT $ Tuple focus $ (((e)))
-    # mapWithIndex \i' -> (#) (FocusWithin (pure i') <$> focus)
+  go loc e = embed $ EnvT $ Tuple loc $ (((e)))
+    # mapWithIndex \i' -> (#) $ LocationWithin (pure i') <$> loc
 
+-- Same drill, but for a tree that already has locations.
 alsoOriginateFrom :: forall m a. FunctorWithIndex String m =>
-  NonEmptyList (Focus m a) -> Fxpr m a -> Fxpr m a
+  L m a -> Lxpr m a -> Lxpr m a
 alsoOriginateFrom = flip <<< cata <<< flip $ go where
-  go focus (EnvT (Tuple f e)) = embed $ EnvT $ Tuple (focus <> f) $ (((e)))
-    # mapWithIndex \i' -> (#) $ FocusWithin (pure i') <$> focus
+  go loc (EnvT (Tuple f e)) = embed $ EnvT $ Tuple (loc <> f) $ (((e)))
+    # mapWithIndex \i' -> (#) $ LocationWithin (pure i') <$> loc
 
+topLoc :: forall w r m a. Oxpr w r m a -> L m a
+topLoc = project >>> un Compose >>> extract >>> env
+
+alsoOriginateFromO :: forall w r m a. FunctorWithIndex String m =>
+  L m a -> Oxpr w r m a -> Oxpr w r m a
+alsoOriginateFromO = mapR <<< over Compose <<< go where
+  go loc e =
+    Cofree.deferCofree \_ -> Tuple (Cofree.head e) (Cofree.tail e)
+    # bimap
+      do mapEnv (loc <> _) >>> mapEnvT (mapWithIndex \i' -> mapR $ over Compose $ go $ LocationWithin (pure i') <$> loc)
+      do bitransProduct (map (go (NormalizeLocation <$> loc))) (map (go (TypeOfLocation <$> loc)))
+
+-- Typecheck an Ocpr by giving it a context. Returns an Oxpr.
 typecheckStepCtx :: forall w r m a. FunctorWithIndex String m =>
   BiContext (Oxpr w r m a) -> Ocpr w r m a -> Feedback w r m a (Oxpr w r m a)
 typecheckStepCtx ctx = typecheckOp <<< step2D <<< bicontextualizeWithin ctx
 
+-- Turn an Ocpr into an Oxpr by giving it a context at the top-level
+-- (which gets adapted as necessary through the layers).
 bicontextualizeWithin :: forall w r m a. FunctorWithIndex String m =>
   BiContext (Oxpr w r m a) ->
   Ocpr w r m a -> Oxpr w r m a
 bicontextualizeWithin = flip <<< cata <<< flip $ \ctx -> (<<<) In $
   over Compose $ hoistCofree (runReaderT <@> ctx) >>> do
-    map $ mapEnvT $ _Newtype $ bicontextualizeWithin1 (#) ctx
+    map $ mapEnvT $ _Newtype $ bicontextualizeWithin1 shiftInOxpr0 (#) ctx
 
+-- Adapt the context for how it should go through one layer.
 bicontextualizeWithin1 :: forall m a node node'.
+  (String -> node' -> node') -> -- shift in a name
   (BiContext node' -> node -> node') ->
   BiContext node' ->
   AST.ExprLayerF m a node ->
   AST.ExprLayerF m a node'
-bicontextualizeWithin1 go ctx = trackIntro case _ of
+bicontextualizeWithin1 shiftIn_node' go ctx = trackIntro case _ of
   Nothing -> go ctx
   Just (Tuple name introed) -> go $
-    Dhall.Context.insert name (join bimap (go ctx) introed) ctx
+    Dhall.Context.insert name (join bimap (go ctx) introed) $
+      join bimap (shiftIn_node' name) <$> ctx
 
+substcontextualizeWithin1 :: forall m a node node'.
+  (String -> node' -> node') -> -- shift in a name
+  (SubstContext node' -> node -> node') ->
+  SubstContext node' ->
+  AST.ExprLayerF m a node ->
+  AST.ExprLayerF m a node'
+substcontextualizeWithin1 shiftIn_node' go ctx = trackIntro case _ of
+  Nothing -> go ctx
+  Just (Tuple name introed) -> go $
+    Dhall.Context.insert name (map (go ctx) $ theseLeft introed) $
+      map (shiftIn_node' name) <$> ctx
+
+-- Substitute any variables available in the context (via `Let` bindings),
+-- return `Left` when there is a substitution, or recursing with the provided
+-- function (adapting context).
 substContext1 :: forall m a node node'.
-  (BiContext node' -> node -> node') ->
-  BiContext node' ->
+  (String -> node' -> node') -> -- shift in a name
+  (SubstContext node' -> node -> node') ->
+  SubstContext node' ->
   AST.ExprLayerF m a node ->
   Either node' (AST.ExprLayerF m a node')
-substContext1 go ctx = bicontextualizeWithin1 go ctx >>>
+substContext1 shiftIn_node' go ctx =
+  substcontextualizeWithin1 shiftIn_node' go ctx >>>
+  subst1 ctx
+
+subst1 :: forall m a node.
+  SubstContext node ->
+  AST.ExprLayerF m a node ->
+  Either node (AST.ExprLayerF m a node)
+subst1 ctx =
   let
-    lookup (AST.V x n) = Dhall.Context.lookup x n ctx >>= theseLeft
+    lookup (AST.V x n) = Dhall.Context.lookup x n ctx >>= identity
     obtain = VariantF.on (_S::S_ "Var") (unwrap >>> lookup) (pure Nothing)
   in obtain >>= case _ of
     Just e -> \_ -> Left e
     _      -> \e -> Right e
 
-substContextFxpr :: forall m a.
-  BiContext (Fxpr m a) ->
-  Fxpr m a -> Fxpr m a
-substContextFxpr = flip $ cata \(EnvT (Tuple focus (AST.ERVF layer))) ctx ->
-  case substContext1 (#) ctx layer of
-    Left e -> e
-    Right layer' -> embed $ EnvT $ Tuple focus $ AST.ERVF layer'
+-- Substitute a context all the way down an Lxpr, snowballing as it goes
+-- (i.e., `Let` bindings introduced in it are also substituted).
+-- FIXME: make sure entries in context are substituted in their own context too?
+substContextLxpr :: forall m a. FunctorWithIndex String m =>
+  SubstContext (Lxpr m a) ->
+  Lxpr m a -> Lxpr m a
+substContextLxpr ctx e = alsoOriginateFrom (Substituted (map denote <$> ctx) <$> extract e) $
+  (#) ctx $ (((e))) # cata \(EnvT (Tuple loc (ERVF layer))) ctx' ->
+    case substContext1 shiftInLxpr0 (#) ctx' layer of
+      Left e' -> e'
+      Right layer' -> embed $ EnvT $ Tuple loc $ ERVF layer'
 
+-- FIXME: make sure entries in context are substituted in their own context too?
+substContextOxpr :: forall w r m a. FunctorWithIndex String m =>
+  SubstContext (Oxpr w r m a) ->
+  Oxpr w r m a -> Oxpr w r m a
+substContextOxpr ctx e = alsoOriginateFromO (Substituted (map plain <$> ctx) <$> topLoc e) $
+  (mapR $ over Compose $ go ctx) e where
+    go ctx' e' = Cofree.deferCofree \_ ->
+      case go1 ctx' (Cofree.head e') of
+        Left (In (Compose e'')) -> (Tuple <$> Cofree.head <*> Cofree.tail) e''
+        Right layer' -> Tuple layer' $
+          bitransProduct (map (go ctx)) (map (go ctx)) (Cofree.tail e')
+    go1 ctx' (EnvT (Tuple loc (ERVF layer))) =
+      case substContext1 shiftInOxpr0 (mapR <<< over Compose <<< go) ctx' layer of
+        Left e' -> Left $ e'
+        Right layer' -> Right $ EnvT $ Tuple loc $ ERVF layer'
+
+-- Substitute context all the way down an Expr.
 substContextExpr :: forall m a.
-  BiContext (Expr m a) ->
+  SubstContext (Expr m a) ->
   Expr m a -> Expr m a
-substContextExpr = flip $ cata \(AST.ERVF layer) ctx ->
-  case substContext1 (#) ctx layer of
+substContextExpr = flip $ cata \(ERVF layer) ctx ->
+  case substContext1 (\name -> shift 1 (AST.V name 0)) (#) ctx layer of
     Left e -> e
-    Right layer' -> embed $ AST.ERVF layer'
+    Right layer' -> embed $ ERVF layer'
 
+-- Originate from ... itself. Profound.
 newborn :: forall m a. FunctorWithIndex String m =>
-  Expr m a -> Fxpr m a
-newborn e0 = e0 # originateFrom (pure (ConstructedFocus e0))
+  Expr m a -> Lxpr m a
+newborn e0 = e0 # originateFrom (pure (Place e0))
 
-newmother :: forall m a.
-  AST.ExprLayerF m a (Fxpr m a) -> Fxpr m a
+-- Wrap an Lxpr layer, prserving and augmenting the existing locations
+-- from the new root.
+newmother :: forall m a. FunctorWithIndex String m =>
+  AST.ExprLayerF m a (Lxpr m a) -> Lxpr m a
 newmother e0 =
   let e_ = AST.embedW $ e0 <#> denote
-  in embed $
-  EnvT (Tuple (pure (ConstructedFocus e_)) (wrap e0))
+  in embed $ EnvT $ Tuple (pure (Place e_)) $ wrap e0
+    # mapWithIndex \i -> alsoOriginateFrom (pure (LocationWithin (pure i) (Place e_)))
 
 denote :: forall m a s.
   Ann m a s -> Expr m a
 denote = transCata unEnvT
 
+-- Oxpr -> Expr
 plain ::
   forall t w m a s.
     Comonad w =>
@@ -343,20 +439,22 @@ plain ::
   t -> Expr m a
 plain = head2D >>> denote
 
-runFxprAlg :: forall m a i.
+runLxprAlg :: forall m a i. FunctorWithIndex String m =>
   (
     i ->
-    { unlayer :: Fxpr m a -> AST.ExprLayerF m a (Fxpr m a)
-    , overlayer :: OverCases (AST.ExprLayerRow m a) (Fxpr m a)
-    , recurse :: i -> Fxpr m a -> Fxpr m a
-    } -> Fxpr m a -> Fxpr m a
+    { unlayer :: Lxpr m a -> AST.ExprLayerF m a (Lxpr m a)
+    , overlayer :: OverCases (AST.ExprLayerRow m a) (Lxpr m a)
+    , recurse :: i -> Lxpr m a -> Lxpr m a
+    , layer :: AST.ExprLayerF m a (Lxpr m a) -> Lxpr m a
+    } -> Lxpr m a -> Lxpr m a
   ) ->
-  i -> Fxpr m a -> Fxpr m a
-runFxprAlg alg = go where
+  i -> Lxpr m a -> Lxpr m a
+runLxprAlg alg = go where
   go i e = alg i
     { unlayer: project >>> unEnvT >>> unwrap
-    , overlayer: OverCases $ mapR <<< mapEnvT <<< over AST.ERVF
+    , overlayer: OverCases $ mapR <<< mapEnvT <<< over ERVF
     , recurse: go
+    , layer: newmother
     } e
 
 runOxprAlg :: forall w r m a i.
@@ -375,51 +473,85 @@ runOxprAlg alg = go where
     , recurse: go
     } e
 
-freeInOxpr :: forall w r m a. Foldable m => AST.Var -> Oxpr w r m a -> Disj Boolean
+freeInOxpr :: forall w r m a. Foldable m => Var -> Oxpr w r m a -> Disj Boolean
 freeInOxpr = flip $ cata $ un Compose >>> extract >>> unEnvT >>> unwrap >>> freeInAlg
 
-freeInFxpr :: forall m a. Foldable m => AST.Var -> Fxpr m a -> Disj Boolean
-freeInFxpr = flip $ cata $ unEnvT >>> unwrap >>> freeInAlg
+freeInLxpr :: forall m a. Foldable m => Var -> Lxpr m a -> Disj Boolean
+freeInLxpr = flip $ cata $ unEnvT >>> unwrap >>> freeInAlg
 
-shiftFxpr :: forall m a. Int -> AST.Var -> Fxpr m a -> Fxpr m a
-shiftFxpr delta variable = runFxprAlg (Variant.case_ # shiftAlgG) $
-  Variant.inj (_S::S_ "shift") { delta, variable }
+shiftLxpr :: forall m a. FunctorWithIndex String m =>
+  Int -> Var -> Lxpr m a -> Lxpr m a
+shiftLxpr delta variable e = alsoOriginateFrom (Shifted delta variable <$> extract e) $
+  (((e))) #
+    runLxprAlg (Variant.case_ # shiftAlgG)
+      (Variant.inj (_S::S_ "shift") { delta, variable })
 
-shiftInFxpr :: forall m a. AST.Var -> Fxpr m a -> Fxpr m a
-shiftInFxpr = shiftFxpr 1
+shiftInLxpr :: forall m a. FunctorWithIndex String m =>
+  Var -> Lxpr m a -> Lxpr m a
+shiftInLxpr = shiftLxpr 1
 
-shiftInFxpr0 :: forall m a. String -> Fxpr m a -> Fxpr m a
-shiftInFxpr0 v = shiftInFxpr (AST.V v 0)
+shiftInLxpr0 :: forall m a. FunctorWithIndex String m =>
+  String -> Lxpr m a -> Lxpr m a
+shiftInLxpr0 v = shiftInLxpr (AST.V v 0)
 
-shiftOutFxpr :: forall m a. AST.Var -> Fxpr m a -> Fxpr m a
-shiftOutFxpr = shiftFxpr (-1)
+shiftOutLxpr :: forall m a. FunctorWithIndex String m =>
+  Var -> Lxpr m a -> Lxpr m a
+shiftOutLxpr = shiftLxpr (-1)
 
-tryShiftOutFxpr :: forall m a. Foldable m => AST.Var -> Fxpr m a -> Maybe (Fxpr m a)
-tryShiftOutFxpr v e | un Disj (freeInFxpr v e) = Nothing
-tryShiftOutFxpr v e = Just (shiftOutFxpr v e)
+tryShiftOutLxpr :: forall m a. TraversableWithIndex String m =>
+  Var -> Lxpr m a -> Maybe (Lxpr m a)
+tryShiftOutLxpr v e | un Disj (freeInLxpr v e) = Nothing
+tryShiftOutLxpr v e = Just (shiftOutLxpr v e)
 
-tryShiftOut0Fxpr :: forall m a. Foldable m => String -> Fxpr m a -> Maybe (Fxpr m a)
-tryShiftOut0Fxpr v = tryShiftOutFxpr (AST.V v 0)
+tryShiftOut0Lxpr :: forall m a. TraversableWithIndex String m =>
+  String -> Lxpr m a -> Maybe (Lxpr m a)
+tryShiftOut0Lxpr v = tryShiftOutLxpr (AST.V v 0)
 
-shiftOxpr :: forall w r m a. Int -> AST.Var -> Oxpr w r m a -> Oxpr w r m a
+shiftOxpr :: forall w r m a. Int -> Var -> Oxpr w r m a -> Oxpr w r m a
 shiftOxpr delta variable = runOxprAlg (Variant.case_ # shiftAlgG) $
   Variant.inj (_S::S_ "shift") { delta, variable }
 
-shiftInOxpr :: forall w r m a. AST.Var -> Oxpr w r m a -> Oxpr w r m a
+shiftInOxpr :: forall w r m a. Var -> Oxpr w r m a -> Oxpr w r m a
 shiftInOxpr = shiftOxpr 1
 
 shiftInOxpr0 :: forall w r m a. String -> Oxpr w r m a -> Oxpr w r m a
 shiftInOxpr0 v = shiftInOxpr (AST.V v 0)
 
-shiftOutOxpr :: forall w r m a. AST.Var -> Oxpr w r m a -> Oxpr w r m a
+shiftOutOxpr :: forall w r m a. Var -> Oxpr w r m a -> Oxpr w r m a
 shiftOutOxpr = shiftOxpr (-1)
 
-tryShiftOutOxpr :: forall w r m a. Foldable m => AST.Var -> Oxpr w r m a -> Maybe (Oxpr w r m a)
+tryShiftOutOxpr :: forall w r m a. Foldable m => Var -> Oxpr w r m a -> Maybe (Oxpr w r m a)
 tryShiftOutOxpr v e | un Disj (freeInOxpr v e) = Nothing
 tryShiftOutOxpr v e = Just (shiftOutOxpr v e)
 
 tryShiftOut0Oxpr :: forall w r m a. Foldable m => String -> Oxpr w r m a -> Maybe (Oxpr w r m a)
 tryShiftOut0Oxpr v = tryShiftOutOxpr (AST.V v 0)
+
+locateO :: forall w r m a. Eq a => StrMapIsh m =>
+  (a -> FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a (Expr m a)) ->
+  BiContext (OxprE w ( "Not found" :: ExprRowVFI | r ) m a) ->
+  ExprLocation m a -> OxprE w ( "Not found" :: ExprRowVFI | r ) m a ->
+  FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a
+    (OxprE w ( "Not found" :: ExprRowVFI | r ) m a)
+locateO tpa ctx =
+  let
+    tcingFrom foc = typecheckSketch (typecheckAlgebra tpa) <<< originateFrom foc
+    tcingFromIn foc = tcingFrom foc >>> bicontextualizeWithin ctx
+    tcingFromSelf e = tcingFromIn (pure (Place e)) e
+  in case _ of
+    MainExpression -> pure
+    Place e -> pure (pure (tcingFromSelf e))
+    NormalizeLocation loc -> locateO tpa ctx loc >>> map normalizeStep
+    TypeOfLocation loc -> locateO tpa ctx loc >=> typecheckStep
+    Substituted ctx' loc -> locateO tpa ctx loc >>> map
+      (substContextOxpr (map tcingFromSelf <$> ctx'))
+    Shifted d v loc -> locateO tpa ctx loc >>> map (shiftOxpr d v)
+    LocationWithin i loc -> locateO tpa ctx loc >=> \e -> V.liftW $
+      e # unlayerO # ERVF # preview (_ix (extract i)) # do
+        V.note $ TypeCheckError
+          { location: pure loc
+          , tag: Variant.inj (_S::S_ "Not found") (extract i)
+          }
 
 newtype Inconsistency a = Inconsistency (NonEmpty (NonEmpty List) a)
 derive instance newtypeInconsistency :: Newtype (Inconsistency a) _
@@ -512,7 +644,7 @@ type Errors r =
   , "Invalid input type" :: Unit
   , "Invalid output type" :: Unit
   , "No dependent types" :: Unit
-  , "Unbound variable" :: AST.Var
+  , "Unbound variable" :: Var
   , "Annotation mismatch" :: Unit
   , "`Kind` has no type" :: Unit
   , "Unexpected type" :: Boolean
@@ -532,15 +664,15 @@ typeWithA :: forall w r m a.
   Context (Expr m a) ->
   Expr m a ->
   FeedbackE w r m a (Expr m a)
-typeWithA tpa (Dhall.Context.Context ctx0) e0 = do
+typeWithA tpa (Context ctx0) e0 = do
   let
-    tcFrom foc = typecheckSketch (typecheckAlgebra (pure <<< tpa)) <<< originateFrom foc
+    tcingFrom foc = typecheckSketch (typecheckAlgebra (pure <<< tpa)) <<< originateFrom foc
     -- Convert an Expr to an Oxpr and typecheck in the given context
     -- (which must consist of Oxprs)
     tcingIn :: Expr m a -> BiContext (OxprE w r m a) -> FeedbackE w r m a (OxprE w r m a)
     tcingIn e ctx =
       let
-        e' = tcFrom (pure (ConstructedFocus e)) e # bicontextualizeWithin ctx
+        e' = tcingFrom (pure (Place e)) e # bicontextualizeWithin ctx
       in e' <$ typecheckStep e'
     -- Add an item into the context
     go :: BiContext (OxprE w r m a) -> Tuple String (Expr m a) -> FeedbackE w r m a (BiContext (OxprE w r m a))
@@ -549,14 +681,14 @@ typeWithA tpa (Dhall.Context.Context ctx0) e0 = do
           join bimap (shiftInOxpr0 name) <$> ctx
   -- convert ctx0 and e0 to Oxprs
   ctxO <- foldl (\ctx e -> ctx >>= flip go e) (pure Dhall.Context.empty) ctx0
-  let eO = tcFrom (pure MainExpression) e0
+  let eO = tcingFrom (pure MainExpression) e0
   -- and run typechecking on eO
   plain <$> typecheckStepCtx ctxO eO
 
 typecheckAlgebra :: forall w r m a. Eq a => StrMapIsh m =>
   (a -> FeedbackE w r m a (Expr m a)) ->
-  WithBiCtx (FxprF m a) (OxprE w r m a) -> FeedbackE w r m a (Fxpr m a)
-typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer # VariantF.match
+  WithBiCtx (LxprF m a) (OxprE w r m a) -> FeedbackE w r m a (Lxpr m a)
+typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # VariantF.match
   let
     errorHere ::
       forall sym t r' b.
@@ -566,7 +698,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer #
       t ->
       FeedbackE w r m a b
     errorHere sym v = V.liftW $ V.erroring $ TypeCheckError
-      { location: focus
+      { location: loc
       , tag: Variant.inj sym v
       }
 
@@ -579,7 +711,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer #
       Maybe b ->
       FeedbackE w r m a b
     noteHere sym v = (<<<) V.liftW $ V.note $ TypeCheckError
-      { location: focus
+      { location: loc
       , tag: Variant.inj sym v
       }
 
@@ -590,8 +722,8 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer #
       IsSymbol sym =>
       R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
       SProxy sym ->
-      f (Fxpr m a) ->
-      Fxpr m a
+      f (Lxpr m a) ->
+      Lxpr m a
     mk sym = newmother <<< VariantF.inj sym
     ensure' :: forall sym f r'.
       IsSymbol sym =>
@@ -634,13 +766,13 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer #
     onConst :: forall x.
       (x -> FeedbackE w r m a (Expr m a)) ->
       Const.Const x (OxprE w r m a) ->
-      FeedbackE w r m a (Fxpr m a)
+      FeedbackE w r m a (Lxpr m a)
     onConst f (Const.Const c) = f c <#> newborn
-    always :: forall y. Expr m a -> y -> FeedbackE w r m a (Fxpr m a)
+    always :: forall y. Expr m a -> y -> FeedbackE w r m a (Lxpr m a)
     always b _ = pure $ newborn $ b
-    aType :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (Fxpr m a)
+    aType :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (Lxpr m a)
     aType = always $ AST.mkType
-    aFunctor :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (Fxpr m a)
+    aFunctor :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (Lxpr m a)
     aFunctor = always $ AST.mkArrow AST.mkType AST.mkType
     a0 = AST.mkVar (AST.V "a" 0)
 
@@ -650,7 +782,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer #
     checkBinOp ::
       Expr m a ->
       Pair (OxprE w r m a) ->
-      FeedbackE w r m a (Fxpr m a)
+      FeedbackE w r m a (Lxpr m a)
     checkBinOp t p = suggest (newborn t) $ forWithIndex_ p $
       -- t should be simple enough that alphaNormalize is unnecessary
       \side operand -> typecheckStep operand >>= normalizeStep >>> case _ of
@@ -751,7 +883,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer #
         checkFn = ensure (_S::S_ "Pi") f
           (errorHere (_S::S_ "Not a function"))
         checkArg (AST.BindingBody name aty0 rty) aty1 =
-          let shifted = tryShiftOut0Fxpr name (head2D rty) in
+          let shifted = tryShiftOut0Lxpr name (head2D rty) in
           if Dhall.Core.judgmentallyEqual (plain aty0) (plain aty1)
             then pure case shifted of
               Nothing -> mk(_S::S_"App") $ Pair
@@ -1075,7 +1207,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer #
   , "ImportAlt": \(Pair l _r) ->
       -- FIXME???
       head2D <$> typecheckStep l
-  , "Embed": map (originateFrom (TypeOfFocus <$> focus)) <<< tpa <<< unwrap
+  , "Embed": map (originateFrom (TypeOfLocation <$> loc)) <<< tpa <<< unwrap
   }
 
 -- The explanation, given as text interspersed with specific places to look at
@@ -1085,7 +1217,7 @@ explain ::
     StrMapIsh m =>
   Expr m a ->
   Variant (Errors ()) ->
-  AST.TextLitF (Focus m a)
+  AST.TextLitF (ExprLocation m a)
 explain origin =
   let errorUnknownError = AST.TextLit "Sorry I don’t know how to explain this error"
       nodeType = AST.projectW origin
