@@ -174,6 +174,9 @@ headAndSpine = Cofree.head &&& transCata (runEnvT >>> extract)
 unEnvT :: forall e f a. EnvT e f a -> f a
 unEnvT (EnvT (Tuple _ fa)) = fa
 
+env :: forall e f a. EnvT e f a -> e
+env (EnvT (Tuple e _)) = e
+
 -- Expr with Focus for each node
 type Ann m a = Cofree (AST.ExprRowVF m a)
 type F m a = NonEmptyList (Focus m a)
@@ -249,24 +252,24 @@ typecheckStep = step2D >>> typecheckOp
 
 unlayerO :: forall w r m a.
   Oxpr w r m a -> AST.ExprLayerF m a (Oxpr w r m a)
-unlayerO = project >>> un Compose >>> extract >>> un EnvT >>> extract >>> unwrap
+unlayerO = project >>> un Compose >>> extract >>> unEnvT >>> unwrap
 
 overlayerO :: forall w r m a.
   (AST.ExprLayerF m a (Oxpr w r m a) -> AST.ExprLayerF m a (Oxpr w r m a)) ->
   Oxpr w r m a -> Oxpr w r m a
-overlayerO = mapR <<< over Compose <<< map <<< over EnvT <<< map <<< over ERVF
+overlayerO = mapR <<< over Compose <<< map <<< mapEnvT <<< over ERVF
 
 originateFrom :: forall m a. FunctorWithIndex String m =>
   NonEmptyList (Focus m a) -> Expr m a -> Fxpr m a
-originateFrom = go where
-  go focus e = embed $ EnvT $ Tuple focus $ e # project
-    # mapWithIndex \i' -> go $ FocusWithin (pure i') <$> focus
+originateFrom = flip <<< cata <<< flip $ go where
+  go focus e = embed $ EnvT $ Tuple focus $ (((e)))
+    # mapWithIndex \i' -> (#) (FocusWithin (pure i') <$> focus)
 
 alsoOriginateFrom :: forall m a. FunctorWithIndex String m =>
   NonEmptyList (Focus m a) -> Fxpr m a -> Fxpr m a
-alsoOriginateFrom = go where
-  go focus e = embed $ EnvT $ Tuple (focus <> extract e) $ e # project # unwrap # extract
-    # mapWithIndex \i' -> go $ FocusWithin (pure i') <$> focus
+alsoOriginateFrom = flip <<< cata <<< flip $ go where
+  go focus (EnvT (Tuple f e)) = embed $ EnvT $ Tuple (focus <> f) $ (((e)))
+    # mapWithIndex \i' -> (#) $ FocusWithin (pure i') <$> focus
 
 typecheckStepCtx :: forall w r m a. FunctorWithIndex String m =>
   BiContext (Oxpr w r m a) -> Ocpr w r m a -> Feedback w r m a (Oxpr w r m a)
@@ -444,19 +447,23 @@ consistency (List.Cons a0 (List.Cons a1 an)) =
   pure $ Inconsistency $ a0 :| a1 :| an
 consistency _ = empty
 
-ensureConsistency :: forall w r m a v. StrMapIsh m =>
+ensureConsistency :: forall m f v. Applicative f => StrMapIsh m =>
   (v -> v -> Boolean) ->
-  (Inconsistency (NonEmptyList { key :: String, value :: v }) -> Feedback w r m a Void) ->
-  m v -> Feedback w r m a Unit
-ensureConsistency egal error = traverse_ (map absurd <<< error)
+  (Inconsistency (NonEmptyList { key :: String, value :: v }) -> f Void) ->
+  m v -> f Unit
+ensureConsistency egal error = traverse_ error
   <<< consistency
   <<< tabulateGroupings egal
   <<< map (uncurry { key: _, value: _ })
   <<< StrMapIsh.toUnfoldable
 
-ensureNodupes :: forall w r m a v i. Ord i => FoldableWithIndex i m =>
-  (NonEmptyList i -> Feedback w r m a Void) ->
-  m v -> Feedback w r m a Unit
+ensureNodupes ::
+  forall f m v i.
+    Applicative f =>
+    FoldableWithIndex i m =>
+    Ord i =>
+  (NonEmptyList i -> f Void) ->
+  m v -> f Unit
 ensureNodupes error = traverse_ error <<< findDupes
 
 findDupes :: forall i m v. Ord i => FoldableWithIndex i m =>
@@ -488,8 +495,8 @@ type Errors r =
   , "Inconsistent field types" :: Inconsistency (NonEmptyList String)
   , "Duplicate union fields" :: NonEmptyList String
   , "Invalid alternative type" :: String
-  , "Must combine a record" :: Boolean
-  , "Record mismatch" :: Unit
+  , "Must combine a record" :: Tuple (List String) Boolean
+  , "Record kind mismatch" :: List String
   , "Oops" :: Unit
   , "Must merge a record" :: Unit
   , "Must merge a union" :: Unit
@@ -525,21 +532,31 @@ typeWithA :: forall w r m a.
   Context (Expr m a) ->
   Expr m a ->
   FeedbackE w r m a (Expr m a)
-typeWithA tpa (Dhall.Context.Context ctx0) e0 = plain <$> go ctx0 Dhall.Context.empty where
-  -- TODO: use a proper fold or something
-  tcIn :: Expr m a -> BiContext (OxprE w r m a) -> FeedbackE w r m a (OxprE w r m a)
-  tcIn e ctx = typecheckSketch typecheckAlgebra
-    (originateFrom (pure MainExpression) e)
-    # typecheckStepCtx ctx
-  go Nil ctx = tcIn e0 ctx
-  go (Tuple name ty : ctx') ctx = tcIn ty ctx >>= \ty' -> go ctx' $
-      Dhall.Context.insert name (That (ty' :: OxprE w r m a)) $
-        -- TODO: is this right?
-        join bimap (shiftInOxpr0 name) <$> ctx
+typeWithA tpa (Dhall.Context.Context ctx0) e0 = do
+  let
+    tcFrom foc = typecheckSketch (typecheckAlgebra (pure <<< tpa)) <<< originateFrom foc
+    -- Convert an Expr to an Oxpr and typecheck in the given context
+    -- (which must consist of Oxprs)
+    tcingIn :: Expr m a -> BiContext (OxprE w r m a) -> FeedbackE w r m a (OxprE w r m a)
+    tcingIn e ctx =
+      let
+        e' = tcFrom (pure (ConstructedFocus e)) e # bicontextualizeWithin ctx
+      in e' <$ typecheckStep e'
+    -- Add an item into the context
+    go :: BiContext (OxprE w r m a) -> Tuple String (Expr m a) -> FeedbackE w r m a (BiContext (OxprE w r m a))
+    go ctx (Tuple name ty) = tcingIn ty ctx <#> \ty' ->
+        Dhall.Context.insert name (That (ty' :: OxprE w r m a)) $
+          join bimap (shiftInOxpr0 name) <$> ctx
+  -- convert ctx0 and e0 to Oxprs
+  ctxO <- foldl (\ctx e -> ctx >>= flip go e) (pure Dhall.Context.empty) ctx0
+  let eO = tcFrom (pure MainExpression) e0
+  -- and run typechecking on eO
+  plain <$> typecheckStepCtx ctxO eO
 
 typecheckAlgebra :: forall w r m a. Eq a => StrMapIsh m =>
+  (a -> FeedbackE w r m a (Expr m a)) ->
   WithBiCtx (FxprF m a) (OxprE w r m a) -> FeedbackE w r m a (Fxpr m a)
-typecheckAlgebra (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer # VariantF.match
+typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer # VariantF.match
   let
     errorHere ::
       forall sym t r' b.
@@ -699,6 +716,8 @@ typecheckAlgebra (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer # Var
         noteHere (_S::S_ "`Kind` has no type") unit
   , "Var": unwrap >>> \v@(AST.V name idx) ->
       case Dhall.Context.lookup name idx ctx of
+        -- NOTE: this should always succeed, since the body is checked only
+        -- after the `Let` value succeeds.
         Just (This value) -> head2D <$> typecheckStep value
         Just (That ty) -> pure $ head2D ty
         Just (Both _ ty) -> pure $ head2D ty
@@ -924,57 +943,55 @@ typecheckAlgebra (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer # Var
         pure $ mk(_S::S_"Union") $ head2D <$> kts'
   , "Combine":
       let
-        combineTypes (p :: Pair (OxprE w r m a)) = do
+        combineTypes here (p :: Pair (OxprE w r m a)) = do
           AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
             forWithIndex p \side ty -> do
               kts <- ensure' (_S::S_ "Record") ty
-                (errorHere (_S::S_ "Must combine a record") <<< const side)
+                (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
               kind <- typecheckStep ty
               const <- ensureConst kind
-                (errorHere (_S::S_ "Must combine a record") <<< const side)
+                (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
               pure { kts, const }
-          when (constL /= constR) $ errorHere (_S::S_ "Record mismatch") unit
+          when (constL /= constR) $ errorHere (_S::S_ "Record kind mismatch") $ here
           let combined = StrMapIsh.unionWith (pure pure) ktsL ktsR
           mk(_S::S_"Record") <$> forWithIndex combined \k ->
             case _ of
               Both ktsL' ktsR' ->
-                -- TODO: scope
-                combineTypes (AST.Pair ktsL' ktsR')
+                combineTypes (k : here) (AST.Pair ktsL' ktsR')
               This t -> pure (head2D t)
               That t -> pure (head2D t)
-      in (=<<) combineTypes <<< traverse typecheckStep
+      in (=<<) (combineTypes Nil) <<< traverse typecheckStep
   , "CombineTypes":
       let
-        combineTypes (p :: Pair (OxprE w r m a)) = do
+        combineTypes here (p :: Pair (OxprE w r m a)) = do
           AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
             forWithIndex p \side ty -> do
               kts <- ensure' (_S::S_ "Record") ty
-                (errorHere (_S::S_ "Must combine a record") <<< const side)
+                (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
               kind <- typecheckStep ty
               const <- ensureConst kind
-                (errorHere (_S::S_ "Must combine a record") <<< const side)
+                (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
               pure { kts, const }
-          when (constL /= constR) $ errorHere (_S::S_ "Record mismatch") unit
+          when (constL /= constR) $ errorHere (_S::S_ "Record kind mismatch") $ here
           let combined = StrMapIsh.unionWith (pure pure) ktsL ktsR
           mk(_S::S_"Record") <$> forWithIndex combined \k ->
             case _ of
               Both ktsL' ktsR' ->
-                -- TODO: scope
-                combineTypes (AST.Pair ktsL' ktsR')
+                combineTypes (k : here) (AST.Pair ktsL' ktsR')
               This t -> pure (head2D t)
               That t -> pure (head2D t)
-      in combineTypes
+      in combineTypes Nil
   , "Prefer": \p -> do
       AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
         forWithIndex p \side kvs -> do
           ty <- typecheckStep kvs
           kts <- ensure' (_S::S_ "Record") ty
-            (errorHere (_S::S_ "Must combine a record") <<< const side)
+            (errorHere (_S::S_ "Must combine a record") <<< const (Tuple Nil side))
           k <- typecheckStep ty
           const <- unwrap <$> ensure (_S::S_ "Const") ty
-            (errorHere (_S::S_ "Must combine a record") <<< const side)
+            (errorHere (_S::S_ "Must combine a record") <<< const (Tuple Nil side))
           pure { kts, const }
-      when (constL /= constR) $ errorHere (_S::S_ "Record mismatch") unit
+      when (constL /= constR) $ errorHere (_S::S_ "Record kind mismatch") $ Nil
       let
         preference = Just <<< case _ of
           This a -> a
@@ -1034,8 +1051,6 @@ typecheckAlgebra (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer # Var
       let
         error _ = errorHere (_S::S_ "Cannot access") $ field
         handleRecord kts = do
-          -- FIXME
-          -- _ <- loop ctx t
           case StrMapIsh.get field kts of
             Just ty -> pure (head2D ty)
             Nothing -> errorHere (_S::S_ "Missing field") $ field
@@ -1047,22 +1062,20 @@ typecheckAlgebra (WithBiCtx ctx (EnvT (Tuple focus layer))) = unwrap layer # Var
           # VariantF.on (_S::S_ "Record") handleRecord
           # VariantF.on (_S::S_ "Const") \(Const.Const c) ->
               case c of
-                Type -> expr # unlayerO #
+                Type -> expr # normalizeStep # unlayerO #
                   VariantF.on (_S::S_ "Union") handleType (\_ -> error unit)
                 _ -> error unit
       tyR # normalizeStep # unlayerO # casing
   , "Project": \(Tuple (App ks) expr) -> do
       kts <- ensure (_S::S_ "Record") expr
         (errorHere (_S::S_ "Cannot project"))
-      -- FIXME
-      -- _ <- loop ctx t
       mk(_S::S_"Record") <<< map head2D <$> forWithIndex ks \k (_ :: Unit) ->
         StrMapIsh.get k kts #
           (noteHere (_S::S_ "Missing field") k)
   , "ImportAlt": \(Pair l _r) ->
       -- FIXME???
       head2D <$> typecheckStep l
-  , "Embed": errorHere (_S::S_ "Oops") <<< const unit -- TODO
+  , "Embed": map (originateFrom (TypeOfFocus <$> focus)) <<< tpa <<< unwrap
   }
 
 -- The explanation, given as text interspersed with specific places to look at
