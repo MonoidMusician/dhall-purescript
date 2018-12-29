@@ -119,8 +119,10 @@ data Location a
   | NormalizeLocation (Location a)
   -- Atomic: A new expression, whose origin is shrouded in mystery ...
   | Place a
-  -- Derived: The same expression, but with something different about it
-  | Substituted (Context (Maybe a)) (Location a)
+  -- Derived: The same expression, but with available `let`-bound variables
+  -- substituted in from the local context.
+  -- TODO: select specific variables to be substituted (`Set Var`?)
+  | Substituted (Location a)
   -- Derived: The same expression, but with something _slightly_ different about it
   | Shifted Int Var (Location a)
 type ExprLocation m a = Location (Expr m a)
@@ -382,7 +384,7 @@ subst1 ctx =
 substContextLxpr :: forall m a. FunctorWithIndex String m =>
   SubstContext (Lxpr m a) ->
   Lxpr m a -> Lxpr m a
-substContextLxpr ctx e = alsoOriginateFrom (Substituted (map denote <$> ctx) <$> extract e) $
+substContextLxpr ctx e = alsoOriginateFrom (Substituted <$> extract e) $
   (#) ctx $ (((e))) # cata \(EnvT (Tuple loc (ERVF layer))) ctx' ->
     case substContext1 shiftInLxpr0 (#) ctx' layer of
       Left e' -> e'
@@ -392,7 +394,7 @@ substContextLxpr ctx e = alsoOriginateFrom (Substituted (map denote <$> ctx) <$>
 substContextOxpr :: forall w r m a. FunctorWithIndex String m =>
   SubstContext (Oxpr w r m a) ->
   Oxpr w r m a -> Oxpr w r m a
-substContextOxpr ctx e = alsoOriginateFromO (Substituted (map plain <$> ctx) <$> topLoc e) $
+substContextOxpr ctx e = alsoOriginateFromO (Substituted <$> topLoc e) $
   (mapR $ over Compose $ go ctx) e where
     go ctx' e' = Cofree.deferCofree \_ ->
       case go1 ctx' (Cofree.head e') of
@@ -405,6 +407,7 @@ substContextOxpr ctx e = alsoOriginateFromO (Substituted (map plain <$> ctx) <$>
         Right layer' -> Right $ EnvT $ Tuple loc $ ERVF layer'
 
 -- Substitute context all the way down an Expr.
+-- FIXME: make sure entries in context are substituted in their own context too?
 substContextExpr :: forall m a.
   SubstContext (Expr m a) ->
   Expr m a -> Expr m a
@@ -536,15 +539,15 @@ locateO :: forall w r m a. Eq a => StrMapIsh m =>
 locateO tpa ctx =
   let
     tcingFrom foc = typecheckSketch (typecheckAlgebra tpa) <<< originateFrom foc
-    tcingFromIn foc = tcingFrom foc >>> bicontextualizeWithin ctx
-    tcingFromSelf e = tcingFromIn (pure (Place e)) e
+    tcingFromIn foc ctx' = tcingFrom foc >>> bicontextualizeWithin ctx'
+    tcingFromHere foc = tcingFromIn foc ctx
+    tcingFromSelfHere e = tcingFromHere (pure (Place e)) e
   in case _ of
     MainExpression -> pure
-    Place e -> pure (pure (tcingFromSelf e))
+    Place e -> pure (pure (tcingFromSelfHere e))
     NormalizeLocation loc -> locateO tpa ctx loc >>> map normalizeStep
     TypeOfLocation loc -> locateO tpa ctx loc >=> typecheckStep
-    Substituted ctx' loc -> locateO tpa ctx loc >>> map
-      (substContextOxpr (map tcingFromSelf <$> ctx'))
+    Substituted loc -> locateO tpa ctx loc >>> map (substContextOxpr (theseLeft <$> ctx))
     Shifted d v loc -> locateO tpa ctx loc >>> map (shiftOxpr d v)
     LocationWithin i loc -> locateO tpa ctx loc >=> \e -> V.liftW $
       e # unlayerO # ERVF # preview (_ix (extract i)) # do
@@ -655,6 +658,23 @@ type Errors r =
 type FeedbackE w r m a = Feedback w (Errors r) m a
 type OxprE w r m a = Oxpr w (Errors r) m a
 
+reconstituteCtx :: forall a b m. Bind m => Applicative m =>
+  (Context b -> a -> m b) -> Context a -> m (Context b)
+reconstituteCtx = reconstituteCtxFrom Dhall.Context.empty
+
+-- TODO: MonadRec?
+-- TODO: convince myself that no shifting needs to occur here
+reconstituteCtxFrom :: forall a b m. Bind m => Applicative m =>
+  Context b -> (Context b -> a -> m b) -> Context a -> m (Context b)
+reconstituteCtxFrom ctx0 f = foldr f' (pure ctx0) <<< un Context <<< unshift where
+  -- TODO: shift?
+  unshift = identity
+  f' (Tuple name a) mctx = do
+    ctx <- mctx
+    b <- f ctx a
+    -- TODO: shift?
+    pure $ Dhall.Context.insert name b ctx
+
 {-| Generalization of `typeWith` that allows type-checking the `Embed`
     constructor with custom logic
 -}
@@ -664,23 +684,18 @@ typeWithA :: forall w r m a.
   Context (Expr m a) ->
   Expr m a ->
   FeedbackE w r m a (Expr m a)
-typeWithA tpa (Context ctx0) e0 = do
+typeWithA tpa ctx0 e0 = do
   let
     tcingFrom foc = typecheckSketch (typecheckAlgebra (pure <<< tpa)) <<< originateFrom foc
     -- Convert an Expr to an Oxpr and typecheck in the given context
     -- (which must consist of Oxprs)
-    tcingIn :: Expr m a -> BiContext (OxprE w r m a) -> FeedbackE w r m a (OxprE w r m a)
-    tcingIn e ctx =
+    tcingIn :: BiContext (OxprE w r m a) -> Expr m a -> FeedbackE w r m a (OxprE w r m a)
+    tcingIn ctx e =
       let
         e' = tcingFrom (pure (Place e)) e # bicontextualizeWithin ctx
       in e' <$ typecheckStep e'
-    -- Add an item into the context
-    go :: BiContext (OxprE w r m a) -> Tuple String (Expr m a) -> FeedbackE w r m a (BiContext (OxprE w r m a))
-    go ctx (Tuple name ty) = tcingIn ty ctx <#> \ty' ->
-        Dhall.Context.insert name (That (ty' :: OxprE w r m a)) $
-          join bimap (shiftInOxpr0 name) <$> ctx
   -- convert ctx0 and e0 to Oxprs
-  ctxO <- foldl (\ctx e -> ctx >>= flip go e) (pure Dhall.Context.empty) ctx0
+  ctxO <- reconstituteCtx (\ctx ty -> That <$> tcingIn ctx ty) ctx0
   let eO = tcingFrom (pure MainExpression) e0
   -- and run typechecking on eO
   plain <$> typecheckStepCtx ctxO eO
