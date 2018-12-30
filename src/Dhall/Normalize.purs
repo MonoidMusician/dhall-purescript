@@ -251,8 +251,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
   shiftSubstShift0 var substitution =
     let variable = AST.V var 0 in
     extractW <<< node.recurse (Variant.inj (_S::S_ "shift") { variable, delta: (-1) }) <<<
-    extractW <<< node.recurse (Variant.inj (_S::S_ "subst") { variable, substitution }) <<<
-    extractW <<< node.recurse (Variant.inj (_S::S_ "shift") { variable, delta: 1 })
+    extractW <<< node.recurse (Variant.inj (_S::S_ "subst") { variable, substitution:
+      substitution # extractW <<< node.recurse (Variant.inj (_S::S_ "shift") { variable, delta: 1 })
+    })
 
   freeIn :: AST.Var -> node -> Disj Boolean
   freeIn var = Variables.freeIn var <<< unlayers
@@ -836,13 +837,10 @@ judgmentallyEqual eL0 eR0 = alphaBetaNormalize eL0 == alphaBetaNormalize eR0
     alphaBetaNormalize = Variables.alphaNormalize <<< normalize
 
 -- | Check if an expression is in a normal form given a context of evaluation.
--- | Unlike `isNormalized`, this will fully normalize and traverse through the expression.
---
--- | It is much more efficient to use `isNormalized`.
 isNormalized :: forall m a. StrMapIsh m => Eq a => Expr m a -> Boolean
 isNormalized = isNormalizedWith mempty
 
--- | ~Quickly~ Check if an expression is in normal form
+-- | Quickly check if an expression is in normal form
 isNormalizedWith :: forall m a. StrMapIsh m => Eq a => Normalizer m a -> Expr m a -> Boolean
 isNormalizedWith ctx e0 = case normalizeWithW ctx e0 of
   Compose (Tuple (Conj wasNormalized) _) -> wasNormalized

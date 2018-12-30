@@ -145,7 +145,7 @@ trackVar v@(V x n) = case _ of
 
 trackIntro :: forall m v a b. (Maybe (Intro a) -> a -> b) ->
   VariantF (Variable m + v) a -> VariantF (Variable m + v) b
-trackIntro next = VariantF.mapSomeExpand
+trackIntro next = VariantF.expandOverMatch
   (trackIntroCases next)
   (next Nothing)
 

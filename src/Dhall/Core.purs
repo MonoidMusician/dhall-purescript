@@ -45,8 +45,9 @@ import Dhall.Core.Imports
   , prettyImportType
   ) as Exports
 import Dhall.Normalize
-  ( Normalizer(..)
-  , boundedType
+  ( Normalizer
+  , GNormalizerF(..)
+  , boundedTypeG
   , isNormalized
   , isNormalizedWith
   , judgmentallyEqual
@@ -54,7 +55,8 @@ import Dhall.Normalize
   , normalizeWith
   ) as Exports
 import Dhall.Normalize.Apps
-  ( Apps(..)
+  ( Apps
+  , AppsF(..)
   , _NoApp
   , apps
   , noapp
