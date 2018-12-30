@@ -318,7 +318,10 @@ bicontextualizeWithin1 :: forall m a node node'.
 bicontextualizeWithin1 shiftIn_node' go ctx = trackIntro case _ of
   Nothing -> go ctx
   Just (Tuple name introed) -> go $
-    Dhall.Context.insert name (join bimap (go ctx) introed) $
+    -- NOTE: shift in the current entry as soon as it becomes part of the context
+    -- (so it stays valid even if it references the name being shifted in)
+    Dhall.Context.insert name (join bimap (shiftIn_node' name <<< go ctx) introed) $
+      -- Also shift in the remaining parts of the context
       join bimap (shiftIn_node' name) <$> ctx
 
 substcontextualizeWithin1 :: forall m a node node'.
@@ -330,7 +333,7 @@ substcontextualizeWithin1 :: forall m a node node'.
 substcontextualizeWithin1 shiftIn_node' go ctx = trackIntro case _ of
   Nothing -> go ctx
   Just (Tuple name introed) -> go $
-    Dhall.Context.insert name (map (go ctx) $ theseLeft introed) $
+    Dhall.Context.insert name (map (shiftIn_node' name <<< go ctx) $ theseLeft introed) $
       map (shiftIn_node' name) <$> ctx
 
 -- Substitute any variables available in the context (via `Let` bindings),
@@ -883,7 +886,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
             then pure case shifted of
               Nothing -> mk(_S::S_"App") $ Pair
                 do mk(_S::S_"Lam") (head2D <$> AST.BindingBody name aty0 rty)
-                do head2D aty1
+                do head2D a
               Just rty' -> rty'
             else do
               -- SPECIAL!

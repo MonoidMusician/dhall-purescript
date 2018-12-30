@@ -3,6 +3,7 @@ module Dhall.Variables where
 import Prelude
 
 import Data.Const (Const(..))
+import Data.Either (Either(..))
 import Data.Foldable (class Foldable, fold)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
@@ -14,6 +15,8 @@ import Data.These (These(..))
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
 import Data.Variant as Variant
+import Dhall.Context (Context)
+import Dhall.Context as Dhall.Context
 import Dhall.Core.AST (BindingBody(..), CONST, Expr, LetF(..), S_, Var(..), Variable, _S, mkVar)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, GenericExprAlgebraVT, NodeOps, elim1, runAlgebraExpr, runOverCases)
@@ -105,7 +108,7 @@ rename v0 v1 = shift (-1) v0 <<< subst v0 (mkVar v1) <<< shift 1 v1
 -- | De Bruijn indices to distinguish them
 alphaNormalize :: forall m a. Expr m a -> Expr m a
 alphaNormalize = runAlgebraExpr (Variant.case_ # alphaNormalizeAlgG) $
-  Variant.inj (_S::S_ "alphaNormalize") {}
+  Variant.inj (_S::S_ "alphaNormalize") { ctx: Dhall.Context.empty }
 
 -- | Detect if the given variable is free within the given expression
 freeIn :: forall m a. Foldable m => Var -> Expr m a -> Disj Boolean
@@ -229,13 +232,30 @@ doRenameAlgG v0 v1 node = identity
     newV = node.layer $ VariantF.inj (_S::S_ "Var") (Const v1)
 
 -- The Generic Algebra to rename all bound variables to `_`.
-type AlphaNormalizeAlg node v = ShiftSubstAlg node + ( "alphaNormalize" :: {} | v )
+--
+-- Note on algorithm: The algorithm keeps track of `Context Unit` of the names
+-- of all bound variables in scope. Each bound variable gets replaced with its
+-- index `n` in the context, which ensures it references the correct variable
+-- `_@n` once every binding is renamed to `_`. For values _not_ in scope,
+-- the number of variables with the same name that are in scope is calculated,
+-- and this is subtracted from the existing index, ensuring that the variable
+-- still references the same unbound variable when it is all said and done.
+-- FIXME: do I need to account for unbound variables with name `_`????
+type AlphaNormalizeAlg node v = ShiftSubstAlg node + ( "alphaNormalize" :: { ctx :: Context Unit } | v )
 alphaNormalizeAlgG :: forall m. GenericExprAlgebraVT ConsNodeOps (Variable m) AlphaNormalizeAlg
-alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormalize") \_ node ->
+alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormalize") \{ ctx } node ->
   let
-    norm = node.recurse <<< Variant.inj (_S::S_ "alphaNormalize") $ {}
-    renam Nothing = norm
-    renam (Just "_") = norm
-    renam (Just x) = norm <<< doRenameAlgG (V x 0) (V "_" 0) node
+    norm = node.recurse <<< Variant.inj (_S::S_ "alphaNormalize")
+    renam Nothing = norm { ctx }
+    renam (Just x) = norm { ctx: Dhall.Context.insert x unit ctx }
+    renamBindingBody (BindingBody _ ty body) = BindingBody "_" ty body
+    renamLetF (LetF _ mty value body) = LetF "_" mty value body
   in
-  trackIntroCases (renam <<< trackIntroVar)
+  { "Var": over Const \(V x' n') ->
+    case Dhall.Context.lookupDepthOrCount x' n' ctx of
+      Right (Tuple depth _) -> V "_" depth
+      Left passed -> V x' (n' - passed)
+  , "Lam": renamBindingBody <<< trackIntroBindingBody (renam <<< trackIntroVar)
+  , "Pi": renamBindingBody <<< trackIntroBindingBody (renam <<< trackIntroVar)
+  , "Let": renamLetF <<< trackIntroLetF (renam <<< trackIntroVar)
+  }

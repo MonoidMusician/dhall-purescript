@@ -2,6 +2,7 @@ module Dhall.Context where
 
 import Prelude
 
+import Data.Either (Either(..))
 import Data.Foldable (class Foldable, foldMap, foldl, foldr)
 import Data.Functor.Compose (Compose(..))
 import Data.List (List(..), (:))
@@ -67,6 +68,20 @@ lookup x n (Context (Tuple k v : kvs)) =
          then Just v
          else lookup x (n - 1) (Context kvs)
     else lookup x n (Context kvs)
+
+-- | Lookup a entry by name and index, returning the number of lesser occurrences
+-- | of the name if it is not found (`Left`), or, if it is found, returning
+-- | its value and absolute depth in the context (`Right`).
+lookupDepthOrCount :: forall a. String -> Int -> Context a -> Either Int (Tuple Int a)
+lookupDepthOrCount x n0 = go 0 n0 where
+  go _ n (Context         Nil  ) =
+    Left (n0 - n)
+  go i n (Context (Tuple k v : kvs)) =
+    if x == k
+    then if n == 0
+         then Right (Tuple i v)
+         else go (i+1) (n - 1) (Context kvs)
+    else go (i+1) n (Context kvs)
 
 -- | Return all key-value associations as a list
 -- | ```purescript
