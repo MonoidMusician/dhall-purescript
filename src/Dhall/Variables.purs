@@ -3,12 +3,13 @@ module Dhall.Variables where
 import Prelude
 
 import Data.Const (Const(..))
-import Data.Either (Either(..))
-import Data.Foldable (class Foldable, fold)
+import Data.Foldable (class Foldable, fold, length)
+import Data.FoldableWithIndex (foldMapWithIndex)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff)
 import Data.Maybe (Maybe(..))
+import Data.Monoid.Additive (Additive(..))
 import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (over, unwrap)
 import Data.These (These(..))
@@ -239,8 +240,9 @@ doRenameAlgG v0 v1 node = identity
 -- `_@n` once every binding is renamed to `_`. For values _not_ in scope,
 -- the number of variables with the same name that are in scope is calculated,
 -- and this is subtracted from the existing index, ensuring that the variable
--- still references the same unbound variable when it is all said and done.
--- FIXME: do I need to account for unbound variables with name `_`????
+-- still references the same unbound variable when it is all said and done;
+-- additionally, if the unbound variable name is also `_`, then the length of
+-- the context (i.e., the number of variables about to be named `_`) is added.
 type AlphaNormalizeAlg node v = ShiftSubstAlg node + ( "alphaNormalize" :: { ctx :: Context Unit } | v )
 alphaNormalizeAlgG :: forall m. GenericExprAlgebraVT ConsNodeOps (Variable m) AlphaNormalizeAlg
 alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormalize") \{ ctx } node ->
@@ -252,9 +254,21 @@ alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormaliz
     renamLetF (LetF _ mty value body) = LetF "_" mty value body
   in
   { "Var": over Const \(V x' n') ->
-    case Dhall.Context.lookupDepthOrCount x' n' ctx of
-      Right (Tuple depth _) -> V "_" depth
-      Left passed -> V x' (n' - passed)
+    case Dhall.Context.lookupDepth x' n' ctx of
+      -- A bound variable that occurs at a certain depth in the context will
+      -- become `_@depth` once all variables are named `_`
+      Just (Tuple depth _) -> V "_" depth
+      -- Unbound variables keep their name, but have their index adjusted
+      -- to account for the difference in context.
+      Nothing ->
+        let
+          -- count the entries that used to have the same name
+          passed = unwrap $ ctx # foldMapWithIndex \(V k _) (_ :: Unit) ->
+            if k == x' then Additive 1 else mempty
+          -- count the entries that will have the same name now
+          added = if x' == "_" then length ctx else 0
+        in V x' (n' + added - passed)
+  -- Keep track of the introductions and rename the bindings to `_`
   , "Lam": renamBindingBody <<< trackIntroBindingBody (renam <<< trackIntroVar)
   , "Pi": renamBindingBody <<< trackIntroBindingBody (renam <<< trackIntroVar)
   , "Let": renamLetF <<< trackIntroLetF (renam <<< trackIntroVar)

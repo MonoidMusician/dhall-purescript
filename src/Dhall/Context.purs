@@ -2,15 +2,19 @@ module Dhall.Context where
 
 import Prelude
 
-import Data.Either (Either(..))
-import Data.Foldable (class Foldable, foldMap, foldl, foldr)
+import Data.Foldable (class Foldable, fold, foldMap, foldl, foldr)
+import Data.FoldableWithIndex (class FoldableWithIndex)
 import Data.Functor.Compose (Compose(..))
+import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.List (List(..), (:))
 import Data.List as List
-import Data.Maybe (Maybe(..))
+import Data.Map as Map
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Traversable (class Traversable, sequence, traverse)
+import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..))
+import Dhall.Core.AST.Types (Var(..))
 
 -- | A `Context a` associates `Text` labels with values of type `a`.  Each
 -- | `Text` label can correspond to multiple values of type `a`
@@ -31,6 +35,21 @@ instance foldableContext :: Foldable Context where
 instance traversableContext :: Traversable Context where
   traverse f (Context as) = Context <$> traverse (traverse f) as
   sequence (Context as) = Context <$> traverse sequence as
+instance functorWithIndexContext :: FunctorWithIndex Var Context where
+  mapWithIndex f = go Map.empty where
+    go _ (Context Nil) = Context Nil
+    go ks (Context (Tuple k v : kvs)) =
+      let
+        n = fromMaybe zero $ Map.lookup k ks
+        ks' = Map.insert k (n+one) ks
+        Context kvs' = go ks' (Context kvs)
+      in Context (Tuple k (f (V k n) v) : kvs')
+instance foldableWithIndexContext :: FoldableWithIndex Var Context where
+  foldMapWithIndex f = fold <<< mapWithIndex f
+  foldrWithIndex f c = foldr ($) c <<< mapWithIndex f
+  foldlWithIndex f c = foldl (#) c <<< mapWithIndex (flip <<< f)
+instance traversableWithIndexContext :: TraversableWithIndex Var Context where
+  traverseWithIndex f = sequence <<< mapWithIndex f
 
 -- | An empty context with no key-value pairs
 empty :: forall a. Context a
@@ -69,17 +88,15 @@ lookup x n (Context (Tuple k v : kvs)) =
          else lookup x (n - 1) (Context kvs)
     else lookup x n (Context kvs)
 
--- | Lookup a entry by name and index, returning the number of lesser occurrences
--- | of the name if it is not found (`Left`), or, if it is found, returning
--- | its value and absolute depth in the context (`Right`).
-lookupDepthOrCount :: forall a. String -> Int -> Context a -> Either Int (Tuple Int a)
-lookupDepthOrCount x n0 = go 0 n0 where
-  go _ n (Context         Nil  ) =
-    Left (n0 - n)
+-- | Lookup a entry by name and index, returning its value and absolute depth.
+lookupDepth :: forall a. String -> Int -> Context a -> Maybe (Tuple Int a)
+lookupDepth x = go 0 where
+  go _ _ (Context         Nil  ) =
+    Nothing
   go i n (Context (Tuple k v : kvs)) =
     if x == k
     then if n == 0
-         then Right (Tuple i v)
+         then Just (Tuple i v)
          else go (i+1) (n - 1) (Context kvs)
     else go (i+1) n (Context kvs)
 
