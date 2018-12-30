@@ -12,7 +12,7 @@
     "purescript-effect": "^2.0.0",
     "purescript-halogen-textcursor": "MonoidMusician/purescript-halogen-textcursor#halogen-5",
     "purescript-matryoshka": "^0.4.0",
-    "purescript-variant": "c9f37b71a405fda9e647a9dade04782a363ed66b",
+    "purescript-variant": "MonoidMusician/purescript-variant#map-variant",
     "purescript-numbers": "^6.0.0",
     "purescript-halogen-zuruzuru": "MonoidMusician/purescript-halogen-zuruzuru#halogen-5",
     "purescript-naturals": "^3.0.0",
@@ -33,6 +33,6 @@
     "purescript-tuples": "master",
     "purescript-const": "master",
     "purescript-identity": "master",
-    "purescript-variant": "c9f37b71a405fda9e647a9dade04782a363ed66b"
+    "purescript-variant": "map-variant"
   }
 }
