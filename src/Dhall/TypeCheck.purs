@@ -58,6 +58,7 @@ import Dhall.Core (Var, shift)
 import Dhall.Core as Dhall.Core
 import Dhall.Core.AST (Const(..), Expr, ExprRowVF(..), ExprRowVFI, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
+import Dhall.Core.AST.Operations.Location (ExprLocation, Location(..))
 import Dhall.Core.AST.Operations.Transformations (OverCases(..))
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
@@ -105,27 +106,6 @@ newtype TypeCheckError r f = TypeCheckError
   , tag :: Variant r
   }
 derive instance functorTypeCheckError :: Functor (TypeCheckError r)
-
--- An expression for the user to look at when an error occurs, giving
--- specific context for what went wrong.
-data Location a
-  -- Atomic: The original tree being typechecked
-  = MainExpression
-  -- Derived: Pointer to a location within the prior location
-  | LocationWithin (Lazy ExprRowVFI) (Location a)
-  -- Derived: Point to the type of another location
-  | TypeOfLocation (Location a)
-  -- Derived: Point to the same location but normalized
-  | NormalizeLocation (Location a)
-  -- Atomic: A new expression, whose origin is shrouded in mystery ...
-  | Place a
-  -- Derived: The same expression, but with available `let`-bound variables
-  -- substituted in from the local context.
-  -- TODO: select specific variables to be substituted (`Set Var`?)
-  | Substituted (Location a)
-  -- Derived: The same expression, but with something _slightly_ different about it
-  | Shifted Int Var (Location a)
-type ExprLocation m a = Location (Expr m a)
 
 type WR w e = WriterT (Array (Variant w)) (V.Erroring e)
 type Feedback w r m a = WR w (TypeCheckError r (L m a))

@@ -2,42 +2,46 @@ module Dhall.Normalize where
 
 import Prelude
 
-import Control.Apply (lift2, lift3)
+import Control.Apply (lift2)
 import Control.Comonad (extract)
 import Control.Plus (empty)
-import Data.Array (foldr)
+import Data.Array (all, foldr)
 import Data.Array as Array
+import Data.Const (Const)
 import Data.Function (on)
 import Data.Functor.App as AppF
 import Data.Functor.Compose (Compose(..))
-import Data.Functor.Product (Product(..))
+import Data.Functor.Product (Product(..), product)
+import Data.Functor.Variant (FProxy, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Int (even, toNumber)
 import Data.Lazy (Lazy, defer)
 import Data.Lens as Lens
-import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Maybe.First (First)
 import Data.Monoid.Conj (Conj(..))
 import Data.Monoid.Disj (Disj(..))
-import Data.Natural (intToNat, natToInt, (+-))
-import Data.Newtype (class Newtype, un, unwrap)
+import Data.Natural (Natural, intToNat, natToInt, (+-))
+import Data.Newtype (class Newtype, un, unwrap, wrap)
+import Data.Symbol (class IsSymbol)
 import Data.These (These(..))
-import Data.Traversable (sequence)
+import Data.Traversable (class Traversable, sequence)
 import Data.Tuple (Tuple(..))
-import Dhall.Core.AST (Expr, projectW)
+import Data.Variant (Variant)
+import Data.Variant as Variant
+import Dhall.Core.AST (CONST, Expr, UNIT)
 import Dhall.Core.AST as AST
-import Dhall.Core.AST.Operations (rewriteBottomUpA')
+import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, OverCases(..))
 import Dhall.Core.AST.Types.Basics (S_, _S)
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Core.StrMapIsh as StrMapIsh
-import Dhall.Normalize.Apps (Apps, apps, noapp, noapplit, noapplit', (~))
+import Dhall.Normalize.Apps (AppsF(..), apps, appsG, noappG, noapplitG, noapplitG', (~))
+import Dhall.Variables (ShiftSubstAlg)
 import Dhall.Variables as Variables
-import Matryoshka (class Recursive, project)
-import Unsafe.Coerce (unsafeCoerce)
+import Prim.Row as Row
 
 -- | Reduce an expression to its normal form, performing beta reduction
 -- | `normalize` does not type-check the expression.  You may want to type-check
@@ -57,21 +61,27 @@ normalize = normalizeWith mempty
 -- | normalize the accumulator on each step of the loop.  If this function
 -- | returns `False` then they will be lazy in their accumulator and only
 -- | normalize the final result at the end of the fold
-boundedType :: forall m a. Expr m a -> Boolean
-boundedType _ = false
+boundedTypeG :: forall node all ops.
+  { unlayer :: node -> VariantF all node
+  | ops
+  } -> node -> Boolean
+boundedTypeG _ _ = false
 
--- | Use this to wrap you embedded functions (see `normalizeWith`) to make them
--- | polymorphic enough to be used.
-newtype Normalizer m a = Normalizer (Apps m a -> Maybe (Unit -> Expr m a))
-derive instance newtypeNormalizer :: Newtype (Normalizer m a) _
+newtype GNormalizerF i a = GNormalizer
+  (i -> AppsF a -> Maybe (Unit -> a))
+derive instance newtypeNormalizer :: Newtype (GNormalizerF i a) _
 -- not Alt, because it is not a covariant functor
-instance semigroupNormalizer :: Semigroup (Normalizer m a) where
-  append (Normalizer n) (Normalizer m) = Normalizer \as ->
-    case n as of
+instance semigroupNormalizer :: Semigroup (GNormalizerF i a) where
+  append (GNormalizer n) (GNormalizer m) = GNormalizer \ops as ->
+    case n ops as of
       Just r -> Just r
-      Nothing -> m as
-instance monoidNormalizer :: Monoid (Normalizer m a) where
-  mempty = Normalizer \_ -> Nothing
+      Nothing -> m ops as
+instance monoidNormalizer :: Monoid (GNormalizerF i a) where
+  mempty = GNormalizer \_ _ -> Nothing
+
+type GNormalizer all i node ops =
+  GNormalizerF (Record (ConsNodeOps all i node ops)) node
+type Normalizer m a = GNormalizerF Unit (Expr m a)
 
 type Preview' a b = Lens.Fold (First b) a a b b
 
@@ -89,82 +99,116 @@ type Preview' a b = Lens.Fold (First b) a a b b
 normalizeWith :: forall m a. StrMapIsh m => Eq a => Normalizer m a -> Expr m a -> Expr m a
 normalizeWith ctx = extract <<< extract <<< unwrap <<< normalizeWithW ctx
 
+normalizeWithG :: forall v node ops m a. StrMapIsh m => Eq a =>
+  GNormalizer (AST.ExprLayerRow m a) (Variant (ShiftSubstAlg node v)) node ops ->
+  Record (ConsNodeOps (AST.ExprLayerRow m a) (Variant (ShiftSubstAlg node v)) node ops) ->
+  node -> node
+normalizeWithG ctx ops = extract <<< extract <<< unwrap <<< normalizeWithGW ctx ops
+
 type W = Compose (Tuple (Conj Boolean)) Lazy
 
-normalizeWithW :: forall m a. StrMapIsh m => Eq a =>
-  Normalizer m a -> Expr m a ->
-  W (Expr m a)
-normalizeWithW ctx = rewriteBottomUpA' rules where
-  onP :: forall e v r.
-    Preview' e v ->
-    (v -> r) -> (e -> r) ->
-    e -> r
-  onP p this other e = case Lens.preview p e of
-    Just v -> this v
-    _ -> other e
+normalizeWithGW :: forall v node ops m a. StrMapIsh m => Eq a =>
+  GNormalizer (AST.ExprLayerRow m a) (Variant (ShiftSubstAlg node v)) node ops ->
+  Record (ConsNodeOps (AST.ExprLayerRow m a) (Variant (ShiftSubstAlg node v)) node ops) ->
+  node -> W node
+normalizeWithGW normApp ops = go where
+  go orig = case rules catchall orig of
+    Compose (Tuple (Conj true) _) -> pure orig
+    modified -> modified
 
-  onPW :: forall v r.
-    Preview' (AST.ExprLayer m a) v ->
-    (v -> r) -> (W (Expr m a) -> r) ->
-    W (Expr m a) -> r
-  onPW p this other e = case Lens.preview p (projectW (extractW e)) of
-    Just v -> this v
-    _ -> other e
+  -- FIXME
+  catchall :: node -> W node
+  catchall = pure
 
-  previewE :: forall ft f o' e.
-    Recursive ft f =>
-    Newtype (f ft) o' =>
-    Preview' o' e ->
-    ft -> Maybe e
-  previewE p = Lens.preview p <<< unwrap <<< project
-  previewEW :: forall ft f o' e.
-    Recursive ft f =>
-    Newtype (f ft) o' =>
-    Preview' o' e ->
-    W ft -> Maybe e
-  previewEW p = previewE p <<< extractW
-  unPairW ::  forall ft f o' e r.
-    Recursive ft f =>
-    Newtype (f ft) o' =>
-    Preview' o' e ->
-    (W ft -> W ft -> Maybe e -> Maybe e -> r) ->
-    AST.Pair (W ft) ->
-    r
-  unPairW p f (AST.Pair l r) = f l r
-    (previewEW p l)
-    (previewEW p r)
-  unPairNW ::  forall ft f o' e e' r.
-    Recursive ft f =>
-    Newtype (f ft) o' =>
-    Newtype e e' =>
-    Preview' o' e ->
-    (W ft -> W ft -> Maybe e' -> Maybe e' -> r) ->
-    AST.Pair (W ft) ->
-    r
-  unPairNW p = unPairW (unsafeCoerce p)
-  unPair ::  forall ft f o' e r.
-    Recursive ft f =>
-    Newtype (f ft) o' =>
-    Preview' o' e ->
-    (ft -> ft -> Maybe e -> Maybe e -> r) ->
-    AST.Pair (ft) ->
-    r
-  unPair p f (AST.Pair l r) = f l r
-    (previewE p l)
-    (previewE p r)
-  unPairN ::  forall ft f o' e e' r.
-    Recursive ft f =>
-    Newtype (f ft) o' =>
-    Newtype e e' =>
-    Preview' o' e ->
-    (ft -> ft -> Maybe e' -> Maybe e' -> r) ->
-    AST.Pair (ft) ->
-    r
-  unPairN p = unPair (unsafeCoerce p)
+  expose ::
+    forall sym f rest r.
+      Functor f =>
+      Row.Cons sym (FProxy f) rest (AST.ExprLayerRow m a) =>
+      IsSymbol sym =>
+    SProxy sym ->
+    (f (W node) -> r) -> (node -> r) -> node -> r
+  expose sym here other node =
+    VariantF.on sym (here <<< map go) (\_ -> other node) (ops.unlayer node)
+
+  exposeW ::
+    forall sym f rest r.
+      Functor f =>
+      Row.Cons sym (FProxy f) rest (AST.ExprLayerRow m a) =>
+      IsSymbol sym =>
+    SProxy sym ->
+    (f (W node) -> r) -> (W node -> r) -> W node -> r
+  exposeW sym here other node =
+    VariantF.on sym (here <<< map pure) (\_ -> other node) (ops.unlayer (extractW node))
+
+  previewF ::
+    forall sym f rest.
+      Functor f =>
+      Row.Cons sym (FProxy f) rest (AST.ExprLayerRow m a) =>
+      IsSymbol sym =>
+    SProxy sym ->
+    node -> Maybe (f (W node))
+  previewF sym = expose sym Just (const Nothing)
+
+  previewLit ::
+    forall sym lit rest.
+      Row.Cons sym (FProxy (Const lit)) rest (AST.ExprLayerRow m a) =>
+      IsSymbol sym =>
+    SProxy sym ->
+    node -> Maybe lit
+  previewLit sym = previewF sym >>> map unwrap
+
+  binOpWith :: forall i r.
+    (node -> i) ->
+    (W node -> W node -> i -> i -> r) ->
+    (AST.Pair (W node) -> r)
+  binOpWith praevise here (AST.Pair l r) = here l r
+      do l # extractW # praevise
+      do r # extractW # praevise
+
+  unchanged :: forall x. W x -> Boolean
+  unchanged (Compose (Tuple (Conj c) _)) = c
+
+  anew ::
+    forall sym f rest.
+      Functor f =>
+      Row.Cons sym (FProxy f) rest (AST.ExprLayerRow m a) =>
+      IsSymbol sym =>
+    SProxy sym ->
+    f (W node) -> W node
+  anew sym children = instead \_ ->
+    ops.layer $ VariantF.inj sym $ children <#> extractW
+
+  anewAnd ::
+    forall sym f rest.
+      Functor f =>
+      Row.Cons sym (FProxy f) rest (AST.ExprLayerRow m a) =>
+      IsSymbol sym =>
+    SProxy sym ->
+    f (W node) -> W node
+  anewAnd sym children = instead \_ -> extractW $ go $
+    ops.layer $ VariantF.inj sym $ children <#> extractW
+
+  reconstruct ::
+    forall sym f rest.
+      Traversable f =>
+      Row.Cons sym (FProxy f) rest (AST.ExprLayerRow m a) =>
+      IsSymbol sym =>
+    SProxy sym ->
+    f (W node) -> node -> W node
+  reconstruct _ children orig | all unchanged children = pure orig
+  reconstruct sym children _ = anew sym children
 
   -- The companion to judgmentallyEqual for terms that are already
   -- normalized recursively from this
-  judgEq = (eq :: Expr m a -> Expr m a -> Boolean) `on` (extractW >>> Variables.alphaNormalize)
+  judgEq :: W node -> W node -> Boolean
+  judgEq = on (eq :: Expr m a -> Expr m a -> Boolean) $
+    extractW >>> unlayers >>> Variables.alphaNormalize
+
+  unlayers :: node -> Expr m a
+  unlayers node = AST.embedW (ops.unlayer node <#> unlayers)
+
+  relayers :: Expr m a -> node
+  relayers node = AST.projectW node # map relayers # ops.layer
 
   extractW :: forall x. W x -> x
   extractW (Compose x) = extract (extract x)
@@ -178,16 +222,30 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
   instead :: forall x. (Unit -> x) -> W x
   instead x = simpler (deferred x)
 
-  rules = identity
-    >>> VariantF.on (_S::S_ "Annot")
+  insteadExpr :: (Unit -> Expr m a) -> W node
+  insteadExpr x = instead \_ -> relayers (x unit)
+
+  shiftSubstShift0 :: String -> node -> node -> node
+  shiftSubstShift0 var substitution =
+    let variable = AST.V var 0 in
+    ops.recurse (Variant.inj (_S::S_ "shift") { variable, delta: (-1) }) <<<
+    ops.recurse (Variant.inj (_S::S_ "subst") { variable, substitution }) <<<
+    ops.recurse (Variant.inj (_S::S_ "shift") { variable, delta: 1 })
+
+  freeIn :: AST.Var -> node -> Disj Boolean
+  freeIn var = Variables.freeIn var <<< unlayers
+
+  rules :: (node -> W node) -> node -> W node
+  rules rest orig = (#) orig $ (#) rest $ identity
+    >>> expose (_S::S_ "Annot")
       (\(AST.Pair e _) -> simpler e)
-    >>> onP AST._Let
-      (\{ var, ty: _, value, body } ->
-        instead \_ -> normalizeWith ctx $
-          Variables.shiftSubstShift0 var (extractW value) (extractW body)
+    >>> expose (_S::S_ "Let")
+      (\(AST.LetF var _ value body) ->
+        instead \_ -> extractW $ go $
+          shiftSubstShift0 var (extractW value) (extractW body)
       )
-    >>> VariantF.on (_S::S_ "BoolAnd")
-      (unPairNW AST._BoolLit \l r -> case _, _ of
+    >>> expose (_S::S_ "BoolAnd")
+      (binOpWith (previewLit (_S::S_ "BoolLit")) \l r -> case _, _ of
         Just true, _ -> simpler r -- (l = True) && r -> r
         Just false, _ -> simpler l -- (l = False) && r -> (l = False)
         _, Just false -> simpler r -- l && (r = False) -> (r = False)
@@ -195,10 +253,10 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
         _, _ ->
           if judgEq l r
           then simpler l
-          else lift2 AST.mkBoolAnd l r
+          else reconstruct (_S::S_ "BoolAnd") (AST.Pair l r) orig
       )
-    >>> VariantF.on (_S::S_ "BoolOr")
-      (unPairNW AST._BoolLit \l r -> case _, _ of
+    >>> expose (_S::S_ "BoolOr")
+      (binOpWith (previewLit (_S::S_ "BoolLit")) \l r -> case _, _ of
         Just true, _ -> simpler l -- (l = True) || r -> (l = True)
         Just false, _ -> simpler r -- (l = False) || r -> r
         _, Just false -> simpler l -- l || (r = False) -> l
@@ -206,203 +264,194 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
         _, _ ->
           if judgEq l r
           then simpler l
-          else lift2 AST.mkBoolOr l r
+          else reconstruct (_S::S_ "BoolOr") (AST.Pair l r) orig
       )
-    >>> VariantF.on (_S::S_ "BoolEQ")
-      (unPairNW AST._BoolLit \l r -> case _, _ of
-        Just a, Just b -> instead \_ -> AST.mkBoolLit (a == b)
+    >>> expose (_S::S_ "BoolEQ")
+      (binOpWith (previewLit (_S::S_ "BoolLit")) \l r -> case _, _ of
+        Just a, Just b -> insteadExpr \_ -> AST.mkBoolLit (a == b)
         Just true, _ -> simpler r
         _, Just true -> simpler l
         _, _ ->
           if judgEq l r
-          then instead \_ -> AST.mkBoolLit true
-          else lift2 AST.mkBoolEQ l r
+          then insteadExpr \_ -> AST.mkBoolLit true
+          else reconstruct (_S::S_ "BoolEQ") (AST.Pair l r) orig
       )
-    >>> VariantF.on (_S::S_ "BoolNE")
-      (unPairNW AST._BoolLit \l r -> case _, _ of
-        Just a, Just b -> instead \_ -> AST.mkBoolLit (a /= b)
+    >>> expose (_S::S_ "BoolNE")
+      (binOpWith (previewLit (_S::S_ "BoolLit")) \l r -> case _, _ of
+        Just a, Just b -> insteadExpr \_ -> AST.mkBoolLit (a /= b)
         Just false, _ -> simpler r
         _, Just false -> simpler l
         _, _ ->
           if judgEq l r
-          then instead \_ -> AST.mkBoolLit false
-          else lift2 AST.mkBoolNE l r
+          then insteadExpr \_ -> AST.mkBoolLit false
+          else reconstruct (_S::S_ "BoolNE") (AST.Pair l r) orig
       )
-    >>> VariantF.on (_S::S_ "BoolIf")
+    >>> expose (_S::S_ "BoolIf")
       (\(AST.Triplet b t f) ->
-        let p = AST._BoolLit <<< _Newtype in
-        case previewEW p b of
+        case previewLit (_S::S_ "BoolLit") (extractW b) of
           Just true -> simpler t
           Just false -> simpler f
           Nothing ->
-            case previewEW p t, previewEW p f of
+            case previewLit (_S::S_ "BoolLit") (extractW t), previewLit (_S::S_ "BoolLit") (extractW f) of
               Just true, Just false -> simpler b
               _, _ ->
                 if judgEq t f
                   then simpler t
-                  else lift3 AST.mkBoolIf b t f
+                  else reconstruct (_S::S_ "BoolIf") (AST.Triplet b t f) orig
       )
-    >>> VariantF.on (_S::S_ "NaturalPlus")
-      (unPairNW AST._NaturalLit \l r -> case _, _ of
-        Just a, Just b -> instead \_ -> AST.mkNaturalLit (a + b)
+    >>> expose (_S::S_ "NaturalPlus")
+      (binOpWith (previewLit (_S::S_ "NaturalLit")) \l r -> case _, _ of
+        Just a, Just b -> insteadExpr \_ -> AST.mkNaturalLit (a + b)
         Just a, _ | a == zero -> simpler r
         _, Just b | b == zero -> simpler l
-        _, _ -> lift2 AST.mkNaturalPlus l r
+        _, _ -> reconstruct (_S::S_ "NaturalPlus") (AST.Pair l r) orig
       )
-    >>> VariantF.on (_S::S_ "NaturalTimes")
-      (unPairNW AST._NaturalLit \l r -> case _, _ of
-        Just a, Just b -> instead \_ -> AST.mkNaturalLit (a * b)
+    >>> expose (_S::S_ "NaturalTimes")
+      (binOpWith (previewLit (_S::S_ "NaturalLit")) \l r -> case _, _ of
+        Just a, Just b -> insteadExpr \_ -> AST.mkNaturalLit (a * b)
         Just a, _ | a == zero -> simpler l
         _, Just b | b == zero -> simpler r
         Just a, _ | a == one -> simpler r
         _, Just b | b == one -> simpler l
-        _, _ -> lift2 AST.mkNaturalTimes l r
+        _, _ -> reconstruct (_S::S_ "NaturalTimes") (AST.Pair l r) orig
       )
-    >>> VariantF.on (_S::S_ "TextLit")
+    >>> expose (_S::S_ "TextLit")
       (
         let
-          go (AST.TextLit s) = pure (AST.TextLit s)
-          go (AST.TextInterp s v tl) =
-            (v # extractW # projectW # onP AST._TextLit
-              do \tl2 tl' -> ((AST.TextLit s <> tl2) <> _) <$> tl'
-              do \_ tl' -> lift2 (AST.TextInterp s) v tl'
-            ) (go tl)
-          finalize tl = case extractW tl of
-            AST.TextInterp "" v' (AST.TextLit "") -> instead \_ -> v'
-            _ -> AST.mkTextLit <$> tl
-        in finalize <<< go
+          trav :: AST.TextLitF (W node) -> W (AST.TextLitF (W node))
+          trav (AST.TextLit s) = pure (AST.TextLit s)
+          trav (AST.TextInterp s v tl) =
+            (v # exposeW (_S::S_ "TextLit")
+              do \tl2 -> instead \_ -> (AST.TextLit s <> tl2) <> (extractW (trav tl))
+              do \_ -> lift2 (AST.TextInterp s) (v <$ v) (trav tl)
+            )
+          finalize tl = case extractW (trav tl) of
+            AST.TextInterp "" v' (AST.TextLit "") -> simpler v'
+            _ -> reconstruct (_S::S_ "TextLit") tl orig
+        in finalize
       )
-    >>> VariantF.on (_S::S_ "TextAppend")
-      (unPairW AST._TextLit \l r -> case _, _ of
-        Just a, Just b -> instead \_ -> AST.mkTextLit (a <> b)
-        Just a, _ | a == mempty -> simpler r
-        _, Just b | b == mempty -> simpler l
-        _, _ -> lift2 AST.mkTextAppend l r
+    >>> expose (_S::S_ "TextAppend")
+      (binOpWith (previewF (_S::S_ "TextLit")) \l r -> case _, _ of
+        Just a, Just b -> anew (_S::S_ "TextLit") (a <> b)
+        Just (AST.TextLit ""), _ -> simpler r
+        _, Just (AST.TextLit "") -> simpler l
+        _, _ -> reconstruct (_S::S_ "TextAppend") (AST.Pair l r) orig
       )
-    >>> VariantF.on (_S::S_ "ListLit")
+    >>> expose (_S::S_ "ListLit")
       (\(Product (Tuple mty vs)) ->
         -- Remove annotation on non-empty lists
         if not Array.null vs && isJust mty
-          then simpler (AST.mkListLit Nothing <$> sequence vs)
-          else AST.mkListLit <$> sequence mty <*> sequence vs
+          then anew (_S::S_ "ListLit") (Product (Tuple Nothing vs))
+          else reconstruct (_S::S_ "ListLit") (Product (Tuple mty vs)) orig
       )
-    >>> VariantF.on (_S::S_ "ListAppend")
-      (unPairW AST._ListLit \l r -> case _, _ of
-        Just { ty, values: a }, Just { values: b } ->
-          instead \_ -> AST.mkListLit ty (a <> b)
-        Just { values: [] }, _ -> simpler r
-        _, Just { values: [] } -> simpler l
-        _, _ -> lift2 AST.mkListAppend l r
+    >>> expose (_S::S_ "ListAppend")
+      (binOpWith (previewF (_S::S_ "ListLit")) \l r -> case _, _ of
+        Just (Product (Tuple mty as)), Just (Product (Tuple _ bs)) ->
+          let rs = as <> bs
+              mty' = if Array.null rs then mty else Nothing
+          in
+          anew (_S::S_ "ListLit") (Product (Tuple mty' rs))
+        Just (Product (Tuple _ [])), _ -> simpler r
+        _, Just (Product (Tuple _ [])) -> simpler l
+        _, _ -> reconstruct (_S::S_ "ListAppend") (AST.Pair l r) orig
       )
-    >>> VariantF.on (_S::S_ "OptionalLit")
+    >>> expose (_S::S_ "OptionalLit")
       (\(Product (Tuple (Identity ty) mv)) ->
         case mv of
-          Nothing -> AST.mkApp AST.mkNone <$> ty
-          Just v -> AST.mkSome <$> v
+          Nothing -> anew (_S::S_ "App") (AST.Pair (anew (_S::S_ "None") mempty) ty)
+          Just v -> anew (_S::S_ "Some") (Identity v)
       )
-    >>> VariantF.on (_S::S_ "Combine")
+    >>> expose (_S::S_ "Combine")
       (let
-        decideThese = Just <<< case _ of
+        decideThese = case _ of
           This a -> a
           That b -> b
-          Both a b -> decide (AST.Pair a b)
-        decide = unPair AST._RecordLit \l r -> case _, _ of
-          Just a, Just b ->
-            AST.mkRecordLit $
-              StrMapIsh.unionWith (pure decideThese) a b
-          Just a, _ | StrMapIsh.isEmpty a -> r
-          _, Just b | StrMapIsh.isEmpty b -> l
-          _, _ -> AST.mkCombine l r
-        decideTop = unPairW AST._RecordLit \l r -> case _, _ of
-          Just a, Just b -> instead \_ ->
-            AST.mkRecordLit $
-              StrMapIsh.unionWith (pure decideThese) a b
+          Both a b -> decide Nothing (AST.Pair a b)
+        decide orig' = binOpWith (previewF (_S::S_ "RecordLit")) \l r -> case _, _ of
+          Just a, Just b -> anew (_S::S_ "RecordLit") $
+              StrMapIsh.unionWith (pure $ pure <<< decideThese) a b
           Just a, _ | StrMapIsh.isEmpty a -> simpler r
           _, Just b | StrMapIsh.isEmpty b -> simpler l
-          _, _ -> lift2 AST.mkCombine l r
-      in decideTop)
-    >>> VariantF.on (_S::S_ "CombineTypes")
+          _, _ -> case orig' of
+            Just orig'' -> reconstruct (_S::S_ "Combine") (AST.Pair l r) orig''
+            _ -> anew (_S::S_ "Combine") (AST.Pair l r)
+      in decide (Just orig))
+    >>> expose (_S::S_ "CombineTypes")
       (let
-        decideThese = Just <<< case _ of
+        decideThese = case _ of
           This a -> a
           That b -> b
-          Both a b -> decide (AST.Pair a b)
-        decide = unPair AST._Record \l r -> case _, _ of
-          Just a, Just b ->
-            AST.mkRecord $
-              StrMapIsh.unionWith (pure decideThese) a b
-          Just a, _ | StrMapIsh.isEmpty a -> r
-          _, Just b | StrMapIsh.isEmpty b -> l
-          _, _ -> AST.mkCombineTypes l r
-        decideTop = unPairW AST._Record \l r -> case _, _ of
-          Just a, Just b -> instead \_ ->
-            AST.mkRecord $
-              StrMapIsh.unionWith (pure decideThese) a b
+          Both a b -> decide Nothing (AST.Pair a b)
+        decide orig' = binOpWith (previewF (_S::S_ "Record")) \l r -> case _, _ of
+          Just a, Just b -> anew (_S::S_ "Record") $
+              StrMapIsh.unionWith (pure $ pure <<< decideThese) a b
           Just a, _ | StrMapIsh.isEmpty a -> simpler r
           _, Just b | StrMapIsh.isEmpty b -> simpler l
-          _, _ -> lift2 AST.mkCombineTypes l r
-      in decideTop)
-    >>> VariantF.on (_S::S_ "Prefer")
+          _, _ -> case orig' of
+            Just orig'' -> reconstruct (_S::S_ "CombineTypes") (AST.Pair l r) orig''
+            _ -> anew (_S::S_ "CombineTypes") (AST.Pair l r)
+      in decide (Just orig))
+    >>> expose (_S::S_ "Prefer")
       (let
-        preference = Just <<< case _ of
+        preference = case _ of
           This a -> a
           That b -> b
           Both a _ -> a
-        decide = unPairW AST._RecordLit \l r -> case _, _ of
-          Just a, Just b -> instead \_ ->
-            AST.mkRecordLit $
-              StrMapIsh.unionWith (pure preference) a b
+        decide = binOpWith (previewF (_S::S_ "RecordLit")) \l r -> case _, _ of
+          Just a, Just b -> anew (_S::S_ "RecordLit") $
+              StrMapIsh.unionWith (pure $ pure <<< preference) a b
           Just a, _ | StrMapIsh.isEmpty a -> simpler r
           _, Just b | StrMapIsh.isEmpty b -> simpler l
-          _, _ -> lift2 AST.mkPrefer l r
+          _, _ -> reconstruct (_S::S_ "Prefer") (AST.Pair l r) orig
       in decide)
-    >>> VariantF.on (_S::S_ "Merge")
+    >>> expose (_S::S_ "Merge")
       (\(AST.MergeF x y mty) ->
           let
-            default _ = AST.mkMerge <$> x <*> y <*> sequence mty
-          in x # onPW AST._RecordLit
+            default _ = reconstruct (_S::S_ "Merge") (AST.MergeF x y mty) orig
+          in x # exposeW (_S::S_ "RecordLit")
             do \kvsX ->
-              y # onPW AST._UnionLit
-                do \{ label: kY, value: vY } ->
+              y # exposeW (_S::S_ "UnionLit")
+                do \(Product (Tuple (Tuple kY vY) _)) ->
                     case IOSM.get kY kvsX of
-                      Just vX -> instead \_ ->
-                        normalizeWith ctx $ AST.mkApp vX vY
+                      Just vX -> anewAnd (_S::S_ "App") (AST.Pair vX vY)
                       _ -> default unit
                 do \_ -> default unit
             do \_ -> default unit
       )
-    >>> VariantF.on (_S::S_ "Constructors")
-      (un Identity >>> \e' -> case previewEW AST._Union e' of
-        Just kts -> instead \_ ->
-          AST.mkRecord $ kts # mapWithIndex \k t_ ->
-            AST.mkLam k (t_) $ AST.mkUnionLit k (AST.mkVar (AST.V k 0)) $
+    >>> expose (_S::S_ "Constructors")
+      (\e' -> extract e' # exposeW (_S::S_ "Union")
+        do \kts -> anew (_S::S_ "Record") $ kts # mapWithIndex \k t_ ->
+            anew (_S::S_ "Lam") $ AST.BindingBody k (t_) $
+              anew (_S::S_ "UnionLit") $ Product $ Tuple
+                (Tuple k (pure $ relayers (AST.mkVar (AST.V k 0)))) $
               (fromMaybe <*> StrMapIsh.delete k) kts
-        Nothing -> map AST.mkConstructors e'
+        do \_ -> reconstruct (_S::S_ "Constructors") e' orig
       )
-    >>> VariantF.on (_S::S_ "Field")
+    >>> expose (_S::S_ "Field")
       (\(Tuple k r) ->
         let
-          default _ = AST.mkField <$> r <@> k
-        in r # onPW AST._RecordLit
+          default _ = reconstruct (_S::S_ "Field") (Tuple k r) orig
+        in r # exposeW (_S::S_ "RecordLit")
           do
             \kvs ->
               case IOSM.get k kvs of
-                Just v -> instead \_ -> v
+                Just v -> simpler v
                 _ -> default unit
-          do onPW AST._Union
+          do exposeW (_S::S_ "Union")
               do \kvs ->
                 case IOSM.get k kvs, IOSM.delete k kvs of
-                  Just ty, Just rest ->
-                    instead \_ -> normalizeWith ctx $
-                      AST.mkLam k ty $ AST.mkUnionLit k (AST.mkVar (AST.V k 0)) rest
+                  Just ty, Just others ->
+                    anewAnd (_S::S_ "Lam") $ AST.BindingBody k ty $
+                      anew (_S::S_ "UnionLit") $ Product $ Tuple
+                        (Tuple k (pure $ relayers (AST.mkVar (AST.V k 0)))) $ others
                   _, _ -> default unit
               do \_ -> default unit
       )
-    >>> VariantF.on (_S::S_ "Project")
+    >>> expose (_S::S_ "Project")
       (\(Tuple (AppF.App ks) r) ->
         let
-          default _ = AST.mkProject <$> r <@> ks
-        in r # onPW AST._RecordLit
+          default _ = reconstruct (_S::S_ "Project") (Tuple (AppF.App ks) r) orig
+        in r # exposeW (_S::S_ "RecordLit")
           do
             \kvs ->
               let
@@ -410,242 +459,369 @@ normalizeWithW ctx = rewriteBottomUpA' rules where
                   Both (_ :: Unit) v -> Just v
                   _ -> Nothing
               in case sequence $ IOSM.unionWith (pure (pure <<< adapt)) ks kvs of
-                Just vs' -> instead \_ -> normalizeWith ctx $
-                  AST.mkRecordLit vs'
+                -- TODO: recurse necessary?
+                Just vs' -> anewAnd (_S::S_ "RecordLit") vs'
                 _ -> default unit
           do \_ -> default unit
       )
     -- NOTE: eta-normalization, added
-    >>> onP AST._Lam
-      (\{ var, ty, body } ->
-        AST.projectW (extractW body) #
+    >>> expose (_S::S_ "Lam")
+      (\(AST.BindingBody var ty body) ->
+        body #
         let
-          default _ = AST.embedW (extractW <$> Lens.review AST._Lam { var, ty, body })
-        in pure (deferred default)
-        # onP AST._App
-          \{ fn, arg } ->
+          default :: Unit -> W node
+          default _ = reconstruct (_S::S_ "Lam") (AST.BindingBody var ty body) orig
+        in (\_ -> default unit)
+        # exposeW (_S::S_ "App")
+          \(AST.Pair fn arg) ->
             let var0 = AST.V var 0 in
-            if arg == AST.mkVar var0 && not (un Disj (Variables.freeIn var0 fn))
-              then instead \_ -> fn
-              else deferred default
+            if unlayers (extractW arg) == AST.mkVar var0 && not (un Disj (freeIn var0 (extractW fn)))
+              -- FIXME: shift
+              then instead \_ -> extractW fn
+              else default unit
       )
     -- composing with <<< gives this case priority
-    >>> identity <<< onP AST._App \{ fn, arg } ->
-      projectW (extractW fn) # onP AST._Lam
-        (\{ var, body } -> instead \_ ->
-          normalizeWith ctx $ Variables.shiftSubstShift0 var (extractW arg) body
+    >>> identity <<< expose (_S::S_ "App") \(AST.Pair fn arg) ->
+      fn # exposeW (_S::S_ "Lam")
+        (\(AST.BindingBody var _ body) -> instead \_ -> extractW $ go $
+          shiftSubstShift0 var (extractW arg) (extractW body)
         ) \_ ->
-        case normalizeFns ctx (extractW fn) (extractW arg) of
+        let
+          -- TODO: add builtins
+          again = go >>> extractW
+          appNormed = unwrap (builtinsG again <> normApp) ops $ on (~)
+            (extractW >>> Lens.view (appsG ops)) fn arg
+        in case appNormed of
           Just ret -> instead ret
-          _ -> lift2 AST.mkApp fn arg
+          _ -> reconstruct (_S::S_ "App") (AST.Pair fn arg) orig
+
+normalizeWithW :: forall m a. StrMapIsh m => Eq a =>
+  Normalizer m a -> Expr m a ->
+  W (Expr m a)
+normalizeWithW (GNormalizer normApp) =
+  normalizeWithGW (GNormalizer \_ -> normApp unit)
+  { layer: AST.embedW
+  , unlayer: AST.projectW
+  , recurse: Variant.match
+    { shift: \{ delta, variable } -> Variables.shift delta variable
+    , subst: \{ variable, substitution } -> Variables.subst variable substitution
+    }
+  , overlayer: OverCases \f -> AST.embedW <<< f <<< AST.projectW
+  }
 
 normalizeFns :: forall m a. StrMapIsh m => Eq a =>
   Normalizer m a ->
   Expr m a -> Expr m a ->
   Maybe (Unit -> Expr m a)
 normalizeFns ctx fn arg =
-  unwrap (builtins ctx <> ctx)
+  unwrap (ctx) unit
     (Lens.view apps fn ~ Lens.view apps arg)
 
-builtins :: forall m a. StrMapIsh m => Eq a => Normalizer m a -> Normalizer m a
-builtins ctx = fusions ctx <> conversions ctx <> naturalfns ctx <> optionalfns ctx <> listfns ctx
+builtinsG :: forall node ops v m a. StrMapIsh m =>
+  (node -> node) ->
+  GNormalizer (AST.ExprLayerRow m a)
+    (Variant (ShiftSubstAlg node v)) node ops
+builtinsG ctx = fusionsG ctx <> conversionsG ctx <> naturalfnsG ctx <> optionalfnsG ctx <> listfnsG ctx
 
-fusions :: forall m a. StrMapIsh m => Eq a => Normalizer m a -> Normalizer m a
-fusions ctx = Normalizer case _ of
+mk ::
+  forall sym f rest all node ops.
+    Functor f =>
+    Row.Cons sym (FProxy f) rest all =>
+    IsSymbol sym =>
+  { layer :: VariantF all node -> node
+  | ops
+  } ->
+  SProxy sym ->
+  f node -> node
+mk ops sym children = ops.layer $ VariantF.inj sym $ children
+
+mkAppsF ::
+  forall sym f rest all node ops.
+    Functor f =>
+    Row.Cons sym (FProxy f) rest all =>
+    IsSymbol sym =>
+  { layer :: VariantF all node -> node
+  | ops
+  } ->
+  SProxy sym ->
+  f node -> AppsF node
+mkAppsF ops sym children = NoApp $ mk ops sym children
+
+fusionsG :: forall all' i node ops.
+  (node -> node) ->
+  GNormalizer
+    ( "App" :: FProxy AST.Pair
+    , "ListBuild" :: UNIT
+    , "ListFold" :: UNIT
+    , "NaturalBuild" :: UNIT
+    , "NaturalFold" :: UNIT
+    , "OptionalBuild" :: UNIT
+    , "OptionalFold" :: UNIT
+    | all'
+    )
+    i node ops
+fusionsG again = GNormalizer \ops -> case _ of
   -- build/fold fusion for `List`
   -- App (App ListBuild _) (App (App ListFold _) e') -> loop e'
   listbuild~_~(listfold~_~e')
-    | noapp AST._ListBuild listbuild
-    , noapp AST._ListFold listfold ->
-      pure \_ -> Lens.review apps e'
+    | noappG ops (_S::S_ "ListBuild") listbuild
+    , noappG ops (_S::S_ "ListFold") listfold ->
+      pure \_ -> Lens.review (appsG ops) e'
   -- build/fold fusion for `Natural`
   -- App NaturalBuild (App NaturalFold e') -> loop e'
   naturalbuild~(naturalfold~e')
-    | noapp AST._NaturalBuild naturalbuild
-    , noapp AST._NaturalFold naturalfold ->
-      pure \_ -> Lens.review apps e'
+    | noappG ops (_S::S_ "NaturalBuild") naturalbuild
+    , noappG ops (_S::S_ "NaturalFold") naturalfold ->
+      pure \_ -> Lens.review (appsG ops) e'
   -- build/fold fusion for `Optional`
   -- App (App OptionalBuild _) (App (App OptionalFold _) e') -> loop e'
   optionalbuild~_~(optionalfold~_~e')
-    | noapp AST._OptionalBuild optionalbuild
-    , noapp AST._OptionalFold optionalfold ->
-      pure \_ -> Lens.review apps e'
+    | noappG ops (_S::S_ "OptionalBuild") optionalbuild
+    , noappG ops (_S::S_ "OptionalFold") optionalfold ->
+      pure \_ -> Lens.review (appsG ops) e'
   _ -> empty
 
-conversions :: forall m a. StrMapIsh m => Eq a => Normalizer m a -> Normalizer m a
-conversions ctx = Normalizer case _ of
+conversionsG :: forall all' node v ops.
+  (node -> node) ->
+  GNormalizer
+    ( "App" :: FProxy AST.Pair
+    , "NaturalToInteger" :: UNIT
+    , "NaturalShow" :: UNIT
+    , "IntegerShow" :: UNIT
+    , "IntegerToDouble" :: UNIT
+    , "DoubleShow" :: UNIT
+    , "NaturalLit" :: CONST Natural
+    , "IntegerLit" :: CONST Int
+    , "TextLit" :: FProxy AST.TextLitF
+    , "DoubleLit" :: CONST Number
+    | all'
+    )
+    (Variant (ShiftSubstAlg node v)) node ops
+conversionsG again = GNormalizer \ops -> case _ of
   naturaltointeger~naturallit
-    | noapp AST._NaturalToInteger naturaltointeger
-    , Just n <- noapplit AST._NaturalLit naturallit ->
-      pure \_ -> AST.mkIntegerLit (natToInt n)
+    | noappG ops (_S::S_ "NaturalToInteger") naturaltointeger
+    , Just n <- noapplitG ops (_S::S_ "NaturalLit") naturallit ->
+      pure \_ -> mk ops (_S::S_ "IntegerLit") $ wrap $ natToInt n
   naturalshow~naturallit
-    | noapp AST._NaturalShow naturalshow
-    , Just n <- noapplit AST._NaturalLit naturallit ->
-      pure \_ -> AST.mkTextLit (AST.TextLit (show n))
+    | noappG ops (_S::S_ "NaturalShow") naturalshow
+    , Just n <- noapplitG ops (_S::S_ "NaturalLit") naturallit ->
+      pure \_ -> mk ops (_S::S_ "TextLit") $ AST.TextLit $ show n
   integershow~integerlit
-    | noapp AST._IntegerShow integershow
-    , Just n <- noapplit AST._IntegerLit integerlit ->
+    | noappG ops (_S::S_ "IntegerShow") integershow
+    , Just n <- noapplitG ops (_S::S_ "IntegerLit") integerlit ->
       let s = if n >= 0 then "+" else "" in
-      pure \_ -> AST.mkTextLit (AST.TextLit (s <> show n))
+      pure \_ -> mk ops (_S::S_ "TextLit") $ AST.TextLit $ s <> show n
   integertodouble~integerlit
-    | noapp AST._IntegerToDouble integertodouble
-    , Just n <- noapplit AST._IntegerLit integerlit ->
-      pure \_ -> AST.mkDoubleLit (toNumber n)
+    | noappG ops (_S::S_ "IntegerToDouble") integertodouble
+    , Just n <- noapplitG ops (_S::S_ "IntegerLit") integerlit ->
+      pure \_ -> mk ops (_S::S_ "DoubleLit") $ wrap $ toNumber n
   doubleshow~doublelit
-    | noapp AST._DoubleShow doubleshow
-    , Just n <- noapplit AST._DoubleLit doublelit ->
-      pure \_ -> AST.mkTextLit (AST.TextLit (show n))
+    | noappG ops (_S::S_ "DoubleShow") doubleshow
+    , Just n <- noapplitG ops (_S::S_ "DoubleLit") doublelit ->
+      pure \_ -> mk ops (_S::S_ "TextLit") $ AST.TextLit $ show n
   _ -> Nothing
 
-naturalfns :: forall m a. StrMapIsh m => Eq a => Normalizer m a -> Normalizer m a
-naturalfns ctx = Normalizer case _ of
+naturalfnsG :: forall all' node v ops.
+  (node -> node) ->
+  GNormalizer
+    ( "App" :: FProxy AST.Pair
+    , "Natural" :: UNIT
+    , "NaturalFold" :: UNIT
+    , "NaturalBuild" :: UNIT
+    , "NaturalIsZero" :: UNIT
+    , "NaturalEven" :: UNIT
+    , "NaturalOdd" :: UNIT
+    , "NaturalLit" :: CONST Natural
+    , "BoolLit" :: CONST Boolean
+    , "Var" :: CONST AST.Var
+    , "Lam" :: FProxy AST.BindingBody
+    , "NaturalPlus" :: FProxy AST.Pair
+    | all'
+    )
+    (Variant (ShiftSubstAlg node v)) node ops
+naturalfnsG again = GNormalizer \ops -> case _ of
   -- App (App (App (App NaturalFold (NaturalLit n0)) t) succ') zero
   naturalfold~naturallit~t~succ'~zero'
-    | noapp AST._NaturalFold naturalfold
-    , Just n0 <- noapplit AST._NaturalLit naturallit -> pure \_ ->
+    | noappG ops (_S::S_ "NaturalFold") naturalfold
+    , Just n0 <- noapplitG ops (_S::S_ "NaturalLit") naturallit -> pure \_ ->
       let
-        t' = normalizeWith ctx (Lens.review apps t)
-        succE = Lens.review apps succ'
-        zeroE = Lens.review apps zero'
-      in if boundedType t'
+        t' = again (Lens.review (appsG ops) t)
+        succE = Lens.review (appsG ops) succ'
+        zeroE = Lens.review (appsG ops) zero'
+      in if boundedTypeG ops t'
         then
           let
             strictLoop n =
               if n > zero then
-                normalizeWith ctx (AST.mkApp succE (strictLoop (n +- one)))
-              else normalizeWith ctx zeroE
+                again (mk ops (_S::S_ "App") $ AST.Pair succE (strictLoop (n +- one)))
+              else again zeroE
           in strictLoop n0
         else
           let
             lazyLoop n =
               if n > zero then
-                AST.mkApp succE (lazyLoop (n +- one))
+                mk ops (_S::S_ "App") $ AST.Pair succE (lazyLoop (n +- one))
               else zeroE
-          in normalizeWith ctx (lazyLoop n0)
+          in again (lazyLoop n0)
   naturalbuild~g
-    | noapp AST._NaturalBuild naturalbuild -> pure \_ ->
+    | noappG ops (_S::S_ "NaturalBuild") naturalbuild -> pure \_ ->
       let
-        zero_ = AST.mkNaturalLit zero
-        succ_ = AST.mkLam "x" AST.mkNatural $
-          AST.mkNaturalPlus (AST.mkVar (AST.V "x" 0)) $ AST.mkNaturalLit one
-        g' = Lens.review apps g
-      in normalizeWith ctx $
-        AST.mkApp (AST.mkApp (AST.mkApp g' AST.mkNatural) succ_) zero_
+        zero_ = NoApp $ mk ops (_S::S_ "NaturalLit") zero
+        succ_ = NoApp $ mk ops (_S::S_ "Lam") $ AST.BindingBody "x" (mk ops (_S::S_ "Natural") mempty) $
+          mk ops (_S::S_ "NaturalPlus") $ AST.Pair
+            do mk ops (_S::S_ "Var") $ wrap (AST.V "x" 0)
+            do mk ops (_S::S_ "NaturalLit") one
+      in again $ Lens.review (appsG ops) (g~(mkAppsF ops (_S::S_ "Natural") mempty)~succ_~zero_)
   naturaliszero~naturallit
-    | noapp AST._NaturalIsZero naturaliszero
-    , Just n <- noapplit AST._NaturalLit naturallit ->
-      pure \_ -> AST.mkBoolLit (n == zero)
+    | noappG ops (_S::S_ "NaturalIsZero") naturaliszero
+    , Just n <- noapplitG ops (_S::S_ "NaturalLit") naturallit ->
+      pure \_ -> mk ops (_S::S_ "BoolLit") $ wrap $ n == zero
   naturaleven~naturallit
-    | noapp AST._NaturalEven naturaleven
-    , Just n <- noapplit AST._NaturalLit naturallit ->
-      pure \_ -> AST.mkBoolLit (even (natToInt n))
+    | noappG ops (_S::S_ "NaturalEven") naturaleven
+    , Just n <- noapplitG ops (_S::S_ "NaturalLit") naturallit ->
+      pure \_ -> mk ops (_S::S_ "BoolLit") $ wrap $ even $ natToInt n
   naturalodd~naturallit
-    | noapp AST._NaturalOdd naturalodd
-    , Just n <- noapplit AST._NaturalLit naturallit ->
-      pure \_ -> AST.mkBoolLit (not even (natToInt n))
+    | noappG ops (_S::S_ "NaturalOdd") naturalodd
+    , Just n <- noapplitG ops (_S::S_ "NaturalLit") naturallit ->
+      pure \_ -> mk ops (_S::S_ "BoolLit") $ wrap $ not even $ natToInt n
   _ -> Nothing
 
-optionalfns :: forall m a. StrMapIsh m => Eq a => Normalizer m a -> Normalizer m a
-optionalfns ctx = Normalizer case _ of
-  optionalbuild~t~g
-    | noapp AST._OptionalBuild optionalbuild -> pure \_ ->
+optionalfnsG :: forall all' node v ops.
+  (node -> node) ->
+  GNormalizer
+    ( "App" :: FProxy AST.Pair
+    , "Optional" :: UNIT
+    , "OptionalBuild" :: UNIT
+    , "OptionalFold" :: UNIT
+    , "None" :: UNIT
+    , "Var" :: CONST AST.Var
+    , "Lam" :: FProxy AST.BindingBody
+    , "Some" :: FProxy Identity
+    | all'
+    )
+    (Variant (ShiftSubstAlg node v)) node ops
+optionalfnsG again = GNormalizer \ops -> case _ of
+  optionalbuild~ty~fn
+    | noappG ops (_S::S_ "OptionalBuild") optionalbuild -> pure \_ ->
       let
-        g' = Lens.review apps g
-        ty = Lens.review apps t
-        optional = AST.mkApp AST.mkOptional ty
-        just = AST.mkLam "a" ty (AST.mkSome (AST.mkVar (AST.V "a" 0)))
-        nothing = AST.mkApp AST.mkNone ty
-      in normalizeWith ctx
-        (AST.mkApp (AST.mkApp (AST.mkApp g' optional) just) nothing)
+        optional = (mkAppsF ops (_S::S_ "Optional") mempty)~ty
+        just = mkAppsF ops (_S::S_ "Lam") $ AST.BindingBody "a" (Lens.review (appsG ops) ty) $
+          mk ops (_S::S_ "Some") $ Identity $ mk ops (_S::S_ "Var") $ wrap (AST.V "a" 0)
+        nothing = (mkAppsF ops (_S::S_ "None") mempty)~ty
+      in again $ Lens.review (appsG ops) $
+        (fn~optional~just~nothing)
   optionalfold~_~(none~_)~_~_~nothing
-    | noapp AST._OptionalFold optionalfold
-    , noapp AST._None none -> pure \_ ->
+    | noappG ops (_S::S_ "OptionalFold") optionalfold
+    , noappG ops (_S::S_ "None") none -> pure \_ ->
       -- TODO: I don't think this is necessary
       -- normalizeWith ctx $
-      (Lens.review apps nothing)
+      (Lens.review (appsG ops) nothing)
   optionalfold~_~some~_~just~_
-    | noapp AST._OptionalFold optionalfold
-    , Just (Identity x) <- noapplit' (AST._ExprFPrism (_S::S_ "Some")) some ->
-      pure \_ -> normalizeWith ctx $
-        AST.mkApp (Lens.review apps just) x
+    | noappG ops (_S::S_ "OptionalFold") optionalfold
+    , Just (Identity x) <- noapplitG' ops (_S::S_ "Some") some ->
+      pure \_ -> again $ Lens.review (appsG ops) (just~NoApp x)
   _ -> Nothing
 
-listfns :: forall m a. StrMapIsh m => Eq a => Normalizer m a -> Normalizer m a
-listfns ctx = Normalizer case _ of
+listfnsG :: forall all' node v ops m. StrMapIsh m =>
+  (node -> node) ->
+  GNormalizer
+    ( "App" :: FProxy AST.Pair
+    , "List" :: UNIT
+    , "ListBuild" :: UNIT
+    , "ListFold" :: UNIT
+    , "ListLength" :: UNIT
+    , "ListHead" :: UNIT
+    , "ListLast" :: UNIT
+    , "ListIndexed" :: UNIT
+    , "ListReverse" :: UNIT
+    , "ListLit" :: FProxy (Product Maybe Array)
+    , "Lam" :: FProxy AST.BindingBody
+    , "ListAppend" :: FProxy AST.Pair
+    , "Var" :: CONST AST.Var
+    , "NaturalLit" :: CONST Natural
+    , "Some" :: FProxy Identity
+    , "None" :: UNIT
+    , "Record" :: FProxy m
+    , "Natural" :: UNIT
+    , "RecordLit" :: FProxy m
+    | all'
+    )
+    (Variant (ShiftSubstAlg node v)) node ops
+listfnsG again = GNormalizer \ops -> case _ of
   listbuild~t~g
-    | noapp AST._ListBuild listbuild -> pure \_ ->
+    | noappG ops (_S::S_ "ListBuild") listbuild -> pure \_ ->
       let
-        g' = Lens.review apps g
-        ty = Lens.review apps t
-        ty' = Variables.shift 1 (AST.V "a" 0) ty
-        list = AST.mkApp AST.mkList ty
-        cons = AST.mkLam "a" ty $
-          AST.mkLam "as" (AST.mkApp AST.mkList ty') $
-            AST.mkListAppend
-              (AST.mkListLit Nothing (pure (AST.mkVar (AST.V "a" 0))))
-              (AST.mkVar (AST.V "as" 0))
-        nil = AST.mkListLit (Just ty) empty
-      in normalizeWith ctx
-        (AST.mkApp (AST.mkApp (AST.mkApp g' list) cons) nil)
+        g' = Lens.review (appsG ops) g
+        ty = Lens.review (appsG ops) t
+        ty' = ops.recurse (Variant.inj (_S::S_ "shift") { variable: AST.V "a" 0, delta: 1 }) ty
+        list = mkAppsF ops (_S::S_ "List") mempty ~ NoApp ty'
+        cons = NoApp $ mk ops (_S::S_ "Lam") $ AST.BindingBody "a" ty $
+          mk ops (_S::S_ "Lam") $ AST.BindingBody "as" (mk ops (_S::S_ "App") $ AST.Pair (mk ops (_S::S_ "List") mempty) ty') $
+            mk ops (_S::S_ "ListAppend") $ AST.Pair
+              (mk ops (_S::S_ "ListLit") (product Nothing (pure (mk ops (_S::S_ "Var") (wrap $ AST.V "a" 0)))))
+              (mk ops (_S::S_ "Var") (wrap $ AST.V "as" 0))
+        nil = NoApp $ mk ops (_S::S_ "ListLit") (product (Just ty) empty)
+      in again $ Lens.review (appsG ops) $
+        (g~list~cons~nil)
   listfold~_~listlit~t~cons~nil
-    | noapp AST._ListFold listfold
-    , Just (Product (Tuple _ xs)) <- noapplit' (AST._ExprFPrism (_S::S_ "ListLit")) listlit ->
+    | noappG ops (_S::S_ "ListFold") listfold
+    , Just (Product (Tuple _ xs)) <- noapplitG' ops (_S::S_ "ListLit") listlit ->
       pure \_ ->
       let
-        t' = normalizeWith ctx (Lens.review apps t)
-        consE = Lens.review apps cons
-        nilE = Lens.review apps nil
-      in if boundedType t'
+        t' = again (Lens.review (appsG ops) t)
+        consE = Lens.review (appsG ops) cons
+        nilE = Lens.review (appsG ops) nil
+      in if boundedTypeG ops t'
         then
           let
-            strictNil = normalizeWith ctx nilE
-            strictCons y ys = normalizeWith ctx
-              (AST.mkApp (AST.mkApp consE y) ys)
+            strictNil = again nilE
+            strictCons y ys = again
+              (mk ops (_S::S_ "App") $ AST.Pair (mk ops (_S::S_ "App") $ AST.Pair consE y) ys)
           in foldr strictCons strictNil xs
         else
           let
             lazyNil = nilE
-            lazyCons y ys = AST.mkApp (AST.mkApp consE y) ys
-          in normalizeWith ctx (foldr lazyCons lazyNil xs)
+            lazyCons y ys = mk ops (_S::S_ "App") $ AST.Pair (mk ops (_S::S_ "App") $ AST.Pair consE y) ys
+          in again (foldr lazyCons lazyNil xs)
   listlength~_~listlit
-    | noapp AST._ListLength listlength
-    , Just (Product (Tuple _ xs)) <- noapplit' (AST._ExprFPrism (_S::S_ "ListLit")) listlit ->
+    | noappG ops (_S::S_ "ListLength") listlength
+    , Just (Product (Tuple _ xs)) <- noapplitG' ops (_S::S_ "ListLit") listlit ->
       pure \_ ->
-        AST.mkNaturalLit (intToNat (Array.length xs))
+        mk ops (_S::S_ "NaturalLit") $ wrap $ intToNat $ Array.length xs
   listhead~t~listlit
-    | noapp AST._ListHead listhead
-    , Just (Product (Tuple _ xs)) <- noapplit' (AST._ExprFPrism (_S::S_ "ListLit")) listlit ->
-      pure \_ -> normalizeWith ctx $
+    | noappG ops (_S::S_ "ListHead") listhead
+    , Just (Product (Tuple _ xs)) <- noapplitG' ops (_S::S_ "ListLit") listlit ->
+      pure \_ -> again $
       case Array.head xs of
-        Just x -> AST.mkSome x
-        Nothing -> AST.mkApp AST.mkNone (Lens.review apps t)
+        Just x -> mk ops (_S::S_ "Some") $ Identity x
+        Nothing -> mk ops (_S::S_ "App") $ AST.Pair (mk ops (_S::S_ "None") mempty) (Lens.review (appsG ops) t)
   listlast~t~listlit
-    | noapp AST._ListLast listlast
-    , Just (Product (Tuple _ xs)) <- noapplit' (AST._ExprFPrism (_S::S_ "ListLit")) listlit ->
-      pure \_ -> normalizeWith ctx $
+    | noappG ops (_S::S_ "ListLast") listlast
+    , Just (Product (Tuple _ xs)) <- noapplitG' ops (_S::S_ "ListLit") listlit ->
+      pure \_ -> again $
       case Array.last xs of
-        Just x -> AST.mkSome x
-        Nothing -> AST.mkApp AST.mkNone (Lens.review apps t)
+        Just x -> mk ops (_S::S_ "Some") $ Identity x
+        Nothing -> mk ops (_S::S_ "App") $ AST.Pair (mk ops (_S::S_ "None") mempty) (Lens.review (appsG ops) t)
   listindexed~t~listlit
-    | noapp AST._ListIndexed listindexed
-    , Just (Product (Tuple _ xs)) <- noapplit' (AST._ExprFPrism (_S::S_ "ListLit")) listlit ->
-      pure \_ -> normalizeWith ctx $
+    | noappG ops (_S::S_ "ListIndexed") listindexed
+    , Just (Product (Tuple _ xs)) <- noapplitG' ops (_S::S_ "ListLit") listlit ->
+      pure \_ -> again $
         let
           mty' = if Array.null xs then Nothing else
-            Just $ AST.mkRecord $ IOSM.fromFoldable
-              [ Tuple "index" AST.mkNatural
-              , Tuple "value" (Lens.review apps t)
+            Just $ mk ops (_S::S_ "Record") $ IOSM.fromFoldable
+              [ Tuple "index" $ mk ops (_S::S_ "Natural") mempty
+              , Tuple "value" (Lens.review (appsG ops) t)
               ]
-          adapt i x = AST.mkRecordLit $ IOSM.fromFoldable
-            [ Tuple "index" (AST.mkNaturalLit (intToNat i))
+          adapt i x = mk ops (_S::S_ "RecordLit") $ IOSM.fromFoldable
+            [ Tuple "index" $ mk ops (_S::S_ "NaturalLit") $ wrap $ intToNat i
             , Tuple "value" x
             ]
-        in AST.mkListLit mty' (mapWithIndex adapt xs)
+        in mk ops (_S::S_ "ListLit") $ product mty' (mapWithIndex adapt xs)
   listreverse~_~listlit
-    | noapp AST._ListReverse listreverse
-    , Just (Product (Tuple mty xs)) <- noapplit' (AST._ExprFPrism (_S::S_ "ListLit")) listlit ->
-      pure \_ -> normalizeWith ctx $
-        AST.mkListLit mty (Array.reverse xs)
+    | noappG ops (_S::S_ "ListReverse") listreverse
+    , Just (Product (Tuple mty xs)) <- noapplitG' ops (_S::S_ "ListLit") listlit ->
+      pure \_ -> again $
+        mk ops (_S::S_ "ListLit") $ product mty (Array.reverse xs)
   _ -> Nothing
 
 -- | Returns `true` if two expressions are α-equivalent and β-equivalent and

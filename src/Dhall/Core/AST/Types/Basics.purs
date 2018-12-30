@@ -563,6 +563,9 @@ instance containerIBindingBody :: ContainerI (Boolean) BindingBody' where
 --------------------------------------------------
 -- | Additional instances for above datatypes | --
 --------------------------------------------------
+isEmptyTextLitF :: forall a. TextLitF a -> Boolean
+isEmptyTextLitF (TextLit "") = true
+isEmptyTextLitF _ = false
 instance altTextLitF :: Alt TextLitF where
   alt (TextLit s0) (TextLit s1) = TextLit (s0 <> s1)
   alt (TextLit s0) (TextInterp s1 a1 l1) = TextInterp (s0 <> s1) a1 l1
