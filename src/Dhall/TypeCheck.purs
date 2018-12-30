@@ -40,6 +40,7 @@ import Data.Maybe.First (First(..))
 import Data.Monoid.Disj (Disj(..))
 import Data.Natural (Natural)
 import Data.Newtype (class Newtype, over, un, unwrap, wrap)
+import Data.Newtype as N
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Profunctor.Strong ((&&&))
 import Data.Semigroup.Foldable (class Foldable1)
@@ -59,12 +60,13 @@ import Dhall.Core as Dhall.Core
 import Dhall.Core.AST (Const(..), Expr, ExprRowVF(..), ExprRowVFI, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Location (ExprLocation, Location(..))
-import Dhall.Core.AST.Operations.Transformations (OverCases(..))
+import Dhall.Core.AST.Operations.Transformations (OverCases(..), OverCasesM(..))
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
 import Dhall.Core.Zippers (_ix)
+import Dhall.Normalize as Dhall.Normalize
 import Dhall.Variables (freeInAlg, shiftAlgG, trackIntro)
-import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, mapR, project, transCata)
+import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, mapR, project, transCata, traverseR)
 import Type.Row as R
 import Validation.These as V
 
@@ -217,19 +219,14 @@ type Ocpr w r m a = TwoD (Operacions w r m a) (LxprF m a)
 typecheckSketch :: forall w r m a. Eq a => StrMapIsh m =>
   (WithBiCtx (LxprF m a) (Oxpr w r m a) -> Feedback w r m a (Lxpr m a)) ->
   Lxpr m a -> Ocpr w r m a
-typecheckSketch alg = recursor2D \layer@(EnvT (Tuple loc e)) -> ReaderT \ctx -> Product
-  let
-    ctx' = defer \_ -> ctx <#> theseLeft >>> map plain
-    reconsitute :: (ExprLocation m a -> ExprLocation m a) -> Expr m a -> Lxpr m a
-    reconsitute newF e' =
-      -- Expr -> Bxpr
-      originateFrom (newF <$> loc) $ e'
-  in Tuple
-      -- TODO: preserve spans from original (when possible)
-      do defer \_ -> reconsitute NormalizeLocation $
-          Dhall.Core.normalize $
-          substContextExpr (extract ctx') $
-          embed $ plain <$> e
+typecheckSketch alg = recursor2D
+  \layer@(EnvT (Tuple loc e)) -> ReaderT \ctx -> Product $ Tuple
+      do defer \_ ->
+          let ctx' = ctx <#> theseLeft >>> map head2D in
+          alsoOriginateFrom (NormalizeLocation <$> loc) $
+          normalizeLxpr $
+          substContextLxpr ctx' $
+          embed $ EnvT $ Tuple loc $ head2D <$> e
       do Compose $ defer \_ ->
           map (alsoOriginateFrom (TypeOfLocation <$> loc)) $
           alg $ WithBiCtx ctx $ (((layer))) #
@@ -443,6 +440,25 @@ runLxprAlg alg = go where
     , layer: newmother
     } e
 
+runLxprAlgM :: forall f m a i. FunctorWithIndex String m => Functor f =>
+  (
+    i ->
+    { unlayer :: Lxpr m a -> AST.ExprLayerF m a (Lxpr m a)
+    , overlayer :: OverCasesM f (AST.ExprLayerRow m a) (Lxpr m a)
+    , recurse :: i -> Lxpr m a -> f (Lxpr m a)
+    , layer :: AST.ExprLayerF m a (Lxpr m a) -> Lxpr m a
+    } -> Lxpr m a -> f (Lxpr m a)
+  ) ->
+  i -> Lxpr m a -> f (Lxpr m a)
+runLxprAlgM alg = go where
+  go i e = alg i
+    { unlayer: project >>> unEnvT >>> unwrap
+    , overlayer: OverCasesM $ traverseR <<< travEnvT <<< N.traverse ERVF
+    , recurse: go
+    , layer: newmother
+    } e
+  travEnvT f (EnvT (Tuple e x)) = EnvT <<< Tuple e <$> f x
+
 runOxprAlg :: forall w r m a i.
   (
     i ->
@@ -512,6 +528,11 @@ tryShiftOutOxpr v e = Just (shiftOutOxpr v e)
 
 tryShiftOut0Oxpr :: forall w r m a. Foldable m => String -> Oxpr w r m a -> Maybe (Oxpr w r m a)
 tryShiftOut0Oxpr v = tryShiftOutOxpr (AST.V v 0)
+
+normalizeLxpr :: forall m a. StrMapIsh m => Eq a => Lxpr m a -> Lxpr m a
+normalizeLxpr = (<<<) (extract <<< extract <<< unwrap) $
+  runLxprAlgM (Variant.case_ # Dhall.Normalize.normalizeWithAlgGW mempty) $
+    Variant.inj (_S::S_ "normalize") mempty
 
 locateO :: forall w r m a. Eq a => StrMapIsh m =>
   (a -> FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a (Expr m a)) ->
