@@ -3,14 +3,13 @@ module Dhall.Normalize where
 import Prelude
 
 import Control.Apply (lift2)
-import Control.Comonad (extract)
+import Control.Comonad (class Comonad, class Extend, extend, extract)
 import Control.Plus (empty)
 import Data.Array (foldr)
 import Data.Array as Array
 import Data.Const (Const)
 import Data.Function (on)
 import Data.Functor.App as AppF
-import Data.Functor.Compose (Compose(..))
 import Data.Functor.Product (Product(..), product)
 import Data.Functor.Variant (FProxy, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
@@ -34,13 +33,13 @@ import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Core.AST (CONST, Expr, UNIT)
 import Dhall.Core.AST as AST
-import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, ConsNodeOpsM, OverCases(..), OverCasesM(..), runAlgebraExprM)
+import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, ConsNodeOpsM, OverCasesM(..), runAlgebraExprM)
 import Dhall.Core.AST.Types.Basics (S_, _S)
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Core.StrMapIsh as StrMapIsh
 import Dhall.Normalize.Apps (AppsF(..), appsG, noappG, noapplitG, noapplitG', (~))
-import Dhall.Variables (ShiftSubstAlg)
+import Dhall.Variables (ShiftSubstAlg, shiftSubstAlgGM)
 import Dhall.Variables as Variables
 import Prim.Row as Row
 import Type.Row (type (+))
@@ -101,11 +100,24 @@ type Preview' a b = Lens.Fold (First b) a a b b
 normalizeWith :: forall m a. StrMapIsh m => Eq a => Normalizer m a -> Expr m a -> Expr m a
 normalizeWith ctx = extract <<< extract <<< unwrap <<< normalizeWithW ctx
 
--- Pseudo-Writer-Monad-Transformer (prevents space leaks?)
-type W = Compose (Tuple (Conj Boolean)) Lazy
+newtype W a = W (Tuple (Conj Boolean) (Lazy a))
+derive instance newtypeW :: Newtype (W a) _
+derive instance functorW :: Functor W
+instance applyW :: Apply W where
+  apply (W (Tuple l fab)) (W (Tuple r fb)) = W (Tuple (l<>r) (fab <*> fb))
+instance applicativeW :: Applicative W where
+  pure = W <<< pure <<< pure
+instance bindW :: Bind W where
+  bind (W (Tuple (Conj false) l)) f =
+    W (Tuple (Conj false) (l >>= f >>> unwrap >>> extract))
+  bind (W (Tuple (Conj true) l)) f = f $ extract l
+instance extendW :: Extend W where
+  extend f w@(W (Tuple c l)) = W $ Tuple c $ extend (extract >>> f) (pure w)
+instance comonadW :: Comonad W where
+  extract (W (Tuple _ l)) = extract l
 
 type NormalizeAlg node v = ShiftSubstAlg node +
-  ( normalize :: Unit | v )
+  ( normalize :: {} | v )
 
 lowerOps :: forall all i node.
   Record (ConsNodeOpsM W all i node ()) ->
@@ -113,9 +125,9 @@ lowerOps :: forall all i node.
 lowerOps node =
   { layer: node.layer
   , unlayer: node.unlayer
-  , overlayer: OverCases \f -> case node.overlayer of
-      OverCasesM g -> g (pure <<< f) >>> extract <<< extract <<< unwrap
-  , recurse: \i -> node.recurse i >>> extract <<< extract <<< unwrap
+  , overlayer: OverCasesM \f -> Identity <<< case node.overlayer of
+      OverCasesM g -> g (pure <<< extract <<< f) >>> extract
+  , recurse: \i -> node.recurse i >>> Identity <<< extract
   }
 
 normalizeWithAlgGW :: forall m a v node. StrMapIsh m => Eq a =>
@@ -123,15 +135,12 @@ normalizeWithAlgGW :: forall m a v node. StrMapIsh m => Eq a =>
   (Variant v -> Record (ConsNodeOpsM W (AST.ExprLayerRow m a) (Variant (NormalizeAlg node v)) node ()) -> node -> W node) ->
   (Variant (NormalizeAlg node v) -> Record (ConsNodeOpsM W (AST.ExprLayerRow m a) (Variant (NormalizeAlg node v)) node ()) -> node -> W node)
 normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normalize")) rest handleLayer where
-  rest = flip finally node # Variant.onMatch
-    { shift: \i' -> pure <<< Variables.shiftSubstAlgG Variant.case_ (Variant.inj (_S::S_ "shift") i') (lowerOps node)
-    , subst: \i' -> pure <<< Variables.shiftSubstAlgG Variant.case_ (Variant.inj (_S::S_ "subst") i') (lowerOps node)
-    }
+  rest = shiftSubstAlgGM finally <@> node
 
   -- Normalize one layer of content
-  handleLayer (_ :: Unit) orig = case rules catchall orig of
+  handleLayer (_ :: {}) orig = case rules catchall orig of
     -- Hack: return the original node of the algorithm says it was unchanged
-    Compose (Tuple (Conj true) _) -> pure orig
+    W (Tuple (Conj true) _) -> pure orig
     modified -> modified
 
   -- Recurse as necessary
@@ -189,7 +198,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
       do r # extractW # praevise
 
   unchanged :: forall x. W x -> Boolean
-  unchanged (Compose (Tuple (Conj c) _)) = c
+  unchanged (W (Tuple (Conj c) _)) = c
 
   anew ::
     forall sym f rest.
@@ -234,13 +243,13 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
   relayers e = AST.projectW e # map relayers # node.layer
 
   extractW :: forall x. W x -> x
-  extractW (Compose x) = extract (extract x)
+  extractW = extract
 
   deferred :: forall x. (Unit -> x) -> W x
-  deferred x = Compose $ pure (defer x)
+  deferred x = W $ pure (defer x)
 
   simpler :: forall x. W x -> W x
-  simpler (Compose (Tuple _ x)) = Compose $ Tuple (Conj false) x
+  simpler (W (Tuple _ x)) = W $ Tuple (Conj false) x
 
   instead :: forall x. (Unit -> x) -> W x
   instead x = simpler (deferred x)
@@ -758,7 +767,7 @@ listfnsG again = GNormalizer \node -> case _ of
       let
         g' = Lens.review (appsG node) g
         ty = Lens.review (appsG node) t
-        ty' = node.recurse (Variant.inj (_S::S_ "shift") { variable: AST.V "a" 0, delta: 1 }) ty
+        ty' = extract $ node.recurse (Variant.inj (_S::S_ "shift") { variable: AST.V "a" 0, delta: 1 }) ty
         list = mkAppsF node (_S::S_ "List") mempty ~ NoApp ty'
         cons = NoApp $ mk node (_S::S_ "Lam") $ AST.BindingBody "a" ty $
           mk node (_S::S_ "Lam") $ AST.BindingBody "as" (mk node (_S::S_ "App") $ AST.Pair (mk node (_S::S_ "List") mempty) ty') $
@@ -848,4 +857,4 @@ isNormalized = isNormalizedWith mempty
 -- | Quickly check if an expression is in normal form
 isNormalizedWith :: forall m a. StrMapIsh m => Eq a => Normalizer m a -> Expr m a -> Boolean
 isNormalizedWith ctx e0 = case normalizeWithW ctx e0 of
-  Compose (Tuple (Conj wasNormalized) _) -> wasNormalized
+  W (Tuple (Conj wasNormalized) _) -> wasNormalized

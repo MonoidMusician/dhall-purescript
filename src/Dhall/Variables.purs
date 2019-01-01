@@ -2,17 +2,20 @@ module Dhall.Variables where
 
 import Prelude
 
+import Control.Apply (lift2)
 import Data.Const (Const(..))
 import Data.Foldable (class Foldable, fold, length)
 import Data.FoldableWithIndex (foldMapWithIndex)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff)
+import Data.Identity (Identity(..))
 import Data.Maybe (Maybe(..))
 import Data.Monoid.Additive (Additive(..))
 import Data.Monoid.Disj (Disj(..))
-import Data.Newtype (over, unwrap)
+import Data.Newtype (over, un, unwrap)
 import Data.These (These(..))
+import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
 import Data.Variant as Variant
@@ -20,7 +23,7 @@ import Dhall.Context (Context)
 import Dhall.Context as Dhall.Context
 import Dhall.Core.AST (BindingBody(..), CONST, Expr, LetF(..), S_, Var(..), Variable, _S, mkVar)
 import Dhall.Core.AST as AST
-import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, GenericExprAlgebraVT, NodeOps, elim1, runAlgebraExpr, runOverCases)
+import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, GenericExprAlgebraVT, GenericExprAlgebraVTM, NodeOps, NodeOpsM, elim1, elim1M, runAlgebraExpr, runOverCases, runOverCasesM)
 import Matryoshka (Algebra, cata)
 import Type.Row (type (+))
 import Type.Row as R
@@ -166,6 +169,19 @@ trackIntroCases next =
   , "Let": trackIntroLetF next
   }
 
+trackIntroCasesM :: forall a b f. Applicative f => (Maybe (Intro a) -> a -> f b) ->
+  { "Var" :: Const Var a -> f (Const Var b)
+  , "Lam" :: BindingBody a -> f (BindingBody b)
+  , "Pi"  :: BindingBody a -> f (BindingBody b)
+  , "Let" :: LetF a -> f (LetF b)
+  }
+trackIntroCasesM next =
+  { "Var": un Const >>> pure >>> map Const
+  , "Lam": trackIntroBindingBody next >>> sequence
+  , "Pi": trackIntroBindingBody next >>> sequence
+  , "Let": trackIntroLetF next >>> sequence
+  }
+
 -- A simple algebra for `freeIn`. Will work with anything that is
 -- vaguely like `Expr`.
 freeInAlg ::
@@ -190,19 +206,32 @@ shiftAlgG = elim1 (_S::S_ "shift")
     , "Let": trackIntroLetF (recur <<< trackVar v <<< trackIntroVar)
     }
 
+shiftAlgGM :: forall f m. Applicative f =>
+  GenericExprAlgebraVTM f (NodeOpsM f) (Variable m) ShiftAlg
+shiftAlgGM = elim1M (_S::S_ "shift")
+  \i@{ delta, variable: v@(V x n) } node ->
+    let recur = node.recurse <<< Variant.inj (_S::S_ "shift") <<< { delta, variable: _ } in
+    { "Var": \(Const (V x' n')) ->
+      let n'' = if x == x' && n <= n' then n' + delta else n'
+      in pure (Const (V x' n''))
+    , "Lam": sequence <<< trackIntroBindingBody (recur <<< trackVar v <<< trackIntroVar)
+    , "Pi": sequence <<< trackIntroBindingBody (recur <<< trackVar v <<< trackIntroVar)
+    , "Let": sequence <<< trackIntroLetF (recur <<< trackVar v <<< trackIntroVar)
+    }
+
 -- Generic Algebra for substituting variable references.
 -- (Note how the input type references `node`.)
 type SubstAlg node v = ( subst :: { variable :: Var, substitution :: node } | v )
 type ShiftSubstAlg node v = ShiftAlg node + SubstAlg node + v
 shiftSubstAlgG :: forall m. GenericExprAlgebraVT NodeOps (Variable m) ShiftSubstAlg
 shiftSubstAlgG rest = rest # shiftAlgG <<< Variant.on (_S::S_ "subst")
-  \i@{ variable: variable, substitution } node ->
+  \i@{ variable: variable, substitution } node -> Identity <<<
   let
     isTarget = node.unlayer >>> VariantF.on (_S::S_ "Var")
       (eq (Const variable)) ff
     substIfTarget c = isTarget >>= if _ then pure substitution else c
-    subst1 v' s' = node.recurse <<< Variant.inj (_S::S_ "subst") $ { variable: v', substitution: s' }
-    shift1 name = node.recurse <<< Variant.inj (_S::S_ "shift") $ { delta: 1, variable: V name 0 }
+    subst1 v' s' = compose (un Identity) <<< node.recurse <<< Variant.inj (_S::S_ "subst") $ { variable: v', substitution: s' }
+    shift1 name = compose (un Identity) <<< node.recurse <<< Variant.inj (_S::S_ "shift") $ { delta: 1, variable: V name 0 }
     -- If a variable is being introduced, shift it _in_ in the substitution
     addShift1 = flip case _ of
       Nothing -> identity
@@ -214,6 +243,30 @@ shiftSubstAlgG rest = rest # shiftAlgG <<< Variant.on (_S::S_ "subst")
       then pure substitution
       else runOverCases node.overlayer (next Nothing) $
         trackIntroCases (next <<< trackIntroVar)
+
+shiftSubstAlgGM :: forall f m. Applicative f => Bind f =>
+  GenericExprAlgebraVTM f (NodeOpsM f) (Variable m) ShiftSubstAlg
+shiftSubstAlgGM rest = rest # shiftAlgGM <<< Variant.on (_S::S_ "subst")
+  \i@{ variable: variable, substitution } node ->
+  let
+    isTarget = node.unlayer >>> VariantF.on (_S::S_ "Var")
+      (eq (Const variable)) ff
+    substIfTarget c = isTarget >>= if _ then pure substitution else c
+    subst1 v' s' = node.recurse <<< Variant.inj (_S::S_ "subst") $ { variable: v', substitution: s' }
+    shift1 name = node.recurse <<< Variant.inj (_S::S_ "shift") $ { delta: 1, variable: V name 0 }
+    -- If a variable is being introduced, shift it _in_ in the substitution
+    addShift1 = flip case _ of
+      Nothing -> pure
+      Just name -> shift1 name
+    -- And track if the variable being searched for should be changed as well
+    next = lift2 (>>>)
+      (flip <<< subst1 <<< trackVar variable)
+      (bind            <<< addShift1 substitution)
+  in
+    isTarget >>= if _
+      then pure (pure substitution)
+      else runOverCasesM node.overlayer (next Nothing) $
+        trackIntroCasesM (next <<< trackIntroVar)
 
 -- The Generic Algebra Command for renaming (which consists of shifting and
 -- substitution).

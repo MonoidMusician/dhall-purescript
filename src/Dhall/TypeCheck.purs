@@ -29,7 +29,6 @@ import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Lazy (Lazy, defer)
-import Data.Lens (preview)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.List (List(..), (:))
 import Data.List as List
@@ -57,16 +56,15 @@ import Dhall.Context (Context(..))
 import Dhall.Context as Dhall.Context
 import Dhall.Core (Var, shift)
 import Dhall.Core as Dhall.Core
-import Dhall.Core.AST (Const(..), Expr, ExprRowVF(..), ExprRowVFI, Pair(..), S_, _S)
+import Dhall.Core.AST (Const(..), Expr, ExprRowVF(..), Pair(..), S_, _S)
 import Dhall.Core.AST as AST
-import Dhall.Core.AST.Operations.Location (ExprLocation, Location(..))
-import Dhall.Core.AST.Operations.Transformations (OverCases(..), OverCasesM(..))
+import Dhall.Core.AST.Operations.Location (BasedExprDerivation, ExprLocation)
+import Dhall.Core.AST.Operations.Location as Loc
+import Dhall.Core.AST.Operations.Transformations (OverCases, OverCasesM(..))
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
-import Dhall.Core.Zippers (_ix)
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.Variables (freeInAlg, shiftAlgG, trackIntro)
-import Dhall.Variables as Variables
 import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, mapR, project, transCata, traverseR)
 import Type.Row as R
 import Validation.These as V
@@ -169,7 +167,7 @@ bitransProduct natF natG (Product e) = Product (bimap natF natG e)
 
 type Ann m a = Cofree (AST.ExprRowVF m a)
 -- Expressions end up being associated with many locations, trust me on this ...
-type L m a = NonEmptyList (ExprLocation m a)
+type L m a = NonEmptyList (BasedExprDerivation m a)
 -- Expr with Location for each node
 type Lxpr m a = Ann m a (L m a)
 -- Pattern Functor for Lxpr
@@ -228,7 +226,7 @@ typecheckSketch alg = recursor2D
           substContextLxpr ctx' $
           embed $ EnvT $ Tuple loc $ head2D <$> e
       do Compose $ defer \_ ->
-          map (alsoOriginateFrom (TypeOfLocation <$> loc)) $
+          map (alsoOriginateFrom (Loc.step (_S::S_ "typecheck") <$> loc)) $
           alg $ WithBiCtx ctx $ (((layer))) #
             -- contextualize each child of `layer` in the proper context,
             -- adapted for its place in the AST
@@ -270,14 +268,14 @@ originateFrom :: forall m a. FunctorWithIndex String m =>
   L m a -> Expr m a -> Lxpr m a
 originateFrom = flip <<< cata <<< flip $ go where
   go loc e = embed $ EnvT $ Tuple loc $ (((e)))
-    # mapWithIndex \i' -> (#) $ LocationWithin (pure i') <$> loc
+    # mapWithIndex \i' -> (#) $ Loc.move (_S::S_ "within") i' <$> loc
 
 -- Same drill, but for a tree that already has locations.
 alsoOriginateFrom :: forall m a. FunctorWithIndex String m =>
   L m a -> Lxpr m a -> Lxpr m a
 alsoOriginateFrom = flip <<< cata <<< flip $ go where
   go loc (EnvT (Tuple f e)) = embed $ EnvT $ Tuple (loc <> f) $ (((e)))
-    # mapWithIndex \i' -> (#) $ LocationWithin (pure i') <$> loc
+    # mapWithIndex \i' -> (#) $ Loc.move (_S::S_ "within") i' <$> loc
 
 topLoc :: forall w r m a. Oxpr w r m a -> L m a
 topLoc = project >>> un Compose >>> extract >>> env
@@ -288,8 +286,8 @@ alsoOriginateFromO = mapR <<< over Compose <<< go where
   go loc e =
     Cofree.deferCofree \_ -> Tuple (Cofree.head e) (Cofree.tail e)
     # bimap
-      do mapEnv (loc <> _) >>> mapEnvT (mapWithIndex \i' -> mapR $ over Compose $ go $ LocationWithin (pure i') <$> loc)
-      do bitransProduct (map (go (NormalizeLocation <$> loc))) (map (go (TypeOfLocation <$> loc)))
+      do mapEnv (loc <> _) >>> mapEnvT (mapWithIndex \i' -> mapR $ over Compose $ go $ Loc.move (_S::S_ "within") i' <$> loc)
+      do bitransProduct (map (go (Loc.step (_S::S_ "normalize") <$> loc))) (map (go (Loc.step (_S::S_ "typecheck") <$> loc)))
 
 -- Typecheck an Ocpr by giving it a context. Returns an Oxpr.
 typecheckStepCtx :: forall w r m a. FunctorWithIndex String m =>
@@ -316,7 +314,7 @@ bicontextualizeWithin1 shiftIn_node' go ctx = trackIntro case _ of
   Nothing -> go ctx
   Just (Tuple name introed) -> go $
     -- NOTE: shift in the current entry as soon as it becomes part of the context
-    -- (so it stays valid even if it references the name being shifted in)
+    -- (so it stays valid even if it references the name being shift in)
     Dhall.Context.insert name (join bimap (shiftIn_node' name <<< go ctx) introed) $
       -- Also shift in the remaining parts of the context
       join bimap (shiftIn_node' name) <$> ctx
@@ -359,22 +357,22 @@ subst1 ctx =
     _      -> \e -> Right e
 
 -- Substitute a context all the way down an Lxpr, snowballing as it goes
--- (i.e., `Let` bindings introduced in it are also substituted).
--- FIXME: make sure entries in context are substituted in their own context too?
+-- (i.e., `Let` bindings introduced in it are also substitute).
+-- FIXME: make sure entries in context are substitute in their own context too?
 substContextLxpr :: forall m a. FunctorWithIndex String m =>
   SubstContext (Lxpr m a) ->
   Lxpr m a -> Lxpr m a
-substContextLxpr ctx e = alsoOriginateFrom (Substituted <$> extract e) $
+substContextLxpr ctx e = alsoOriginateFrom (Loc.step (_S::S_ "substitute") <$> extract e) $
   (#) ctx $ (((e))) # cata \(EnvT (Tuple loc (ERVF layer))) ctx' ->
     case substContext1 shiftInLxpr0 (#) ctx' layer of
       Left e' -> e'
       Right layer' -> embed $ EnvT $ Tuple loc $ ERVF layer'
 
--- FIXME: make sure entries in context are substituted in their own context too?
+-- FIXME: make sure entries in context are substitute in their own context too?
 substContextOxpr :: forall w r m a. FunctorWithIndex String m =>
   SubstContext (Oxpr w r m a) ->
   Oxpr w r m a -> Oxpr w r m a
-substContextOxpr ctx e = alsoOriginateFromO (Substituted <$> topLoc e) $
+substContextOxpr ctx e = alsoOriginateFromO (Loc.step (_S::S_ "substitute") <$> topLoc e) $
   (mapR $ over Compose $ go ctx) e where
     go ctx' e' = Cofree.deferCofree \_ ->
       case go1 ctx' (Cofree.head e') of
@@ -387,7 +385,7 @@ substContextOxpr ctx e = alsoOriginateFromO (Substituted <$> topLoc e) $
         Right layer' -> Right $ EnvT $ Tuple loc $ ERVF layer'
 
 -- Substitute context all the way down an Expr.
--- FIXME: make sure entries in context are substituted in their own context too?
+-- FIXME: make sure entries in context are substitute in their own context too?
 substContextExpr :: forall m a.
   SubstContext (Expr m a) ->
   Expr m a -> Expr m a
@@ -399,7 +397,7 @@ substContextExpr = flip $ cata \(ERVF layer) ctx ->
 -- Originate from ... itself. Profound.
 newborn :: forall m a. FunctorWithIndex String m =>
   Expr m a -> Lxpr m a
-newborn e0 = e0 # originateFrom (pure (Place e0))
+newborn e0 = e0 # originateFrom (pure (Tuple empty (Just e0)))
 
 -- Wrap an Lxpr layer, prserving and augmenting the existing locations
 -- from the new root.
@@ -407,8 +405,8 @@ newmother :: forall m a. FunctorWithIndex String m =>
   AST.ExprLayerF m a (Lxpr m a) -> Lxpr m a
 newmother e0 =
   let e_ = AST.embedW $ e0 <#> denote
-  in embed $ EnvT $ Tuple (pure (Place e_)) $ wrap e0
-    # mapWithIndex \i -> alsoOriginateFrom (pure (LocationWithin (pure i) (Place e_)))
+  in embed $ EnvT $ Tuple (pure (Tuple empty (Just e_))) $ wrap e0
+    # mapWithIndex \i -> alsoOriginateFrom (pure (Loc.move (_S::S_ "within") i (Tuple empty (Just e_))))
 
 denote :: forall m a s.
   Ann m a s -> Expr m a
@@ -427,18 +425,12 @@ runLxprAlg :: forall m a i. FunctorWithIndex String m =>
     i ->
     { unlayer :: Lxpr m a -> AST.ExprLayerF m a (Lxpr m a)
     , overlayer :: OverCases (AST.ExprLayerRow m a) (Lxpr m a)
-    , recurse :: i -> Lxpr m a -> Lxpr m a
+    , recurse :: i -> Lxpr m a -> Identity (Lxpr m a)
     , layer :: AST.ExprLayerF m a (Lxpr m a) -> Lxpr m a
-    } -> Lxpr m a -> Lxpr m a
+    } -> Lxpr m a -> Identity (Lxpr m a)
   ) ->
   i -> Lxpr m a -> Lxpr m a
-runLxprAlg alg = go where
-  go i e = alg i
-    { unlayer: project >>> unEnvT >>> unwrap
-    , overlayer: OverCases $ mapR <<< mapEnvT <<< over ERVF
-    , recurse: go
-    , layer: newmother
-    } e
+runLxprAlg alg i e = un Identity $ runLxprAlgM alg i e
 
 runLxprAlgM :: forall f m a i. FunctorWithIndex String m => Functor f =>
   (
@@ -464,15 +456,15 @@ runOxprAlg :: forall w r m a i.
     i ->
     { unlayer :: Oxpr w r m a -> AST.ExprLayerF m a (Oxpr w r m a)
     , overlayer :: OverCases (AST.ExprLayerRow m a) (Oxpr w r m a)
-    , recurse :: i -> Oxpr w r m a -> Oxpr w r m a
-    } -> Oxpr w r m a -> Oxpr w r m a
+    , recurse :: i -> Oxpr w r m a -> Identity (Oxpr w r m a)
+    } -> Oxpr w r m a -> Identity (Oxpr w r m a)
   ) ->
   i -> Oxpr w r m a -> Oxpr w r m a
 runOxprAlg alg = go where
-  go i e = alg i
+  go i e = un Identity $ alg i
     { unlayer: unlayerO
-    , overlayer: OverCases overlayerO
-    , recurse: go
+    , overlayer: OverCasesM (map pure <<< overlayerO <<< map extract)
+    , recurse: map Identity <<< go
     } e
 
 freeInOxpr :: forall w r m a. Foldable m => Var -> Oxpr w r m a -> Disj Boolean
@@ -483,7 +475,7 @@ freeInLxpr = flip $ cata $ unEnvT >>> unwrap >>> freeInAlg
 
 shiftLxpr :: forall m a. FunctorWithIndex String m =>
   Int -> Var -> Lxpr m a -> Lxpr m a
-shiftLxpr delta variable e = alsoOriginateFrom (Shifted delta variable <$> extract e) $
+shiftLxpr delta variable e = alsoOriginateFrom (Loc.move (_S::S_ "shift") { delta, variable } <$> extract e) $
   (((e))) #
     runLxprAlg (Variant.case_ # shiftAlgG)
       (Variant.inj (_S::S_ "shift") { delta, variable })
@@ -530,11 +522,13 @@ tryShiftOut0Oxpr :: forall w r m a. Foldable m => String -> Oxpr w r m a -> Mayb
 tryShiftOut0Oxpr v = tryShiftOutOxpr (AST.V v 0)
 
 normalizeLxpr :: forall m a. StrMapIsh m => Eq a => Lxpr m a -> Lxpr m a
-normalizeLxpr e = alsoOriginateFrom (NormalizeLocation <$> extract e) $
+normalizeLxpr e = alsoOriginateFrom (Loc.step (_S::S_ "normalize") <$> extract e) $
   (extract <<< extract <<< unwrap) $
+    -- TODO: use substLxpr and shiftLxpr here
     runLxprAlgM (Variant.case_ # Dhall.Normalize.normalizeWithAlgGW mempty)
       (Variant.inj (_S::S_ "normalize") mempty) e
 
+{-
 locateO :: forall w r m a. Eq a => StrMapIsh m =>
   (a -> FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a (Expr m a)) ->
   BiContext (OxprE w ( "Not found" :: ExprRowVFI | r ) m a) ->
@@ -546,7 +540,7 @@ locateO tpa ctx =
     tcingFrom foc = typecheckSketch (typecheckAlgebra tpa) <<< originateFrom foc
     tcingFromIn foc ctx' = tcingFrom foc >>> bicontextualizeWithin ctx'
     tcingFromHere foc = tcingFromIn foc ctx
-    tcingFromSelfHere e = tcingFromHere (pure (Place e)) e
+    tcingFromSelfHere e = tcingFromHere (pure (Tuple empty e)) e
   in case _ of
     MainExpression -> pure
     Place e -> pure (pure (tcingFromSelfHere e))
@@ -586,6 +580,7 @@ locateE tpa ctx =
           { location: pure loc
           , tag: Variant.inj (_S::S_ "Not found") (extract i)
           }
+-}
 
 newtype Inconsistency a = Inconsistency (NonEmpty (NonEmpty List) a)
 derive instance newtypeInconsistency :: Newtype (Inconsistency a) _
@@ -723,11 +718,11 @@ typeWithA tpa ctx0 e0 = do
     tcingIn :: BiContext (OxprE w r m a) -> Expr m a -> FeedbackE w r m a (OxprE w r m a)
     tcingIn ctx e =
       let
-        e' = tcingFrom (pure (Place e)) e # bicontextualizeWithin ctx
+        e' = tcingFrom (pure (Tuple empty (Just e))) e # bicontextualizeWithin ctx
       in e' <$ typecheckStep e'
   -- convert ctx0 and e0 to Oxprs
   ctxO <- reconstituteCtx (\ctx ty -> That <$> tcingIn ctx ty) ctx0
-  let eO = tcingFrom (pure MainExpression) e0
+  let eO = tcingFrom (pure (Tuple empty Nothing)) e0
   -- and run typechecking on eO
   plain <$> typecheckStepCtx ctxO eO
 
@@ -827,7 +822,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
 
     -- TODO: This will need to become aware of AST holes
     -- Check a binary operation (`Pair` functor) against a simple, static,
-    -- *normalized* type `t`.
+    -- *normalize* type `t`.
     checkBinOp ::
       Expr m a ->
       Pair (OxprE w r m a) ->
@@ -932,9 +927,9 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         checkFn = ensure (_S::S_ "Pi") f
           (errorHere (_S::S_ "Not a function"))
         checkArg (AST.BindingBody name aty0 rty) aty1 =
-          let shifted = tryShiftOut0Lxpr name (head2D rty) in
+          let shift = tryShiftOut0Lxpr name (head2D rty) in
           if Dhall.Core.judgmentallyEqual (plain aty0) (plain aty1)
-            then pure case shifted of
+            then pure case shift of
               Nothing -> mk(_S::S_"App") $ Pair
                 do mk(_S::S_"Lam") (head2D <$> AST.BindingBody name aty0 rty)
                 do head2D a
@@ -945,7 +940,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
               -- then this is a non-dependent function
               -- and its return type can be suggested
               -- even if its argument does not have the right type
-              errorHere (_S::S_ "Type mismatch") unit # case shifted of
+              errorHere (_S::S_ "Type mismatch") unit # case shift of
                 Nothing -> identity
                 Just rty' -> suggest rty'
       in join $ checkArg <$> checkFn <*> typecheckStep a
@@ -1256,7 +1251,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
   , "ImportAlt": \(Pair l _r) ->
       -- FIXME???
       head2D <$> typecheckStep l
-  , "Embed": map (originateFrom (TypeOfLocation <$> loc)) <<< tpa <<< unwrap
+  , "Embed": map (originateFrom (Loc.step (_S::S_ "typecheck") <$> loc)) <<< tpa <<< unwrap
   }
 
 -- The explanation, given as text interspersed with specific places to look at

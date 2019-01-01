@@ -3,14 +3,16 @@ module Dhall.Core.AST.Operations.Transformations where
 import Prelude
 
 import Control.Comonad (extract)
-import Control.Comonad.Env (EnvT(..), mapEnvT)
+import Control.Comonad.Env (EnvT(..))
 import Data.Functor.Variant (class VariantFMapCases, class VariantFMaps, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
+import Data.Identity (Identity(..))
+import Data.Newtype (un, unwrap, wrap)
 import Data.Newtype as N
-import Data.Newtype (over, unwrap, wrap)
+import Data.Profunctor.Star (Star(..))
 import Data.Symbol (class IsSymbol)
-import Data.Tuple (Tuple(..))
 import Data.Traversable (class Traversable)
+import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Data.Variant.Internal (class VariantFTravCases, class VariantTags)
@@ -21,7 +23,6 @@ import Dhall.Core.Zippers.Recursive (_recurse)
 import Matryoshka (embed, project)
 import Type.Row (type (+))
 import Type.Row as R
-import Data.Profunctor.Star (Star(..))
 
 -- The general shape of a transformation that runs over an Expr-like object
 -- (top-down, with explicit recursion).
@@ -31,9 +32,7 @@ import Data.Profunctor.Star (Star(..))
 --
 -- `ops` represents the operations that inspect and manipulate the structure;
 -- see `NodeOps` and `ConsNodeOps` for more.
-type GenericExprAlgebra ops i node =
-  i -> Record ops -> node -> node
-
+type GenericExprAlgebra ops i node = GenericExprAlgebraM Identity ops i node
 type GenericExprAlgebraM m ops i node =
   i -> Record ops -> node -> m node
 
@@ -41,11 +40,11 @@ type GenericExprAlgebraM m ops i node =
 -- input.
 type GenericExprAlgebraVT (ops :: # Type -> Type -> Type -> # Type -> # Type) affected (i :: Type -> # Type -> # Type) =
   forall node v v' r ops'.
-  (Variant v -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> node) ->
-  (Variant (i node v) -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> node)
+  (Variant v -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> Identity node) ->
+  (Variant (i node v) -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> Identity node)
 
 type GenericExprAlgebraVTM m (ops :: # Type -> Type -> Type -> # Type -> # Type) affected (i :: Type -> # Type -> # Type) =
-  forall node v v' r ops'.
+  forall node v v' r ops'. Traversable (VariantF r) =>
   (Variant v -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> m node) ->
   (Variant (i node v) -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> m node)
 
@@ -62,12 +61,7 @@ type GenericExprAlgebraVTM m (ops :: # Type -> Type -> Type -> # Type -> # Type)
 -- will be held constant.)
 --
 -- `recurse` enables recursing the algorithm; must be called explicitly.
-type NodeOps all i node ops =
-  ( unlayer :: node -> VariantF all node
-  , overlayer :: OverCases all node
-  , recurse :: i -> node -> node
-  | ops
-  )
+type NodeOps all i node ops = NodeOpsM Identity all i node ops
 type NodeOpsM m all i node ops =
   ( unlayer :: node -> VariantF all node
   , overlayer :: OverCasesM m all node
@@ -78,15 +72,13 @@ type NodeOpsM m all i node ops =
 -- `layer` generates a new layer for the structure, which thus cannot
 -- include nor preserve any extra structure beside the Expr cases.
 -- Prefer `overlayer` when possible.
-type ConsNodeOps all i node ops = NodeOps all i node +
-  ( layer :: VariantF all node -> node | ops )
+type ConsNodeOps all i node ops = ConsNodeOpsM Identity all i node ops
 type ConsNodeOpsM m all i node ops = NodeOpsM m all i node +
   ( layer :: VariantF all node -> node | ops )
 
 -- Just a way to mutate one layer. Call via `runOverCases` to ensure that
 -- structure is being preserved.
-newtype OverCases affected node = OverCases
-  ((VariantF affected node -> VariantF affected node) -> (node -> node))
+type OverCases = OverCasesM Identity
 newtype OverCasesM m affected node = OverCasesM
   ((VariantF affected node -> m (VariantF affected node)) -> (node -> m node))
 
@@ -103,7 +95,8 @@ runOverCases :: forall cases casesrl affected affectedrl unaffected all node.
   OverCases all node ->
   (node -> node) ->
   Record cases -> node -> node
-runOverCases (OverCases f) rest cases = f (VariantF.expandOverMatch cases rest)
+runOverCases (OverCasesM f) rest cases = un Identity <<< f
+  (Identity <<< VariantF.expandOverMatch cases rest)
 
 runOverCasesM :: forall cases casesrl affected affectedrl unaffected all node m.
     R.RowToList cases casesrl =>
@@ -142,18 +135,18 @@ elim1 ::
   ) ->
   (Variant v_ ->
   { overlayer :: OverCases all node
-  , recurse :: Variant v' -> node -> node
+  , recurse :: Variant v' -> node -> Identity node
   | ops
-  } -> (node -> node)) ->
+  } -> (node -> Identity node)) ->
   (Variant v  ->
   { overlayer :: OverCases all node
-  , recurse :: Variant v' -> node -> node
+  , recurse :: Variant v' -> node -> Identity node
   | ops
-  } -> (node -> node))
-elim1 sym handler = Variant.on sym \i node ->
+  } -> (node -> Identity node))
+elim1 sym handler = Variant.on sym \i node -> Identity <<<
   runOverCases node.overlayer
-    (node.recurse $ Variant.inj sym i)
-    (handler i node)
+    (map (un Identity) $ node.recurse $ Variant.inj sym i)
+    (handler i node { recurse = (compose <<< compose) (un Identity) node.recurse})
 
 elim1M ::
   forall sym i v v_ v' v'_ cases casesrl affected affectedrl unaffected all node ops m.
@@ -194,13 +187,7 @@ elim1M sym handler = Variant.on sym \i node ->
 runAlgebraExpr :: forall i m a.
   GenericExprAlgebra (ConsNodeOps (AST.ExprLayerRow m a) i (Expr m a) ()) i (Expr m a) ->
   i -> Expr m a -> Expr m a
-runAlgebraExpr alg = go where
-  go i e = alg i
-    { unlayer: project >>> unwrap
-    , layer: embed <<< wrap
-    , overlayer: OverCases (_recurse <<< over AST.ERVF)
-    , recurse: go
-    } e
+runAlgebraExpr alg i e = un Identity (runAlgebraExprM alg i e)
 
 runAlgebraExprM :: forall f i m a. Functor f =>
   GenericExprAlgebraM f (ConsNodeOpsM f (AST.ExprLayerRow m a) i (Expr m a) ()) i (Expr m a) ->
@@ -218,13 +205,7 @@ runAlgebraNoted :: forall i m a s.
   s ->
   GenericExprAlgebra (ConsNodeOps (AST.ExprLayerRow m a) i (Noted.Expr m s a) ()) i (Noted.Expr m s a) ->
   i -> Noted.Expr m s a -> Noted.Expr m s a
-runAlgebraNoted df alg = go where
-  go i e = alg i
-    { unlayer: project >>> unwrap >>> extract >>> unwrap
-    , layer: embed <<< wrap <<< Tuple df <<< wrap
-    , overlayer: OverCases (_recurse <<< mapEnvT <<< over AST.ERVF)
-    , recurse: go
-    } e
+runAlgebraNoted df alg i e = un Identity (runAlgebraNotedM df alg i e)
 
 runAlgebraNotedM :: forall f i m a s. Functor f =>
   s ->
