@@ -14,6 +14,7 @@ import Data.Function (on)
 import Data.Functor.Compose (Compose(..))
 import Data.FunctorWithIndex (class FunctorWithIndex)
 import Data.Lens (Prism', prism')
+import Data.List (List)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, fromMaybe')
@@ -24,6 +25,7 @@ import Data.Traversable (class Traversable, traverse)
 import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..), fst, snd, uncurry)
 import Data.Unfoldable (class Unfoldable)
+import Type.Proxy (Proxy2(..))
 
 -- This abstracts the functor used for record and union cases in the AST
 -- (the major difference being that sometimes we want sorting vs ordering)
@@ -149,3 +151,12 @@ singleton k v = insert k v empty
 _Empty :: forall m a. StrMapIsh m => Prism' (m a) Unit
 _Empty = prism' (const empty)
   \m -> if isEmpty m then Just unit else Nothing
+
+conv :: forall m m'. StrMapIsh m => StrMapIsh m' => m ~> m'
+conv = toUnfoldable >>> (identity :: List ~> List) >>> fromFoldable
+
+unordered :: forall m. StrMapIsh m => m ~> Map String
+unordered = conv
+
+convTo :: forall m m'. StrMapIsh m => StrMapIsh m' => Proxy2 m' -> m ~> m'
+convTo Proxy2 = conv

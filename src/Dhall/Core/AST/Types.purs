@@ -3,7 +3,7 @@ module Dhall.Core.AST.Types where
 import Prelude
 
 import Control.Comonad (extract)
-import Control.Monad.Free (Free)
+import Control.Monad.Free (Free, hoistFree)
 import Data.Bifunctor (class Bifunctor, lmap)
 import Data.Const as ConstF
 import Data.Either (Either(..), either)
@@ -11,14 +11,14 @@ import Data.Eq (class Eq1, eq1)
 import Data.Foldable (class Foldable, fold, foldl, foldr)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex)
 import Data.Functor.App (App(..))
-import Data.Functor.Product (Product(..))
+import Data.Functor.Product (Product(..), bihoistProduct)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
-import Data.Newtype (class Newtype, un, unwrap, wrap)
+import Data.Newtype (class Newtype, un, unwrap, wrap, over)
 import Data.Ord (class Ord1, compare1)
 import Data.String (joinWith)
 import Data.Symbol (class IsSymbol, SProxy(..))

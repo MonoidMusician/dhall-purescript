@@ -795,7 +795,10 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       (Unit -> FeedbackE w r m a Void) ->
       FeedbackE w r m a Unit
     checkEq ty0 ty1 error =
-      let Pair ty0' ty1' = Pair ty0 ty1 <#> normalizeStep >>> plain in
+      let
+        Pair ty0' ty1' = Pair ty0 ty1 <#>
+          normalizeStep >>> plain >>> AST.unordered
+      in
       when (ty0' /= ty1') $
         absurd <$> error unit
     checkEqL ::

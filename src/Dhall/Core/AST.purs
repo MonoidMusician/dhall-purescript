@@ -81,6 +81,10 @@ import Dhall.Core.AST.Operations
   , rewriteTopDown
   , rewriteBottomUpA
   , rewriteTopDownA
+  , hoistExpr
+  , conv
+  , convTo
+  , unordered
   ) as Exports
 import Dhall.Core.AST.Constructors
   ( BinOpPrism

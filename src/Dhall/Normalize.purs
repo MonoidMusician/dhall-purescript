@@ -19,6 +19,7 @@ import Data.Identity (Identity(..))
 import Data.Int (even, toNumber)
 import Data.Lazy (Lazy, defer)
 import Data.Lens as Lens
+import Data.Map (Map)
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Maybe.First (First)
 import Data.Monoid.Conj (Conj(..))
@@ -223,8 +224,8 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
   -- The companion to judgmentallyEqual for terms that are already
   -- normalized recursively from this
   judgEq :: W node -> W node -> Boolean
-  judgEq = on (eq :: Expr m a -> Expr m a -> Boolean) $
-    extractW >>> unlayers >>> Variables.alphaNormalize
+  judgEq = on (eq :: Expr (Map String) a -> Expr (Map String) a -> Boolean) $
+    extractW >>> unlayers >>> AST.unordered >>> Variables.alphaNormalize
 
   unlayers :: node -> Expr m a
   unlayers e = AST.embedW (node.unlayer e <#> unlayers)
@@ -830,11 +831,15 @@ listfnsG again = GNormalizer \node -> case _ of
 
 -- | Returns `true` if two expressions are α-equivalent and β-equivalent and
 -- | `false` otherwise
-judgmentallyEqual :: forall m a. StrMapIsh m => Eq a => Expr m a -> Expr m a -> Boolean
-judgmentallyEqual eL0 eR0 = alphaBetaNormalize eL0 == alphaBetaNormalize eR0
+judgmentallyEqual' :: forall m a. StrMapIsh m => Eq a => Expr m a -> Expr m a -> Boolean
+judgmentallyEqual' eL0 eR0 = alphaBetaNormalize eL0 == alphaBetaNormalize eR0
   where
     alphaBetaNormalize :: Expr m a -> Expr m a
     alphaBetaNormalize = Variables.alphaNormalize <<< normalize
+
+-- | Additionally normalizes the order of fields
+judgmentallyEqual :: forall m a. StrMapIsh m => Eq a => Expr m a -> Expr m a -> Boolean
+judgmentallyEqual = judgmentallyEqual' `on` AST.unordered
 
 -- | Check if an expression is in a normal form given a context of evaluation.
 isNormalized :: forall m a. StrMapIsh m => Eq a => Expr m a -> Boolean

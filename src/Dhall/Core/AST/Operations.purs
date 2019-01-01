@@ -2,13 +2,40 @@ module Dhall.Core.AST.Operations where
 
 import Prelude
 
+import Control.Monad.Free (hoistFree)
+import Data.Bifunctor (lmap)
+import Data.Functor.App (App(..))
+import Data.Functor.Product (bihoistProduct)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
+import Data.Map (Map)
+import Data.Newtype (over)
 import Data.Traversable (class Traversable, sequence, traverse)
-import Dhall.Core.AST.Types (Expr, ExprLayerRow, embedW, projectW)
+import Dhall.Core.AST.Types (Expr(..), ExprLayerRow, embedW, projectW)
+import Dhall.Core.StrMapIsh (class StrMapIsh)
+import Dhall.Core.StrMapIsh as StrMapIsh
 import Prim.Row as Row
+import Type.Proxy (Proxy2)
 
 -- Some general operations for the Expr AST
+hoistExpr :: forall m m'. Functor m' => (m ~> m') -> Expr m ~> Expr m'
+hoistExpr nat = over Expr $ hoistFree \a ->
+  VariantF.expandOverMatch
+    { "Project": lmap (over App nat)
+    , "Record": ($) nat
+    , "RecordLit": ($) nat
+    , "Union": ($) nat
+    , "UnionLit": (bihoistProduct identity nat $ _)
+    } identity a
+
+conv :: forall m m'. StrMapIsh m => StrMapIsh m' => Expr m ~> Expr m'
+conv = hoistExpr StrMapIsh.conv
+
+convTo :: forall m m'. StrMapIsh m => StrMapIsh m' => Proxy2 m' -> Expr m ~> Expr m'
+convTo = hoistExpr <<< StrMapIsh.convTo
+
+unordered :: forall m. StrMapIsh m => Expr m ~> Expr (Map String)
+unordered = hoistExpr StrMapIsh.unordered
 
 -- | Just a helper to handle recursive rewrites: top-down, requires explicit
 -- | recursion for the cases that are handled by the rewrite.
