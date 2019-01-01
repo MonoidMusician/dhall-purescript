@@ -26,7 +26,7 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Monoid (guard)
 import Data.Monoid.Disj (Disj)
 import Data.Natural (Natural, intToNat, natToInt)
-import Data.Newtype (class Newtype, unwrap)
+import Data.Newtype (class Newtype, under, unwrap)
 import Data.Number as Number
 import Data.Ord (abs, signum)
 import Data.Profunctor.Star (Star(..))
@@ -443,7 +443,7 @@ type IdxAnnExpr = Ann.Expr IOSM.InsOrdStrMap IdxAnn
 newtype Customize slots i o = Customize
   (i -> { actions :: Array
     { icon :: String
-    , action :: Maybe o
+    , action :: Maybe (Unit -> o)
     }
   , wrap :: (Unit -> SlottedHTML slots o) -> SlottedHTML slots o
   })
@@ -458,13 +458,13 @@ instance monoidCustomize :: Monoid (Customize slots i o) where
   mempty = Customize \_ -> { actions: mempty, wrap: (#) unit }
 
 mkActions :: forall slots i o.
-  (i -> Array { icon :: String, action :: Maybe o }) ->
+  (i -> Array { icon :: String, action :: Maybe (Unit -> o) }) ->
   Customize slots i o
 mkActions actions = Customize \i -> { wrap: (#) unit, actions: actions i }
 
 mkInteractions :: forall slots i o.
   RenderingOptions ->
-  (i -> Array { icon :: String, action :: Maybe o }) ->
+  (i -> Array { icon :: String, action :: Maybe (Unit -> o) }) ->
   Customize slots i o
 mkInteractions opts = if opts.interactive then mkActions else mempty
 
@@ -490,7 +490,7 @@ renderExprWith opts customize = indexFrom Nil >>> go where
       let custom = unwrap customize enn in
       [ custom.actions <#> \{ action, icon } ->
           HH.div [ HP.class_ $ H.ClassName "pre button" ]
-            [ inline_feather_button_action action icon ]
+            [ under SlottedHTML (map ((#) unit)) $ inline_feather_button_action action icon ]
       , pure $ unwrap $ custom.wrap \_ -> unwrap $
           map (cons ann) $ unwrap e # unwrap do
             renderAllTheThings opts { df, rndr: Star (map (indexFrom hereIx) {- necessary evil -} <<< Compose <<< go) } $ renderVFNone #
@@ -523,7 +523,7 @@ collapsible opts =
   let collapsed = e ^. (_topAnn <<< _collapsed) in
   { actions: pure
     { icon: if collapsed then "eye" else "eye-off"
-    , action: pure $ That $ unindex $ (_topAnn <<< _collapsed) not e
+    , action: pure \_ -> That $ unindex $ (_topAnn <<< _collapsed) not e
     }
   , wrap: if not collapsed then (#) unit else \_ -> SlottedHTML $
       HH.div [ HP.class_ (H.ClassName "collapsed") ] []
@@ -542,8 +542,8 @@ selectable opts selectedIx injIx =
   { actions: pure
       { icon: if selected then "crosshair" else "disc"
       , action: if selected
-        then pure $ This (injIx Nothing)
-        else pure $ Both (injIx (Just hereIx)) $ unindex $ ((_topAnn <<< _collapsed) .~ false) e
+        then pure \_ -> This (injIx Nothing)
+        else pure \_ -> Both (injIx (Just hereIx)) $ unindex $ ((_topAnn <<< _collapsed) .~ false) e
       }
   , wrap: if not selected then (#) unit else \inner -> SlottedHTML $
       HH.div [ HP.class_ (H.ClassName "selected") ]
