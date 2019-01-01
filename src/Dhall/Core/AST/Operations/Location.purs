@@ -2,13 +2,15 @@ module Dhall.Core.AST.Operations.Location where
 
 import Prelude
 
+import Control.Plus (empty)
 import Data.List (List, (:))
 import Data.Maybe (Maybe)
 import Data.Symbol (class IsSymbol, SProxy)
+import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Core.AST (Expr, ExprRowVFI, Var)
+import Dhall.Core.AST (Expr, ExprRowVFI, Var, S_, _S)
 import Prim.Row as Row
 import Type.Row (type (+))
 
@@ -54,3 +56,6 @@ step ::
     Row.Cons sym {} most all =>
   SProxy sym -> TLV all ~> TLV all
 step sym = move sym mempty
+
+allWithin :: forall most. LV (Within most) -> Maybe (List ExprRowVFI)
+allWithin = traverse $ Variant.on (_S::S_ "within") pure (pure empty)
