@@ -31,7 +31,10 @@ innote :: forall m s a. s -> Types.Expr m a -> Expr m s a
 innote s = transCata $ EnvT <<< Tuple s
 
 notateIndex :: forall m s a. FunctorWithIndex String m => Expr m (Types.ExprI -> s) a -> Expr m s a
-notateIndex = go Nil where
+notateIndex = notateIndexFrom Nil
+
+notateIndexFrom :: forall m s a. FunctorWithIndex String m => Types.ExprI -> Expr m (Types.ExprI -> s) a -> Expr m s a
+notateIndexFrom = go where
   go ix e = embed $ e # project
     # withEnvT ((#) ix)
     # mapEnvT (mapWithIndex \i' -> go $ pure i' : ix)

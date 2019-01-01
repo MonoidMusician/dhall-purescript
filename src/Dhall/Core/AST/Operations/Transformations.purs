@@ -5,7 +5,6 @@ import Prelude
 import Control.Comonad (extract)
 import Control.Comonad.Env (EnvT(..), mapEnvT)
 import Data.Functor.Variant (class VariantFMapCases, class VariantFMaps, SProxy, VariantF)
-import Data.Variant.Internal (class VariantFTravCases)
 import Data.Functor.Variant as VariantF
 import Data.Newtype as N
 import Data.Newtype (over, unwrap, wrap)
@@ -14,7 +13,7 @@ import Data.Tuple (Tuple(..))
 import Data.Traversable (class Traversable)
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Data.Variant.Internal (class VariantTags)
+import Data.Variant.Internal (class VariantFTravCases, class VariantTags)
 import Dhall.Core.AST (Expr)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Noted as Noted

@@ -2,6 +2,9 @@ module Dhall.Interactive.Halogen.AST.Tree where
 
 import Prelude
 
+import Control.Comonad (extract)
+import Control.Comonad.Cofree ((:<))
+import Control.Comonad.Cofree as Cofree
 import Control.Comonad.Env (EnvT(..), withEnvT)
 import Data.Array as Array
 import Data.Bifunctor (lmap)
@@ -11,29 +14,31 @@ import Data.Functor.Compose (Compose(..))
 import Data.Functor.Variant (FProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Int as Int
-import Data.Lens (ALens', IndexedTraversal', lens')
+import Data.Lens (ALens', IndexedTraversal', Lens', _1, _2, lens, lens', (.~), (^.))
 import Data.Lens as Lens
 import Data.Lens as Tuple
 import Data.Lens.Indexed (itraversed, unIndex)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Lens.Lens.Product as Product
+import Data.Lens.Record (prop)
+import Data.List (List(..))
 import Data.Maybe (Maybe(..), maybe)
 import Data.Monoid (guard)
-import Data.Monoid.Disj (Disj(..))
+import Data.Monoid.Disj (Disj)
 import Data.Natural (Natural, intToNat, natToInt)
-import Data.Newtype (over, unwrap)
+import Data.Newtype (class Newtype, unwrap)
 import Data.Number as Number
 import Data.Ord (abs, signum)
 import Data.Profunctor.Star (Star(..))
 import Data.Symbol (class IsSymbol, SProxy, reflectSymbol)
-import Data.These (These(..), these)
+import Data.These (These(..))
 import Data.Tuple (Tuple(..))
 import Dhall.Core (S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Noted as Ann
 import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Interactive.Halogen.AST (SlottedHTML(..))
-import Dhall.Interactive.Halogen.Inputs (icon_button_props, inline_feather_button_action)
+import Dhall.Interactive.Halogen.Inputs (inline_feather_button_action)
 import Effect.Aff (Aff)
 import Halogen as H
 import Halogen.HTML as HH
@@ -430,61 +435,103 @@ renderAllTheThings opts renderA = identity
   >>> renderBuiltinTypes2 opts renderA
   >>> renderSyntax opts renderA
 
--- TODO: add selection, add editing, add slots and zuruzuru &c.
-renderExpr :: forall a. Show a =>
-  RenderingOptions ->
-  Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe a) ->
-  SlottedHTML () (Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe a))
-renderExpr opts enn = map embed $ project enn # \(EnvT (Tuple ann e)) -> SlottedHTML $
-  let df = Ann.innote mempty (AST.mkEmbed Nothing) in
-  HH.div [ HP.class_ $ H.ClassName "expression" ] $ join $
-    [ guard opts.interactive $ pure $
-      HH.div [ HP.class_ $ H.ClassName "pre button" ]
-        let act = (Just (EnvT (Tuple (ann { collapsed = over Disj not ann.collapsed }) e)))
-        in [ inline_feather_button_action act if unwrap ann.collapsed then "eye" else "eye-off" ]
-    , guard (not unwrap ann.collapsed) $ pure $ unwrap $ map (these absurd identity absurd) $ unwrap $
-        map (EnvT <<< Tuple ann <<< AST.ERVF) $ unwrap e # unwrap do
-          renderAllTheThings opts { df, rndr: Star (Compose <<< map That <<< renderExpr opts) } $ renderVFNone #
-            renderVFLensed (_S::S_ "Embed")
-              [ mkLensed "value" _Newtype $ rendering $ HH.text <<< maybe "_" show ]
-    ]
+type Ann = { collapsed :: Disj Boolean }
+type IdxAnn = Tuple Ann AST.ExprI
+type AnnExpr = Ann.Expr IOSM.InsOrdStrMap Ann
+type IdxAnnExpr = Ann.Expr IOSM.InsOrdStrMap IdxAnn
 
-renderExprSelectable :: forall a. Show a =>
-  RenderingOptions -> Maybe AST.ExprI ->
-  Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe a) ->
-  SlottedHTML () (These (Maybe AST.ExprI) (Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } (Maybe a)))
-renderExprSelectable opts topIx = lmap Tuple >>> Ann.notateIndex >>> go >>> map (map unindex) where
-  unindex :: forall x.
-    Ann.Expr IOSM.InsOrdStrMap (Tuple { collapsed :: Disj Boolean } AST.ExprI) x ->
-    Ann.Expr IOSM.InsOrdStrMap { collapsed :: Disj Boolean } x
-  unindex = transCata (withEnvT \(Tuple ann _) -> ann)
+newtype Customize slots i o = Customize
+  { actions :: i -> Array
+    { icon :: String
+    , action :: Maybe o
+    }
+  , wrap :: (Unit -> SlottedHTML slots o) -> SlottedHTML slots o
+  }
+derive instance newtypeCustomize :: Newtype (Customize slots i o) _
+instance semigroupCustomize :: Semigroup (Customize slots i o) where
+  append (Customize c1) (Customize c2) = Customize
+    { actions: c1.actions <> c2.actions
+    , wrap: \h -> c1.wrap (\_ -> c2.wrap h)
+    }
+instance monoidCustomize :: Monoid (Customize slots i o) where
+  mempty = Customize { actions: mempty, wrap: (#) unit }
+
+mkActions :: forall slots i o.
+  (i -> Array { icon :: String, action :: Maybe o }) ->
+  Customize slots i o
+mkActions = Customize <<< { wrap: (#) unit, actions: _ }
+
+mkInteractions :: forall slots i o.
+  RenderingOptions ->
+  (i -> Array { icon :: String, action :: Maybe o }) ->
+  Customize slots i o
+mkInteractions opts = if opts.interactive then mkActions else mempty
+
+indexFrom :: forall x. AST.ExprI -> AnnExpr x -> IdxAnnExpr x
+indexFrom loc = Ann.notateIndexFrom loc <<< lmap Tuple
+unindex :: forall x. IdxAnnExpr x -> AnnExpr x
+unindex = transCata (withEnvT \(Tuple ann _) -> ann)
+
+-- TODO: add selection, add editing, add slots and zuruzuru &c.
+renderExprWith :: forall slots o a. Show a =>
+  RenderingOptions ->
+  Customize slots (IdxAnnExpr (Maybe a)) (These o (AnnExpr (Maybe a))) ->
+  AnnExpr (Maybe a) ->
+  SlottedHTML slots (These o (AnnExpr (Maybe a)))
+renderExprWith opts customize = indexFrom Nil >>> go where
+  cons ann e = embed (EnvT (Tuple ann (AST.ERVF (map unindex e))))
   go ::
-    Ann.Expr IOSM.InsOrdStrMap (Tuple { collapsed :: Disj Boolean } AST.ExprI) (Maybe a) ->
-    SlottedHTML () (These (Maybe AST.ExprI) (Ann.Expr IOSM.InsOrdStrMap (Tuple { collapsed :: Disj Boolean } AST.ExprI) (Maybe a)))
-  go enn = map (map embed) $ project enn #
-    \(EnvT (Tuple (Tuple ann hereIx) e)) -> SlottedHTML $
-      let df = Ann.innote mempty (AST.mkEmbed Nothing)
-          focused = Just hereIx == topIx
-      in
-      HH.div [ HP.class_ $ H.ClassName $ "expression" <> guard focused " focused" ] $ join $
-        [ guard opts.interactive $ pure $
-            HH.div [ HP.class_ $ H.ClassName "pre button" ]
-              let act = (Just (Both (Just hereIx) (EnvT (Tuple (Tuple ann { collapsed = Disj false } hereIx) e))))
-                  clr = (Just (This Nothing))
-              in
-              [ icon_button_props
-                [ HE.onClick (pure act)
-                , HE.onDoubleClick (pure clr)
-                ] (if focused then "crosshair" else "disc")
-                "feather inline active"
-              ]
-        , guard opts.interactive $ pure $
-            HH.div [ HP.class_ $ H.ClassName "pre button" ]
-              let act = (Just (That (EnvT (Tuple (Tuple (ann { collapsed = over Disj not ann.collapsed }) hereIx) e))))
-              in [ inline_feather_button_action act if unwrap ann.collapsed then "eye" else "eye-off" ]
-        , guard (not unwrap ann.collapsed) $ pure $ unwrap $ unwrap $
-            map (EnvT <<< Tuple (Tuple ann hereIx) <<< AST.ERVF) $ unwrap e # unwrap do
-              renderAllTheThings opts { df, rndr: Star (Compose <<< go) } $ renderVFNone #
-                renderVFLensed (_S::S_ "Embed")
-                  [ mkLensed "value" _Newtype $ rendering $ HH.text <<< maybe "_" show ]
-        ]
+    IdxAnnExpr (Maybe a) ->
+    SlottedHTML slots (These o (AnnExpr (Maybe a)))
+  go enn = project enn # \(EnvT (Tuple (Tuple ann hereIx) e)) -> SlottedHTML $
+    let df = Ann.innote mempty (AST.mkEmbed Nothing) in
+    HH.div [ HP.class_ $ H.ClassName "expression" ] $ join $
+      [ (unwrap customize).actions enn <#> \{ action, icon } ->
+          HH.div [ HP.class_ $ H.ClassName "pre button" ]
+            [ inline_feather_button_action action icon ]
+      , pure $ unwrap $ (unwrap customize).wrap \_ -> unwrap $
+          map (cons ann) $ unwrap e # unwrap do
+            renderAllTheThings opts { df, rndr: Star (map (indexFrom hereIx) {- necessary evil -} <<< Compose <<< go) } $ renderVFNone #
+              renderVFLensed (_S::S_ "Embed")
+                [ mkLensed "value" _Newtype $ rendering $ HH.text <<< maybe "_" show ]
+      ]
+
+renderExprSelectable :: forall slots a. Show a =>
+  RenderingOptions ->
+  Maybe AST.ExprI ->
+  AnnExpr (Maybe a) ->
+  SlottedHTML slots (These (Maybe AST.ExprI) (AnnExpr (Maybe a)))
+renderExprSelectable opts selectedIx = renderExprWith opts $
+  collapsible opts <> selectable opts selectedIx identity
+
+_topAnn :: forall m s a. Lens' (Ann.Expr m s a) s
+_topAnn = _Newtype <<< lens extract
+  \old ann -> ann :< Cofree.tail old
+
+_collapsed :: Lens' IdxAnn Boolean
+_collapsed = _1 <<< prop (_S::S_ "collapsed") <<< _Newtype
+
+_idx :: Lens' IdxAnn AST.ExprI
+_idx = _2
+
+collapsible :: forall slots o a.
+  RenderingOptions -> Customize slots (IdxAnnExpr a) (These o (AnnExpr a))
+collapsible opts = mkInteractions opts \e -> pure
+  { icon: if e ^. (_topAnn <<< _collapsed) then "eye" else "eye-off"
+  , action: pure $ That $ unindex $ (_topAnn <<< _collapsed) not e
+  }
+
+selectable :: forall slots o a. Show a =>
+  RenderingOptions ->
+  Maybe AST.ExprI -> (Maybe AST.ExprI -> o) ->
+  Customize slots (IdxAnnExpr a) (These o (AnnExpr a))
+selectable opts selectedIx injIx = mkInteractions opts \e -> pure
+  let
+    hereIx = e ^. (_topAnn <<< _idx)
+    focused = Just hereIx == selectedIx
+  in
+  { icon: if focused then "crosshair" else "disc"
+  , action: if focused
+    then pure $ This (injIx Nothing)
+    else pure $ Both (injIx (Just hereIx)) $ unindex $ ((_topAnn <<< _collapsed) .~ false) e
+  }
