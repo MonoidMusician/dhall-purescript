@@ -66,6 +66,7 @@ import Dhall.Core.StrMapIsh as StrMapIsh
 import Dhall.Core.Zippers (_ix)
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.Variables (freeInAlg, shiftAlgG, trackIntro)
+import Dhall.Variables as Variables
 import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, mapR, project, transCata, traverseR)
 import Type.Row as R
 import Validation.These as V
@@ -223,7 +224,6 @@ typecheckSketch alg = recursor2D
   \layer@(EnvT (Tuple loc e)) -> ReaderT \ctx -> Product $ Tuple
       do defer \_ ->
           let ctx' = ctx <#> theseLeft >>> map head2D in
-          alsoOriginateFrom (NormalizeLocation <$> loc) $
           normalizeLxpr $
           substContextLxpr ctx' $
           embed $ EnvT $ Tuple loc $ head2D <$> e
@@ -530,9 +530,10 @@ tryShiftOut0Oxpr :: forall w r m a. Foldable m => String -> Oxpr w r m a -> Mayb
 tryShiftOut0Oxpr v = tryShiftOutOxpr (AST.V v 0)
 
 normalizeLxpr :: forall m a. StrMapIsh m => Eq a => Lxpr m a -> Lxpr m a
-normalizeLxpr = (<<<) (extract <<< extract <<< unwrap) $
-  runLxprAlgM (Variant.case_ # Dhall.Normalize.normalizeWithAlgGW mempty) $
-    Variant.inj (_S::S_ "normalize") mempty
+normalizeLxpr e = alsoOriginateFrom (NormalizeLocation <$> extract e) $
+  (extract <<< extract <<< unwrap) $
+    runLxprAlgM (Variant.case_ # Dhall.Normalize.normalizeWithAlgGW mempty)
+      (Variant.inj (_S::S_ "normalize") mempty) e
 
 locateO :: forall w r m a. Eq a => StrMapIsh m =>
   (a -> FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a (Expr m a)) ->
@@ -549,12 +550,38 @@ locateO tpa ctx =
   in case _ of
     MainExpression -> pure
     Place e -> pure (pure (tcingFromSelfHere e))
+    Substituted loc -> locateO tpa ctx loc >>> map (substContextOxpr (theseLeft <$> ctx))
     NormalizeLocation loc -> locateO tpa ctx loc >>> map normalizeStep
     TypeOfLocation loc -> locateO tpa ctx loc >=> typecheckStep
-    Substituted loc -> locateO tpa ctx loc >>> map (substContextOxpr (theseLeft <$> ctx))
     Shifted d v loc -> locateO tpa ctx loc >>> map (shiftOxpr d v)
     LocationWithin i loc -> locateO tpa ctx loc >=> \e -> V.liftW $
       e # unlayerO # ERVF # preview (_ix (extract i)) # do
+        V.note $ TypeCheckError
+          { location: pure loc
+          , tag: Variant.inj (_S::S_ "Not found") (extract i)
+          }
+
+locateE :: forall w r m a. Eq a => StrMapIsh m =>
+  (a -> Expr m a) ->
+  BiContext (Expr m a) ->
+  ExprLocation m a -> Expr m a ->
+  FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a (Expr m a)
+locateE tpa ctx =
+  case _ of
+    MainExpression -> pure
+    Place e -> pure (pure e)
+    Substituted loc -> locateE tpa ctx loc >>> map (substContextExpr (theseLeft <$> ctx))
+    NormalizeLocation loc -> locateE tpa ctx loc >>> map Dhall.Normalize.normalize
+    TypeOfLocation loc -> \e -> do
+      e' <- locateE tpa ctx loc e
+      ctx' <- ctx # reconstituteCtx \ctx' -> case _ of
+        This val -> typeWithA tpa ctx' val
+        That ty -> pure ty
+        Both _ ty -> pure ty
+      typeWithA tpa ctx' e'
+    Shifted d v loc -> locateE tpa ctx loc >>> map (Variables.shift d v)
+    LocationWithin i loc -> locateE tpa ctx loc >=> \e -> V.liftW $
+      e # project # preview (_ix (extract i)) # do
         V.note $ TypeCheckError
           { location: pure loc
           , tag: Variant.inj (_S::S_ "Not found") (extract i)
