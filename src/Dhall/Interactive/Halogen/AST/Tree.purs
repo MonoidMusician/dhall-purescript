@@ -441,25 +441,26 @@ type AnnExpr = Ann.Expr IOSM.InsOrdStrMap Ann
 type IdxAnnExpr = Ann.Expr IOSM.InsOrdStrMap IdxAnn
 
 newtype Customize slots i o = Customize
-  { actions :: i -> Array
+  (i -> { actions :: Array
     { icon :: String
     , action :: Maybe o
     }
   , wrap :: (Unit -> SlottedHTML slots o) -> SlottedHTML slots o
-  }
+  })
 derive instance newtypeCustomize :: Newtype (Customize slots i o) _
 instance semigroupCustomize :: Semigroup (Customize slots i o) where
-  append (Customize c1) (Customize c2) = Customize
-    { actions: c1.actions <> c2.actions
-    , wrap: \h -> c1.wrap (\_ -> c2.wrap h)
+  append (Customize c1) (Customize c2) = Customize \i ->
+    let c1i = c1 i in let c2i = c2 i in
+    { actions: c1i.actions <> c2i.actions
+    , wrap: \h -> c1i.wrap (\_ -> c2i.wrap h)
     }
 instance monoidCustomize :: Monoid (Customize slots i o) where
-  mempty = Customize { actions: mempty, wrap: (#) unit }
+  mempty = Customize \_ -> { actions: mempty, wrap: (#) unit }
 
 mkActions :: forall slots i o.
   (i -> Array { icon :: String, action :: Maybe o }) ->
   Customize slots i o
-mkActions = Customize <<< { wrap: (#) unit, actions: _ }
+mkActions actions = Customize \i -> { wrap: (#) unit, actions: actions i }
 
 mkInteractions :: forall slots i o.
   RenderingOptions ->
@@ -485,11 +486,12 @@ renderExprWith opts customize = indexFrom Nil >>> go where
     SlottedHTML slots (These o (AnnExpr (Maybe a)))
   go enn = project enn # \(EnvT (Tuple (Tuple ann hereIx) e)) -> SlottedHTML $
     let df = Ann.innote mempty (AST.mkEmbed Nothing) in
-    HH.div [ HP.class_ $ H.ClassName "expression" ] $ join $
-      [ (unwrap customize).actions enn <#> \{ action, icon } ->
+    HH.div [ HP.class_ $ H.ClassName "expression" ] $ join
+      let custom = unwrap customize enn in
+      [ custom.actions <#> \{ action, icon } ->
           HH.div [ HP.class_ $ H.ClassName "pre button" ]
             [ inline_feather_button_action action icon ]
-      , pure $ unwrap $ (unwrap customize).wrap \_ -> unwrap $
+      , pure $ unwrap $ custom.wrap \_ -> unwrap $
           map (cons ann) $ unwrap e # unwrap do
             renderAllTheThings opts { df, rndr: Star (map (indexFrom hereIx) {- necessary evil -} <<< Compose <<< go) } $ renderVFNone #
               renderVFLensed (_S::S_ "Embed")
@@ -502,7 +504,7 @@ renderExprSelectable :: forall slots a. Show a =>
   AnnExpr (Maybe a) ->
   SlottedHTML slots (These (Maybe AST.ExprI) (AnnExpr (Maybe a)))
 renderExprSelectable opts selectedIx = renderExprWith opts $
-  collapsible opts <> selectable opts selectedIx identity
+  selectable opts selectedIx identity <> collapsible opts
 
 _topAnn :: forall m s a. Lens' (Ann.Expr m s a) s
 _topAnn = _Newtype <<< lens extract
@@ -516,22 +518,34 @@ _idx = _2
 
 collapsible :: forall slots o a.
   RenderingOptions -> Customize slots (IdxAnnExpr a) (These o (AnnExpr a))
-collapsible opts = mkInteractions opts \e -> pure
-  { icon: if e ^. (_topAnn <<< _collapsed) then "eye" else "eye-off"
-  , action: pure $ That $ unindex $ (_topAnn <<< _collapsed) not e
+collapsible opts =
+  if not opts.interactive then mempty else Customize \e ->
+  let collapsed = e ^. (_topAnn <<< _collapsed) in
+  { actions: pure
+    { icon: if collapsed then "eye" else "eye-off"
+    , action: pure $ That $ unindex $ (_topAnn <<< _collapsed) not e
+    }
+  , wrap: if not collapsed then (#) unit else \_ -> SlottedHTML $
+      HH.div [ HP.class_ (H.ClassName "collapsed") ] []
   }
 
 selectable :: forall slots o a. Show a =>
   RenderingOptions ->
   Maybe AST.ExprI -> (Maybe AST.ExprI -> o) ->
   Customize slots (IdxAnnExpr a) (These o (AnnExpr a))
-selectable opts selectedIx injIx = mkInteractions opts \e -> pure
+selectable opts selectedIx injIx =
+  if not opts.interactive then mempty else Customize \e ->
   let
     hereIx = e ^. (_topAnn <<< _idx)
-    focused = Just hereIx == selectedIx
+    selected = Just hereIx == selectedIx
   in
-  { icon: if focused then "crosshair" else "disc"
-  , action: if focused
-    then pure $ This (injIx Nothing)
-    else pure $ Both (injIx (Just hereIx)) $ unindex $ ((_topAnn <<< _collapsed) .~ false) e
+  { actions: pure
+      { icon: if selected then "crosshair" else "disc"
+      , action: if selected
+        then pure $ This (injIx Nothing)
+        else pure $ Both (injIx (Just hereIx)) $ unindex $ ((_topAnn <<< _collapsed) .~ false) e
+      }
+  , wrap: if not selected then (#) unit else \inner -> SlottedHTML $
+      HH.div [ HP.class_ (H.ClassName "selected") ]
+        [ unwrap (inner unit) ]
   }
