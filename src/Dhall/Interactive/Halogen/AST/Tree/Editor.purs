@@ -145,8 +145,8 @@ editor = H.component
         [ HH.div_ renderedViews
         , HH.div_
           [ inline_feather_button_action appendView "plus-square" "Add a new view"
-          , inline_feather_button_action (Just (EditAction Nothing unit Undo)) "corner-up-left" "Undo"
-          , inline_feather_button_action (Just (EditAction Nothing unit Redo)) "corner-down-right" "Redo"
+          , inline_feather_button_action (Timeline.unhappen value $> EditAction Nothing unit Undo) "corner-up-left" "Undo"
+          , inline_feather_button_action (Timeline.rehappen value $> EditAction Nothing unit Redo) "corner-down-right" "Redo"
           ]
         , HH.textarea [ HE.onValueInput (Just <<< UserInput unit), HP.value userInput ]
         , Icons.icon (if isJust parsed then "check" else "x") [ Icons.class_ "feather" ]
@@ -165,7 +165,7 @@ viewer = H.component
   , initialState: \{ parsed, value } ->
     { parsed, value
     , view: empty
-    , selection: empty
+    , selection: pure empty
     } :: ViewState
   , eval: case _ of
       ViewInitialize a view -> a <$ do
@@ -357,4 +357,4 @@ tagERVFI = un ERVFI >>> Variant.match
   , "Var": identity absurd
   , "Embed": identity absurd
   } where
-    binop = if _ then "L" else "R"
+    binop = if _ then "R" else "L"

@@ -208,7 +208,7 @@ renderInt :: forall r m. RenderingOptions -> Rendering r m Int
 renderInt opts@{ editable: true } = rendering \v -> HH.span_
   [ HH.button [ HE.onClick (pure (pure (That (negate v)))) ]
     [ HH.text if v < 0 then "-" else "+" ]
-  , unwrap $ unwrap $ unwrap (renderNatural opts) (intToNat v) <#> natToInt >>> mul (signum v)
+  , unwrap $ unwrap $ unwrap (renderNatural opts) (intToNat (abs v)) <#> natToInt >>> mul (signum v)
   ]
 renderInt { editable: false } = rendering $ HH.text <<< show
 
@@ -488,12 +488,13 @@ renderExprWith opts customize = indexFrom Nil >>> go where
     SlottedHTML slots (These o (AnnExpr (Maybe a)))
   go enn = project enn # \(EnvT (Tuple (Tuple ann hereIx) e)) -> SlottedHTML $
     let df = Ann.innote mempty (AST.mkEmbed Nothing) in
-    HH.div [ HP.class_ $ H.ClassName "expression" ] $ join
+    HH.div [ HP.class_ $ H.ClassName "expression" ] $
       let custom = unwrap customize enn in
-      [ custom.actions <#> \{ action, icon, tooltip } ->
-          HH.div [ HP.class_ $ H.ClassName "pre button" ]
-            [ under SlottedHTML (map ((#) unit)) $ inline_feather_button_action action icon tooltip ]
-      , pure $ unwrap $ custom.wrap \_ -> unwrap $
+      [ HH.div [ HP.class_ $ H.ClassName "actions" ] $
+          custom.actions <#> \{ action, icon, tooltip } ->
+            HH.div [ HP.class_ $ H.ClassName "pre button" ]
+              [ under SlottedHTML (map ((#) unit)) $ inline_feather_button_action action icon tooltip ]
+      , unwrap $ custom.wrap \_ -> unwrap $
           map (cons ann) $ unwrap e # unwrap do
             renderAllTheThings opts { df, rndr: Star (map (indexFrom hereIx) {- necessary evil -} <<< Compose <<< go) } $ renderVFNone #
               renderVFLensed (_S::S_ "Embed")

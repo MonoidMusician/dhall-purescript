@@ -578,9 +578,10 @@ locateE' tpa = Variant.match
   { substitute: \{} -> \(Tuple ctx e) ->
       pure (Tuple ctx (substContextExpr (theseLeft <$> ctx) e))
   , normalize: \{} -> \(Tuple ctx e) -> do
-      -- Ensure it typechecks before normalizing
+      -- Ensure it typechecks before substituting and normalizing
       void $ typecheck (Tuple ctx e)
-      pure $ Tuple ctx (Dhall.Normalize.normalize e)
+      pure $ Tuple ctx $ Dhall.Normalize.normalize $
+        substContextExpr (theseLeft <$> ctx) e
   , shift: \i -> pure <<< map (Variables.shift i.delta i.variable)
   , typecheck: \{} -> typecheck
   , within: \i -> \(Tuple ctx e) -> V.liftW $
@@ -945,15 +946,19 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         _ <- typecheckStep ty'
         checkEqR ty0 ty'
           (errorHere (_S::S_ "Annotation mismatch"))
-      head2D <$> typecheckStep expr
+      ty_expr <- typecheckStep expr
+      let shifted = tryShiftOut0Lxpr name (head2D ty_expr)
+      pure case shifted of
+        Nothing -> mk(_S::S_"Let") (head2D <$> AST.LetF name mty value ty_expr)
+        Just ty_expr' -> ty_expr'
   , "App": \(AST.Pair f a) ->
       let
         checkFn = ensure (_S::S_ "Pi") f
           (errorHere (_S::S_ "Not a function"))
         checkArg (AST.BindingBody name aty0 rty) aty1 =
-          let shift = tryShiftOut0Lxpr name (head2D rty) in
+          let shifted = tryShiftOut0Lxpr name (head2D rty) in
           if Dhall.Core.judgmentallyEqual (plain aty0) (plain aty1)
-            then pure case shift of
+            then pure case shifted of
               Nothing -> mk(_S::S_"App") $ Pair
                 do mk(_S::S_"Lam") (head2D <$> AST.BindingBody name aty0 rty)
                 do head2D a
@@ -964,7 +969,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
               -- then this is a non-dependent function
               -- and its return type can be suggested
               -- even if its argument does not have the right type
-              errorHere (_S::S_ "Type mismatch") unit # case shift of
+              errorHere (_S::S_ "Type mismatch") unit # case shifted of
                 Nothing -> identity
                 Just rty' -> suggest rty'
       in join $ checkArg <$> checkFn <*> typecheckStep a
