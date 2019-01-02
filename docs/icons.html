@@ -6,7 +6,7 @@
     <style>
     body {
       font-size: 24px;
-      font-family: cursive;
+      font-family: sans-serif;
       background-color: #242430;
       color: hsl(42, 41%, 80%);
     }
@@ -140,6 +140,9 @@
     <script src="icons.js"></script>
   </head>
   <body>
-    Hello. Enter some Dhall code in the text area below. This will parse it, typecheck it, normalize it, and display the results in gibberish. Click on the button at the bottom to interact with said gibberish.
+    Hello. Enter some Dhall code in the text area at the bottom of the page (wait for the checkmark to say it has parsed correctly; sorry, no multi-let yet!).
+    Then, select the main node (or any other node) by clicking on the bulls-eye next to it, and then click on the pencil near the top to paste the parsed code onto that node.
+    Click on the "cpu" icon to see the normalized AST, the "type" icon to see its type, the "plus" icon to add a new view of the same expression, etc.
+    Better type errors on the way soon!!!!
   </body>
 </html>

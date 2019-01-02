@@ -103,7 +103,7 @@ neahistorical (Timeline p a n) = NonEmptyList case List.reverse p of
   h : t -> h :| (t <|> pure a <|> n)
 
 happen :: forall a. a -> Timeline a -> Timeline a
-happen a (Timeline p _ _) = Timeline p a empty
+happen a' (Timeline p a _) = Timeline (a : p) a' empty
 
 unhappen :: forall a. Timeline a -> Maybe (Timeline a)
 unhappen (Timeline Nil _ _) = Nothing

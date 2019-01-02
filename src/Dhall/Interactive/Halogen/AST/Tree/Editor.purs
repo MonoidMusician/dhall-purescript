@@ -4,8 +4,8 @@ import Prelude
 
 import Control.Comonad (extract)
 import Control.Monad.Writer (WriterT, runWriterT)
-import Control.Plus (empty)
-import Data.Array (any, intercalate)
+import Control.Plus (empty, (<|>))
+import Data.Array (any, fold, intercalate)
 import Data.Array as Array
 import Data.Array.NonEmpty as NEA
 import Data.Bifoldable (bifoldMap)
@@ -20,8 +20,10 @@ import Data.Lens.Record (prop)
 import Data.List (List(..), (:))
 import Data.List as List
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
+import Data.Monoid (guard)
 import Data.Natural (Natural)
-import Data.Newtype (un)
+import Data.Newtype (un, unwrap)
+import Data.These (These(..))
 import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (fst)
 import Data.Variant as Variant
@@ -33,15 +35,17 @@ import Dhall.Core.AST.Noted as Ann
 import Dhall.Core.AST.Operations.Location (Location)
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Types.Basics (Three(..))
+import Dhall.Core.Imports as Core.Imports
 import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Core.Zippers (_ix)
 import Dhall.Core.Zippers.Recursive (_recurse)
 import Dhall.Interactive.Halogen.AST (SlottedHTML(..))
-import Dhall.Interactive.Halogen.AST.Tree (AnnExpr, renderExprSelectable)
+import Dhall.Interactive.Halogen.AST.Tree (AnnExpr, collapsible, mkActions, renderExprWith, selectable)
+import Dhall.Interactive.Halogen.Icons as Icons
 import Dhall.Interactive.Halogen.Inputs (inline_feather_button_action)
-import Dhall.Interactive.Types as Core.Imports
 import Dhall.Lib.Timeline (Timeline)
 import Dhall.Lib.Timeline as Timeline
+import Dhall.Parser as Dhall.Parser
 import Dhall.TypeCheck (Errors, L, TypeCheckError, locateE)
 import Effect.Aff (Aff)
 import Halogen as H
@@ -57,6 +61,7 @@ type EditState =
   { value :: Timeline Ixpr
   , views :: Array ViewId
   , nextView :: ViewId
+  , userInput :: String
   -- , highlights :: Array { variety :: HighlightVariety, pos :: Derivation }
   }
 type ViewId = Natural
@@ -66,15 +71,17 @@ data EditActions
   | Undo
   | Redo
   | NewView Location
-  | DeleteView ViewId
+  | DeleteView
 data EditQuery a
-  = EditAction EditActions a
+  = EditAction (Maybe ViewId) a EditActions
   | Output a -- output Ixpr to parent
   | Check (Ixpr -> a) -- check its current value
+  | UserInput a String
 
 type ERROR = Erroring (TypeCheckError (Errors + ( "Not found" :: ExprRowVFI )) (L IOSM.InsOrdStrMap (Maybe Core.Imports.Import)))
 type ViewState =
   { id :: ViewId
+  , parsed :: Maybe Ixpr
   , value :: Ixpr
   , view :: Location
   , selection :: Maybe ExprI
@@ -92,13 +99,13 @@ data ViewActions
   | SetSelection Ixpr -- set new Ixpr at selection
   | SetView Ixpr
 data ViewQuery a
-  = ViewInitialize
+  = ViewInitialize a
     { id :: ViewId
     , view :: Location
-    } a
-  | ViewAction (Array ViewActions) a
-  | Raise EditActions a
-  | Receive Ixpr a
+    }
+  | ViewAction a (Array ViewActions)
+  | Raise a EditActions
+  | Receive a { parsed :: Maybe Ixpr, value :: Ixpr }
 
 tpi :: Maybe Core.Imports.Import -> AST.Expr IOSM.InsOrdStrMap (Maybe Core.Imports.Import)
 tpi _ = pure Nothing
@@ -110,65 +117,89 @@ editor :: H.Component HH.HTML EditQuery Ixpr Ixpr Aff
 editor = H.component
   { initializer: Nothing
   , finalizer: Nothing
-  , receiver: Just <<< flip EditAction unit <<< Set
-  , initialState: ({ nextView: zero, views: empty, value: _ } <<< pure) :: Ixpr -> EditState
+  , receiver: Just <<< EditAction Nothing unit <<< Set
+  , initialState: ({ userInput: "Type", nextView: one, views: [one], value: _ } <<< pure) :: Ixpr -> EditState
   , eval: case _ of
       Output a -> a <$ (H.gets _.value >>= extract >>> H.raise)
       Check a -> H.gets _.value <#> extract >>> a
-      EditAction act a -> a <$ case act of
+      UserInput a userInput -> a <$ (prop (_S::S_ "userInput") .= userInput)
+      EditAction mviewId a act -> a <$ case act of
         Set value -> prop (_S::S_ "value") %= Timeline.happen value
         Undo -> prop (_S::S_ "value") %= (fromMaybe <*> Timeline.unhappen)
         Redo -> prop (_S::S_ "value") %= (fromMaybe <*> Timeline.rehappen)
-        DeleteView viewId -> prop (_S::S_ "views") %= Array.delete viewId
+        DeleteView -> for_ mviewId \viewId ->
+          prop (_S::S_ "views") %= Array.delete viewId
         NewView view -> do
+          prop (_S::S_ "nextView") %= add one
           viewId <- H.gets _.nextView
           prop (_S::S_ "views") %= flip Array.snoc viewId
-          void $ H.query (_S::S_ "view") viewId $ ViewInitialize
-            { id: viewId, view } unit
+          void $ H.query (_S::S_ "view") viewId $ ViewInitialize unit
+            { id: viewId, view }
   , render
   } where
     render :: EditState -> H.ComponentHTML EditQuery ( view :: H.Slot ViewQuery EditActions Natural ) Aff
-    render { views, value } = HH.div_ $ views <#> \viewId ->
-      HH.slot (_S::S_ "view") viewId viewer (extract value)
-        (Just <<< flip EditAction unit)
+    render { views, value, userInput } =
+      let
+        renderedViews = views <#> \viewId ->
+          HH.slot (_S::S_ "view") viewId viewer
+            { parsed, value: extract value }
+            (Just <<< EditAction (Just viewId) unit)
+        appendView = Just (EditAction Nothing unit (NewView empty))
+        parsed = Ann.innote mempty <<< map Just <$> Dhall.Parser.parse userInput
+      in HH.div [ HP.class_ (H.ClassName "expr-editor") ]
+        [ HH.div_ renderedViews
+        , HH.div_
+          [ inline_feather_button_action appendView "plus-square"
+          , inline_feather_button_action (Just (EditAction Nothing unit Undo)) "corner-up-left"
+          , inline_feather_button_action (Just (EditAction Nothing unit Redo)) "corner-down-right"
+          ]
+        , HH.textarea [ HE.onValueInput (Just <<< UserInput unit), HP.value userInput ]
+        , Icons.icon (if isJust parsed then "check" else "x") [ Icons.class_ "feather" ]
+        ]
 
 _ixes_Ann :: forall m s a. TraversableWithIndex String m =>
   ExprI -> Traversal' (Ann.Expr m s a) (Ann.Expr m s a)
 _ixes_Ann Nil = identity
 _ixes_Ann (i : is) = _recurse <<< _Newtype <<< _2 <<< _ix (extract i) <<< _ixes_Ann is
 
-viewer :: H.Component HH.HTML ViewQuery Ixpr EditActions Aff
+viewer :: H.Component HH.HTML ViewQuery { parsed :: Maybe Ixpr, value :: Ixpr } EditActions Aff
 viewer = H.component
   { initializer: Nothing
   , finalizer: Nothing
-  , receiver: pure Nothing
-  , initialState:
+  , receiver: Just <<< Receive unit
+  , initialState: \{ parsed, value } ->
     { id: zero
-    , value: _
+    , parsed, value
     , view: empty
     , selection: empty
-    } :: Ixpr -> ViewState
+    } :: ViewState
   , eval: case _ of
-      ViewInitialize { id, view } a -> a <$ do
+      ViewInitialize a { id, view } -> a <$ do
         prop (_S::S_ "id") .= id
         prop (_S::S_ "view") .= view
-      Receive value a -> a <$ do prop (_S::S_ "value") .= value
-      Raise edit a -> a <$ H.raise edit
-      ViewAction acts a -> a <$ for_ acts case _ of
+      Receive a { parsed, value } -> a <$ do
+        prop (_S::S_ "parsed") .= parsed
+        prop (_S::S_ "value") .= value
+      Raise a edit -> a <$ H.raise edit
+      ViewAction a acts -> a <$ for_ acts case _ of
         Select loc -> prop (_S::S_ "selection") .= loc
-        Un_Focus up down -> prop (_S::S_ "view") %= \view ->
-          List.drop up view <> down
-        SetView new -> do
+        Un_Focus up down -> do
+          prop (_S::S_ "view") %= \view -> down <> List.drop up view
+          -- TODO: adapt selection in a smart manner (common prefix)
+          when (not List.null down) do prop (_S::S_ "selection") .= Nothing
+        SetView patch -> do
           { value: old, view } <- H.get
           case Loc.allWithin view of
             Just loc' | loc <- map pure loc', L.has (_ixes_Ann loc) old ->
-              H.raise $ Set $ (_ixes_Ann loc .~ new) old
+              let new = (_ixes_Ann loc .~ patch) old in
+              when (new /= old) $ H.raise $ Set new
             _ -> pure unit
-        SetSelection new -> do
+        SetSelection patch -> do
           { value: old, view, selection } <- H.get
           case Loc.allWithin view, selection of
             Just loc', Just sel | loc <- sel <> map pure loc', L.has (_ixes_Ann loc) old ->
-              H.raise $ Set $ (_ixes_Ann loc .~ new) old
+              let new = (_ixes_Ann loc .~ patch) old in
+              when (new /= old) $ H.raise $ Set new
             _, _ -> pure unit
   , render: renderInfo >>> render
   } where
@@ -190,25 +221,51 @@ viewer = H.component
     showError = unsafeCoerce >>> _.tag >>> _.type
     render :: ViewRender -> HH.ComponentHTML ViewQuery () Aff
     render r = HH.div [ HP.class_ (H.ClassName "expr-viewer") ]
-      [ renderLocation r.st.view <#> \i -> ViewAction [Un_Focus i empty] unit
+      [ HH.div [ HP.class_ (H.ClassName "header") ]
+        [ inline_feather_button_action (Just (Raise unit DeleteView)) "x-square"
+        , HH.text " "
+        , renderLocation r.st.view <#> \i -> ViewAction unit [Un_Focus i empty]
+        ]
+      , HH.div [ HP.class_ (H.ClassName "edit-bar") ] $ guard (r.editable && isJust r.st.selection) $
+        [ renderLocation (Variant.inj (_S::S_ "within") <<< extract <$> fold r.st.selection) <#> \i -> ViewAction unit []
+        , inline_feather_button_action (Just (ViewAction unit [SetSelection (Ann.innote mempty $ pure Nothing)])) "trash-2"
+        , HH.text " "
+        , inline_feather_button_action (r.st.parsed <#> ViewAction unit <<< pure <<< SetSelection) "edit-3"
+        ]
       , case r.window of
           Success flowers -> un SlottedHTML $
-            renderExprSelectable
-            { interactive: tt, editable: r.editable }
-            r.st.selection
-            flowers <#> flip ViewAction unit <<< bifoldMap
-              (pure <<< Select)
-              (pure <<< SetView)
+            let
+              opts = { interactive: true, editable: r.editable }
+              selectHere = mkActions $ unwrap >>> extract >>> extract >>> \i ->
+                let here = (Variant.inj (_S::S_ "within") <<< extract <$> i)
+                    focus loc = Just \_ -> This $ Un_Focus zero loc
+                in
+                [ { icon: "at-sign"
+                  , action: focus here
+                  }
+                , { icon: "cpu"
+                  , action: focus (Variant.inj (_S::S_ "normalize") {} : here)
+                  }
+                , { icon: "type"
+                  , action: focus (Variant.inj (_S::S_ "typecheck") {} : here)
+                  }
+                ]
+            in
+            renderExprWith opts
+            (selectable opts { interactive = true } r.st.selection Select <> selectHere <> collapsible opts { interactive = false })
+            flowers <#> ViewAction unit <<< bifoldMap pure (pure <<< SetView)
           Error errors' _ | errors <- NEA.toArray errors' ->
             HH.ul [ HP.class_ (H.ClassName "errors") ] $ errors <#>
               showError >>> HH.text >>> pure >>> HH.li_
       ]
 
 renderLocation :: forall p. Location -> HH.HTML p Int
-renderLocation loc = HH.div [ HP.class_ (H.ClassName "location") ] $
-  intercalate [ HH.span [ HP.class_ (H.ClassName "breadcrumb") ] [] ] $
+renderLocation loc = HH.span [ HP.class_ (H.ClassName "location") ] $
+  intercalate [ HH.span [ HP.class_ (H.ClassName "breadcrumb-sep") ] [] ] $
+    let len = List.length loc in
+    (<|>) (pure $ pure $ inline_feather_button_action (Just len) "home") $
     List.reverse loc # mapWithIndex \i -> pure <<<
-      let act = Just i in
+      let act = Just (len - i - 1) in
       Variant.match
         { within: HH.button [ HE.onClick (pure act) ] <<< pure <<< renderERVFI
         , normalize: \_ -> inline_feather_button_action act "cpu"

@@ -567,16 +567,22 @@ locateE' :: forall w r m a. Eq a => StrMapIsh m =>
   FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a
     (Tuple (BiContext (Expr m a)) (Expr m a))
 locateE' tpa = Variant.match
-  { substitute: \{} -> \(Tuple ctx e) ->
-      pure (Tuple ctx (substContextExpr (theseLeft <$> ctx) e))
-  , normalize: \{} -> pure <<< map Dhall.Normalize.normalize
-  , shift: \i -> pure <<< map (Variables.shift i.delta i.variable)
-  , typecheck: \{} -> \(Tuple ctx e) -> do
+  let
+    typecheck (Tuple ctx e) = do
       ctx' <- ctx # reconstituteCtx \ctx' -> case _ of
         This val -> typeWithA tpa ctx' val
         That ty -> pure ty
         Both _ ty -> pure ty
       Tuple ctx <$> typeWithA tpa ctx' e
+  in
+  { substitute: \{} -> \(Tuple ctx e) ->
+      pure (Tuple ctx (substContextExpr (theseLeft <$> ctx) e))
+  , normalize: \{} -> \(Tuple ctx e) -> do
+      -- Ensure it typechecks before normalizing
+      void $ typecheck (Tuple ctx e)
+      pure $ Tuple ctx (Dhall.Normalize.normalize e)
+  , shift: \i -> pure <<< map (Variables.shift i.delta i.variable)
+  , typecheck: \{} -> typecheck
   , within: \i -> \(Tuple ctx e) -> V.liftW $
       let
         intro = Tuple <<< case _ of
@@ -597,7 +603,7 @@ locateE :: forall w r m a. Eq a => StrMapIsh m =>
   FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a
     { expr :: Expr m a, ctx :: BiContext (Expr m a) }
 locateE tpa deriv { expr, ctx } =
-  (foldl (\c v -> c >>= locateE' tpa v) (pure $ Tuple ctx expr) deriv) <#>
+  (foldr (\v c -> c >>= locateE' tpa v) (pure $ Tuple ctx expr) deriv) <#>
     \(Tuple ctx' expr') -> { expr: expr', ctx: ctx' }
 
 newtype Inconsistency a = Inconsistency (NonEmpty (NonEmpty List) a)
