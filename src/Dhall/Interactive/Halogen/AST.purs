@@ -217,7 +217,7 @@ renderBuiltinOps { default } slot = renderBuiltinBinOps identity identity slot
           , HH.text " "
           , unwrap $ unwrap (renderA (slot<>["v"])) v
             <#> \v' -> AST.MergeF h v' mty
-          , Inputs.inline_feather_button_action (Just (AST.MergeF h v (Just default))) "type"
+          , Inputs.inline_feather_button_action (Just (AST.MergeF h v (Just default))) "type" "Add type"
           ]
         Just ty ->
           [ HH.text "merge "
@@ -229,7 +229,7 @@ renderBuiltinOps { default } slot = renderBuiltinBinOps identity identity slot
           , HH.text " : "
           , unwrap $ unwrap (renderA (slot<>["ty"])) ty
             <#> \ty' -> AST.MergeF h v (Just ty')
-          , Inputs.inline_feather_button_action (Just (AST.MergeF h v Nothing)) "minus-circle"
+          , Inputs.inline_feather_button_action (Just (AST.MergeF h v Nothing)) "minus-circle" "Remove type"
           ]
     renderProject = \renderA -> Star \(Tuple (App fields) a) -> SlottedHTML $ HH.span_
       let
@@ -339,7 +339,7 @@ mkIOSMRenderer prior syntax sep close each = Zuruzuru.Renderer \datums { add, ou
   if Array.null datums
   then HH.span_
       [ HH.text $ syntax (-1)
-      , Inputs.inline_feather_button_action (Just postpend) "plus-square"
+      , Inputs.inline_feather_button_action (Just postpend) "plus-square" "Add field"
       , HH.text close
       ]
   else HK.div [ HP.class_ $ H.ClassName "grid-container" ]
@@ -355,9 +355,9 @@ mkIOSMRenderer prior syntax sep close each = Zuruzuru.Renderer \datums { add, ou
     in before <> items <>
       [ Tuple "last" $ HH.div
         [ HP.class_ $ H.ClassName "row" ]
-        [ Inputs.inline_feather_button_action (Just (output (Left unit))) "minimize"
+        [ Inputs.inline_feather_button_action (Just (output (Left unit))) "minimize" "Collapse"
         , HH.text close
-        , Inputs.inline_feather_button_action (Just postpend) "plus-square"
+        , Inputs.inline_feather_button_action (Just postpend) "plus-square" "Add field"
         ]
       ]
 
@@ -377,9 +377,10 @@ renderIOSMItems syntax sep each output { helpers, handle, info } =
       "transform: translateY(" <> show info.offset <> "px)"
   in Tuple ("item-"<>info.key) $ HH.div [ HP.class_ $ H.ClassName "row" ]
   [ Inputs.inline_feather_button_action (Just (output unit))
-    if info.index == 0
+    (if info.index == 0
     then "minimize"
-    else "more-vertical"
+    else "more-vertical")
+    "Collapse"
   , HH.div_ [ un SlottedHTML $ absurd <$> syntax info.index ]
   , Inputs.icon_button_props
     [ moving
@@ -387,8 +388,9 @@ renderIOSMItems syntax sep each output { helpers, handle, info } =
     , HE.onMouseDown handle.onMouseDown
     , HP.class_ (H.ClassName "move")
     , HP.tabIndex (-1)
+    , HP.attr (H.AttrName "data-tooltip") "Reorder (drag/drop)"
     ] "menu" "feather inline active move vertical"
-  , Inputs.inline_feather_button_props [ moving, HE.onClick (\_ -> Just helpers.remove) ] "minus-square"
+  , Inputs.inline_feather_button_props [ moving, HE.onClick (\_ -> Just helpers.remove), HP.attr (H.AttrName "data-tooltip") "Remove field" ] "minus-square"
   , HH.span [ HP.class_ (H.ClassName "input-parent"), moving ]
     [ HH.slot (SProxy :: SProxy "expanding") [info.key]
         (Inputs.expanding HP.InputText) (fst info.value)
@@ -412,7 +414,7 @@ mkArrayRenderer extras syntax each = Zuruzuru.Renderer \datums { add, output } -
   if Array.null datums
   then HH.span_
       [ HH.text $ syntax (-1)
-      , Inputs.inline_feather_button_action (Just postpend) "plus-square"
+      , Inputs.inline_feather_button_action (Just postpend) "plus-square" "Add item"
       , HH.text $ syntax (-2)
       ]
   else HK.div [ HP.class_ $ H.ClassName "grid-container" ]
@@ -447,9 +449,10 @@ renderArrayItems syntax each output { helpers, handle, info } =
       "transform: translateY(" <> show info.offset <> "px)"
   in Tuple ("item-"<>info.key) $ HH.div [ HP.class_ $ H.ClassName "row" ]
   [ Inputs.inline_feather_button_action (Just (output unit))
-    if info.index == 0
+    (if info.index == 0
     then "minimize"
-    else "more-vertical"
+    else "more-vertical")
+    "Collapse"
   , HH.div_ [ un SlottedHTML $ absurd <$> syntax info.index ]
   , Inputs.icon_button_props
     [ moving
@@ -457,8 +460,9 @@ renderArrayItems syntax each output { helpers, handle, info } =
     , HE.onMouseDown handle.onMouseDown
     , HP.class_ (H.ClassName "move")
     , HP.tabIndex (-1)
+    , HP.attr (H.AttrName "data-tooltip") "Reorder (drag/drop)"
     ] "menu" "feather inline active move vertical"
-  , Inputs.inline_feather_button_props [ moving, HE.onClick (\_ -> Just helpers.remove) ] "minus-square"
+  , Inputs.inline_feather_button_props [ moving, HE.onClick (\_ -> Just helpers.remove), HP.attr (H.AttrName "data-tooltip") "Remove item" ] "minus-square"
   , HH.div [ moving ]
     [ un SlottedHTML $ each info.key info.value <#>
         helpers.set
@@ -543,7 +547,7 @@ renderIOSM default slot pre rel sep post renderA =
         \k -> unwrap (renderA [k])
     collapsed = SlottedHTML $ HH.span_
       [ HH.text pre
-      , Inputs.inline_feather_button_action (Just unit) "maximize"
+      , Inputs.inline_feather_button_action (Just unit) "maximize" "Expand"
       , HH.text post
       ]
   in listicleSlot default (collapsible collapsed renderer) slot
@@ -586,7 +590,7 @@ renderLiterals2 { default } slot = identity
         , case ma of
             Nothing ->
               let added = Product (Tuple (Identity ty) (Just default)) in
-              [ Inputs.inline_feather_button_action (Just (Right added)) "plus-square"
+              [ Inputs.inline_feather_button_action (Just (Right added)) "plus-square" "Add value"
               ]
             Just a ->
               let removed = Product (Tuple (Identity ty) Nothing) in
@@ -594,7 +598,7 @@ renderLiterals2 { default } slot = identity
               , unwrap $ unwrap (renderA (slot <> ["OptionalLit value"])) a
                   <#> Right <<< \a' -> Product (Tuple (Identity ty) (Just a'))
               , HH.text " "
-              , Inputs.inline_feather_button_action (Just (Right removed)) "minus-square"
+              , Inputs.inline_feather_button_action (Just (Right removed)) "minus-square" "Remove value"
               , HH.text " "
               ]
         , [ HH.text "]" ]
@@ -631,7 +635,7 @@ renderLiterals2 { default } slot = identity
           \k -> unwrap (renderA [k])
         collapsed = SlottedHTML $ HH.span_
           [ HH.text "<"
-          , Inputs.inline_feather_button_action (Just (Left unit)) "maximize"
+          , Inputs.inline_feather_button_action (Just (Left unit)) "maximize" "Expand"
           , HH.text ">"
           ]
         firstLine = SlottedHTML <$>
@@ -675,21 +679,21 @@ renderLiterals2 { default } slot = identity
           \k -> unwrap (renderA [k])
         collapsed = SlottedHTML $ HH.span_
           [ HH.text "["
-          , Inputs.inline_feather_button_action (Just (Left unit)) "maximize"
+          , Inputs.inline_feather_button_action (Just (Left unit)) "maximize" "Expand"
           , HH.text "]"
           ]
         lastLine = SlottedHTML <$>
           case mty of
             Nothing ->
-              [ Inputs.inline_feather_button_action (Just (Right (Left unit))) "minimize"
+              [ Inputs.inline_feather_button_action (Just (Right (Left unit))) "minimize" "Collapse"
               , HH.text "]"
-              , Inputs.inline_feather_button_action (Just (Left unit)) "plus-square"
-              , Inputs.inline_feather_button_action (Just (Right (Right (Just default)))) "type"
+              , Inputs.inline_feather_button_action (Just (Left unit)) "plus-square" "Append value"
+              , Inputs.inline_feather_button_action (Just (Right (Right (Just default)))) "type" "Add type"
               ]
             Just ty ->
-              [ Inputs.inline_feather_button_action (Just (Right (Left unit))) "minimize"
+              [ Inputs.inline_feather_button_action (Just (Right (Left unit))) "minimize" "Collapse"
               , HH.div_ [ HH.text "]" ]
-              , Inputs.inline_feather_button_action (Just (Left unit)) "plus-square"
+              , Inputs.inline_feather_button_action (Just (Left unit)) "plus-square" "Append value"
               , HH.div_ [ HH.text ":" ]
               , HH.span [ HP.class_ (H.ClassName "input-parent") ]
                 [ un SlottedHTML $ unwrap (renderA [""]) ty <#>
@@ -707,7 +711,7 @@ renderLiterals2 { default } slot = identity
         go i = case _ of
           AST.TextLit s ->
             [ renderString s <#> AST.TextLit
-            , Inputs.inline_feather_button_action (Just (AST.TextInterp s default mempty)) "dollar-sign"
+            , Inputs.inline_feather_button_action (Just (AST.TextInterp s default mempty)) "dollar-sign" "Add interpolated expression"
             ]
           AST.TextInterp s a t ->
             [ renderString s <#> (\s' -> AST.TextInterp s' a t)
@@ -765,7 +769,7 @@ renderVariables { default } slot = identity
             HH.span_
               [ HH.text "let "
               , un SlottedHTML $ expanding slot name \name' -> Right $ AST.LetF name' mty value body
-              , Inputs.inline_feather_button_action (Just (Right (AST.LetF name (Just default) value body))) "type"
+              , Inputs.inline_feather_button_action (Just (Right (AST.LetF name (Just default) value body))) "type" "Add type"
               , HH.text " = "
               , unwrap $ unwrap (renderA (slot <> ["value"])) value
                 <#> \value' -> Right $ AST.LetF name mty value' body
@@ -780,7 +784,7 @@ renderVariables { default } slot = identity
               , HH.text " : "
               , unwrap $ unwrap (renderA (slot <> ["ty"])) ty
                 <#> \ty' -> Right $ AST.LetF name (Just ty') value body
-              , Inputs.inline_feather_button_action (Just (Right (AST.LetF name Nothing value body))) "minus-circle"
+              , Inputs.inline_feather_button_action (Just (Right (AST.LetF name Nothing value body))) "minus-circle" "Remove type"
               , HH.text " = "
               , unwrap $ unwrap (renderA (slot <> ["value"])) value
                 <#> \value' -> Right $ AST.LetF name mty value' body

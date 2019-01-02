@@ -69,8 +69,12 @@ icon_button_action :: forall q p.
   Maybe q ->
   String ->
   String ->
+  String ->
   HH.HTML p q
-icon_button_action q = icon_button_props [ HE.onClick (pure q), HP.disabled (isNothing q) ]
+icon_button_action q t c tip = icon_button_props
+  [ HE.onClick (pure q), HP.disabled (isNothing q)
+  , HP.attr (H.AttrName "data-tooltip" :: H.AttrName) tip
+  ] t c
 
 icon_button_props :: forall q p.
   Array (HH.IProp HTMLbutton q) ->
@@ -81,6 +85,7 @@ icon_button_props p t c = HH.button p [ Icons.icon t [ Icons.class_ c ] ]
 
 inline_feather_button_action :: forall q p.
   Maybe q ->
+  String ->
   String ->
   HH.HTML p q
 inline_feather_button_action q t = icon_button_action q t "feather inline active"

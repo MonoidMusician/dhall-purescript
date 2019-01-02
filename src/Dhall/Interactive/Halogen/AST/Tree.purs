@@ -129,10 +129,10 @@ renderMaybe opts { df, rndr: renderA } = rendering \as ->
     case as of
       Nothing -> if not opts.editable then HH.text "(Nothing)" else
         HH.div [ HP.class_ $ H.ClassName "just button" ]
-        [ inline_feather_button_action (Just (That (Just df))) "plus-square" ]
+        [ inline_feather_button_action (Just (That (Just df))) "plus-square" "Add node here" ]
       Just a -> HH.li_ $ join $
         [ guard opts.editable $ pure $ HH.div [ HP.class_ $ H.ClassName "pre button" ]
-          [ inline_feather_button_action (Just (That Nothing)) "minus-square" ]
+          [ inline_feather_button_action (Just (That Nothing)) "minus-square" "Remove this node" ]
         , pure $ unwrap $ unwrap $ Just <$> unwrap renderA a
         ]
 
@@ -440,11 +440,13 @@ type IdxAnn = Tuple Ann AST.ExprI
 type AnnExpr = Ann.Expr IOSM.InsOrdStrMap Ann
 type IdxAnnExpr = Ann.Expr IOSM.InsOrdStrMap IdxAnn
 
+type Action o =
+  { icon :: String
+  , action :: Maybe (Unit -> o)
+  , tooltip :: String
+  }
 newtype Customize slots i o = Customize
-  (i -> { actions :: Array
-    { icon :: String
-    , action :: Maybe (Unit -> o)
-    }
+  (i -> { actions :: Array (Action o)
   , wrap :: (Unit -> SlottedHTML slots o) -> SlottedHTML slots o
   })
 derive instance newtypeCustomize :: Newtype (Customize slots i o) _
@@ -458,13 +460,13 @@ instance monoidCustomize :: Monoid (Customize slots i o) where
   mempty = Customize \_ -> { actions: mempty, wrap: (#) unit }
 
 mkActions :: forall slots i o.
-  (i -> Array { icon :: String, action :: Maybe (Unit -> o) }) ->
+  (i -> Array (Action o)) ->
   Customize slots i o
 mkActions actions = Customize \i -> { wrap: (#) unit, actions: actions i }
 
 mkInteractions :: forall slots i o.
   RenderingOptions ->
-  (i -> Array { icon :: String, action :: Maybe (Unit -> o) }) ->
+  (i -> Array (Action o)) ->
   Customize slots i o
 mkInteractions opts = if opts.interactive then mkActions else mempty
 
@@ -488,9 +490,9 @@ renderExprWith opts customize = indexFrom Nil >>> go where
     let df = Ann.innote mempty (AST.mkEmbed Nothing) in
     HH.div [ HP.class_ $ H.ClassName "expression" ] $ join
       let custom = unwrap customize enn in
-      [ custom.actions <#> \{ action, icon } ->
+      [ custom.actions <#> \{ action, icon, tooltip } ->
           HH.div [ HP.class_ $ H.ClassName "pre button" ]
-            [ under SlottedHTML (map ((#) unit)) $ inline_feather_button_action action icon ]
+            [ under SlottedHTML (map ((#) unit)) $ inline_feather_button_action action icon tooltip ]
       , pure $ unwrap $ custom.wrap \_ -> unwrap $
           map (cons ann) $ unwrap e # unwrap do
             renderAllTheThings opts { df, rndr: Star (map (indexFrom hereIx) {- necessary evil -} <<< Compose <<< go) } $ renderVFNone #
@@ -524,6 +526,7 @@ collapsible opts =
   { actions: pure
     { icon: if collapsed then "eye" else "eye-off"
     , action: pure \_ -> That $ unindex $ (_topAnn <<< _collapsed) not e
+    , tooltip: if collapsed then "Show" else "Hide"
     }
   , wrap: if not collapsed then (#) unit else \_ -> SlottedHTML $
       HH.div [ HP.class_ (H.ClassName "collapsed") ] []
@@ -544,6 +547,7 @@ selectable opts selectedIx injIx =
       , action: if selected
         then pure \_ -> This (injIx Nothing)
         else pure \_ -> Both (injIx (Just hereIx)) $ unindex $ ((_topAnn <<< _collapsed) .~ false) e
+      , tooltip: if selected then "Deselect" else "Select this node"
       }
   , wrap: if not selected then (#) unit else \inner -> SlottedHTML $
       HH.div [ HP.class_ (H.ClassName "selected") ]

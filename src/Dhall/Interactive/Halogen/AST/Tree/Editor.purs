@@ -80,8 +80,7 @@ data EditQuery a
 
 type ERROR = Erroring (TypeCheckError (Errors + ( "Not found" :: ExprRowVFI )) (L IOSM.InsOrdStrMap (Maybe Core.Imports.Import)))
 type ViewState =
-  { id :: ViewId
-  , parsed :: Maybe Ixpr
+  { parsed :: Maybe Ixpr
   , value :: Ixpr
   , view :: Location
   , selection :: Maybe ExprI
@@ -99,10 +98,7 @@ data ViewActions
   | SetSelection Ixpr -- set new Ixpr at selection
   | SetView Ixpr
 data ViewQuery a
-  = ViewInitialize a
-    { id :: ViewId
-    , view :: Location
-    }
+  = ViewInitialize a Location
   | ViewAction a (Array ViewActions)
   | Raise a EditActions
   | Receive a { parsed :: Maybe Ixpr, value :: Ixpr }
@@ -118,7 +114,7 @@ editor = H.component
   { initializer: Nothing
   , finalizer: Nothing
   , receiver: Just <<< EditAction Nothing unit <<< Set
-  , initialState: ({ userInput: "Type", nextView: one, views: [one], value: _ } <<< pure) :: Ixpr -> EditState
+  , initialState: ({ userInput: "Type", nextView: one, views: [zero], value: _ } <<< pure) :: Ixpr -> EditState
   , eval: case _ of
       Output a -> a <$ (H.gets _.value >>= extract >>> H.raise)
       Check a -> H.gets _.value <#> extract >>> a
@@ -133,8 +129,7 @@ editor = H.component
           prop (_S::S_ "nextView") %= add one
           viewId <- H.gets _.nextView
           prop (_S::S_ "views") %= flip Array.snoc viewId
-          void $ H.query (_S::S_ "view") viewId $ ViewInitialize unit
-            { id: viewId, view }
+          void $ H.query (_S::S_ "view") viewId $ ViewInitialize unit view
   , render
   } where
     render :: EditState -> H.ComponentHTML EditQuery ( view :: H.Slot ViewQuery EditActions Natural ) Aff
@@ -149,9 +144,9 @@ editor = H.component
       in HH.div [ HP.class_ (H.ClassName "expr-editor") ]
         [ HH.div_ renderedViews
         , HH.div_
-          [ inline_feather_button_action appendView "plus-square"
-          , inline_feather_button_action (Just (EditAction Nothing unit Undo)) "corner-up-left"
-          , inline_feather_button_action (Just (EditAction Nothing unit Redo)) "corner-down-right"
+          [ inline_feather_button_action appendView "plus-square" "Add a new view"
+          , inline_feather_button_action (Just (EditAction Nothing unit Undo)) "corner-up-left" "Undo"
+          , inline_feather_button_action (Just (EditAction Nothing unit Redo)) "corner-down-right" "Redo"
           ]
         , HH.textarea [ HE.onValueInput (Just <<< UserInput unit), HP.value userInput ]
         , Icons.icon (if isJust parsed then "check" else "x") [ Icons.class_ "feather" ]
@@ -168,14 +163,12 @@ viewer = H.component
   , finalizer: Nothing
   , receiver: Just <<< Receive unit
   , initialState: \{ parsed, value } ->
-    { id: zero
-    , parsed, value
+    { parsed, value
     , view: empty
     , selection: empty
     } :: ViewState
   , eval: case _ of
-      ViewInitialize a { id, view } -> a <$ do
-        prop (_S::S_ "id") .= id
+      ViewInitialize a view -> a <$ do
         prop (_S::S_ "view") .= view
       Receive a { parsed, value } -> a <$ do
         prop (_S::S_ "parsed") .= parsed
@@ -222,15 +215,15 @@ viewer = H.component
     render :: ViewRender -> HH.ComponentHTML ViewQuery () Aff
     render r = HH.div [ HP.class_ (H.ClassName "expr-viewer") ]
       [ HH.div [ HP.class_ (H.ClassName "header") ]
-        [ inline_feather_button_action (Just (Raise unit DeleteView)) "x-square"
+        [ inline_feather_button_action (Just (Raise unit DeleteView)) "x-square" "Close this view"
         , HH.text " "
         , renderLocation r.st.view <#> \i -> ViewAction unit [Un_Focus i empty]
         ]
       , HH.div [ HP.class_ (H.ClassName "edit-bar") ] $ guard (r.editable && isJust r.st.selection) $
         [ renderLocation (Variant.inj (_S::S_ "within") <<< extract <$> fold r.st.selection) <#> \i -> ViewAction unit []
-        , inline_feather_button_action (Just (ViewAction unit [SetSelection (Ann.innote mempty $ pure Nothing)])) "trash-2"
+        , inline_feather_button_action (Just (ViewAction unit [SetSelection (Ann.innote mempty $ pure Nothing)])) "trash-2" "Delete this node"
         , HH.text " "
-        , inline_feather_button_action (r.st.parsed <#> ViewAction unit <<< pure <<< SetSelection) "edit-3"
+        , inline_feather_button_action (r.st.parsed <#> ViewAction unit <<< pure <<< SetSelection) "edit-3" "Replace this node with parsed content"
         ]
       , case r.window of
           Success flowers -> un SlottedHTML $
@@ -242,12 +235,15 @@ viewer = H.component
                 in
                 [ { icon: "at-sign"
                   , action: focus here
+                  , tooltip: "Move view here"
                   }
                 , { icon: "cpu"
                   , action: focus (Variant.inj (_S::S_ "normalize") {} : here)
+                  , tooltip: "View this node, normalized"
                   }
                 , { icon: "type"
                   , action: focus (Variant.inj (_S::S_ "typecheck") {} : here)
+                  , tooltip: "View the type of this node"
                   }
                 ]
             in
@@ -263,13 +259,13 @@ renderLocation :: forall p. Location -> HH.HTML p Int
 renderLocation loc = HH.span [ HP.class_ (H.ClassName "location") ] $
   intercalate [ HH.span [ HP.class_ (H.ClassName "breadcrumb-sep") ] [] ] $
     let len = List.length loc in
-    (<|>) (pure $ pure $ inline_feather_button_action (Just len) "home") $
+    (<|>) (pure $ pure $ inline_feather_button_action (Just len) "home" "Top of expression") $
     List.reverse loc # mapWithIndex \i -> pure <<<
       let act = Just (len - i - 1) in
       Variant.match
         { within: HH.button [ HE.onClick (pure act) ] <<< pure <<< renderERVFI
-        , normalize: \_ -> inline_feather_button_action act "cpu"
-        , typecheck: \_ -> inline_feather_button_action act "type"
+        , normalize: \_ -> inline_feather_button_action act "cpu" "Normalized"
+        , typecheck: \_ -> inline_feather_button_action act "type" "Typechecked"
         }
 
 renderERVFI :: forall p q. ExprRowVFI -> HH.HTML p q
