@@ -357,7 +357,7 @@ renderBuiltinTypes2 opts { df, rndr: renderA } = identity
 renderLiterals2 :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.Literals2 r m a
 renderLiterals2 opts { df, rndr: renderA } = identity
   >>> renderVFLensed (_S::S_ "None") []
-  >>> renderVFLensed (_S::S_ "Some") [ mkLensed "argument" _Newtype renderA ]
+  >>> renderVFLensed (_S::S_ "Some") [ mkLensed "value" _Newtype renderA ]
   >>> renderVFLensed (_S::S_ "RecordLit")
     [ mkLensed "values" identity (renderIOSM opts { df, rndr: renderA }) ]
   >>> renderVFLensed (_S::S_ "UnionLit") renderUnionLit

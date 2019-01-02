@@ -29,6 +29,7 @@ import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Lazy (Lazy, defer)
+import Data.Lens (preview)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.List (List(..), (:))
 import Data.List as List
@@ -54,18 +55,21 @@ import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Context (Context(..))
 import Dhall.Context as Dhall.Context
-import Dhall.Core (Var, shift)
+import Dhall.Core (Var(..), shift)
 import Dhall.Core as Dhall.Core
-import Dhall.Core.AST (Const(..), Expr, ExprRowVF(..), Pair(..), S_, _S)
+import Dhall.Core as Variables
+import Dhall.Core.AST (Const(..), Expr, ExprRowVF(..), ExprRowVFI, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
-import Dhall.Core.AST.Operations.Location (BasedExprDerivation, ExprLocation)
+import Dhall.Core.AST.Operations.Location (BasedExprDerivation, Derived, ExprLocation, Operated, Within, Derivation)
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Operations.Transformations (OverCases, OverCasesM(..))
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
+import Dhall.Core.Zippers (_ix)
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.Variables (freeInAlg, shiftAlgG, trackIntro)
 import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, mapR, project, transCata, traverseR)
+import Type.Row (type (+))
 import Type.Row as R
 import Validation.These as V
 
@@ -554,33 +558,47 @@ locateO tpa ctx =
           { location: pure loc
           , tag: Variant.inj (_S::S_ "Not found") (extract i)
           }
+-}
 
-locateE :: forall w r m a. Eq a => StrMapIsh m =>
+locateE' :: forall w r m a. Eq a => StrMapIsh m =>
   (a -> Expr m a) ->
-  BiContext (Expr m a) ->
-  ExprLocation m a -> Expr m a ->
-  FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a (Expr m a)
-locateE tpa ctx =
-  case _ of
-    MainExpression -> pure
-    Place e -> pure (pure e)
-    Substituted loc -> locateE tpa ctx loc >>> map (substContextExpr (theseLeft <$> ctx))
-    NormalizeLocation loc -> locateE tpa ctx loc >>> map Dhall.Normalize.normalize
-    TypeOfLocation loc -> \e -> do
-      e' <- locateE tpa ctx loc e
+  Variant (Operated + Derived + Within + ()) ->
+  Tuple (BiContext (Expr m a)) (Expr m a) ->
+  FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a
+    (Tuple (BiContext (Expr m a)) (Expr m a))
+locateE' tpa = Variant.match
+  { substitute: \{} -> \(Tuple ctx e) ->
+      pure (Tuple ctx (substContextExpr (theseLeft <$> ctx) e))
+  , normalize: \{} -> pure <<< map Dhall.Normalize.normalize
+  , shift: \i -> pure <<< map (Variables.shift i.delta i.variable)
+  , typecheck: \{} -> \(Tuple ctx e) -> do
       ctx' <- ctx # reconstituteCtx \ctx' -> case _ of
         This val -> typeWithA tpa ctx' val
         That ty -> pure ty
         Both _ ty -> pure ty
-      typeWithA tpa ctx' e'
-    Shifted d v loc -> locateE tpa ctx loc >>> map (Variables.shift d v)
-    LocationWithin i loc -> locateE tpa ctx loc >=> \e -> V.liftW $
-      e # project # preview (_ix (extract i)) # do
+      Tuple ctx <$> typeWithA tpa ctx' e
+  , within: \i -> \(Tuple ctx e) -> V.liftW $
+      let
+        intro = Tuple <<< case _ of
+          Nothing -> ctx
+          Just (Tuple k th) -> join bimap (Variables.shift 1 (V k 0)) <$>
+            Dhall.Context.insert k th ctx
+      in e # project # un ERVF # trackIntro intro # ERVF # preview (_ix i) # do
         V.note $ TypeCheckError
-          { location: pure loc
-          , tag: Variant.inj (_S::S_ "Not found") (extract i)
+          { location: pure (Tuple empty empty)
+          , tag: Variant.inj (_S::S_ "Not found") i
           }
--}
+  }
+
+locateE :: forall w r m a. Eq a => StrMapIsh m =>
+  (a -> Expr m a) ->
+  Derivation ->
+  { expr :: Expr m a, ctx :: BiContext (Expr m a) } ->
+  FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a
+    { expr :: Expr m a, ctx :: BiContext (Expr m a) }
+locateE tpa deriv { expr, ctx } =
+  (foldl (\c v -> c >>= locateE' tpa v) (pure $ Tuple ctx expr) deriv) <#>
+    \(Tuple ctx' expr') -> { expr: expr', ctx: ctx' }
 
 newtype Inconsistency a = Inconsistency (NonEmpty (NonEmpty List) a)
 derive instance newtypeInconsistency :: Newtype (Inconsistency a) _

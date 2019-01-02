@@ -6,6 +6,7 @@ import Control.Monad.Writer as W
 import Control.Plus (empty)
 import Data.Array.NonEmpty as NEA
 import Data.Bifunctor (class Bifunctor)
+import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault)
 import Data.Functor.Compose (Compose(..))
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
@@ -26,6 +27,12 @@ derive instance eqErroring :: (Eq e, Eq a) => Eq (Erroring e a)
 instance showErroring :: (Show e, Show a) => Show (Erroring e a) where
   show (Success a) = "(Success " <> show a <> ")"
   show (Error es ma) = "(Error " <> show es <> " " <> show ma <> ")"
+
+instance foldableErroring :: Foldable (Erroring e) where
+  foldMap f (Success a) = f a
+  foldMap f (Error _ ma) = foldMap f ma
+  foldl f = foldlDefault f
+  foldr f = foldrDefault f
 
 instance functorErroring :: Functor (Erroring e) where
   map f (Success a) = Success (f a)

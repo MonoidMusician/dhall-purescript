@@ -65,28 +65,28 @@ expanding t = H.component
         (Tuple (settings t) b) (HE.input Up)
   }
 
-icon_button_action :: forall q ps.
+icon_button_action :: forall q p.
   Maybe q ->
   String ->
   String ->
-  H.ComponentHTML' q ps Aff
+  HH.HTML p q
 icon_button_action q = icon_button_props [ HE.onClick (pure q), HP.disabled (isNothing q) ]
 
-icon_button_props :: forall q ps.
+icon_button_props :: forall q p.
   Array (HH.IProp HTMLbutton q) ->
   String ->
   String ->
-  H.ComponentHTML' q ps Aff
+  HH.HTML p q
 icon_button_props p t c = HH.button p [ Icons.icon t [ Icons.class_ c ] ]
 
-inline_feather_button_action :: forall q ps.
+inline_feather_button_action :: forall q p.
   Maybe q ->
   String ->
-  H.ComponentHTML' q ps Aff
+  HH.HTML p q
 inline_feather_button_action q t = icon_button_action q t "feather inline active"
 
-inline_feather_button_props :: forall q ps.
+inline_feather_button_props :: forall q p.
   Array (HH.IProp HTMLbutton q) ->
   String ->
-  H.ComponentHTML' q ps Aff
+  HH.HTML p q
 inline_feather_button_props p t = icon_button_props p t "feather inline active"
