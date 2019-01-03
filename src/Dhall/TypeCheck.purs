@@ -233,7 +233,7 @@ typecheckSketch alg = recursor2D
           substContextLxpr ctx' $
           embed $ EnvT $ Tuple loc $ head2D <$> e
       do Compose $ defer \_ ->
-          map (alsoOriginateFrom (Loc.step (_S::S_ "typecheck") <$> loc)) $
+          map (alsoOriginateFrom (Loc.stepF (_S::S_ "typecheck") <$> loc)) $
           alg $ WithBiCtx ctx $ (((layer))) #
             -- contextualize each child of `layer` in the proper context,
             -- adapted for its place in the AST
@@ -275,14 +275,14 @@ originateFrom :: forall m a. FunctorWithIndex String m =>
   L m a -> Expr m a -> Lxpr m a
 originateFrom = flip <<< cata <<< flip $ go where
   go loc e = embed $ EnvT $ Tuple loc $ (((e)))
-    # mapWithIndex \i' -> (#) $ Loc.move (_S::S_ "within") i' <$> loc
+    # mapWithIndex \i' -> (#) $ Loc.moveF (_S::S_ "within") i' <$> loc
 
 -- Same drill, but for a tree that already has locations.
 alsoOriginateFrom :: forall m a. FunctorWithIndex String m =>
   L m a -> Lxpr m a -> Lxpr m a
 alsoOriginateFrom = flip <<< cata <<< flip $ go where
   go loc (EnvT (Tuple f e)) = embed $ EnvT $ Tuple (loc <> f) $ (((e)))
-    # mapWithIndex \i' -> (#) $ Loc.move (_S::S_ "within") i' <$> loc
+    # mapWithIndex \i' -> (#) $ Loc.moveF (_S::S_ "within") i' <$> loc
 
 topLoc :: forall w r m a. Oxpr w r m a -> L m a
 topLoc = project >>> un Compose >>> extract >>> env
@@ -293,8 +293,8 @@ alsoOriginateFromO = mapR <<< over Compose <<< go where
   go loc e =
     Cofree.deferCofree \_ -> Tuple (Cofree.head e) (Cofree.tail e)
     # bimap
-      do mapEnv (loc <> _) >>> mapEnvT (mapWithIndex \i' -> mapR $ over Compose $ go $ Loc.move (_S::S_ "within") i' <$> loc)
-      do bitransProduct (map (go (Loc.step (_S::S_ "normalize") <$> loc))) (map (go (Loc.step (_S::S_ "typecheck") <$> loc)))
+      do mapEnv (loc <> _) >>> mapEnvT (mapWithIndex \i' -> mapR $ over Compose $ go $ Loc.moveF (_S::S_ "within") i' <$> loc)
+      do bitransProduct (map (go (Loc.stepF (_S::S_ "normalize") <$> loc))) (map (go (Loc.stepF (_S::S_ "typecheck") <$> loc)))
 
 -- Typecheck an Ocpr by giving it a context. Returns an Oxpr.
 typecheckStepCtx :: forall w r m a. FunctorWithIndex String m =>
@@ -369,7 +369,7 @@ subst1 ctx =
 substContextLxpr :: forall m a. FunctorWithIndex String m =>
   SubstContext (Lxpr m a) ->
   Lxpr m a -> Lxpr m a
-substContextLxpr ctx e = alsoOriginateFrom (Loc.step (_S::S_ "substitute") <$> extract e) $
+substContextLxpr ctx e = alsoOriginateFrom (Loc.stepF (_S::S_ "substitute") <$> extract e) $
   (#) ctx $ (((e))) # cata \(EnvT (Tuple loc (ERVF layer))) ctx' ->
     case substContext1 shiftInLxpr0 (#) ctx' layer of
       Left e' -> e'
@@ -379,7 +379,7 @@ substContextLxpr ctx e = alsoOriginateFrom (Loc.step (_S::S_ "substitute") <$> e
 substContextOxpr :: forall w r m a. FunctorWithIndex String m =>
   SubstContext (Oxpr w r m a) ->
   Oxpr w r m a -> Oxpr w r m a
-substContextOxpr ctx e = alsoOriginateFromO (Loc.step (_S::S_ "substitute") <$> topLoc e) $
+substContextOxpr ctx e = alsoOriginateFromO (Loc.stepF (_S::S_ "substitute") <$> topLoc e) $
   (mapR $ over Compose $ go ctx) e where
     go ctx' e' = Cofree.deferCofree \_ ->
       case go1 ctx' (Cofree.head e') of
@@ -413,7 +413,7 @@ newmother :: forall m a. FunctorWithIndex String m =>
 newmother e0 =
   let e_ = AST.embedW $ e0 <#> denote
   in embed $ EnvT $ Tuple (pure (Tuple empty (Just e_))) $ wrap e0
-    # mapWithIndex \i -> alsoOriginateFrom (pure (Loc.move (_S::S_ "within") i (Tuple empty (Just e_))))
+    # mapWithIndex \i -> alsoOriginateFrom (pure (Loc.moveF (_S::S_ "within") i (Tuple empty (Just e_))))
 
 denote :: forall m a s.
   Ann m a s -> Expr m a
@@ -482,7 +482,7 @@ freeInLxpr = flip $ cata $ unEnvT >>> unwrap >>> freeInAlg
 
 shiftLxpr :: forall m a. FunctorWithIndex String m =>
   Int -> Var -> Lxpr m a -> Lxpr m a
-shiftLxpr delta variable e = alsoOriginateFrom (Loc.move (_S::S_ "shift") { delta, variable } <$> extract e) $
+shiftLxpr delta variable e = alsoOriginateFrom (Loc.moveF (_S::S_ "shift") { delta, variable } <$> extract e) $
   (((e))) #
     runLxprAlg (Variant.case_ # shiftAlgG)
       (Variant.inj (_S::S_ "shift") { delta, variable })
@@ -529,7 +529,7 @@ tryShiftOut0Oxpr :: forall w r m a. Foldable m => String -> Oxpr w r m a -> Mayb
 tryShiftOut0Oxpr v = tryShiftOutOxpr (AST.V v 0)
 
 normalizeLxpr :: forall m a. StrMapIsh m => Eq a => Lxpr m a -> Lxpr m a
-normalizeLxpr e = alsoOriginateFrom (Loc.step (_S::S_ "normalize") <$> extract e) $
+normalizeLxpr e = alsoOriginateFrom (Loc.stepF (_S::S_ "normalize") <$> extract e) $
   (extract <<< extract <<< unwrap) $
     -- TODO: use substLxpr and shiftLxpr here
     runLxprAlgM (Variant.case_ # Dhall.Normalize.normalizeWithAlgGW mempty)
@@ -1291,7 +1291,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
   , "ImportAlt": \(Pair l _r) ->
       -- FIXME???
       head2D <$> typecheckStep l
-  , "Embed": map (originateFrom (Loc.step (_S::S_ "typecheck") <$> loc)) <<< tpa <<< unwrap
+  , "Embed": map newborn <<< tpa <<< unwrap
   }
 
 data Reference a
@@ -1309,31 +1309,31 @@ explain ::
   forall m a.
     StrMapIsh m =>
   BiContext Unit ->
-  L m a ->
+  Loc.BasedExprDerivation m a ->
   VariantF (AST.ExprLayerRow m a) Unit ->
   Variant (Errors ()) ->
-  Array (Reference (L m a))
+  Array (Reference (Loc.BasedExprDerivation m a))
 explain ctx origin nodeType =
   let errorUnknownError = empty
       within ::
         forall sym v r'.
           IsSymbol sym =>
           R.Cons sym v r' AST.ExprLayerRowI =>
-        SProxy sym -> v -> Endo (->)  (L m a)
+        SProxy sym -> v -> Endo (->) (Loc.BasedExprDerivation m a)
       within sym v = within' (ERVFI (Variant.inj sym v))
-      within' :: ExprRowVFI -> Endo (->) (L m a)
-      within' ervfi = Endo $ map $ Loc.move (_S::S_ "within") ervfi
-      typechecked :: Endo (->)  (L m a)
-      typechecked = Endo $ map $ Loc.step (_S::S_ "typecheck")
-      normalized :: Endo (->)  (L m a)
-      normalized = Endo $ map $ Loc.step (_S::S_ "normalize")
-      expr :: SimpleExpr -> L m a
-      expr e = pure $ Tuple empty $ pure $ rehydrate e
-      referenceExpr :: SimpleExpr -> Reference (L m a)
+      within' :: ExprRowVFI -> Endo (->) (Loc.BasedExprDerivation m a)
+      within' ervfi = Endo $ Loc.moveF (_S::S_ "within") ervfi
+      typechecked :: Endo (->) (Loc.BasedExprDerivation m a)
+      typechecked = Endo $ Loc.stepF (_S::S_ "typecheck")
+      normalized :: Endo (->) (Loc.BasedExprDerivation m a)
+      normalized = Endo $ Loc.stepF (_S::S_ "normalize")
+      expr :: SimpleExpr -> Loc.BasedExprDerivation m a
+      expr e = Tuple empty $ pure $ rehydrate e
+      referenceExpr :: SimpleExpr -> Reference (Loc.BasedExprDerivation m a)
       referenceExpr e = Reference (expr e)
-      referenceConst :: AST.Const -> Reference (L m a)
+      referenceConst :: AST.Const -> Reference (Loc.BasedExprDerivation m a)
       referenceConst = referenceExpr <<< AST.mkConst
-      reference :: Endo (->)  (L m a) -> Reference (L m a)
+      reference :: Endo (->) (Loc.BasedExprDerivation m a) -> Reference (Loc.BasedExprDerivation m a)
       reference (Endo localize) = Reference (localize origin)
       here = reference mempty
 
