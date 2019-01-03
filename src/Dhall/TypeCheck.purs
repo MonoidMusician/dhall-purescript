@@ -3,7 +3,7 @@ module Dhall.TypeCheck where
 import Prelude
 
 import Control.Alternative (class Alternative)
-import Control.Comonad (class Comonad, extract)
+import Control.Comonad (class Comonad, extend, extract)
 import Control.Comonad.Cofree (Cofree, buildCofree, hoistCofree)
 import Control.Comonad.Cofree as Cofree
 import Control.Comonad.Env (EnvT(..), mapEnvT, runEnvT)
@@ -568,6 +568,7 @@ locateE' :: forall w r m a. Eq a => StrMapIsh m =>
     (Tuple (BiContext (Expr m a)) (Expr m a))
 locateE' tpa = Variant.match
   let
+    substCtx = extend \(Tuple ctx e) -> substContextExpr (theseLeft <$> ctx) e
     typecheck (Tuple ctx e) = do
       ctx' <- ctx # reconstituteCtx \ctx' -> case _ of
         This val -> typeWithA tpa ctx' val
@@ -577,13 +578,14 @@ locateE' tpa = Variant.match
   in
   { substitute: \{} -> \(Tuple ctx e) ->
       pure (Tuple ctx (substContextExpr (theseLeft <$> ctx) e))
-  , normalize: \{} -> \(Tuple ctx e) -> do
+  , normalize: \{} -> substCtx >>> \(Tuple ctx e) -> do
       -- Ensure it typechecks before substituting and normalizing
       void $ typecheck (Tuple ctx e)
-      pure $ Tuple ctx $ Dhall.Normalize.normalize $
-        substContextExpr (theseLeft <$> ctx) e
+      pure $ Tuple ctx $ Dhall.Normalize.normalize e
   , shift: \i -> pure <<< map (Variables.shift i.delta i.variable)
-  , typecheck: \{} -> typecheck
+  -- I guess we need to substitute `let`-bound variables in context
+  -- before typechecking
+  , typecheck: \{} -> substCtx >>> typecheck
   , within: \i -> \(Tuple ctx e) -> V.liftW $
       let
         intro = Tuple <<< case _ of
@@ -815,6 +817,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       (Unit -> FeedbackE w r m a Void) ->
       FeedbackE w r m a Unit
     checkEq ty0 ty1 error =
+      -- TODO: make sure ty0 and ty1 typecheck before normalizing them?
       let
         Pair ty0' ty1' = Pair ty0 ty1 <#>
           normalizeStep >>> plain >>> AST.unordered
