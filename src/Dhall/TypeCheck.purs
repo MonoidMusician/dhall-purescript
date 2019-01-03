@@ -17,19 +17,20 @@ import Data.Bifunctor (bimap)
 import Data.Bitraversable (bisequence, bitraverse)
 import Data.Const as Const
 import Data.Either (Either(..))
-import Data.Foldable (class Foldable, foldMap, foldr, foldl, for_, traverse_)
-import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, forWithIndex_)
+import Data.Foldable (class Foldable, foldMap, foldl, foldr, for_, null, traverse_)
+import Data.FoldableWithIndex (class FoldableWithIndex, anyWithIndex, foldMapWithIndex, forWithIndex_)
 import Data.Function (on)
 import Data.Functor.App (App(..))
 import Data.Functor.Compose (Compose(..))
 import Data.Functor.Mu (Mu(..))
 import Data.Functor.Product (Product(..))
-import Data.Functor.Variant (FProxy, SProxy)
+import Data.Functor.Variant (FProxy, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Lazy (Lazy, defer)
-import Data.Lens (preview)
+import Data.Lens (firstOf, has, lastOf, preview)
+import Data.Lens.Indexed (asIndex, itraversed)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.List (List(..), (:))
 import Data.List as List
@@ -38,6 +39,7 @@ import Data.List.Types (NonEmptyList)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Maybe.First (First(..))
 import Data.Monoid.Disj (Disj(..))
+import Data.Monoid.Endo (Endo(..))
 import Data.Natural (Natural)
 import Data.Newtype (class Newtype, over, un, unwrap, wrap)
 import Data.Newtype as N
@@ -46,6 +48,7 @@ import Data.Profunctor.Strong ((&&&))
 import Data.Semigroup.Foldable (class Foldable1)
 import Data.Set (Set)
 import Data.Set as Set
+import Data.String as String
 import Data.Symbol (class IsSymbol)
 import Data.These (These(..), theseLeft)
 import Data.Traversable (class Traversable, for, sequence, traverse)
@@ -58,9 +61,9 @@ import Dhall.Context as Dhall.Context
 import Dhall.Core (Var(..), shift)
 import Dhall.Core as Dhall.Core
 import Dhall.Core as Variables
-import Dhall.Core.AST (Const(..), Expr, ExprRowVF(..), ExprRowVFI, Pair(..), S_, _S)
+import Dhall.Core.AST (Const(..), Expr, ExprRowVF(..), ExprRowVFI(..), Pair(..), S_, _S, hoistExpr)
 import Dhall.Core.AST as AST
-import Dhall.Core.AST.Operations.Location (BasedExprDerivation, Derived, ExprLocation, Operated, Within, Derivation)
+import Dhall.Core.AST.Operations.Location (BasedExprDerivation, Derived, Operated, Within, Derivation)
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Operations.Transformations (OverCases, OverCasesM(..))
 import Dhall.Core.StrMapIsh (class StrMapIsh)
@@ -104,9 +107,9 @@ suggest a = (<<<) wrap $ unwrap >>> case _ of
   V.Error es mtaccum ->
     V.Error es $ pure $ Tuple a $ foldMap extract mtaccum
 
-newtype TypeCheckError r f = TypeCheckError
+newtype TypeCheckError r a = TypeCheckError
   -- The main location where the typechecking error occurred
-  { location :: f
+  { location :: a
   -- The tag for the specific error, mostly for machine purposes
   , tag :: Variant r
   }
@@ -667,21 +670,21 @@ type Errors r =
   , "Type mismatch" :: Unit
   , "Invalid predicate" :: Unit
   , "If branch mismatch" :: Unit
-  , "If branch must be term" :: Boolean
-  , "Invalid list type" :: Unit
+  , "If branch must be term" :: Tuple Boolean (Maybe Const)
+  , "Invalid list type" :: Maybe Const
   , "Missing list type" :: Unit
   , "Invalid list element" :: Int
   , "Mismatched list elements" :: Int
   , "Cannot append non-list" :: Boolean
   , "Cannot interpolate" :: Natural
   , "List append mismatch" :: Unit
-  , "Invalid optional type" :: Unit
+  , "Invalid optional type" :: Maybe Const
   , "Invalid optional element" :: Unit
-  , "Invalid `Some`" :: Unit
+  , "Invalid `Some`" :: Maybe Const
   , "Duplicate record fields" :: NonEmptyList String
   , "Invalid field type" :: String
   , "Inconsistent field types" :: Inconsistency (NonEmptyList String)
-  , "Duplicate union fields" :: NonEmptyList String
+  , "Duplicate union alternatives" :: NonEmptyList String
   , "Invalid alternative type" :: String
   , "Must combine a record" :: Tuple (List String) Boolean
   , "Record kind mismatch" :: List String
@@ -699,11 +702,11 @@ type Errors r =
   , "Missing field" :: String
   , "Invalid input type" :: Unit
   , "Invalid output type" :: Unit
-  , "No dependent types" :: Unit
+  , "No dependent types" :: Pair Const
   , "Unbound variable" :: Var
   , "Annotation mismatch" :: Unit
   , "`Kind` has no type" :: Unit
-  , "Unexpected type" :: Boolean
+  , "Unexpected type" :: Tuple Boolean SimpleExpr
   , "Cannot access" :: String
   , "Constructors requires a union type" :: Unit
   | r
@@ -752,6 +755,10 @@ typeWithA tpa ctx0 e0 = do
   let eO = tcingFrom (pure (Tuple empty Nothing)) e0
   -- and run typechecking on eO
   plain <$> typecheckStepCtx ctxO eO
+
+type SimpleExpr = Expr (Const.Const Void) Void
+rehydrate :: forall m a. Functor m => SimpleExpr -> Expr m a
+rehydrate = map absurd <<< hoistExpr (absurd <<< unwrap)
 
 typecheckAlgebra :: forall w r m a. Eq a => StrMapIsh m =>
   (a -> FeedbackE w r m a (Expr m a)) ->
@@ -852,15 +859,15 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
     -- Check a binary operation (`Pair` functor) against a simple, static,
     -- *normalize* type `t`.
     checkBinOp ::
-      Expr m a ->
+      SimpleExpr ->
       Pair (OxprE w r m a) ->
       FeedbackE w r m a (Lxpr m a)
-    checkBinOp t p = suggest (newborn t) $ forWithIndex_ p $
+    checkBinOp t p = suggest (newborn (rehydrate t)) $ forWithIndex_ p $
       -- t should be simple enough that alphaNormalize is unnecessary
       \side operand -> typecheckStep operand >>= normalizeStep >>> case _ of
-        ty_operand | t == plain ty_operand -> pure unit
+        ty_operand | rehydrate t == plain ty_operand -> pure unit
           | otherwise -> errorHere
-            (_S::S_ "Unexpected type") side
+            (_S::S_ "Unexpected type") (Tuple side t)
 
     naturalEnc =
       AST.mkForall "natural" $
@@ -898,7 +905,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
     -- is `Type`. Returns the type of the `expr`.
     ensureTerm ::
       OxprE w r m a ->
-      (Unit -> FeedbackE w r m a Void) ->
+      (Maybe Const -> FeedbackE w r m a Void) ->
       FeedbackE w r m a (OxprE w r m a)
     ensureTerm expr error = do
       ty <- typecheckStep expr
@@ -907,13 +914,13 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
     -- Ensure that the passed `ty` is a type; i.e. its type is `Type`.
     ensureType ::
       OxprE w r m a ->
-      (Unit -> FeedbackE w r m a Void) ->
+      (Maybe Const -> FeedbackE w r m a Void) ->
       FeedbackE w r m a Unit
     ensureType ty error = do
       kind <- typecheckStep ty
-      ensure' (_S::S_ "Const") kind error >>= case _ of
+      ensure' (_S::S_ "Const") kind (\_ -> error Nothing) >>= case _ of
         Const.Const Type -> pure unit
-        _ -> absurd <$> error unit
+        Const.Const c -> absurd <$> error (Just c)
   in
   { "Const": unwrap >>> \c ->
       axiom c <#> newborn <<< AST.mkConst #
@@ -928,21 +935,21 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         Nothing ->
           errorHere (_S::S_ "Unbound variable") v
   , "Lam": \(AST.BindingBody name ty body) -> do
-      kA <- ensureConst ty
+      kI <- ensureConst ty
         (errorHere (_S::S_ "Invalid input type"))
       ty_body <- typecheckStep body
-      kB <- ensureConst ty_body
+      kO <- ensureConst ty_body
         (errorHere (_S::S_ "Invalid output type"))
-      _ <- rule kA kB #
-        noteHere (_S::S_ "No dependent types") unit
+      _ <- rule kI kO #
+        noteHere (_S::S_ "No dependent types") (Pair kI kO)
       pure $ mk(_S::S_"Pi") (AST.BindingBody name (head2D ty) (head2D ty_body))
   , "Pi": \(AST.BindingBody name ty ty_body) -> do
-      kA <- ensureConst ty
+      kI <- ensureConst ty
         (errorHere (_S::S_ "Invalid input type"))
-      kB <- ensureConst ty_body
+      kO <- ensureConst ty_body
         (errorHere (_S::S_ "Invalid output type"))
-      map (newborn <<< AST.mkConst) $ rule kA kB #
-        noteHere (_S::S_ "No dependent types") unit
+      map (newborn <<< AST.mkConst) $ rule kI kO #
+        noteHere (_S::S_ "No dependent types") (Pair kI kO)
   , "Let": \(AST.LetF name mty value expr) -> do
       ty0 <- typecheckStep value
       ty <- fromMaybe ty0 <$> for mty \ty' -> do
@@ -993,9 +1000,9 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         (errorHere (_S::S_ "Invalid predicate")) *> do
       map head2D $ join $ checkEqL
           <$> ensureTerm t
-            (errorHere (_S::S_ "If branch must be term") <<< const false)
+            (errorHere (_S::S_ "If branch must be term") <<< Tuple false)
           <*> ensureTerm f
-            (errorHere (_S::S_ "If branch must be term") <<< const true)
+            (errorHere (_S::S_ "If branch must be term") <<< Tuple true)
           <@> errorHere (_S::S_ "If branch mismatch")
   , "Natural": identity aType
   , "NaturalLit": always $ AST.mkNatural
@@ -1132,7 +1139,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
             (errorHere (_S::S_ "Inconsistent field types") <<< (map <<< map) _.key) kts'
   , "Union": \kts ->
       ensureNodupes
-        (errorHere (_S::S_ "Duplicate union fields")) kts
+        (errorHere (_S::S_ "Duplicate union alternatives")) kts
       *> do
         -- FIXME: should this be the largest of `Type` or `Kind` returned?
         suggest (newborn AST.mkType) $
@@ -1140,8 +1147,9 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
             void $ ensure (_S::S_ "Const") ty
               (errorHere (_S::S_ "Invalid alternative type") <<< const field)
   , "UnionLit": \(Product (Tuple (Tuple field expr) kts)) ->
+      -- TODO: check field not in kts
       ensureNodupes
-        (errorHere (_S::S_ "Duplicate union fields")) kts
+        (errorHere (_S::S_ "Duplicate union alternatives")) kts
       *> do
         ty <- typecheckStep expr
         let kts' = StrMapIsh.insert field ty kts
@@ -1286,16 +1294,299 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
   , "Embed": map (originateFrom (Loc.step (_S::S_ "typecheck") <$> loc)) <<< tpa <<< unwrap
   }
 
+data Reference a
+  = Text String
+  | Br
+  | Reference a
+  | List (Array (Reference a))
+  | Compare a String a
+  | NodeType String
+derive instance functorReference :: Functor Reference
+
 -- The explanation, given as text interspersed with specific places to look at
 -- (for the user to read)
 explain ::
   forall m a.
     StrMapIsh m =>
-  Expr m a ->
+  BiContext Unit ->
+  L m a ->
+  VariantF (AST.ExprLayerRow m a) Unit ->
   Variant (Errors ()) ->
-  AST.TextLitF (ExprLocation m a)
-explain origin =
-  let errorUnknownError = AST.TextLit "Sorry I don’t know how to explain this error"
-      nodeType = AST.projectW origin
+  Array (Reference (L m a))
+explain ctx origin nodeType =
+  let errorUnknownError = empty
+      within ::
+        forall sym v r'.
+          IsSymbol sym =>
+          R.Cons sym v r' AST.ExprLayerRowI =>
+        SProxy sym -> v -> Endo (->)  (L m a)
+      within sym v = within' (ERVFI (Variant.inj sym v))
+      within' :: ExprRowVFI -> Endo (->) (L m a)
+      within' ervfi = Endo $ map $ Loc.move (_S::S_ "within") ervfi
+      typechecked :: Endo (->)  (L m a)
+      typechecked = Endo $ map $ Loc.step (_S::S_ "typecheck")
+      normalized :: Endo (->)  (L m a)
+      normalized = Endo $ map $ Loc.step (_S::S_ "normalize")
+      expr :: SimpleExpr -> L m a
+      expr e = pure $ Tuple empty $ pure $ rehydrate e
+      referenceExpr :: SimpleExpr -> Reference (L m a)
+      referenceExpr e = Reference (expr e)
+      referenceConst :: AST.Const -> Reference (L m a)
+      referenceConst = referenceExpr <<< AST.mkConst
+      reference :: Endo (->)  (L m a) -> Reference (L m a)
+      reference (Endo localize) = Reference (localize origin)
+      here = reference mempty
+
+      notAType desc loc =
+        [ Text $ "The " <> (if String.null desc then "" else desc <> " ") <> " type "
+        , reference loc
+        , Text " is required to be a type in some universe, e.g. "
+        , referenceExpr AST.mkType
+        , Text " but instead had type "
+        , reference (typechecked <> loc)
+        ]
   in
-  Variant.default errorUnknownError
+  Variant.default errorUnknownError # Variant.onMatch
+  { "`Kind` has no type": \(_ :: Unit) ->
+    [ Text "Kind is the top universe of types and therefore it has no type itself" ]
+  , "Unbound variable": \(AST.V name idx) ->
+      let
+        scope =
+          if null ctx then [ Text "The context was empty." ] else
+          [ Text $ "The variables in scope, from most local to most global, are: "
+          , List $ ctx # foldMapWithIndex \v' _ -> pure $
+              referenceExpr $ AST.mkVar v'
+          ]
+      in (_ <> scope) $
+      if not anyWithIndex (\(AST.V name' _) _ -> name == name') ctx
+      then
+      [ Text $ "There were no variables with name "
+      , Text $ show name
+      , Text $ " bound in scope. "
+      ]
+      else
+      [ Text $ "The scope does not contain the variable "
+      , Text $ show name
+      , Text $ " at index "
+      , Text $ show idx
+      , Text $ ". "
+      ]
+  , "Invalid input type": \(_ :: Unit) ->
+      let
+        ty = nodeType # VariantF.on (_S::S_ "Lam")
+          do \_ -> within (_S::S_ "Lam") false
+          -- NOTE: assume it is a Pi type, if it's not a Lam
+          do \_ -> within (_S::S_ "Pi") false
+      in
+      notAType "input" ty
+  , "Invalid output type": \(_ :: Unit) ->
+      let
+        ty_body = nodeType # VariantF.on (_S::S_ "Lam")
+          do \_ -> typechecked <> within (_S::S_ "Lam") true
+          -- NOTE: assume it is a Pi type, if it's not a Lam
+          do \_ -> (within (_S::S_ "Pi") true)
+      in
+      notAType "output" ty_body
+  , "No dependent types": \(Pair kI kO) ->
+      let
+        { ty, ty_body } = nodeType # VariantF.on (_S::S_ "Lam")
+          do \_ ->
+              { ty: within (_S::S_ "Lam") false
+              , ty_body: typechecked <> within (_S::S_ "Lam") true
+              }
+          -- NOTE: assume it is a Pi type, if it's not a Lam
+          do \_ ->
+            { ty: within (_S::S_ "Pi") false
+            , ty_body: within (_S::S_ "Pi") true
+            }
+      in
+      [ Text $ "The input type "
+      , reference ty
+      , Text $ " (in universe ", Text $ show kI, Text ")"
+      , Text $ " cannot be in a smaller universe than the output type "
+      , reference ty_body
+      , Text $ " (in universe ", Text $ show kO, Text ")"
+      ]
+  , "Annotation mismatch": \(_ :: Unit) ->
+      let
+        { value, ty } = nodeType # VariantF.on (_S::S_ "Let")
+          do \_ ->
+              { value: within (_S::S_ "Let") AST.Three2
+              , ty: within (_S::S_ "Let") AST.Three1
+              }
+          -- NOTE: assume it is an Annot node, if not a Let
+          do \_ ->
+            { value: within (_S::S_ "Annot") false
+            , ty: within (_S::S_ "Annot") true
+            }
+      in
+      [ Text $ "The value "
+      , reference value
+      , Text $ " was annotated to have type "
+      , reference ty
+      , Text $ " but instead had type "
+      , reference (typechecked <> value)
+      ]
+  , "Not a function": \(_ :: Unit) ->
+      [ Text $ "The left side of a function application node must be a function "
+      , Text $ "(i.e. a term whose type is a Pi type)"
+      , Text $ " but instead it had type "
+      , reference $ typechecked <> within (_S::S_ "App") false
+      ]
+  , "Type mismatch": \(_ :: Unit) ->
+      [ Text $ "The function "
+      , reference $ within (_S::S_ "App") false
+      , Text $ " takes values in type "
+      , reference $ mempty
+          <> within (_S::S_ "Pi") false
+          <> normalized <> typechecked
+          <> within (_S::S_ "App") false
+      , Text $ " but was instead given a value "
+      , reference $ within (_S::S_ "App") true
+      , Text $ " of type "
+      , reference $ typechecked <> within (_S::S_ "App") true
+      ]
+  , "Invalid predicate": \(_ :: Unit) ->
+      [ Text $ "If-then-else expressions take predicates whose type is "
+      , referenceExpr AST.mkBool
+      , Text $ " but this predicate "
+      , reference $ within (_S::S_ "BoolIf") AST.Three1
+      , Text $ " had this type instead "
+      , reference $ typechecked <> within (_S::S_ "BoolIf") AST.Three1
+      ]
+  , "If branch must be term": \(Tuple side mc) ->
+      let focus = within (_S::S_ "BoolIf") if side then AST.Three3 else AST.Three2 in
+      [ Text $ "If-then-else expressions must return a term "
+      , Text $ "(since dependent types are forbidden)"
+      , Text $ " but the expression "
+      , reference focus
+      , Text $ " has type "
+      , reference $ typechecked <> focus
+      ] <> case mc of
+        Nothing ->
+          [ Text $ " which is not in a type universe, but instead had type "
+          , reference $ typechecked <> typechecked <> focus
+          ]
+        Just c ->
+          [ Text $ " which was in universe "
+          , Compare (expr (AST.mkConst c))
+              " instead of "
+              (expr (AST.mkConst AST.Type))
+          ]
+  , "Unexpected type": \(Tuple side ty) ->
+      ( if side
+          then lastOf  (asIndex itraversed) (ERVF nodeType)
+          else firstOf (asIndex itraversed) (ERVF nodeType)
+      ) # foldMap \focus ->
+      [ Text $ "The binary operator was expected to have operands of type "
+      , referenceExpr ty
+      , Text $ " but instead its " <> (if side then "right" else "left") <> " operand "
+      , reference $ within' focus
+      ]
+  , "Cannot interpolate": \(i :: Natural) ->
+      let focus = within (_S::S_ "TextLit") i in
+      [ Text $ "Expressions interpolated into a text literal must have type "
+      , referenceExpr AST.mkText
+      , Text $ " but "
+      , reference focus
+      , Text $ " instead has type "
+      , reference $ typechecked <> focus
+      ]
+  , "Missing list type": \(_ :: Unit) ->
+      [ Text "Empty lists must be annotated with the type of their elements" ]
+  -- TODO: needs work
+  , "Invalid list type": \(mc :: Maybe Const) ->
+      let
+        annot = ERVFI (Variant.inj (_S::S_ "ListLit") (Left unit))
+        focus = if has (_ix annot) (ERVF nodeType) then within' annot else
+          typechecked <> within (_S::S_ "ListLit") (Right zero)
+      in
+      [ Text $ "A list should contain elements in the universe "
+      , referenceExpr AST.mkType
+      , Text $ " but this is not "
+      , reference focus
+      ]
+  , "Invalid list element": \i ->
+      [ Text $ "The list was annotated to have type "
+      , reference $ within (_S::S_ "ListLit") (Left unit)
+      , Text $ " but the element at index "
+      , Text $ show i
+      , Text " had type "
+      , reference $ typechecked <> within (_S::S_ "ListLit") (Right i)
+      ]
+  -- TODO: needs work
+  , "Mismatched list elements": \i ->
+      [ Text $ "The list was annotated to have type "
+      , reference $ within (_S::S_ "ListLit") (Right zero)
+      , Text $ " but the element at index "
+      , Text $ show i
+      , Text " had type "
+      , reference $ typechecked <> within (_S::S_ "ListLit") (Right i)
+      ]
+  , "Cannot append non-list": \(side :: Boolean) ->
+      let focus = within (_S::S_ "ListAppend") side in
+      [ Text $ "Appending lists requires the operands to be lists of equal types"
+      , Text $ " but the " <> (if side then "right" else "left") <> " side "
+      , reference $ focus
+      , Text $ " instead has type "
+      , reference $ normalized <> typechecked <> focus
+      ]
+  , "List append mismatch": \(_ :: Unit) ->
+      let
+        elType side =
+          within (_S::S_ "App") true <>
+          normalized <> typechecked <>
+          within (_S::S_ "ListAppend") side
+      in
+      [ Text $ "Appending lists requires the operands to be lists of equal types"
+      , Text $ " but the left side has elements of type "
+      , reference $ elType false
+      , Text $ " while the right has elements of type "
+      , reference $ elType true
+      ]
+  , "Invalid optional type": \(mc :: Maybe Const) ->
+      [ Text $ "An optional value should contain elements in the universe "
+      , referenceExpr AST.mkType
+      , Text $ " but this "
+      , reference $ within (_S::S_ "OptionalLit") (Left unit)
+      ] <> case mc of
+        Nothing ->
+          [ Text $ " is not in a type universe, but instead has type "
+          , reference $ typechecked <> typechecked <> within (_S::S_ "OptionalLit") (Left unit)
+          ]
+        Just c ->
+          [ Text $ " is in universe "
+          , referenceExpr (AST.mkConst c)
+          ]
+  , "Invalid optional element": \i ->
+      [ Text $ "The optional literal was annotated to have type "
+      , reference $ within (_S::S_ "OptionalLit") (Left unit)
+      , Text $ " but its element had type "
+      , reference $ typechecked <> within (_S::S_ "OptionalLit") (Right unit)
+      ]
+  , "Invalid `Some`": \(mc :: Maybe Const) ->
+    let focus = within (_S::S_ "Some") unit in
+    [ Text $ "A optional literal must contain a term but Some was given an expression "
+    , reference $ focus
+    , Text $ " of type "
+    , reference $ typechecked <> focus
+    ] <> case mc of
+      Nothing ->
+        [ Text $ " which is not in a type universe, but instead had type "
+        , reference $ typechecked <> typechecked <> focus
+        ]
+      Just c ->
+        [ Text $ " which was in universe "
+        , Compare (expr (AST.mkConst c))
+            " instead of "
+            (expr (AST.mkConst AST.Type))
+        ]
+  , "Duplicate record fields": \(keys :: NonEmptyList String) ->
+      [ Text $ "The following names of fields occurred more than once in a Record (type): "
+      , List $ Text <$> Array.fromFoldable keys
+      ]
+  , "Duplicate union alternatives": \(keys :: NonEmptyList String) ->
+      [ Text $ "The following names of alternatives occurred more than once in a Union (type): "
+      , List $ Text <$> Array.fromFoldable keys
+      ]
+  }

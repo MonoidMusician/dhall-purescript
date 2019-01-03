@@ -11,6 +11,7 @@ import Dhall.Core.AST.Types.Basics
   , Pair(..)
   , TextLitF(..)
   , Triplet(..)
+  , Three(..)
   , UNIT
   ) as Exports
 import Dhall.Core.AST.Types

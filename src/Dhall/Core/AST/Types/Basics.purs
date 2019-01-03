@@ -6,8 +6,9 @@ import Control.Alt (class Alt, (<|>))
 import Control.Comonad (extract)
 import Control.Plus (class Plus)
 import Data.Const as ConstF
+import Data.Either (Either, either)
 import Data.Eq (class Eq1)
-import Data.Foldable (class Foldable, foldMap, foldl, foldr)
+import Data.Foldable (class Foldable, foldMap, foldl, foldr, oneOfMap)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, foldlWithIndex, foldrWithIndex)
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Lazy (defer)
@@ -566,6 +567,10 @@ instance containerIBindingBody :: ContainerI (Boolean) BindingBody' where
 isEmptyTextLitF :: forall a. TextLitF a -> Boolean
 isEmptyTextLitF (TextLit "") = true
 isEmptyTextLitF _ = false
+
+pureTextLitF :: forall a. a -> TextLitF a
+pureTextLitF a = TextInterp "" a (TextLit "")
+
 instance altTextLitF :: Alt TextLitF where
   alt (TextLit s0) (TextLit s1) = TextLit (s0 <> s1)
   alt (TextLit s0) (TextInterp s1 a1 l1) = TextInterp (s0 <> s1) a1 l1
@@ -576,3 +581,7 @@ instance semigroupTextLitF :: Semigroup (TextLitF a) where
   append = (<|>)
 instance monoidTextLitF :: Monoid (TextLitF a) where
   mempty = TextLit mempty
+
+textLitFFromEithers :: forall f a. Foldable f =>
+  f (Either String a) -> TextLitF a
+textLitFFromEithers = oneOfMap (either TextLit pureTextLitF)

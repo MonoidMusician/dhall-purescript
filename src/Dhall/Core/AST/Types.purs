@@ -41,6 +41,9 @@ import Type.Row (type (+))
 data Const = Type | Kind
 derive instance eqConst :: Eq Const
 derive instance ordConst :: Ord Const
+instance showConst :: Show Const where
+  show Type = "Type"
+  show Kind = "Kind"
 
 -- copied from dhall-haskell
 data Var = V String Int
