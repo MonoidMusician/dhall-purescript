@@ -338,7 +338,20 @@ substcontextualizeWithin1 shiftIn_node' go ctx = trackIntro case _ of
     Dhall.Context.insert name (map (shiftIn_node' name <<< go ctx) $ theseLeft introed) $
       map (shiftIn_node' name) <$> ctx
 
--- Substitute any variables available in the context (via `Let` bindings),
+-- Insert an empty entry instead
+substcontextualizeWithin10 :: forall m a node node'.
+  (String -> node' -> node') -> -- shift in a name
+  (SubstContext node' -> node -> node') ->
+  SubstContext node' ->
+  AST.ExprLayerF m a node ->
+  AST.ExprLayerF m a node'
+substcontextualizeWithin10 shiftIn_node' go ctx = trackIntro case _ of
+  Nothing -> go ctx
+  Just (Tuple name introed) -> go $
+    Dhall.Context.insert name empty $
+      map (shiftIn_node' name) <$> ctx
+
+-- Substitute any variables available in the context (via `let` bindings),
 -- return `Left` when there is a substitution, or recursing with the provided
 -- function (adapting context).
 substContext1 :: forall m a node node'.
@@ -349,6 +362,17 @@ substContext1 :: forall m a node node'.
   Either node' (AST.ExprLayerF m a node')
 substContext1 shiftIn_node' go ctx =
   substcontextualizeWithin1 shiftIn_node' go ctx >>>
+  subst1 ctx
+
+-- Substitute a fixed context, not adding entries from `let` bindings
+substContext10 :: forall m a node node'.
+  (String -> node' -> node') -> -- shift in a name
+  (SubstContext node' -> node -> node') ->
+  SubstContext node' ->
+  AST.ExprLayerF m a node ->
+  Either node' (AST.ExprLayerF m a node')
+substContext10 shiftIn_node' go ctx =
+  substcontextualizeWithin10 shiftIn_node' go ctx >>>
   subst1 ctx
 
 subst1 :: forall m a node.
@@ -398,6 +422,14 @@ substContextExpr :: forall m a.
   Expr m a -> Expr m a
 substContextExpr = flip $ cata \(ERVF layer) ctx ->
   case substContext1 (\name -> shift 1 (AST.V name 0)) (#) ctx layer of
+    Left e -> e
+    Right layer' -> embed $ ERVF layer'
+
+substContextExpr0 :: forall m a.
+  SubstContext (Expr m a) ->
+  Expr m a -> Expr m a
+substContextExpr0 = flip $ cata \(ERVF layer) ctx ->
+  case substContext10 (\name -> shift 1 (AST.V name 0)) (#) ctx layer of
     Left e -> e
     Right layer' -> embed $ ERVF layer'
 
@@ -571,7 +603,7 @@ locateE' :: forall w r m a. Eq a => StrMapIsh m =>
     (Tuple (BiContext (Expr m a)) (Expr m a))
 locateE' tpa = Variant.match
   let
-    substCtx = extend \(Tuple ctx e) -> substContextExpr (theseLeft <$> ctx) e
+    substCtx = extend \(Tuple ctx e) -> substContextExpr0 (theseLeft <$> ctx) e
     typecheck (Tuple ctx e) = do
       ctx' <- ctx # reconstituteCtx \ctx' -> case _ of
         This val -> typeWithA tpa ctx' val
@@ -583,6 +615,7 @@ locateE' tpa = Variant.match
       pure (Tuple ctx (substContextExpr (theseLeft <$> ctx) e))
   , normalize: \{} -> substCtx >>> \(Tuple ctx e) -> do
       -- Ensure it typechecks before substituting and normalizing
+      -- TODO: safe normalization fallback?
       void $ typecheck (Tuple ctx e)
       pure $ Tuple ctx $ Dhall.Normalize.normalize e
   , shift: \i -> pure <<< map (Variables.shift i.delta i.variable)
