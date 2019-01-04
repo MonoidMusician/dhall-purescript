@@ -103,8 +103,11 @@ data ViewQuery a
   | Raise a EditActions
   | Receive a { parsed :: Maybe Ixpr, value :: Ixpr }
 
+hole :: AST.Expr IOSM.InsOrdStrMap (Maybe Core.Imports.Import)
+hole = pure Nothing
+
 tpi :: Maybe Core.Imports.Import -> AST.Expr IOSM.InsOrdStrMap (Maybe Core.Imports.Import)
-tpi _ = pure Nothing
+tpi _ = hole
 
 unWriterT :: forall m f a. Functor f => WriterT m f a -> f a
 unWriterT = runWriterT >>> map fst
@@ -219,12 +222,6 @@ viewer = H.component
         , HH.text " "
         , renderLocation r.st.view <#> \i -> ViewAction unit [Un_Focus i empty]
         ]
-      , HH.div [ HP.class_ (H.ClassName "edit-bar") ] $ guard (r.editable && isJust r.st.selection) $
-        [ renderLocation (Variant.inj (_S::S_ "within") <<< extract <$> fold r.st.selection) <#> \i -> ViewAction unit []
-        , inline_feather_button_action (Just (ViewAction unit [SetSelection (Ann.innote mempty $ pure Nothing)])) "trash-2" "Delete this node"
-        , HH.text " "
-        , inline_feather_button_action (r.st.parsed <#> ViewAction unit <<< pure <<< SetSelection) "edit-3" "Replace this node with parsed content"
-        ]
       , case r.window of
           Success flowers -> un SlottedHTML $
             let
@@ -253,6 +250,15 @@ viewer = H.component
           Error errors' _ | errors <- NEA.toArray errors' ->
             HH.ul [ HP.class_ (H.ClassName "errors") ] $ errors <#>
               showError >>> HH.text >>> pure >>> HH.li_
+      , HH.div [ HP.class_ (H.ClassName "edit-bar") ] $ guard (r.editable && isJust r.st.selection) $
+        [ inline_feather_button_action (Just (ViewAction unit [SetSelection (Ann.innote mempty $ pure Nothing)])) "trash-2" "Delete this node"
+        , HH.text " "
+        , inline_feather_button_action (r.st.parsed <#> ViewAction unit <<< pure <<< SetSelection) "edit-3" "Replace this node with parsed content"
+        -- TODO: scroll to node?
+        , inline_feather_button_action Nothing "at-sign" "editing at …"
+        , renderLocation (Variant.inj (_S::S_ "within") <<< extract <$> fold r.st.selection) <#>
+            \i -> ViewAction unit $ pure $ Select $ List.drop i <$> r.st.selection
+        ]
       ]
 
 renderLocation :: forall p. Location -> HH.HTML p Int
@@ -339,13 +345,13 @@ tagERVFI = un ERVFI >>> Variant.match
       Three1 -> "if"
       Three2 -> "then"
       Three3 -> "else"
-  , "Field": \(_ :: Unit) -> "Field expr"
-  , "Project": \(_ :: Unit) -> "Project expr"
+  , "Field": \(_ :: Unit) -> "expr"
+  , "Project": \(_ :: Unit) -> "expr"
   , "Merge": case _ of
       Three1 -> "handlers"
       Three2 -> "arg"
       Three3 -> "type"
-  , "Constructors": \(_ :: Unit) -> "Constructors arg"
+  , "Constructors": \(_ :: Unit) -> "arg"
   , "App": if _ then "fn" else "arg"
   , "Annot": if _ then "value" else "type"
   , "Lam": if _ then "type" else "body"

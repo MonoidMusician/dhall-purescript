@@ -22,7 +22,7 @@ import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Lens.Lens.Product as Product
 import Data.Lens.Record (prop)
 import Data.List (List(..))
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), maybe, fromMaybe)
 import Data.Monoid (guard)
 import Data.Monoid.Disj (Disj)
 import Data.Natural (Natural, intToNat, natToInt)
@@ -162,20 +162,28 @@ renderIOSM :: forall r m a.
   RenderAnd r m a ->
   Rendering r m (IOSM.InsOrdStrMap a)
 renderIOSM opts { df, rndr: renderA } = rendering \as ->
-  HH.dl [ HP.class_ $ H.ClassName "strmap" ] $
-    IOSM.unIOSM as # Lens.ifoldMapOf itraversed \i (Tuple s a) ->
-      let here v = IOSM.mkIOSM $ IOSM.unIOSM as #
-            Lens.set (unIndex (Lens.elementsOf itraversed (eq i))) v
-      in
-      [ HH.dt_
-        [ HH.input
-          [ HP.type_ HP.InputText
-          , HP.value s
-          , HE.onValueInput \s' -> Just (That (here (Tuple s' a)))
+  HH.div [ HP.class_ $ H.ClassName "strmap-parent" ]
+  [ HH.dl [ HP.class_ $ H.ClassName "strmap" ] $
+      IOSM.unIOSM as # Lens.ifoldMapOf itraversed \i (Tuple s a) ->
+        let here v = IOSM.mkIOSM $ IOSM.unIOSM as #
+              Lens.set (unIndex (Lens.elementsOf itraversed (eq i))) v
+            without = (fromMaybe <*> IOSM.delete s) as
+        in
+        [ HH.dt_
+          [ inline_feather_button_action (Just (That without)) "minus-square" "Remove this field"
+          , HH.input
+            [ HP.type_ HP.InputText
+            , HP.value s
+            , HE.onValueInput \s' -> Just (That (here (Tuple s' a)))
+            ]
           ]
+        , HH.dd_ [ unwrap $ unwrap $ unwrap renderA a <#> Tuple s >>> here ]
         ]
-      , HH.dd_ [ unwrap $ unwrap $ unwrap renderA a <#> Tuple s >>> here ]
+    , HH.div_
+      let new = IOSM.mkIOSM $ IOSM.unIOSM as # (_ <> [Tuple "" df]) in
+      [ inline_feather_button_action (Just (That new)) "plus-square" "Add another field"
       ]
+    ]
 
 renderString :: forall r m. RenderingOptions -> Rendering r m String
 renderString { editable: true } =
@@ -344,7 +352,7 @@ renderBuiltinOps opts { df, rndr: renderA } = renderBuiltinBinOps opts { df, rnd
     renderProject =
       [ mkLensed "expression" Tuple._2 renderA
       , mkLensed "fields" (Tuple._1 <<< _Newtype)
-        (renderIOSM opts { df: unit, rndr: rendering $ const $ HH.text $ "<included>" })
+        (renderIOSM opts { df: unit, rndr: rendering $ const $ HH.text $ "" })
       ]
 
 renderBuiltinTypes2 :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.BuiltinTypes2 r m a
