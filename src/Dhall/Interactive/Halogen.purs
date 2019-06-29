@@ -22,6 +22,7 @@ import Halogen.HTML as HH
 import Halogen.VDom.Driver (runUI)
 import Prim.Row as Row
 import Type.Row (type (+))
+import Data.Coyoneda (unCoyoneda)
 
 silence :: forall h f i o m.
   H.Component h f i o m -> H.Component h (Const Void) i o m
@@ -32,8 +33,8 @@ silence = H.unComponent \c -> H.mkComponent
       H.Initialize a -> H.Initialize a
       H.Finalize a -> H.Finalize a
       H.Receive i a -> H.Receive i a
-      H.Handle act a -> H.Handle act a
-      H.Request (Const void) -> absurd void
+      H.Action act a -> H.Action act a
+      H.Query cv _ -> cv # unCoyoneda \_ (Const void) -> absurd void
   }
 
 renderCase :: forall g l l' b f f' k r r' a.

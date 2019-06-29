@@ -45,7 +45,7 @@ import Dhall.Core.StrMapIsh (InsOrdStrMap(..), mkIOSM, unIOSM)
 import Dhall.Core.Zippers.Merge (class Merge)
 import Partial.Unsafe (unsafePartial)
 import Prim.RowList as RL
-import Type.Row (RLProxy(..), Nil)
+import Type.Data.RowList (RLProxy(..))
 import Type.Row as Row
 
 {-
@@ -116,7 +116,7 @@ class FunctorWithIndexVRL rl is fs | rl -> is fs where
   mapWithIndexVRL :: forall a b. RLProxy rl ->
     (Variant is -> a -> b) -> VariantF fs a -> VariantF fs b
 
-instance functorWithIndexVRLNil :: FunctorWithIndexVRL Nil () () where
+instance functorWithIndexVRLNil :: FunctorWithIndexVRL RL.Nil () () where
   mapWithIndexVRL _ _ = VariantF.case_
 
 instance functorWithIndexVRLCons ::
@@ -127,7 +127,7 @@ instance functorWithIndexVRLCons ::
   , Row.Union is' is_ is
   , Row.Union fs' fs_ fs
   , FunctorWithIndexVRL rl' is' fs'
-  ) => FunctorWithIndexVRL (Row.Cons s (FProxy f) rl') is fs where
+  ) => FunctorWithIndexVRL (RL.Cons s (FProxy f) rl') is fs where
   mapWithIndexVRL _ f = VariantF.on s
     (mapWithIndex (Variant.inj s >>> f) >>> VariantF.inj s)
     (mapWithIndexVRL (RLProxy :: RLProxy rl') (f <<< Variant.expand) >>> VariantF.expand)
@@ -142,7 +142,7 @@ ixFV = ixFVRL (RLProxy :: RLProxy rl)
 class ContainerIVRL rl is f's | rl -> is f's where
   ixFVRL :: forall x. RLProxy rl -> VariantF f's x -> Variant is
 
-instance containerIVRLNil :: ContainerIVRL Nil () () where
+instance containerIVRLNil :: ContainerIVRL RL.Nil () () where
   ixFVRL _ = VariantF.case_
 
 instance containerIVRLCons ::
@@ -152,7 +152,7 @@ instance containerIVRLCons ::
   , Row.Cons s i is' is
   , Row.Union is' is_ is
   , ContainerIVRL rl' is' f's'
-  ) => ContainerIVRL (Row.Cons s (FProxy f') rl') is f's where
+  ) => ContainerIVRL (RL.Cons s (FProxy f') rl') is f's where
   ixFVRL _ = VariantF.on s (ixF >>> Variant.inj s)
     (ixFVRL (RLProxy :: RLProxy rl') >>> Variant.expand)
     where s = SProxy :: SProxy s
@@ -173,7 +173,7 @@ class ContainerVRL rl (is :: # Type) fs f's | rl -> is fs f's where
   upZFVRL :: forall x. RLProxy rl -> ZF (VariantF f's) x -> VariantF fs x
   downZFVRL :: forall x. RLProxy rl -> VariantF fs x -> VariantF fs (ZF (VariantF f's) x)
 
-instance containerVRLNil :: ContainerVRL Nil () () () where
+instance containerVRLNil :: ContainerVRL RL.Nil () () () where
   upZFVRL _ (_ :<-: z) = VariantF.case_ (extract z)
   downZFVRL _ = VariantF.case_
 
@@ -187,7 +187,7 @@ instance containerVRLCons ::
   , Row.Union fs' fs_ fs
   , Row.Union f's' f's_ f's
   , ContainerVRL rl' is' fs' f's'
-  ) => ContainerVRL (Row.Cons s (FProxy f) rl') is fs f's where
+  ) => ContainerVRL (RL.Cons s (FProxy f) rl') is fs f's where
   upZFVRL _ (a :<-: z) = VariantF.on s
     (\z' -> upZF (a :<-: pure z') # VariantF.inj s)
     (\z' -> upZFVRL (RLProxy :: RLProxy rl') (a :<-: pure z') # VariantF.expand)

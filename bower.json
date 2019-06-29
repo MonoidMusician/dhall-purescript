@@ -20,19 +20,28 @@
     "purescript-tuples": "^5.1.0",
     "purescript-either": "^4.1.0",
     "purescript-const": "^4.1.0",
-    "purescript-identity": "^4.1.0",
-    "purescript-complex-validation": "MonoidMusician/purescript-complex-validation#master"
+    "purescript-identity": "^4.1.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"
   },
   "resolutions": {
     "purescript-halogen": "master",
-    "purescript-halogen-vdom": "^4.0.0",
-    "purescript-either": "master",
-    "purescript-tuples": "master",
-    "purescript-const": "master",
-    "purescript-identity": "master",
-    "purescript-variant": "map-variant"
+    "purescript-halogen-vdom": "^6.1.0",
+    "purescript-variant": "map-variant",
+    "purescript-record": "^2.0.0",
+    "purescript-profunctor-lenses": "^6.0.0",
+    "purescript-web-uievents": "^2.0.0",
+    "purescript-dom-indexed": "^7.0.0",
+    "purescript-foreign-object": "^2.0.1",
+    "purescript-web-html": "^2.0.0",
+    "purescript-typelevel-prelude": ">= 4.0.0 < 6.0.0",
+    "purescript-web-touchevents": "^2.0.0",
+    "purescript-web-clipboard": "^2.0.0",
+    "purescript-web-file": "2",
+    "purescript-web-dom": "2 - 3",
+    "purescript-web-storage": "3",
+    "purescript-web-events": "^2.0.0",
+    "purescript-halogen-zuruzuru": "halogen-5"
   }
 }

@@ -23,6 +23,7 @@ import Dhall.Core.Zippers.Recursive (_recurse)
 import Matryoshka (embed, project)
 import Type.Row (type (+))
 import Type.Row as R
+import Type.RowList as RL
 
 -- The general shape of a transformation that runs over an Expr-like object
 -- (top-down, with explicit recursion).
@@ -86,9 +87,9 @@ newtype OverCasesM m affected node = OverCasesM
 -- the provided record via `VariantF.mapSomeExpand`; the function will be
 -- called on child nodes not covered by the cases.
 runOverCases :: forall cases casesrl affected affectedrl unaffected all node.
-    R.RowToList cases casesrl =>
+    RL.RowToList cases casesrl =>
     VariantFMapCases casesrl affected affected node node =>
-    R.RowToList affected affectedrl =>
+    RL.RowToList affected affectedrl =>
     VariantTags affectedrl =>
     VariantFMaps affectedrl =>
     R.Union affected unaffected all =>
@@ -99,9 +100,9 @@ runOverCases (OverCasesM f) rest cases = un Identity <<< f
   (Identity <<< VariantF.expandOverMatch cases rest)
 
 runOverCasesM :: forall cases casesrl affected affectedrl unaffected all node m.
-    R.RowToList cases casesrl =>
+    RL.RowToList cases casesrl =>
     VariantFTravCases m casesrl affected affected node node =>
-    R.RowToList affected affectedrl =>
+    RL.RowToList affected affectedrl =>
     VariantTags affectedrl =>
     VariantFMaps affectedrl =>
     R.Union affected unaffected all =>
@@ -120,9 +121,9 @@ elim1 ::
     IsSymbol sym =>
     R.Cons sym i v_ v =>
     R.Cons sym i v'_ v' =>
-    R.RowToList cases casesrl =>
+    RL.RowToList cases casesrl =>
     VariantFMapCases casesrl affected affected node node =>
-    R.RowToList affected affectedrl =>
+    RL.RowToList affected affectedrl =>
     VariantTags affectedrl =>
     VariantFMaps affectedrl =>
     R.Union affected unaffected all =>
@@ -153,9 +154,9 @@ elim1M ::
     IsSymbol sym =>
     R.Cons sym i v_ v =>
     R.Cons sym i v'_ v' =>
-    R.RowToList cases casesrl =>
+    RL.RowToList cases casesrl =>
     VariantFTravCases m casesrl affected affected node node =>
-    R.RowToList affected affectedrl =>
+    RL.RowToList affected affectedrl =>
     VariantTags affectedrl =>
     VariantFMaps affectedrl =>
     R.Union affected unaffected all =>

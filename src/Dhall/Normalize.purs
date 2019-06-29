@@ -439,12 +439,12 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
             default _ = reconstruct (_S::S_ "Merge") (AST.MergeF x y mty)
           in x # exposeW (_S::S_ "RecordLit")
             do \kvsX ->
-              y # exposeW (_S::S_ "UnionLit")
-                do \(Product (Tuple (Tuple kY vY) _)) ->
-                    case IOSM.get kY kvsX of
-                      Just vX -> anewAnd (_S::S_ "App") (AST.Pair vX vY)
-                      _ -> default unit
-                do \_ -> default unit
+                y # exposeW (_S::S_ "UnionLit")
+                  do \(Product (Tuple (Tuple kY vY) _)) ->
+                      case IOSM.get kY kvsX of
+                        Just vX -> anewAnd (_S::S_ "App") (AST.Pair vX vY)
+                        _ -> default unit
+                  do \_ -> default unit
             do \_ -> default unit
       )
     >>> expose (_S::S_ "Constructors")
@@ -468,12 +468,12 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                 _ -> default unit
           do exposeW (_S::S_ "Union")
               do \kvs ->
-                case IOSM.get k kvs, IOSM.delete k kvs of
-                  Just ty, Just others ->
-                    anewAnd (_S::S_ "Lam") $ AST.BindingBody k ty $
-                      anew (_S::S_ "UnionLit") $ Product $ Tuple
-                        (Tuple k (pure $ relayers (AST.mkVar (AST.V k 0)))) $ others
-                  _, _ -> default unit
+                  case IOSM.get k kvs, IOSM.delete k kvs of
+                    Just ty, Just others ->
+                      anewAnd (_S::S_ "Lam") $ AST.BindingBody k ty $
+                        anew (_S::S_ "UnionLit") $ Product $ Tuple
+                          (Tuple k (pure $ relayers (AST.mkVar (AST.V k 0)))) $ others
+                    _, _ -> default unit
               do \_ -> default unit
       )
     >>> expose (_S::S_ "Project")

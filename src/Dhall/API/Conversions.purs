@@ -30,7 +30,7 @@ import Dhall.Normalize.Apps (apps, noapplit, (~))
 import Prim.Row as Row
 import Prim.RowList (Nil, Cons, class RowToList)
 import Record as Record
-import Type.Row (RLProxy(..))
+import Type.RowList (RLProxy(..))
 
 type StandardExpr = Expr IOSM.InsOrdStrMap Void
 

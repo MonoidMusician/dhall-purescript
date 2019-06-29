@@ -15,18 +15,18 @@ import Halogen.HTML as HH
 import Halogen.VDom.Driver (runUI)
 
 parserC :: DataComponent Ixpr Aff
-parserC = H.component
-  { initializer: Nothing
-  , finalizer: Nothing
-  , receiver: Just <<< In unit
-  , initialState: identity
-  , eval: case _ of
-      In a v -> a <$ H.put v
-      Out a v -> a <$ H.put v <* H.raise v
+parserC = H.mkComponent
+  { initialState: identity
+  , eval: H.mkEval $ H.defaultEval
+      { handleAction = eval, handleQuery = map pure <<< eval, receive = Just <<< In unit }
   , render
   }
   where
-    render :: Ixpr -> H.ComponentHTML (InOut Ixpr)
+    eval :: _ ~> _
+    eval = case _ of
+      In a v -> a <$ H.put v
+      Out a v -> a <$ H.put v <* H.raise v
+    render :: Ixpr -> H.ComponentHTML (InOut Ixpr Unit)
       ( editor :: H.Slot EditQuery Ixpr Unit ) Aff
     render = HH.slot (_S::S_ "editor") unit editor <@> Just <<< Out unit
 

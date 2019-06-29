@@ -8,7 +8,7 @@ import Control.Comonad.Env (EnvT(..))
 import Control.Plus (empty)
 import Data.Array as Array
 import Data.Bifunctor (bimap, lmap)
-import Data.Const (Const(..))
+import Data.Const (Const)
 import Data.Either (Either(..), either)
 import Data.Functor.App (App(..))
 import Data.Functor.Compose (Compose(..))
@@ -49,7 +49,7 @@ import Type.Row (type (+))
 
 type Slot = Array String
 
-newtype SlottedHTML r o = SlottedHTML (H.ComponentHTML' o r Aff)
+newtype SlottedHTML r o = SlottedHTML (H.ComponentHTML o r Aff)
 instance functorSlottedHTML :: Functor (SlottedHTML a) where
   map f (SlottedHTML h) =  SlottedHTML $ bimap mapSlot f h where
     mapSlot (HC.ComponentSlot s) = HC.ComponentSlot $ map f s
@@ -270,9 +270,9 @@ listicle = H.mkComponent
       (H.Initialize a) -> pure a
       (H.Finalize a) -> pure a
       (H.Receive i a) -> a <$ H.put (toState i)
-      (H.Request (Const void)) -> absurd void
-      (H.Handle (Left o) a) -> a <$ H.raise (Left o)
-      (H.Handle (Right message) a) -> case message of
+      (H.Query _ a) -> pure (a unit)
+      (H.Action (Left o) a) -> a <$ H.raise (Left o)
+      (H.Action (Right message) a) -> case message of
         Zuruzuru.NewState v -> a <$
           H.modify_ _ { values = v } <* H.raise (Right v)
         {-
@@ -288,7 +288,7 @@ listicle = H.mkComponent
       { default, renderer, values }
 
     render :: State r e o ->
-      H.ComponentHTML' (Either o (Zuruzuru.Message e))
+      H.ComponentHTML (Either o (Zuruzuru.Message e))
         ( zuruzuru :: Zuruzuru.Slot'
           r
           Aff o e Unit
@@ -324,7 +324,7 @@ type Expandable r =
   ( expanding :: H.Slot QueryExpanding String (Array String)
   | r
   )
-type ExpandableHTML r a = H.ComponentHTML' a (Expandable r) Aff
+type ExpandableHTML r a = H.ComponentHTML a (Expandable r) Aff
 
 mkIOSMRenderer :: forall e r o.
   Array (Array (SlottedHTML (Expandable r) o)) ->
@@ -365,11 +365,11 @@ renderIOSMItems :: forall e r q.
   (Int -> SlottedHTML (Expandable r) Void) ->
   SlottedHTML (Expandable r) Void ->
   (Zuruzuru.Key -> e -> SlottedHTML (Expandable r) e) ->
-  (Unit -> q Unit) ->
+  (Unit -> q) ->
   { helpers :: Zuruzuru.Helpers Unit q (Tuple String e)
   , handle :: Zuruzuru.Handle' q
   , info :: Zuruzuru.ItemInfo' (Tuple String e)
-  } -> Tuple String (ExpandableHTML r (q Unit))
+  } -> Tuple String (ExpandableHTML r q)
 renderIOSMItems syntax sep each output { helpers, handle, info } =
   let
     moving :: forall p i. HP.IProp ( style :: String | p ) i
@@ -437,11 +437,11 @@ mkArrayRenderer extras syntax each = Zuruzuru.Renderer \datums { add, output } -
 renderArrayItems :: forall e r q.
   (Int -> SlottedHTML (Expandable r) Void) ->
   (Zuruzuru.Key -> e -> SlottedHTML (Expandable r) e) ->
-  (Unit -> q Unit) ->
+  (Unit -> q) ->
   { helpers :: Zuruzuru.Helpers Unit q e
   , handle :: Zuruzuru.Handle' q
   , info :: Zuruzuru.ItemInfo' e
-  } -> Tuple String (ExpandableHTML r (q Unit))
+  } -> Tuple String (ExpandableHTML r q)
 renderArrayItems syntax each output { helpers, handle, info } =
   let
     moving :: forall p i. HP.IProp ( style :: String | p ) i
@@ -730,7 +730,7 @@ renderVariables { default } slot = identity
   >>> Types.renderOverAnnot (_S::S_ "Var")
     (\_ -> _Newtype $ Star \(AST.V name ix) -> SlottedHTML $
       HH.span_
-        [ un SlottedHTML $ expanding slot name \name' -> AST.V name' ix
+        [ un SlottedHTML $ expanding slot name \name' -> AST.V name' ix
         , HH.text "@"
         , unwrap Types.naturalH (intToNat ix)
           <#> \ix' -> AST.V name (natToInt ix')
@@ -749,7 +749,7 @@ renderVariables { default } slot = identity
         HH.span_
           [ HH.text syntax
           , HH.text "("
-          , un SlottedHTML $ expanding slot name \name' -> AST.BindingBody name' ty body
+          , un SlottedHTML $ expanding slot name \name' -> AST.BindingBody name' ty body
           , HH.text " : "
           , unwrap $ unwrap (renderA (slot <> ["ty"])) ty
             <#> \ty' -> AST.BindingBody name ty' body
@@ -768,7 +768,7 @@ renderVariables { default } slot = identity
           Nothing ->
             HH.span_
               [ HH.text "let "
-              , un SlottedHTML $ expanding slot name \name' -> Right $ AST.LetF name' mty value body
+              , un SlottedHTML $ expanding slot name \name' -> Right $ AST.LetF name' mty value body
               , Inputs.inline_feather_button_action (Just (Right (AST.LetF name (Just default) value body))) "type" "Add type"
               , HH.text " = "
               , unwrap $ unwrap (renderA (slot <> ["value"])) value
@@ -780,7 +780,7 @@ renderVariables { default } slot = identity
           Just ty ->
             HH.span_
               [ HH.text "let "
-              , un SlottedHTML $ expanding slot name \name' -> Right $ AST.LetF name' mty value body
+              , un SlottedHTML $ expanding slot name \name' -> Right $ AST.LetF name' mty value body
               , HH.text " : "
               , unwrap $ unwrap (renderA (slot <> ["ty"])) ty
                 <#> \ty' -> Right $ AST.LetF name (Just ty') value body

@@ -42,6 +42,7 @@ prettyFile (File { directory, file }) = prettyDirectory directory <> "/" <> file
 data FilePrefix
   = Absolute -- Absolute path
   | Here -- Path relative to `.`
+  | Parent -- Path relative to `..`
   | Home -- Path relative to `~`
 
 derive instance eqFilePrefix :: Eq FilePrefix
@@ -50,6 +51,7 @@ derive instance ordFilePrefix :: Ord FilePrefix
 prettyFilePrefix :: FilePrefix -> String
 prettyFilePrefix Absolute = ""
 prettyFilePrefix Here = "."
+prettyFilePrefix Parent = ".."
 prettyFilePrefix Home = "~"
 
 data Scheme = HTTP | HTTPS
@@ -61,7 +63,6 @@ newtype URL = URL
     , authority :: String
     , path      :: File
     , query     :: Maybe String
-    , fragment  :: Maybe String
     , headers   :: Maybe ImportHashed
     }
 derive instance eqURL :: Eq URL
@@ -104,7 +105,6 @@ prettyImportType (Remote (URL url)) =
     <>  url.authority
     <>  prettyFile url.path
     <>  queryDoc
-    <>  fragmentDoc
     <>  foldMap prettyHeaders url.headers
   where
     prettyHeaders h = " using " <> prettyImportHashed h
@@ -116,10 +116,6 @@ prettyImportType (Remote (URL url)) =
     queryDoc = case url.query of
         Nothing -> ""
         Just q  -> "?" <> q
-
-    fragmentDoc = case url.fragment of
-        Nothing -> ""
-        Just f  -> "#" <> f
 
 prettyImportType (Env env) = "env:" <> env
 prettyImportType Missing = "missing"

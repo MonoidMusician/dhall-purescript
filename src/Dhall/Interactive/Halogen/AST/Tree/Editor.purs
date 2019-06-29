@@ -113,12 +113,16 @@ unWriterT :: forall m f a. Functor f => WriterT m f a -> f a
 unWriterT = runWriterT >>> map fst
 
 editor :: H.Component HH.HTML EditQuery Ixpr Ixpr Aff
-editor = H.component
-  { initializer: Nothing
-  , finalizer: Nothing
-  , receiver: Just <<< EditAction Nothing unit <<< Set
-  , initialState: ({ userInput: "Type", nextView: one, views: [zero], value: _ } <<< pure) :: Ixpr -> EditState
-  , eval: case _ of
+editor = H.mkComponent
+  { initialState: ({ userInput: "Type", nextView: one, views: [zero], value: _ } <<< pure) :: Ixpr -> EditState
+  , eval: H.mkEval $ H.defaultEval
+      { handleAction = eval, handleQuery = map pure <<< eval
+      , receive = Just <<< EditAction Nothing unit <<< Set
+      }
+  , render
+  } where
+    eval :: _ ~> _
+    eval = case _ of
       Output a -> a <$ (H.gets _.value >>= extract >>> H.raise)
       Check a -> H.gets _.value <#> extract >>> a
       UserInput a userInput -> a <$ (prop (_S::S_ "userInput") .= userInput)
@@ -133,9 +137,7 @@ editor = H.component
           viewId <- H.gets _.nextView
           prop (_S::S_ "views") %= flip Array.snoc viewId
           void $ H.query (_S::S_ "view") viewId $ ViewInitialize unit view
-  , render
-  } where
-    render :: EditState -> H.ComponentHTML EditQuery ( view :: H.Slot ViewQuery EditActions Natural ) Aff
+    render :: EditState -> H.ComponentHTML (EditQuery Unit) ( view :: H.Slot ViewQuery EditActions Natural ) Aff
     render { views, value, userInput } =
       let
         renderedViews = views <#> \viewId ->
@@ -161,16 +163,20 @@ _ixes_Ann Nil = identity
 _ixes_Ann (i : is) = _recurse <<< _Newtype <<< _2 <<< _ix (extract i) <<< _ixes_Ann is
 
 viewer :: H.Component HH.HTML ViewQuery { parsed :: Maybe Ixpr, value :: Ixpr } EditActions Aff
-viewer = H.component
-  { initializer: Nothing
-  , finalizer: Nothing
-  , receiver: Just <<< Receive unit
-  , initialState: \{ parsed, value } ->
+viewer = H.mkComponent
+  { initialState: \{ parsed, value } ->
     { parsed, value
     , view: empty
     , selection: pure empty
     } :: ViewState
-  , eval: case _ of
+  , eval: H.mkEval $ H.defaultEval
+      { handleAction = eval, handleQuery = map pure <<< eval
+      , receive = Just <<< Receive unit
+      }
+  , render: renderInfo >>> render
+  } where
+    eval :: _ ~> _
+    eval = case _ of
       ViewInitialize a view -> a <$ do
         prop (_S::S_ "view") .= view
       Receive a { parsed, value } -> a <$ do
@@ -197,8 +203,6 @@ viewer = H.component
               let new = (_ixes_Ann loc .~ patch) old in
               when (new /= old) $ H.raise $ Set new
             _, _ -> pure unit
-  , render: renderInfo >>> render
-  } where
     renderInfo :: ViewState -> ViewRender
     renderInfo st =
       let
@@ -215,7 +219,7 @@ viewer = H.component
         }
     showError :: TypeCheckError (Errors ( "Not found" :: ExprRowVFI )) (L IOSM.InsOrdStrMap (Maybe Core.Imports.Import)) -> String
     showError = unsafeCoerce >>> _.tag >>> _.type
-    render :: ViewRender -> HH.ComponentHTML ViewQuery () Aff
+    render :: ViewRender -> HH.ComponentHTML (ViewQuery Unit) () Aff
     render r = HH.div [ HP.class_ (H.ClassName "expr-viewer") ]
       [ HH.div [ HP.class_ (H.ClassName "header") ]
         [ inline_feather_button_action (Just (Raise unit DeleteView)) "x-square" "Close this view"

@@ -26,7 +26,7 @@ import Dhall.Core.StrMapIsh (InsOrdStrMap)
 import Dhall.Core.StrMapIsh as IOSM
 import Prim.Row as Row
 import Prim.RowList as RL
-import Type.Row (RLProxy(..))
+import Type.Data.RowList (RLProxy(..))
 
 -- Zip two functors only iff they have identical shapes.
 -- That is, they must contain values at exactly the same "positions",
@@ -156,12 +156,12 @@ instance mergeVFRLCons ::
       VariantF.on s
         do \fa -> VariantF.on s
             do \fb -> VariantF.inj s <$>
-              mergeWith f fa fb
+                mergeWith f fa fb
             do \_ -> Nothing
         do \va' -> VariantF.on s
             do \_ -> Nothing
             do \vb' -> VariantF.expand <$>
-              mergeWithVFRL (RLProxy :: RLProxy rl') f va' vb'
+                mergeWithVFRL (RLProxy :: RLProxy rl') f va' vb'
       where
         s = SProxy :: SProxy s
 

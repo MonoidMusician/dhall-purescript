@@ -190,18 +190,21 @@ doubleH = Star \v -> HH.input
   ]
 
 data InOut v a = In a v | Out a v
+derive instance functorInOut :: Functor (InOut v)
 
 type DataSlot v = H.Slot (InOut v) v Int
 type DataComponent v = H.Component HH.HTML (InOut v) v v
 
 simpleC :: forall v m. RenderValue v -> DataComponent v m
-simpleC renderer = H.component
-  { initializer: Nothing
-  , finalizer: Nothing
-  , receiver: Just <<< In unit
-  , initialState: identity
-  , eval: case _ of
+simpleC renderer = H.mkComponent
+  { initialState: identity
+  , eval: H.mkEval $ H.defaultEval
+      { handleAction = eval, handleQuery = map pure <<< eval
+      , receive = Just <<< In unit
+      }
+  , render: bimap absurd (Out unit) <<< unwrap renderer
+  } where
+    eval :: _ ~> _
+    eval = case _ of
       In a v -> a <$ H.put v
       Out a v -> a <$ H.put v <* H.raise v
-  , render: bimap absurd (Out unit) <<< unwrap renderer
-  }

@@ -1429,9 +1429,9 @@ explain ctx origin nodeType =
               }
           -- NOTE: assume it is a Pi type, if it's not a Lam
           do \_ ->
-            { ty: within (_S::S_ "Pi") false
-            , ty_body: within (_S::S_ "Pi") true
-            }
+              { ty: within (_S::S_ "Pi") false
+              , ty_body: within (_S::S_ "Pi") true
+              }
       in
       [ Text $ "The input type "
       , reference ty
@@ -1449,9 +1449,9 @@ explain ctx origin nodeType =
               }
           -- NOTE: assume it is an Annot node, if not a Let
           do \_ ->
-            { value: within (_S::S_ "Annot") false
-            , ty: within (_S::S_ "Annot") true
-            }
+              { value: within (_S::S_ "Annot") false
+              , ty: within (_S::S_ "Annot") true
+              }
       in
       [ Text $ "The value "
       , reference value

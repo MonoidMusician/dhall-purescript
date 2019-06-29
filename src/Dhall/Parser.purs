@@ -194,8 +194,9 @@ decodeImportType (FAST r) = case r of
 decodeDirectory :: Foreign -> Directory
 decodeDirectory = unsafeCoerce (Array.toUnfoldable :: Array ~> List)
 
+-- TODO: remove fragment from parsing
 decodeURL :: Array Foreign -> URL
-decodeURL [scheme, authority, dir, file, query, fragment, headers ] = URL
+decodeURL [ scheme, authority, dir, file, query, _, headers ] = URL
   { scheme: case decodeS scheme of
       "http" -> HTTP
       "https" -> HTTPS
@@ -204,7 +205,6 @@ decodeURL [scheme, authority, dir, file, query, fragment, headers ] = URL
   , path: File $
     { directory: decodeDirectory dir, file: unsafeCoerce file }
   , query: decodeN decodeS query
-  , fragment: decodeN decodeS fragment
   , headers: decodeN (fromForeign >>> decodeImportHashed) headers
   }
 decodeURL _ = unsafeCrashWith "Unrecognized URL"

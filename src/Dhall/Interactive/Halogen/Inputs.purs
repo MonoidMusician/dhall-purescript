@@ -37,12 +37,18 @@ settings t =
   }
 
 expanding :: HP.InputType -> H.Component HH.HTML QueryExpanding String String Aff
-expanding t = H.component
+expanding t = H.mkComponent
   { initialState: TCHE.Blurred
-  , initializer: Nothing
-  , finalizer: Nothing
-  , receiver: HE.input Down
-  , eval: case _ of
+  , eval: H.mkEval $ H.defaultEval
+      { handleAction = eval, handleQuery = map pure <<< eval
+      , receive = pure <<< (#) unit <<< Down
+      }
+  , render: \b ->
+      HH.slot (SProxy :: SProxy "") unit TCHE.expandingComponent
+        (Tuple (settings t) b) (pure <<< (#) unit <<< Up)
+  } where
+    eval :: _ ~> _
+    eval = case _ of
       Down new next -> next <$ do
         old <- H.get
         when (new /= TCHE.toString old) do
@@ -60,10 +66,6 @@ expanding t = H.component
           old <- H.get
           when (new /= old) do
             H.put new
-  , render: \b ->
-      HH.slot (SProxy :: SProxy "") unit TCHE.expandingComponent
-        (Tuple (settings t) b) (HE.input Up)
-  }
 
 icon_button_action :: forall q p.
   Maybe q ->

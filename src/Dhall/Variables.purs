@@ -27,6 +27,7 @@ import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, GenericExprAlgebr
 import Matryoshka (Algebra, cata)
 import Type.Row (type (+))
 import Type.Row as R
+import Type.RowList as RL
 
 -- | `shift` is used by both normalization and type-checking to avoid variable
 -- | capture by shifting variable indices
@@ -186,7 +187,7 @@ trackIntroCasesM next =
 -- vaguely like `Expr`.
 freeInAlg ::
   forall m v rl.
-    R.RowToList (Variable m + v) rl =>
+    RL.RowToList (Variable m + v) rl =>
     VariantF.FoldableVFRL rl (Variable m + v) =>
   Algebra (VariantF (Variable m + v)) (Var -> Disj Boolean)
 freeInAlg layer v | layer # VariantF.on (_S::S_ "Var") (eq (Const v)) ff = Disj true

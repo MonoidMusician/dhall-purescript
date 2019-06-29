@@ -49,9 +49,9 @@ import Prim.Row as Row
 import Unsafe.Coerce (unsafeCoerce)
 
 type Rendering r m a = Star (Compose (SlottedHTML r) (These m)) a a
-rendering :: forall r m a. (a -> H.ComponentHTML' (These m a) r Aff) -> Rendering r m a
+rendering :: forall r m a. (a -> H.ComponentHTML (These m a) r Aff) -> Rendering r m a
 rendering f = Star $ Compose <<< SlottedHTML <<< f
-renderingR :: forall r m a. (a -> H.ComponentHTML' a r Aff) -> Rendering r m a
+renderingR :: forall r m a. (a -> H.ComponentHTML a r Aff) -> Rendering r m a
 renderingR f = Star $ Compose <<< map That <<< SlottedHTML <<< f
 type RenderAnd r m a = { df :: a, rndr :: Rendering r m a }
 type RenderingOptions =
