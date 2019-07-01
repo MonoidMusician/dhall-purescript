@@ -29,7 +29,7 @@ import Dhall.Core.AST
   , _Expr
   , _ExprF
   ) as Exports
-import Dhall.Core.Imports
+import Dhall.Core.Imports.Types
   ( Directory(..)
   , File(..)
   , FilePrefix(..)

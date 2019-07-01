@@ -26,7 +26,7 @@ import Data.Tuple (Tuple(..))
 import Dhall.Core (S_, _S)
 import Dhall.Core.AST (Const(..), Expr, ExprLayerRow, TextLitF(..), Var(..), ExprLayer, projectW)
 import Dhall.Core.AST as AST
-import Dhall.Core.Imports (Directory, File(..), FilePrefix(..), Import(..), ImportHashed(..), ImportMode(..), ImportType(..), Scheme(..), URL(..))
+import Dhall.Core.Imports.Types (Directory, File(..), FilePrefix(..), Import(..), ImportHashed(..), ImportMode(..), ImportType(..), Scheme(..), URL(..))
 import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Parser.Prioritize (POrdering)
 import Dhall.Parser.Prioritize as Prioritize

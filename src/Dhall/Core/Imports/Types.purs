@@ -1,4 +1,4 @@
-module Dhall.Core.Imports where
+module Dhall.Core.Imports.Types where
 
 import Prelude
 
@@ -81,12 +81,21 @@ data ImportType
 derive instance eqImportType :: Eq ImportType
 derive instance ordImportType :: Ord ImportType
 
+parent :: File
+parent = File { directory: Directory (pure ".."), file: "" }
+
 instance semigroupImportType :: Semigroup ImportType where
   append (Local prefix file₀) (Local Here file₁) =
     Local prefix (file₀ <> file₁)
 
   append (Remote (URL url)) (Local Here path) =
     Remote (URL (url { path = url.path <> path }))
+
+  append (Local prefix file₀) (Local Parent file₁) =
+    Local prefix (file₀ <> parent <> file₁)
+
+  append (Remote (URL url)) (Local Parent path) =
+    Remote (URL (url { path = url.path <> parent <> path }))
 
   append import₀ (Remote (URL url)) = Remote $ URL $ url { headers = headers' }
     where
@@ -171,3 +180,6 @@ prettyImport (Import { importHashed, importMode }) =
         suffix = case importMode of
             RawText -> " as Text"
             Code    -> ""
+
+type Header = { header :: String, value :: String }
+type Headers = Array Header

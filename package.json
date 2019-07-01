@@ -1,0 +1,25 @@
+{
+  "name": "dhall-purescript",
+  "version": "0.0.0",
+  "directories": {
+    "doc": "docs"
+  },
+  "dependencies": {
+    "cbor-js": "^0.1.0",
+    "nearley": "^2.15.1",
+    "node-fetch": "^2.6.0",
+    "sjcl": "git://github.com/athanclark/sjcl.git#e6ca43fbcc85689f9e6b212cc88b85a53295a459"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MonoidMusician/dhall-purescript.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MonoidMusician/dhall-purescript/issues"
+  },
+  "homepage": "https://github.com/MonoidMusician/dhall-purescript#readme"
+}

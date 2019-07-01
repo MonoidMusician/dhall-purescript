@@ -35,7 +35,7 @@ import Dhall.Core.AST.Noted as Ann
 import Dhall.Core.AST.Operations.Location (Location)
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Types.Basics (Three(..))
-import Dhall.Core.Imports as Core.Imports
+import Dhall.Core.Imports.Types as Core.Imports
 import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Core.Zippers (_ix)
 import Dhall.Core.Zippers.Recursive (_recurse)

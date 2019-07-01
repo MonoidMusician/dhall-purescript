@@ -20,7 +20,11 @@
     "purescript-tuples": "^5.1.0",
     "purescript-either": "^4.1.0",
     "purescript-const": "^4.1.0",
-    "purescript-identity": "^4.1.0"
+    "purescript-identity": "^4.1.0",
+    "purescript-milkis": "^7.0.1",
+    "purescript-node-fs": "^5.0.0",
+    "purescript-node-fs-aff": "^6.0.0",
+    "purescript-argonaut-core": "^5.0.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"
