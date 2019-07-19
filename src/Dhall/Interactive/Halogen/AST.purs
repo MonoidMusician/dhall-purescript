@@ -183,10 +183,10 @@ renderBuiltinOps ::
   ((Slot -> RenderValue_ (SlottedHTML (Expandable r)) a) -> RenderVariantF_' (SlottedHTML (Expandable r)) (AST.BuiltinOps IOSM.InsOrdStrMap ir) (AST.BuiltinOps IOSM.InsOrdStrMap or) a)
 renderBuiltinOps { default } slot = renderBuiltinBinOps identity identity slot
   >>> Types.renderOn (_S::S_ "Field") renderField
-  >>> Types.renderOn (_S::S_ "Constructors") renderConstructors
   >>> Types.renderOn (_S::S_ "BoolIf") renderBoolIf
   >>> Types.renderOn (_S::S_ "Merge") renderMerge
   >>> Types.renderOn (_S::S_ "Project") renderProject
+  >>> Types.renderOn (_S::S_ "ToMap") renderToMap
   where
     renderField = \renderA -> Star \(Tuple field a) -> SlottedHTML $ HH.span_
       [ unwrap (Tuple field <$> unwrap (renderA (slot<>["fielded"])) a)
@@ -195,8 +195,6 @@ renderBuiltinOps { default } slot = renderBuiltinBinOps identity identity slot
           (Inputs.expanding HP.InputText) field
           (Just <<< (Tuple <@> a))
       ]
-    renderConstructors = \renderA -> Star \(Identity a) -> map Identity $ SlottedHTML $
-      HH.span_ [ HH.text "constructors", HH.text " ", unwrap (unwrap (renderA slot) a) ]
     renderBoolIf = \renderA -> Star \(AST.Triplet c t f) -> SlottedHTML $ HH.span_
       [ HH.text "if "
       , unwrap $ unwrap (renderA (slot<>["c"])) c
@@ -231,23 +229,49 @@ renderBuiltinOps { default } slot = renderBuiltinBinOps identity identity slot
             <#> \ty' -> AST.MergeF h v (Just ty')
           , Inputs.inline_feather_button_action (Just (AST.MergeF h v Nothing)) "minus-circle" "Remove type"
           ]
-    renderProject = \renderA -> Star \(Tuple (App fields) a) -> SlottedHTML $ HH.span_
-      let
-        -- Append extra empty field to allow adding more projections
-        unFields = IOSM.unIOSM >>> map fst >>> (_ <> [""])
-        -- And prune empty fields
-        mkFields = IOSM.mkIOSM <<< map (Tuple <@> unit) <<< Array.filter (notEq "")
-        render1 i field =
-          HH.slot (SProxy :: SProxy "expanding") (slot<>[show i])
-            (Inputs.expanding HP.InputText) field
-            (map ((Tuple <@> a) <<< App <<< mkFields) <<< (Array.updateAt i <@> unFields fields))
-      in
-        [ unwrap (Tuple (App fields) <$> unwrap (renderA (slot<>["projected"])) a)
-        , HH.text "."
-        , HH.text "{"
-        ] <> mapWithIndex render1 (unFields fields) <>
-        [ HH.text "}"
-        ]
+    renderToMap = \renderA -> Star \(Product (Tuple (Identity h) mty)) -> SlottedHTML $ HH.span_
+      case mty of
+        Nothing ->
+          [ HH.text "toMap "
+          , unwrap $ unwrap (renderA (slot<>["h"])) h
+            <#> \h' -> Product (Tuple (Identity h') mty)
+          , Inputs.inline_feather_button_action (Just (Product (Tuple (Identity h) (Just default)))) "type" "Add type"
+          ]
+        Just ty ->
+          [ HH.text "toMap "
+          , unwrap $ unwrap (renderA (slot<>["h"])) h
+            <#> \h' -> Product (Tuple (Identity h') mty)
+          , HH.text " : "
+          , unwrap $ unwrap (renderA (slot<>["ty"])) ty
+            <#> \ty' -> Product (Tuple (Identity h) (Just ty'))
+          , Inputs.inline_feather_button_action (Just (Product (Tuple (Identity h) Nothing))) "minus-circle" "Remove type"
+          ]
+    renderProject = \renderA -> Star \(Product (Tuple (Identity a) projs)) -> SlottedHTML $ HH.span_
+      case projs of
+        Left (App fields) ->
+          let
+            -- Append extra empty field to allow adding more projections
+            unFields = IOSM.unIOSM >>> map fst >>> (_ <> [""])
+            -- And prune empty fields
+            mkFields = IOSM.mkIOSM <<< map (Tuple <@> unit) <<< Array.filter (notEq "")
+            render1 i field =
+              HH.slot (SProxy :: SProxy "expanding") (slot<>[show i])
+                (Inputs.expanding HP.InputText) field
+                (map (Product <<< Tuple (Identity a) <<< Left <<< App <<< mkFields) <<< (Array.updateAt i <@> unFields fields))
+          in
+            [ unwrap (Product <<< (Tuple <@> projs) <<< Identity <$> unwrap (renderA (slot<>["projected"])) a)
+            , HH.text "."
+            , HH.text "{"
+            ] <> mapWithIndex render1 (unFields fields) <>
+            [ HH.text "}"
+            ]
+        Right b ->
+          [ unwrap (Product <<< (Tuple <@> projs) <<< Identity <$> unwrap (renderA (slot<>["projected"])) a)
+          , HH.text "."
+          , HH.text "("
+          , unwrap (Product <<< Tuple (Identity a) <<< Right <$> unwrap (renderA (slot<>["projection"])) b)
+          , HH.text ")"
+          ]
 
 type Renderer r e o = Zuruzuru.Renderer r Aff o e
 type State r e o =
@@ -560,7 +584,8 @@ renderBuiltinTypes2 ::
   ((Slot -> RenderComplex r annot a a a) -> RenderComplexEnvT r annot a (VariantF (AST.BuiltinTypes2 IOSM.InsOrdStrMap ir)))
 renderBuiltinTypes2 { default } slot = identity
   >>> Types.renderOnAnnot (_S::S_ "Record") (renderIOSM default slot "{" ":" "," "}")
-  >>> Types.renderOnAnnot (_S::S_ "Union") (renderIOSM default slot "<" ":" "|" ">")
+  >>> Types.renderOnAnnot (_S::S_ "Union") \renderA ->
+    ?help $ renderIOSM default slot "<" ":" "|" ">" $ ?help
 
 renderLiterals2 ::
   forall ir a r annot.
@@ -575,39 +600,11 @@ renderLiterals2 { default } slot = identity
     -- FIXME: empty case will look like {} instead of {=}
   >>> Types.renderOnAnnot (_S::S_ "RecordLit") (renderIOSM default slot "{" "=" "," "}")
   >>> Types.renderOnAnnot (_S::S_ "UnionLit") renderUnionLit
-  >>> Types.renderOnAnnot (_S::S_ "OptionalLit") renderOptionalLit
   >>> Types.renderOnAnnot (_S::S_ "ListLit") renderListLit
   >>> Types.renderOnAnnot (_S::S_ "TextLit") renderTextLit
   where
     renderSome = \renderA -> Star \(Identity a) -> map Identity $ SlottedHTML $
       HH.span_ [ HH.text "Some", HH.text " ", unwrap (unwrap (renderA slot) a) ]
-    renderOptionalLit ::
-      (Slot -> RenderComplex r annot a a a) ->
-      RenderComplexEnvT r annot a (Product Identity Maybe)
-    renderOptionalLit renderA = annotatedF $ \annot -> Star \(Product (Tuple (Identity ty) ma)) ->
-      SlottedHTML $ HH.span_ $ join
-        [ [ HH.text "[" ]
-        , case ma of
-            Nothing ->
-              let added = Product (Tuple (Identity ty) (Just default)) in
-              [ Inputs.inline_feather_button_action (Just (Right added)) "plus-square" "Add value"
-              ]
-            Just a ->
-              let removed = Product (Tuple (Identity ty) Nothing) in
-              [ HH.text " "
-              , unwrap $ unwrap (renderA (slot <> ["OptionalLit value"])) a
-                  <#> Right <<< \a' -> Product (Tuple (Identity ty) (Just a'))
-              , HH.text " "
-              , Inputs.inline_feather_button_action (Just (Right removed)) "minus-square" "Remove value"
-              , HH.text " "
-              ]
-        , [ HH.text "]" ]
-        , [ HH.text " : " ]
-        , [ HH.text "Optional " ]
-        , [ unwrap $ unwrap (renderA (slot <> ["OptionalLit type"])) ty
-              <#> Right <<< \ty' -> Product (Tuple (Identity ty') ma)
-          ]
-        ]
     renderUnionLit ::
       (Slot -> RenderComplex r annot a a a) ->
       RenderComplexEnvT r annot a (Product (Tuple String) IOSM.InsOrdStrMap)
