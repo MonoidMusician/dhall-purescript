@@ -39,12 +39,12 @@ import Unsafe.Coerce (unsafeCoerce)
 type ParseExpr = Expr IOSM.InsOrdStrMap Import
 
 parse :: String -> Maybe ParseExpr
-parse s = case parseBasic s <#> disambiguate of
+parse s = case parseAll s <#> disambiguate of
   Just [r] -> Just r
   _ -> Nothing
 
-parseBasic :: String -> Maybe (Array ParseExpr)
-parseBasic s = Nullable.toMaybe (parseImpl s) <#> map decodeFAST
+parseAll :: String -> Maybe (Array ParseExpr)
+parseAll s = Nullable.toMaybe (parseImpl s) <#> map decodeFAST
 
 foreign import parseImpl :: String -> Nullable (Array (FAST Foreign))
 
@@ -75,6 +75,7 @@ decodeFAST (FAST r) =
   in case r."type", r."value" of
     "Type", _ -> AST.mkConst Type
     "Kind", _ -> AST.mkConst Kind
+    "Sort", _ -> AST.mkConst Sort
     "True", _ -> AST.mkBoolLit true
     "False", _ -> AST.mkBoolLit false
     "Bool", _ -> AST.mkBool
@@ -118,9 +119,10 @@ decodeFAST (FAST r) =
     "App", [a, b] -> AST.mkApp (decodeF a) (decodeF b)
     "BoolIf", [a, b, c] -> AST.mkBoolIf (decodeF a) (decodeF b) (decodeF c)
     "Field", [a, b] -> AST.mkField (decodeF a) (decodeS b)
-    "Project", [a, b] -> AST.mkProject (decodeF a) (IOSM.fromFoldable (Tuple <$> decodeA decodeS b <@> unit))
+    "Project", [a, b] -> AST.mkProject (decodeF a) (Left (IOSM.fromFoldable (Tuple <$> decodeA decodeS b <@> unit)))
+    "ProjectType", [a, b] -> AST.mkProject (decodeF a) (Right (decodeF b))
     "Merge", [a, b, c] -> AST.mkMerge (decodeF a) (decodeF b) (decodeN decodeF c)
-    "Constructors", [a] -> AST.mkConstructors (decodeF a)
+    "ToMap", [a, b] -> AST.mkToMap (decodeF a) (decodeN decodeF b)
     "Lam", [a, b, c] -> AST.mkLam (decodeS a) (decodeF b) (decodeF c)
     "Pi", [a, b, c] -> AST.mkPi (decodeS a) (decodeF b) (decodeF c)
     "Let", [a, b, c, d] -> AST.mkLet (decodeS a) (decodeN decodeF b) (decodeF c) (decodeF d)
@@ -130,23 +132,24 @@ decodeFAST (FAST r) =
     "IntegerLit", [a] -> AST.mkIntegerLit (unsafeCoerce a)
     "DoubleLit", [a] -> AST.mkDoubleLit (unsafeCoerce a)
     "TextLit", vs -> AST.mkTextLit (decodeTextLit vs)
-    "OptionalLit", [a, b] -> AST.mkOptionalLit (decodeF b) (Array.head (decodeA decodeF a))
     "Some", [a] -> AST.mkSome (decodeF a)
     "None", _ -> AST.mkNone
     "ListLit", [a, b] -> AST.mkListLit (decodeN decodeF b) (decodeA decodeF a)
-    "Record", vs -> AST.mkRecord (decodeLabelled vs)
-    "RecordLit", vs -> AST.mkRecordLit (decodeLabelled vs)
-    "Union", vs -> AST.mkUnion (decodeLabelled vs)
+    "Record", vs -> AST.mkRecord (decodeLabelled decodeF vs)
+    "RecordLit", vs -> AST.mkRecordLit (decodeLabelled decodeF vs)
+    "Union", vs -> AST.mkUnion (decodeLabelled (decodeN decodeF) vs)
     "UnionLit", _
       | Just { head, tail: vs } <- Array.uncons r."value"
       , [label, value] <- decodeA identity head ->
-        AST.mkUnionLit (decodeS label) (decodeF value) (decodeLabelled vs)
-
+        AST.mkUnionLit (decodeS label) (decodeF value) (decodeLabelled decodeF vs)
     "Import", [a, b] -> pure $ Import
       { importHashed: decodeImportHashed (fromForeign a)
-      , importMode: if Foreign.isNull b then Code else RawText
+      , importMode: case runExcept $ Foreign.readString b of
+          Right "Text" -> RawText
+          Right "Location" -> Location
+          _ -> Code
       }
-    _, _ -> unsafeCrashWith "Unrecognized Expr"
+    _, _ -> unsafeCrashWith $ "Unrecognized Expr: " <> r."type" <> " " <> unsafeCoerce r
 
 decodeTextLit :: Array Foreign -> TextLitF ParseExpr
 decodeTextLit = Array.foldr f (TextLit "") where
@@ -157,10 +160,10 @@ decodeTextLit = Array.foldr f (TextLit "") where
         TextLit s -> TextLit (s' <> s)
         TextInterp s a t -> TextInterp (s' <> s) a t
 
-decodeLabelled :: Array Foreign -> IOSM.InsOrdStrMap ParseExpr
-decodeLabelled fs = IOSM.InsOrdStrMap $ Compose $ fs <#> unsafeCoerce >>>
+decodeLabelled :: forall a. (Foreign -> a) -> Array Foreign -> IOSM.InsOrdStrMap a
+decodeLabelled dec fs = IOSM.InsOrdStrMap $ Compose $ fs <#> unsafeCoerce >>>
   case _ of
-    [s, a] -> Tuple (decodeS s) (decodeFAST (fromForeign a))
+    [s, a] -> Tuple (decodeS s) (dec a)
     _ -> unsafeCrashWith "Unrecognized labelled tuple"
 
 decodeImportHashed :: FAST Foreign -> ImportHashed
@@ -183,6 +186,7 @@ decodeImportType (FAST r) = case r of
         case decodeS t of
           "Absolute" -> Absolute
           "Here" -> Here
+          "Parent" -> Parent
           "Home" -> Home
           _ -> unsafeCrashWith "Unrecognized FilePrefix"
     in Local prefix $ File $
@@ -194,9 +198,8 @@ decodeImportType (FAST r) = case r of
 decodeDirectory :: Foreign -> Directory
 decodeDirectory = unsafeCoerce (Array.toUnfoldable :: Array ~> List)
 
--- TODO: remove fragment from parsing
 decodeURL :: Array Foreign -> URL
-decodeURL [ scheme, authority, dir, file, query, _, headers ] = URL
+decodeURL [ scheme, authority, dir, file, query, headers ] = URL
   { scheme: case decodeS scheme of
       "http" -> HTTP
       "https" -> HTTPS

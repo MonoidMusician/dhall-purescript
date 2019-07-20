@@ -9,7 +9,7 @@ import Data.Array (any, fold, intercalate)
 import Data.Array as Array
 import Data.Array.NonEmpty as NEA
 import Data.Bifoldable (bifoldMap)
-import Data.Either (either)
+import Data.Either (Either(..), either)
 import Data.Foldable (for_)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.HeytingAlgebra (tt)
@@ -25,7 +25,7 @@ import Data.Natural (Natural)
 import Data.Newtype (un, unwrap)
 import Data.These (These(..))
 import Data.TraversableWithIndex (class TraversableWithIndex)
-import Data.Tuple (fst)
+import Data.Tuple (Tuple(..), fst)
 import Data.Variant as Variant
 import Dhall.Context as Dhall.Context
 import Dhall.Core (S_, _S)
@@ -322,17 +322,14 @@ tagERVFI = un ERVFI >>> Variant.match
   , "ListLit":
       either (\(_ :: Unit) -> "type")
       \i -> "value@" <> show i
-  , "OptionalLit":
-      either (\(_ :: Unit) -> "type")
-      \(_ :: Unit) -> "value"
   , "Some": \(_ :: Unit) -> "value"
   , "None": identity absurd
-  , "RecordLit": \k -> "values@" <> show k
+  , "RecordLit": \(k :: String) -> "values@" <> show k
   , "UnionLit":
       either (\(_ :: Unit) -> "value")
       \k -> "types@" <> show k
-  , "Record": \k -> "types@" <> show k
-  , "Union": \k -> "types@" <> show k
+  , "Record": \(k :: String) -> "types@" <> show k
+  , "Union": \(Tuple (k :: String) (_ :: Unit)) -> "types@" <> show k
   , "BoolAnd": binop
   , "BoolOr": binop
   , "BoolEQ": binop
@@ -350,12 +347,16 @@ tagERVFI = un ERVFI >>> Variant.match
       Three2 -> "then"
       Three3 -> "else"
   , "Field": \(_ :: Unit) -> "expr"
-  , "Project": \(_ :: Unit) -> "expr"
+  , "Project": case _ of
+      Left (_ :: Unit) -> "expr"
+      Right (_ :: Unit) -> "fields"
   , "Merge": case _ of
       Three1 -> "handlers"
       Three2 -> "arg"
       Three3 -> "type"
-  , "Constructors": \(_ :: Unit) -> "arg"
+  , "ToMap": case _ of
+      Left (_ :: Unit) -> "expr"
+      Right (_ :: Unit) -> "type"
   , "App": if _ then "fn" else "arg"
   , "Annot": if _ then "value" else "type"
   , "Lam": if _ then "type" else "body"

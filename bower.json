@@ -24,7 +24,8 @@
     "purescript-milkis": "^7.0.1",
     "purescript-node-fs": "^5.0.0",
     "purescript-node-fs-aff": "^6.0.0",
-    "purescript-argonaut-core": "^5.0.0"
+    "purescript-argonaut-core": "^5.0.0",
+    "purescript-memoize": "^5.0.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"
@@ -39,7 +40,7 @@
     "purescript-dom-indexed": "^7.0.0",
     "purescript-foreign-object": "^2.0.1",
     "purescript-web-html": "^2.0.0",
-    "purescript-typelevel-prelude": ">= 4.0.0 < 6.0.0",
+    "purescript-typelevel-prelude": ">=4.0.0 <6.0.0",
     "purescript-web-touchevents": "^2.0.0",
     "purescript-web-clipboard": "^2.0.0",
     "purescript-web-file": "2",

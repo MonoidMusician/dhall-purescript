@@ -17,7 +17,7 @@ import Data.Bifunctor (bimap)
 import Data.Bitraversable (bisequence, bitraverse)
 import Data.Const as Const
 import Data.Either (Either(..))
-import Data.Foldable (class Foldable, foldMap, foldl, foldr, for_, null, traverse_)
+import Data.Foldable (class Foldable, foldMap, foldl, foldlDefault, foldr, foldrDefault, null, traverse_)
 import Data.FoldableWithIndex (class FoldableWithIndex, anyWithIndex, foldMapWithIndex, forWithIndex_)
 import Data.Function (on)
 import Data.Functor.App (App(..))
@@ -32,10 +32,12 @@ import Data.Lazy (Lazy, defer)
 import Data.Lens (firstOf, has, lastOf, preview)
 import Data.Lens.Indexed (asIndex, itraversed)
 import Data.Lens.Iso.Newtype (_Newtype)
+import Data.Lens.Record (prop)
 import Data.List (List(..), (:))
 import Data.List as List
+import Data.List.NonEmpty (foldMap1)
 import Data.List.NonEmpty as NEL
-import Data.List.Types (NonEmptyList)
+import Data.List.Types (NonEmptyList(..))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Maybe.First (First(..))
 import Data.Monoid.Disj (Disj(..))
@@ -53,7 +55,7 @@ import Data.Symbol (class IsSymbol)
 import Data.These (These(..), theseLeft)
 import Data.Traversable (class Traversable, for, sequence, traverse)
 import Data.TraversableWithIndex (class TraversableWithIndex, forWithIndex)
-import Data.Tuple (Tuple(..), curry, uncurry)
+import Data.Tuple (Tuple(..), curry, fst, uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Context (Context(..))
@@ -78,19 +80,16 @@ import Validation.These as V
 
 axiom :: forall f. Alternative f => Const -> f Const
 axiom Type = pure Kind
-axiom Kind = empty
--- axiom Kind = pure Sort
--- axiom Sort = Left (TypeError Dhall.Context.empty (Const Sort) Untyped)
+axiom Kind = pure Sort
+axiom Sort = empty
 
 rule :: forall f. Alternative f => Const -> Const -> f Const
 rule Type Type = pure Type
 rule Kind Type = pure Type
 rule Kind Kind = pure Kind
-{-
 rule Sort Type = pure Type
-rule Sort Kind = pure Kind
+rule Sort Kind = pure Sort
 rule Sort Sort = pure Sort
--}
 -- This forbids dependent types. If this ever changes, then the fast
 -- path in the Let case of typeWithA will become unsound.
 rule _    _    = empty
@@ -106,6 +105,11 @@ suggest a = (<<<) wrap $ unwrap >>> case _ of
     V.Success (Tuple a accum)
   V.Error es mtaccum ->
     V.Error es $ pure $ Tuple a $ foldMap extract mtaccum
+
+msuggest :: forall w r m a x. Maybe x -> Feedback w r m a x -> Feedback w r m a x
+msuggest = case _ of
+  Nothing -> identity
+  Just a -> suggest a
 
 newtype TypeCheckError r a = TypeCheckError
   -- The main location where the typechecking error occurred
@@ -567,6 +571,14 @@ normalizeLxpr e = alsoOriginateFrom (Loc.stepF (_S::S_ "normalize") <$> extract 
     runLxprAlgM (Variant.case_ # Dhall.Normalize.normalizeWithAlgGW mempty)
       (Variant.inj (_S::S_ "normalize") mempty) e
 
+areEq :: forall w r m a. Eq a => StrMapIsh m => Oxpr w r m a -> Oxpr w r m a -> Boolean
+areEq ty0 ty1 =
+  -- TODO: make sure ty0 and ty1 typecheck before normalizing them?
+  let
+    Pair ty0' ty1' = Pair ty0 ty1 <#>
+      normalizeStep >>> plain >>> AST.unordered
+  in ty0' == ty1'
+
 {-
 locateO :: forall w r m a. Eq a => StrMapIsh m =>
   (a -> FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a (Expr m a)) ->
@@ -681,6 +693,37 @@ ensureConsistency egal error = traverse_ error
   <<< map (uncurry { key: _, value: _ })
   <<< StrMapIsh.toUnfoldable
 
+data WithHint f a = WithHint (Maybe a) (f a)
+derive instance functorWithHint :: Functor f => Functor (WithHint f)
+instance functorWithIndexWithHint :: FunctorWithIndex i f => FunctorWithIndex (Maybe i) (WithHint f) where
+  mapWithIndex f (WithHint ma fa) = WithHint (f Nothing <$> ma) (mapWithIndex (f <<< Just) fa)
+instance foldableWithHint :: Foldable f => Foldable (WithHint f) where
+  foldMap f (WithHint ma fa) = foldMap f ma <> foldMap f fa
+  foldl f = foldlDefault f
+  foldr f = foldrDefault f
+
+ensureConsistentOxpr ::
+  forall i c f w r m a.
+    Applicative f => StrMapIsh m =>
+    FunctorWithIndex i c => Foldable c => Eq a =>
+  (Unit -> f Void) ->
+  (Inconsistency (NonEmptyList { key :: i, value :: L m a }) -> f Void) ->
+  c (Oxpr w r m a) -> f (Oxpr w r m a)
+ensureConsistentOxpr missing error = finalize
+  <<< tabulateGroupings areEq
+  <<< List.fromFoldable
+  <<< mapWithIndex { key: _, value: _ } where
+    finalize :: List (NonEmptyList { key :: i, value :: Oxpr w r m a }) -> f (Oxpr w r m a)
+    finalize List.Nil = absurd <$> missing unit
+    finalize (List.Cons (NonEmptyList (a :| List.Nil)) List.Nil) = pure a.value
+    finalize (List.Cons (NonEmptyList (a :| List.Cons b bs)) List.Nil) =
+      let ixs = foldMap1 (topLoc <<< _.value) (NonEmptyList (b :| bs))
+      in pure $ alsoOriginateFromO ixs a.value
+    finalize (List.Cons a0 (List.Cons a1 an)) =
+      map absurd $ error $ (map <<< map <<< prop (_S::S_ "value")) topLoc $
+        Inconsistency $ a0 :| a1 :| an
+
+
 ensureNodupes ::
   forall f m v i.
     Applicative f =>
@@ -711,8 +754,7 @@ type Errors r =
   , "Cannot append non-list" :: Boolean
   , "Cannot interpolate" :: Natural
   , "List append mismatch" :: Unit
-  , "Invalid optional type" :: Maybe Const
-  , "Invalid optional element" :: Unit
+  , "List annotation must be list type" :: Unit
   , "Invalid `Some`" :: Maybe Const
   , "Duplicate record fields" :: NonEmptyList String
   , "Invalid field type" :: String
@@ -730,15 +772,23 @@ type Errors r =
   , "Missing handler" :: Set Unit
   , "Handler input type mismatch" :: String
   , "Handler output type mismatch" :: String
+  , "Handler type mismatch" :: String
   , "Unused handlers" :: Set Unit
   , "Cannot project" :: Unit
+  , "Cannot project by expression" :: Unit
+  , "Projection type mismatch" :: String
   , "Missing field" :: String
+  , "toMap takes a record" :: Unit
+  , "Invalid toMap type annotation" :: Unit
+  , "Invalid toMap type" :: Maybe Const
+  , "Missing toMap type" :: Unit
+  , "Inconsistent toMap types" :: Inconsistency (NonEmptyList (Maybe String))
   , "Invalid input type" :: Unit
   , "Invalid output type" :: Unit
   , "No dependent types" :: Pair Const
   , "Unbound variable" :: Var
   , "Annotation mismatch" :: Unit
-  , "`Kind` has no type" :: Unit
+  , "`Sort` has no type" :: Unit
   , "Unexpected type" :: Tuple Boolean SimpleExpr
   , "Cannot access" :: String
   , "Constructors requires a union type" :: Unit
@@ -857,12 +907,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       (Unit -> FeedbackE w r m a Void) ->
       FeedbackE w r m a Unit
     checkEq ty0 ty1 error =
-      -- TODO: make sure ty0 and ty1 typecheck before normalizing them?
-      let
-        Pair ty0' ty1' = Pair ty0 ty1 <#>
-          normalizeStep >>> plain >>> AST.unordered
-      in
-      when (ty0' /= ty1') $
+      when (not areEq ty0 ty1) $
         absurd <$> error unit
     checkEqL ::
       OxprE w r m a -> OxprE w r m a ->
@@ -957,7 +1002,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
   in
   { "Const": unwrap >>> \c ->
       axiom c <#> newborn <<< AST.mkConst #
-        noteHere (_S::S_ "`Kind` has no type") unit
+        noteHere (_S::S_ "`Sort` has no type") unit
   , "Var": unwrap >>> \v@(AST.V name idx) ->
       case Dhall.Context.lookup name idx ctx of
         -- NOTE: this should always succeed, since the body is checked only
@@ -1061,12 +1106,17 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         (errorHere (_S::S_ "Cannot interpolate") <<< const i)
   , "TextAppend": checkBinOp AST.mkText
   , "List": identity aFunctor
-  , "ListLit": \(Product (Tuple mty lit)) -> mkFunctor AST.mkList <<< head2D <$> do
+  , "ListLit": \(Product (Tuple mty lit)) -> msuggest (head2D <$> mty) do
       -- get the assumed type of the list
       (ty :: OxprE w r m a) <- case mty of
         -- either from annotation
-        Just ty -> suggest ty $
-          ensureType ty
+        Just listty -> do
+          let error = errorHere (_S::S_ "List annotation must be list type")
+          AST.Pair list ty <- ensure' (_S::S_ "App") listty error
+          normalizeStep list # unlayerO #
+            VariantF.on (_S::S_ "List") (const (pure unit))
+              \_ -> absurd <$> error unit
+          suggest ty $ ensureType ty
             (errorHere (_S::S_ "Invalid list type"))
         -- or from the first element
         Nothing -> case Array.head lit of
@@ -1074,7 +1124,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           Just item -> do
             ensureTerm item
               (errorHere (_S::S_ "Invalid list type"))
-      suggest ty $ forWithIndex_ lit \i item -> do
+      suggest (mkFunctor AST.mkList (head2D ty)) $ forWithIndex_ lit \i item -> do
         ty' <- typecheckStep item
         checkEq ty ty' \_ ->
           case mty of
@@ -1118,14 +1168,6 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
   , "None": always $
       AST.mkPi "A" AST.mkType $
         AST.mkApp AST.mkOptional (AST.mkVar (AST.V "A" 0))
-  , "OptionalLit": \(Product (Tuple (Identity ty) mexpr)) -> do
-      ensureType ty
-        (errorHere (_S::S_ "Invalid optional type"))
-      suggest (mkFunctor AST.mkOptional (head2D ty)) $
-        for_ mexpr \expr -> do
-          join $ checkEq ty
-            <$> typecheckStep expr
-            <@> (errorHere (_S::S_ "Invalid optional element"))
   , "Some": unwrap >>> \a ->
       mkFunctor AST.mkOptional <<< head2D <$> ensureTerm a
         (errorHere (_S::S_ "Invalid `Some`"))
@@ -1172,11 +1214,11 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
             (errorHere (_S::S_ "Inconsistent field types") <<< (map <<< map) _.key) kts'
   , "Union": \kts ->
       ensureNodupes
-        (errorHere (_S::S_ "Duplicate union alternatives")) kts
+        (errorHere (_S::S_ "Duplicate union alternatives") <<< map fst) kts
       *> do
-        -- FIXME: should this be the largest of `Type` or `Kind` returned?
+        -- FIXME: should this be the largest of `Type` or `Sort` returned?
         suggest (newborn AST.mkType) $
-          forWithIndex_ kts \field ty -> do
+          forWithIndex_ kts \(Tuple field _) ty -> do
             void $ ensure (_S::S_ "Const") ty
               (errorHere (_S::S_ "Invalid alternative type") <<< const field)
   , "UnionLit": \(Product (Tuple (Tuple field expr) kts)) ->
@@ -1189,7 +1231,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         forWithIndex_ kts' \field' kind -> do
           void $ ensure (_S::S_ "Const") kind
             (errorHere (_S::S_ "Invalid alternative type") <<< const field')
-        pure $ mk(_S::S_"Union") $ head2D <$> kts'
+        pure $ mk(_S::S_"Union") $ Compose $ (Just <<< head2D) <$> kts'
   , "Combine":
       let
         combineTypes here (p :: Pair (OxprE w r m a)) = do
@@ -1248,14 +1290,14 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           Both a _ -> a
       pure $ mk(_S::S_"Record") $ map head2D $ StrMapIsh.unionWith (pure preference) ktsR ktsL
   , "Merge": \(AST.MergeF handlers cases mty) -> do
-      Pair ktsX ktsY <- Pair
+      Tuple ktsX (Compose ktsY) <- Tuple
         <$> ensure (_S::S_ "Record") handlers
           (errorHere (_S::S_ "Must merge a record"))
         <*> ensure (_S::S_ "Union") cases
           (errorHere (_S::S_ "Must merge a union"))
       let
-        ksX = unit <$ ktsX # Set.fromFoldable
-        ksY = unit <$ ktsY # Set.fromFoldable
+        ksX = Set.fromFoldable $ ktsX $> unit
+        ksY = Set.fromFoldable $ ktsY $> unit
         diffX = Set.difference ksX ksY
         diffY = Set.difference ksY ksX
       -- get the assumed type of the merge result
@@ -1274,27 +1316,55 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       suggest (head2D ty) ado
         when (not Set.isEmpty diffX)
           (errorHere (_S::S_ "Unused handlers") diffX)
-        forWithIndex_ ktsY \k tY -> do
+        forWithIndex_ ktsY \k mtY -> do
           tX <- StrMapIsh.get k ktsX #
-            noteHere (_S::S_ "Missing handler") diffX
-          AST.BindingBody name input output <- ensure' (_S::S_ "Pi") tX
-            (errorHere (_S::S_ "Handler not a function") <<< const k)
-          ado
-            checkEq tY input
-              (errorHere (_S::S_ "Handler input type mismatch") <<< const k)
-            do
-              output' <- tryShiftOut0Oxpr name output #
-                (noteHere (_S::S_ "Dependent handler function") <<< const k $ unit)
-              checkEq ty output'
-                (errorHere (_S::S_ "Handler output type mismatch") <<< const k)
-          in unit
+            noteHere (_S::S_ "Missing handler") diffY
+          case mtY of
+            Just tY -> do
+              AST.BindingBody name input output <- ensure' (_S::S_ "Pi") tX
+                (errorHere (_S::S_ "Handler not a function") <<< const k)
+              ado
+                checkEq tY input
+                  (errorHere (_S::S_ "Handler input type mismatch") <<< const k)
+                do
+                  output' <- tryShiftOut0Oxpr name output #
+                    (noteHere (_S::S_ "Dependent handler function") <<< const k $ unit)
+                  checkEq ty output'
+                    (errorHere (_S::S_ "Handler output type mismatch") <<< const k)
+              in unit
+            Nothing ->
+              checkEq ty tX
+                (errorHere (_S::S_ "Handler type mismatch") <<< const k)
         in unit
-  , "Constructors": \(Identity ty) -> do
-      void $ typecheckStep ty
-      kts <- ensure (_S::S_ "Union") ty
-          \_ -> errorHere (_S::S_ "Constructors requires a union type") $ unit
-      pure $ mk(_S::S_"Record") $ kts # mapWithIndex \field ty' ->
-        mk(_S::S_"Pi") (AST.BindingBody field (head2D ty') (head2D ty))
+  , "ToMap": \(Product (Tuple (Identity expr) mty)) -> msuggest (head2D <$> mty) do
+      kts <- ensure (_S::S_ "Record") expr
+        (errorHere (_S::S_ "toMap takes a record"))
+      let
+        mapType ty =
+          mkFunctor AST.mkList $ mk(_S::S_ "Record") $ StrMapIsh.fromFoldable
+            [ Tuple "mapKey" $ mk(_S::S_ "Text") (wrap unit)
+            , Tuple "mapValue" ty
+            ]
+      tyA <- mty # traverse \listty -> do
+        -- TODO: better errors
+        let error = errorHere (_S::S_ "Invalid toMap type annotation")
+        AST.Pair list rty <- ensure' (_S::S_ "App") listty error
+        normalizeStep list # unlayerO #
+          VariantF.on (_S::S_ "List") (const (pure unit))
+            \_ -> absurd <$> error unit
+        tyS <- ensure' (_S::S_ "Record") rty error
+        when (StrMapIsh.size tyS /= 2) (void $ error unit)
+        tyK <- StrMapIsh.get "mapKey" tyS
+          # noteHere (_S::S_ "Invalid toMap type annotation") unit
+        _ <- ensure' (_S::S_ "Text") tyK error
+        ty <- StrMapIsh.get "mapValue" tyS
+          # noteHere (_S::S_ "Invalid toMap type annotation") unit
+        suggest ty $ ensureType ty (errorHere (_S::S_ "Invalid toMap type"))
+      ty <- ensureConsistentOxpr
+        (errorHere (_S::S_ "Missing toMap type"))
+        (errorHere (_S::S_ "Inconsistent toMap types") <<< (map <<< map) _.key)
+        (WithHint tyA kts)
+      pure $ mapType $ head2D ty
   , "Field": \(Tuple field expr) -> do
       tyR <- typecheckStep expr
       let
@@ -1305,22 +1375,32 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
             Nothing -> errorHere (_S::S_ "Missing field") $ field
         handleType kts = do
           case StrMapIsh.get field kts of
-            Just ty -> pure $ mk(_S::S_"Pi") $ map head2D $ (AST.BindingBody field ty expr)
+            Just (Just ty) -> pure $ mk(_S::S_"Pi") $ map head2D $ (AST.BindingBody field ty expr)
+            Just Nothing -> pure $ head2D expr
             Nothing -> errorHere (_S::S_ "Missing field") $ field
         casing = (\_ -> error unit)
           # VariantF.on (_S::S_ "Record") handleRecord
           # VariantF.on (_S::S_ "Const") \(Const.Const c) ->
               case c of
                 Type -> expr # normalizeStep # unlayerO #
-                  VariantF.on (_S::S_ "Union") handleType (\_ -> error unit)
+                  VariantF.on (_S::S_ "Union") (unwrap >>> handleType) (\_ -> error unit)
                 _ -> error unit
       tyR # normalizeStep # unlayerO # casing
-  , "Project": \(Tuple (App ks) expr) -> do
+  , "Project": \(Product (Tuple (Identity expr) projs)) -> do
       kts <- ensure (_S::S_ "Record") expr
         (errorHere (_S::S_ "Cannot project"))
-      mk(_S::S_"Record") <<< map head2D <$> forWithIndex ks \k (_ :: Unit) ->
-        StrMapIsh.get k kts #
+      ks <- case projs of
+        Left (App ks) -> pure $ ks <#> \(_ :: Unit) -> Nothing
+        Right fields -> do
+          _ <- typecheckStep fields
+          -- TODO: right error?
+          ks <- ensure' (_S::S_ "Record") fields (errorHere (_S::S_ "Cannot project by expression"))
+          ks # traverse \ty -> Just ty <$ typecheckStep ty
+      mk(_S::S_"Record") <<< map head2D <$> forWithIndex ks \k mty -> do
+        ty0 <- StrMapIsh.get k kts #
           (noteHere (_S::S_ "Missing field") k)
+        mty # maybe (pure ty0) \ty1 ->
+          checkEqR ty0 ty1 (errorHere (_S::S_ "Projection type mismatch") <<< const k)
   , "ImportAlt": \(Pair l _r) ->
       -- FIXME???
       head2D <$> typecheckStep l
@@ -1380,7 +1460,7 @@ explain ctx origin nodeType =
         ]
   in
   Variant.default errorUnknownError # Variant.onMatch
-  { "`Kind` has no type": \(_ :: Unit) ->
+  { "`Sort` has no type": \(_ :: Unit) ->
     [ Text "Kind is the top universe of types and therefore it has no type itself" ]
   , "Unbound variable": \(AST.V name idx) ->
       let
@@ -1576,26 +1656,6 @@ explain ctx origin nodeType =
       , reference $ elType false
       , Text $ " while the right has elements of type "
       , reference $ elType true
-      ]
-  , "Invalid optional type": \(mc :: Maybe Const) ->
-      [ Text $ "An optional value should contain elements in the universe "
-      , referenceExpr AST.mkType
-      , Text $ " but this "
-      , reference $ within (_S::S_ "OptionalLit") (Left unit)
-      ] <> case mc of
-        Nothing ->
-          [ Text $ " is not in a type universe, but instead has type "
-          , reference $ typechecked <> typechecked <> within (_S::S_ "OptionalLit") (Left unit)
-          ]
-        Just c ->
-          [ Text $ " is in universe "
-          , referenceExpr (AST.mkConst c)
-          ]
-  , "Invalid optional element": \i ->
-      [ Text $ "The optional literal was annotated to have type "
-      , reference $ within (_S::S_ "OptionalLit") (Left unit)
-      , Text $ " but its element had type "
-      , reference $ typechecked <> within (_S::S_ "OptionalLit") (Right unit)
       ]
   , "Invalid `Some`": \(mc :: Maybe Const) ->
     let focus = within (_S::S_ "Some") unit in

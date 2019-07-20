@@ -188,7 +188,7 @@ instance interpretVariant ::
 variant :: forall rl r. RowToList r rl => InterpretRL rl r =>
   InterpretOptions -> Type (Variant r)
 variant opts = Type
-  { expected: AST.mkUnion $ expectedV rl opts
+  { expected: AST.mkUnion $ pure <$> expectedV rl opts
   , extract: \e ->
     Lens.preview (AST._E (AST._ExprFPrism (_S::S_ "UnionLit"))) e >>=
       \(Product (Tuple (Tuple key val) tys)) ->
@@ -262,7 +262,7 @@ instance interpretCons ::
 instance injectVariant ::
   (RowToList r rl, InjectRL rl r) => Inject (Variant r) where
     injectWith opts = InputType
-      { declared: AST.mkUnion $ declaredV rl opts
+      { declared: AST.mkUnion $ pure <$> declaredV rl opts
       , embed: embedV rl opts >>>
           \(Product (Tuple (Tuple key val) tys)) ->
             AST.mkUnionLit key val tys

@@ -11,6 +11,7 @@ import Data.Eq (class Eq1, eq1)
 import Data.Foldable (class Foldable, fold, foldl, foldr)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex)
 import Data.Functor.App (App(..))
+import Data.Functor.Compose (Compose)
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
@@ -28,7 +29,7 @@ import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
 import Data.Variant.Internal (FProxy)
 import Dhall.Core.AST.Types.Basics (BindingBody(..), BindingBody', BindingBodyI, CONST, LetF(..), LetF', LetFI, MergeF(..), MergeF', MergeFI, Pair(..), Pair', PairI, TextLitF(..), TextLitF', TextLitFI, Triplet(..), Triplet', TripletI, UNIT, VOID)
-import Dhall.Core.Zippers (class Container, class ContainerI, Array', ArrayI, Identity', IdentityI, Maybe', MaybeI, Product', ProductI, Tuple', TupleI, _contextZF, downZFV, ixFV, mapWithIndexV, upZFV, (:<-:))
+import Dhall.Core.Zippers (class Container, class ContainerI, Array', ArrayI, Compose', Either', EitherI, Identity', IdentityI, Maybe', MaybeI, Product', ProductI, Tuple', TupleI, ComposeI, _contextZF, downZFV, ixFV, mapWithIndexV, upZFV, (:<-:))
 import Dhall.Core.Zippers.Merge (class Merge)
 import Dhall.Core.Zippers.Recursive (ZRec, Indices)
 import Matryoshka (class Corecursive, class Recursive, cata, embed, project)
@@ -38,12 +39,13 @@ import Type.Row (type (+))
 -- This file defines the Expr type by its cases, and gives instances, etc.
 
 -- copied from dhall-haskell
-data Const = Type | Kind
+data Const = Type | Kind | Sort
 derive instance eqConst :: Eq Const
 derive instance ordConst :: Ord Const
 instance showConst :: Show Const where
   show Type = "Type"
   show Kind = "Kind"
+  show Sort = "Sort"
 
 -- copied from dhall-haskell
 data Var = V String Int
@@ -79,7 +81,6 @@ type LiteralsI vs =
 type Literals2 (m :: Type -> Type) v =
   ( "TextLit" :: FProxy TextLitF
   , "ListLit" :: FProxy (Product Maybe Array)
-  , "OptionalLit" :: FProxy (Product Identity Maybe)
   , "Some" :: FProxy Identity
   , "None" :: CONST Unit
   , "RecordLit" :: FProxy m
@@ -90,7 +91,6 @@ type Literals2 (m :: Type -> Type) v =
 type Literals2' (m :: Type -> Type) (m' :: Type -> Type) v =
   ( "TextLit" :: FProxy TextLitF'
   , "ListLit" :: FProxy (Product' Maybe Maybe' Array Array')
-  , "OptionalLit" :: FProxy (Product' Identity Identity' Maybe Maybe')
   , "Some" :: FProxy Identity'
   , "None" :: VOID
   , "RecordLit" :: FProxy m'
@@ -101,7 +101,6 @@ type Literals2' (m :: Type -> Type) (m' :: Type -> Type) v =
 type Literals2I v =
   ( "TextLit" :: TextLitFI
   , "ListLit" :: ProductI MaybeI ArrayI
-  , "OptionalLit" :: ProductI IdentityI MaybeI
   , "Some" :: IdentityI
   , "None" :: Void
   , "RecordLit" :: String
@@ -149,19 +148,19 @@ type BuiltinTypesI vs =
 -- Record and union types (which are recursive)
 type BuiltinTypes2 (m :: Type -> Type) v =
   ( "Record" :: FProxy m
-  , "Union" :: FProxy m
+  , "Union" :: FProxy (Compose m Maybe)
   | v
   )
 
 type BuiltinTypes2' (m :: Type -> Type) (m' :: Type -> Type) v =
   ( "Record" :: FProxy m'
-  , "Union" :: FProxy m'
+  , "Union" :: FProxy (Compose' m' Maybe Maybe')
   | v
   )
 
 type BuiltinTypes2I v =
   ( "Record" :: String
-  , "Union" :: String
+  , "Union" :: ComposeI String MaybeI
   | v
   )
 
@@ -288,27 +287,27 @@ type BuiltinBinOpsI vs =
 type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
   ( "BoolIf" :: FProxy (Triplet)
   , "Field" :: FProxy (Tuple String)
-  , "Project" :: FProxy (Tuple (App m Unit))
+  , "Project" :: FProxy (Product Identity (Either (App m Unit)))
   , "Merge" :: FProxy (MergeF)
-  , "Constructors" :: FProxy Identity
+  , "ToMap" :: FProxy (Product Identity Maybe)
   | v
   )
 
 type BuiltinOps' (m :: Type -> Type) (m' :: Type -> Type) v = BuiltinBinOps' m m'
   ( "BoolIf" :: FProxy (Triplet')
   , "Field" :: FProxy (Tuple' String)
-  , "Project" :: FProxy (Tuple' (App m Unit))
+  , "Project" :: FProxy (Product' Identity Identity' (Either (App m Unit)) (Either' (App m Unit)))
   , "Merge" :: FProxy (MergeF')
-  , "Constructors" :: FProxy Identity'
+  , "ToMap" :: FProxy (Product' Identity Identity' Maybe Maybe')
   | v
   )
 
 type BuiltinOpsI v = BuiltinBinOpsI
   ( "BoolIf" :: TripletI
   , "Field" :: TupleI String
-  , "Project" :: Unit
+  , "Project" :: ProductI IdentityI EitherI
   , "Merge" :: MergeFI
-  , "Constructors" :: IdentityI
+  , "ToMap" :: ProductI IdentityI MaybeI
   | v
   )
 
@@ -459,8 +458,6 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
       # VariantF.on (SProxy :: SProxy "ImportAlt") (binop "ImportAlt")
       # VariantF.on (SProxy :: SProxy "BoolIf")
         (\(Triplet c t f) -> "(mkBoolIf " <> c <> t <> f <> ")")
-      # VariantF.on (SProxy :: SProxy "Constructors")
-        (\(Identity ty) -> "(mkConstructors " <> ty <> ")")
       # VariantF.on (SProxy :: SProxy "Some")
         (\(Identity v) -> "(mkSome " <> v <> ")")
       # VariantF.on (SProxy :: SProxy "Field")
@@ -473,12 +470,14 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
         (\(Product (Tuple ty lit)) -> "(mkListLit " <> mb ty <> lits lit <> ")")
       # VariantF.on (SProxy :: SProxy "Merge")
         (\(MergeF a b c) -> "(mkMerge " <> a <> b <> mb c <> ")")
-      # VariantF.on (SProxy :: SProxy "OptionalLit")
-        (\(Product (Tuple (Identity ty) lit)) -> "(mkOptionalLit " <> ty <> mb lit <> ")")
+      # VariantF.on (SProxy :: SProxy "ToMap")
+        (\(Product (Tuple (Identity e) ty)) -> "(mkToMap " <> e <> mb ty <> ")")
       # VariantF.on (SProxy :: SProxy "Pi")
         (\(BindingBody n t b) -> "(mkPi " <> n <> t <> b <> ")")
       # VariantF.on (SProxy :: SProxy "Project")
-        (\(Tuple (App projs) e) -> "(mkProject " <> e <> rec (show <$> projs) <> ")")
+        (\(Product (Tuple (Identity e) projs)) -> case projs of
+          Left (App fields) -> "(mkProject " <> e <> " (Left " <> rec (show <$> fields) <> "))"
+          Right ef -> "(mkProject " <> e <> " (Right " <> ef <> "))")
       # VariantF.on (SProxy :: SProxy "Record")
         (\a -> "(mkRecord " <> rec a <> ")")
       # VariantF.on (SProxy :: SProxy "RecordLit")
@@ -521,6 +520,7 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
         (case _ of
           ConstF.Const Type -> "(mkConst Type)"
           ConstF.Const Kind -> "(mkConst Kind)"
+          ConstF.Const Sort -> "(mkConst Sort)"
         )
       # VariantF.on (SProxy :: SProxy "Var")
         (unwrap >>> \(V n x) -> "(mkVar (V " <> show n <> show x <> "))")
@@ -533,7 +533,7 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
             in "(mkTextLit " <> v e <> ")"
           )
       # VariantF.on (SProxy :: SProxy "Union")
-        (\a -> "(mkUnion " <> rec a <> ")")
+        (\a -> "(mkUnion " <> rec (mb <$> unwrap a) <> ")")
       # VariantF.on (SProxy :: SProxy "UnionLit")
         (\(Product (Tuple (Tuple ty val) a)) -> "(mkUnionLit " <> ty <> val <> rec a <> ")")
       )
@@ -611,7 +611,7 @@ derive instance newtypeERVF :: Newtype (ExprRowVF m a b) _
 derive newtype instance functorERVF :: Functor (ExprRowVF m a)
 derive newtype instance foldableERVF :: Foldable m => Foldable (ExprRowVF m a)
 derive newtype instance traversableERVF :: Traversable m => Traversable (ExprRowVF m a)
-derive newtype instance mergeERVF :: (Eq a, Eq1 m, Merge m) => Merge (ExprRowVF m a)
+derive newtype instance mergeERVF :: (Eq a, Eq1 m, Traversable m, Merge m) => Merge (ExprRowVF m a)
 instance bifunctorERVF :: Bifunctor (ExprRowVF m) where
   bimap f g (ERVF v) = ERVF $ map g $ (#) v $
     VariantF.expand # VariantF.on (SProxy :: SProxy "Embed")
@@ -621,7 +621,7 @@ derive instance newtypeERVF' :: Newtype (ExprRowVF' m m' a b) _
 derive newtype instance functorERVF' :: Functor (ExprRowVF' m m' a)
 derive newtype instance foldableERVF' :: (Foldable m, Foldable m') => Foldable (ExprRowVF' m m' a)
 derive newtype instance traversableERVF' :: (Traversable m, Traversable m') => Traversable (ExprRowVF' m m' a)
-derive newtype instance mergeERVF' :: (Eq1 m, Merge m, Merge m') => Merge (ExprRowVF' m m' a)
+derive newtype instance mergeERVF' :: (Eq1 m, Traversable m, Traversable m', Merge m, Merge m') => Merge (ExprRowVF' m m' a)
 newtype ExprRowVFI = ERVFI ExprLayerFI
 derive instance newtypeERVFI :: Newtype ExprRowVFI _
 derive newtype instance eqERVFI :: Eq ExprRowVFI
@@ -653,7 +653,6 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (SProxy :: SProxy "Combine")
     # vfEqCase (SProxy :: SProxy "CombineTypes")
     # vfEqCase (SProxy :: SProxy "Const")
-    # vfEqCase (SProxy :: SProxy "Constructors")
     # vfEqCase (SProxy :: SProxy "Double")
     # vfEqCase (SProxy :: SProxy "DoubleLit")
     # vfEqCase (SProxy :: SProxy "DoubleShow")
@@ -692,7 +691,6 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (SProxy :: SProxy "Optional")
     # vfEqCase (SProxy :: SProxy "OptionalBuild")
     # vfEqCase (SProxy :: SProxy "OptionalFold")
-    # vfEqCase (SProxy :: SProxy "OptionalLit")
     # vfEqCase (SProxy :: SProxy "Pi")
     # vfEqCase (SProxy :: SProxy "Prefer")
     # vfEqCase (SProxy :: SProxy "Project")
@@ -702,6 +700,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (SProxy :: SProxy "Text")
     # vfEqCase (SProxy :: SProxy "TextAppend")
     # vfEqCase (SProxy :: SProxy "TextLit")
+    # vfEqCase (SProxy :: SProxy "ToMap")
     # vfEq1Case (SProxy :: SProxy "Union")
     # vfEq1Case (SProxy :: SProxy "UnionLit")
     # vfEqCase (SProxy :: SProxy "Var")
@@ -724,7 +723,6 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (SProxy :: SProxy "Combine")
     # vfOrdCase (SProxy :: SProxy "CombineTypes")
     # vfOrdCase (SProxy :: SProxy "Const")
-    # vfOrdCase (SProxy :: SProxy "Constructors")
     # vfOrdCase (SProxy :: SProxy "Double")
     # vfOrdCase (SProxy :: SProxy "DoubleLit")
     # vfOrdCase (SProxy :: SProxy "DoubleShow")
@@ -763,7 +761,6 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (SProxy :: SProxy "Optional")
     # vfOrdCase (SProxy :: SProxy "OptionalBuild")
     # vfOrdCase (SProxy :: SProxy "OptionalFold")
-    # vfOrdCase (SProxy :: SProxy "OptionalLit")
     # vfOrdCase (SProxy :: SProxy "Pi")
     # vfOrdCase (SProxy :: SProxy "Prefer")
     # vfOrdCase (SProxy :: SProxy "Project")
@@ -773,6 +770,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (SProxy :: SProxy "Text")
     # vfOrdCase (SProxy :: SProxy "TextAppend")
     # vfOrdCase (SProxy :: SProxy "TextLit")
+    # vfOrdCase (SProxy :: SProxy "ToMap")
     # vfOrd1Case (SProxy :: SProxy "Union")
     # vfOrd1Case (SProxy :: SProxy "UnionLit")
     # vfOrdCase (SProxy :: SProxy "Var")
@@ -795,7 +793,6 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (SProxy :: SProxy "Combine")
     # vfEqCase (SProxy :: SProxy "CombineTypes")
     # vfEqCase (SProxy :: SProxy "Const")
-    # vfEqCase (SProxy :: SProxy "Constructors")
     # vfEqCase (SProxy :: SProxy "Double")
     # vfEqCase (SProxy :: SProxy "DoubleLit")
     # vfEqCase (SProxy :: SProxy "DoubleShow")
@@ -834,7 +831,6 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (SProxy :: SProxy "Optional")
     # vfEqCase (SProxy :: SProxy "OptionalBuild")
     # vfEqCase (SProxy :: SProxy "OptionalFold")
-    # vfEqCase (SProxy :: SProxy "OptionalLit")
     # vfEqCase (SProxy :: SProxy "Pi")
     # vfEqCase (SProxy :: SProxy "Prefer")
     # vfEqCase (SProxy :: SProxy "Project")
@@ -844,6 +840,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (SProxy :: SProxy "Text")
     # vfEqCase (SProxy :: SProxy "TextAppend")
     # vfEqCase (SProxy :: SProxy "TextLit")
+    # vfEqCase (SProxy :: SProxy "ToMap")
     # vfEq1Case (SProxy :: SProxy "Union")
     # vfEq1Case (SProxy :: SProxy "UnionLit")
     # vfEqCase (SProxy :: SProxy "Var")
@@ -866,7 +863,6 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (SProxy :: SProxy "Combine")
     # vfOrdCase (SProxy :: SProxy "CombineTypes")
     # vfOrdCase (SProxy :: SProxy "Const")
-    # vfOrdCase (SProxy :: SProxy "Constructors")
     # vfOrdCase (SProxy :: SProxy "Double")
     # vfOrdCase (SProxy :: SProxy "DoubleLit")
     # vfOrdCase (SProxy :: SProxy "DoubleShow")
@@ -905,7 +901,6 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (SProxy :: SProxy "Optional")
     # vfOrdCase (SProxy :: SProxy "OptionalBuild")
     # vfOrdCase (SProxy :: SProxy "OptionalFold")
-    # vfOrdCase (SProxy :: SProxy "OptionalLit")
     # vfOrdCase (SProxy :: SProxy "Pi")
     # vfOrdCase (SProxy :: SProxy "Prefer")
     # vfOrdCase (SProxy :: SProxy "Project")
@@ -915,6 +910,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (SProxy :: SProxy "Text")
     # vfOrdCase (SProxy :: SProxy "TextAppend")
     # vfOrdCase (SProxy :: SProxy "TextLit")
+    # vfOrdCase (SProxy :: SProxy "ToMap")
     # vfOrd1Case (SProxy :: SProxy "Union")
     # vfOrd1Case (SProxy :: SProxy "UnionLit")
     # vfOrdCase (SProxy :: SProxy "Var")

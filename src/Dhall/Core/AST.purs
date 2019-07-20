@@ -108,7 +108,6 @@ import Dhall.Core.AST.Constructors
   , _Combine
   , _CombineTypes
   , _Const
-  , _Constructors
   , _Double
   , _DoubleLit
   , _DoubleShow
@@ -150,12 +149,10 @@ import Dhall.Core.AST.Constructors
   , _NaturalShow
   , _NaturalTimes
   , _NaturalToInteger
+  , _None
   , _Optional
   , _OptionalBuild
   , _OptionalFold
-  , _OptionalLit
-  , _Some
-  , _None
   , _Pi
   , _Prefer
   , _Project
@@ -163,11 +160,13 @@ import Dhall.Core.AST.Constructors
   , _RecordLit
   , _RecordLit_empty
   , _Record_empty
+  , _Some
   , _Text
   , _TextAppend
   , _TextLit
   , _TextLit_empty
   , _TextLit_single
+  , _ToMap
   , _Union
   , _UnionLit
   , _Union_empty
@@ -186,7 +185,6 @@ import Dhall.Core.AST.Constructors
   , mkCombine
   , mkCombineTypes
   , mkConst
-  , mkConstructors
   , mkDouble
   , mkDoubleLit
   , mkDoubleShow
@@ -225,22 +223,22 @@ import Dhall.Core.AST.Constructors
   , mkNaturalShow
   , mkNaturalTimes
   , mkNaturalToInteger
+  , mkNone
   , mkOptional
   , mkOptionalBuild
   , mkOptionalFold
-  , mkOptionalLit
-  , mkSome
-  , mkNone
   , mkPi
   , mkPrefer
   , mkProject
   , mkRecord
   , mkRecordLit
+  , mkSome
+  , mkSort
   , mkText
   , mkTextAppend
   , mkTextLit
+  , mkToMap
   , mkType
   , mkUnion
   , mkUnionLit
-  , mkVar
-  ) as Exports
+  , mkVar) as Exports

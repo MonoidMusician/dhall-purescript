@@ -41,24 +41,31 @@ function collapse(items) {
   return flat;
 }
 
-const reserved =
+const keyword =
+	[ "if"
+	, "then"
+	, "else"
+	, "let"
+	, "in"
+	, "using"
+	, "missing"
+	, "as"
+	, "Infinity"
+	, "NaN"
+	, "merge"
+	, "Some"
+	, "toMap"
+	, "forall" // FIXME
+	];
+
+const builtin =
   [ "Type"
   , "Kind"
-  //, "let"
-  //, "in"
-  //, "forall"
+	, "Sort"
   , "Bool"
   , "True"
   , "False"
-  //, "merge"
-  //, "if"
-  //, "then"
-  //, "else"
-  //, "as"
-  //, "using"
   , "missing"
-  //, "env"
-  //, "constructors"
   , "Natural"
   , "Natural/fold"
   , "Natural/build"
@@ -73,6 +80,7 @@ const reserved =
   , "Double"
   , "Double/show"
   , "Text"
+  , "Text/show"
   , "List"
   , "List/build"
   , "List/fold"
@@ -82,28 +90,28 @@ const reserved =
   , "List/indexed"
   , "List/reverse"
   , "Optional"
-  , "Some"
   , "None"
   , "Optional/build"
   , "Optional/fold"
   ];
 %}
 
-# All expressions end with trailing whitespace.  This just adds an initial
-# whitespace prefix for the top-level of the program
-complete_expression -> whitespace expression {% pass1 %}
+# This just adds surrounding whitespace for the top-level of the program
+complete_expression -> whsp expression whsp {% pass1 %}
 
-end_of_line -> [\n]    | [\r] [\n]
+end_of_line -> [\n] {% pass0 %} | [\r] [\n] {% pass0 %}
 tab -> [\t]
 
 # Note: block comments can be nested
 block_comment -> "{-" block_comment_continue
-block_comment_chunk ->
-      block_comment
-    | .
-    | tab
-    | end_of_line
-block_comment_continue -> "-}" | block_comment_chunk block_comment_continue
+
+block_comment_char -> . | end_of_line
+
+# FIXME
+block_comment_continue ->
+		"-}"
+	| block_comment block_comment_continue
+	| block_comment_char block_comment_continue
 
 not_end_of_line -> . # Regex /./ does not match newlines
 
@@ -118,9 +126,10 @@ whitespace_chunk ->
     | line_comment {% nuller %}
     | block_comment {% nuller %}
 
-whitespace -> whitespace_chunk:* {% nuller %}
+whsp -> whitespace_chunk:* {% nuller %}
 
-nonempty_whitespace -> whitespace_chunk:+ {% nuller %}
+# nonempty whitespace
+whsp1 -> whitespace_chunk:+ {% nuller %}
 
 # Uppercase or lowercase ASCII letter
 ALPHA -> [A-Za-z] {% pass0 %}
@@ -128,59 +137,79 @@ ALPHA -> [A-Za-z] {% pass0 %}
 # ASCII digit
 DIGIT -> [0-9] {% pass0 %}
 
+ALPHANUM -> ALPHA {% pass0 %} | DIGIT {% pass0 %}
+
 HEXDIG -> DIGIT {% pass0 %} | "A" {% pass0 %} | "B" {% pass0 %} | "C" {% pass0 %} | "D" {% pass0 %} | "E" {% pass0 %} | "F" {% pass0 %}
 
-simple_label -> (ALPHA | "_") (ALPHA | DIGIT | "-" | "/" | "_"):* {% d => d[0].join("") + d[1].join("") %}
+# A simple label cannot be one of the reserved keywords
+# listed in the `keyword` rule.
+# A PEG parser could use negative lookahead to
+# enforce this, e.g. as follows:
+# simple-label =
+#       keyword 1*simple-label-next-char
+#     / !keyword (simple-label-first-char *simple-label-next-char)
+simple_label_first_char -> ALPHA {% pass0 %} | "_" {% pass0 %}
+simple_label_next_char ->
+		ALPHANUM {% pass0 %}
+	| "-" {% pass0 %}
+	| "/" {% pass0 %}
+	| "_" {% pass0 %}
+simple_label ->
+	simple_label_first_char simple_label_next_char:*
+	{% (d, _, reject) => {
+		let r = d[0] + d[1].join("");
+		return keyword.includes(r) ? reject : r;
+	} %}
 
-quoted_label -> (ALPHA | DIGIT | "-" | "/" | "_" | ":" | "." | "$"):+ {% d => d[0].join("") %}
+quoted_label_char -> [\x20-\x5F\x61-x7E]
+quoted_label -> quoted_label_char:+ {% collapse %}
 
 # NOTE: Dhall does not support Unicode labels, mainly to minimize the potential
 # for code obfuscation
-label -> ("`" quoted_label "`" {% pass1 %} | simple_label {% pass0 %}) whitespace {% pass0 %}
+label -> ("`" quoted_label "`" {% pass1 %} | simple_label {% pass0 %}) {% pass0 %}
 
-# Dhall's double-quoted strings are equivalent to JSON strings except with
-# support for string interpolation (and escaping string interpolation)
+# A nonreserved-label cannot not be any of the reserved identifiers for builtins
+# (unless quoted).
+# Their list can be found in the `builtin` rule.
+# The only place where this restriction applies is bound variables.
+# A PEG parser could use negative lookahead to avoid parsing those identifiers,
+# e.g. as follows:
+# nonreserved-label =
+#      builtin 1*simple-label-next-char
+#    / !builtin label
+nonreserved_label -> label {% (d, _, reject) => builtin.includes(d[0]) ? reject : d[0] %}
+
+# An any_label is allowed to be one of the reserved identifiers.
+any_label -> label {% pass0 %}
+
+
+# Dhall's double-quoted strings are similar to JSON strings (RFC7159) except:
 #
-# Dhall uses almost the same escaping rules as JSON (RFC7159) with one
-# exception: Dhall adds a new `\$` escape sequence for dollar signs.  This
-# additional escape sequences lets you escape string interpolation by writing
-# `\${`
+# * Dhall strings support string interpolation
 #
-# > The representation of strings is similar to conventions used in the C
-# > family of programming languages.  A string begins and ends with
-# > quotation marks.  All Unicode characters may be placed within the
-# > quotation marks, except for the characters that must be escaped:
-# > quotation mark, reverse solidus, and the control characters (U+0000
-# > through U+001F).
-# >
-# > Any character may be escaped.  If the character is in the Basic
-# > Multilingual Plane (U+0000 through U+FFFF), then it may be
-# > represented as a six-character sequence: a reverse solidus, followed
-# > by the lowercase letter u, followed by four hexadecimal digits that
-# > encode the character's code point.  The hexadecimal letters A though
-# > F can be upper or lower case.  So, for example, a string containing
-# > only a single reverse solidus character may be represented as
-# > "\u005C".
-# >
-# > Alternatively, there are two-character sequence escape
-# > representations of some popular characters.  So, for example, a
-# > string containing only a single reverse solidus character may be
-# > represented more compactly as "\\".
-# >
-# > To escape an extended character that is not in the Basic Multilingual
-# > Plane, the character is represented as a 12-character sequence,
-# > encoding the UTF-16 surrogate pair.  So, for example, a string
-# > containing only the G clef character (U+1D11E) may be represented as
-# > "\uD834\uDD1E".
+# * Dhall strings also support escaping string interpolation by adding a new
+#   `\$` escape sequence
+#
+# * Dhall strings also allow Unicode escape sequences of the form `\u{XXX}`
 double_quote_chunk ->
-      "${" complete_expression "}" {% pass1 %}
-		| "\\"
-		  ( [\x22\x24\x5C\x2F\x62\x66\x6E\x72\x74]
-			| "u" HEXDIG HEXDIG HEXDIG HEXDIG
-			  {% d => String.fromCharCode(parseInt(d[1]+d[2]+d[3]+d[4], 16)) %}
-			) {% pass1 %}
-    | [^"\\$] {% pass0 %}
-		| "$" [^{] {% collapse %}
+      interpolation {% pass0 %}
+		| "\\" double_quote_escaped {% pass1 %}
+		| double_quote_char {% pass0 %}
+
+double_quote_escaped ->
+	( [\x22\x24\x5C\x2F\x62\x66\x6E\x72\x74] {% pass0 %}
+	| "u" unicode_escape {% pass1 %}
+	) {% pass0 %}
+
+unicode_escape ->
+		HEXDIG HEXDIG HEXDIG HEXDIG
+		{% d => String.fromCharCode(parseInt(d[1]+d[2]+d[3]+d[4], 16)) %}
+	| "{" HEXDIG:+ "}"
+		{% d => String.fromCodePoint(parseInt(d[1].join(""), 16)) %}
+
+# Printable characters except double quote and backslash
+# FIXME
+double_quote_char -> [\x20-\x21\x23\x25-\x5B\x5D-\xFFFF] {% pass0 %}
 
 double_quote_literal -> [\x22] double_quote_chunk:* [\x22] {% pass1 %}
 
@@ -196,197 +225,220 @@ double_quote_literal -> [\x22] double_quote_chunk:* [\x22] {% pass1 %}
 # If you try to end the string literal with a single quote then you get "'''",
 # which is interpreted as an escaped pair of single quotes
 single_quote_continue ->
-      "'''" single_quote_continue {% d => ["''"].concat(d[1]) %}
-    | "${" complete_expression "}" single_quote_continue {% d => [d[1]].concat(d[3]) %}
-    | "''${" single_quote_continue {% d => ["${"].concat(d[1]) %}
-    | "''" {% () => [] %}
-	  | . single_quote_continue {% d => [d[0]].concat(d[1]) %}
-	  | end_of_line single_quote_continue {% d => [d[0]].concat(d[1]) %}
+			interpolation single_quote_continue {% d => [d[0]].concat(d[1]) %}
+		| escaped_quote_pair single_quote_continue {% d => [d[0]].concat(d[1]) %}
+		| escaped_interpolation single_quote_continue {% d => [d[0]].concat(d[1]) %}
+		| single_quote_char single_quote_continue {% d => [d[0]].concat(d[1]) %}
+		| "''" {% () => "" %}
 
-single_quote_literal -> "''" single_quote_continue {% pass1 %}
+# Escape two single quotes (i.e. replace this sequence with "''")
+escaped_quote_pair -> "'''" {% () => "''" %}
 
-text_literal -> (double_quote_literal | single_quote_literal) whitespace {% d => d[0][0] %}
+# Escape interpolation (i.e. replace this sequence with "${")
+escaped_interpolation -> "''${" {% () => "${" %}
 
-if_raw                -> "if" {% pass0 %}
-then_raw              -> "then" {% pass0 %}
-else_raw              -> "else" {% pass0 %}
-let_raw               -> "let" {% pass0 %}
-in_raw                -> "in" {% pass0 %}
-as_raw                -> "as" {% pass0 %}
-using_raw             -> "using" {% pass0 %}
-merge_raw             -> "merge" {% pass0 %}
-missing_raw           -> "missing" {% pass0 %}
-Some_raw              -> "Some" {% pass0 %}
-constructors_raw      -> "constructors" {% () => "Constructors" %}
-Natural_fold_raw      -> "Natural/fold" {% pass0 %}
-Natural_build_raw     -> "Natural/build" {% pass0 %}
-Natural_isZero_raw    -> "Natural/isZero" {% pass0 %}
-Natural_even_raw      -> "Natural/even" {% pass0 %}
-Natural_odd_raw       -> "Natural/odd" {% pass0 %}
-Natural_toInteger_raw -> "Natural/toInteger" {% pass0 %}
-Natural_show_raw      -> "Natural/show" {% pass0 %}
-Integer_toDouble_raw  -> "Integer/toDouble" {% pass0 %}
-Integer_show_raw      -> "Integer/show" {% pass0 %}
-Double_show_raw       -> "Double/show" {% pass0 %}
-List_build_raw        -> "List/build" {% pass0 %}
-List_fold_raw         -> "List/fold" {% pass0 %}
-List_length_raw       -> "List/length" {% pass0 %}
-List_head_raw         -> "List/head" {% pass0 %}
-List_last_raw         -> "List/last" {% pass0 %}
-List_indexed_raw      -> "List/indexed" {% pass0 %}
-List_reverse_raw      -> "List/reverse" {% pass0 %}
-Optional_fold_raw     -> "Optional/fold" {% pass0 %}
-Optional_build_raw    -> "Optional/build" {% pass0 %}
-Bool_raw              -> "Bool" {% pass0 %}
-Optional_raw          -> "Optional" {% pass0 %}
-None_raw              -> "None" {% pass0 %}
-Natural_raw           -> "Natural" {% pass0 %}
-Integer_raw           -> "Integer" {% pass0 %}
-Double_raw            -> "Double" {% pass0 %}
-Text_raw              -> "Text" {% pass0 %}
-List_raw              -> "List" {% pass0 %}
-True_raw              -> "True" {% pass0 %}
-False_raw             -> "False" {% pass0 %}
-Type_raw              -> "Type" {% pass0 %}
-Kind_raw              -> "Kind" {% pass0 %}
-Sort_raw              -> "Sort" {% pass0 %}
+# FIXME
+single_quote_char -> [^$] {% pass0 %} # including end_of_line
 
-reserved_raw ->
-    Bool_raw {% pass0 %}
-  | Optional_raw {% pass0 %}
-  | None_raw {% pass0 %}
-  | Natural_raw {% pass0 %}
-  | Integer_raw {% pass0 %}
-  | Double_raw {% pass0 %}
-  | Text_raw {% pass0 %}
-  | List_raw {% pass0 %}
-  | True_raw {% pass0 %}
-  | False_raw {% pass0 %}
-  | Type_raw {% pass0 %}
-  | Kind_raw {% pass0 %}
-  | Sort_raw {% pass0 %}
+single_quote_literal -> "''" end_of_line single_quote_continue {% pass(2) %}
 
-reserved_namespaced_raw ->
-    Natural_fold_raw {% pass0 %}
-  | Natural_build_raw {% pass0 %}
-  | Natural_isZero_raw {% pass0 %}
-  | Natural_even_raw {% pass0 %}
-  | Natural_odd_raw {% pass0 %}
-  | Natural_toInteger_raw {% pass0 %}
-  | Natural_show_raw {% pass0 %}
-  | Integer_toDouble_raw {% pass0 %}
-  | Integer_show_raw {% pass0 %}
-  | Double_show_raw {% pass0 %}
-  | List_build_raw {% pass0 %}
-  | List_fold_raw {% pass0 %}
-  | List_length_raw {% pass0 %}
-  | List_head_raw {% pass0 %}
-  | List_last_raw {% pass0 %}
-  | List_indexed_raw {% pass0 %}
-  | List_reverse_raw {% pass0 %}
-  | Optional_fold_raw {% pass0 %}
-  | Optional_build_raw {% pass0 %}
+interpolation -> "${" complete_expression "}" {% pass1 %}
 
-reserved            -> reserved_raw            whitespace {% pass0 %}
-reserved_namespaced -> reserved_namespaced_raw whitespace {% pass0 %}
+text_literal -> (double_quote_literal | single_quote_literal) {% d => d[0][0] %}
 
-# Whitespaced rules for reserved words, to be used when matching expressions
-if           -> if_raw           nonempty_whitespace {% pass0 %}
-then         -> then_raw         nonempty_whitespace {% pass0 %}
-else         -> else_raw         nonempty_whitespace {% pass0 %}
-let          -> let_raw          nonempty_whitespace {% pass0 %}
-in           -> in_raw           nonempty_whitespace {% pass0 %}
-as           -> as_raw           nonempty_whitespace {% pass0 %}
-using        -> using_raw        nonempty_whitespace {% pass0 %}
-merge        -> merge_raw        nonempty_whitespace {% pass0 %}
-constructors -> constructors_raw nonempty_whitespace {% pass0 %}
-Some         -> Some_raw         nonempty_whitespace {% pass0 %}
+if                -> "if" {% pass0 %}
+then              -> "then" {% pass0 %}
+else              -> "else" {% pass0 %}
+let               -> "let" {% pass0 %}
+in                -> "in" {% pass0 %}
+as                -> "as" {% pass0 %}
+using             -> "using" {% pass0 %}
+merge             -> "merge" {% pass0 %}
+missing           -> "missing" {% pass0 %}
+Infinity          -> "Infinity" {% pass0 %}
+NaN               -> "NaN" {% pass0 %}
+Some              -> "Some" {% pass0 %}
+toMap             -> "toMap" {% pass0 %}
 
-Optional     -> Optional_raw     whitespace {% pass0 %}
-Text         -> Text_raw         whitespace {% pass0 %}
-List         -> List_raw         whitespace {% pass0 %}
+# Unused rule that could be used as negative lookahead in the
+# `simple-label` rule for parsers that support this.
+keyword ->
+      if {% pass0 %} | then {% pass0 %} | else {% pass0 %}
+    | let {% pass0 %} | in {% pass0 %}
+    | using {% pass0 %} | missing {% pass0 %} | as {% pass0 %}
+    | Infinity {% pass0 %} | NaN {% pass0 %}
+    | merge {% pass0 %} | Some {% pass0 %} | toMap {% pass0 %}
+		| "forall" {% pass0 %}
 
-equal         -> "="  whitespace {% pass0 %}
-or            -> "||" whitespace {% pass0 %}
-plus          -> "+"  whitespace {% pass0 %}
-text_append   -> "++" whitespace {% pass0 %}
-list_append   -> "#"  whitespace {% pass0 %}
-and           -> "&&" whitespace {% pass0 %}
-times         -> "*"  whitespace {% pass0 %}
-double_equal  -> "==" whitespace {% pass0 %}
-not_equal     -> "!=" whitespace {% pass0 %}
-dot           -> "."  whitespace {% pass0 %}
-open_brace    -> "{"  whitespace {% pass0 %}
-close_brace   -> "}"  whitespace {% pass0 %}
-open_bracket  -> "["  whitespace {% pass0 %}
-close_bracket -> "]"  whitespace {% pass0 %}
-open_angle    -> "<"  whitespace {% pass0 %}
-close_angle   -> ">"  whitespace {% pass0 %}
-bar           -> "|"  whitespace {% pass0 %}
-comma         -> ","  whitespace {% pass0 %}
-open_parens   -> "("  whitespace {% pass0 %}
-close_parens  -> ")"  whitespace {% pass0 %}
-colon         -> ":"  whitespace {% pass0 %}
-at            -> "@"  whitespace {% pass0 %}
-import_alt    -> "?"  whitespace {% pass0 %}
+builtin ->
+		Natural_fold {% pass0 %}
+	| Natural_build {% pass0 %}
+	| Natural_isZero {% pass0 %}
+	| Natural_even {% pass0 %}
+	| Natural_odd {% pass0 %}
+	| Natural_toInteger {% pass0 %}
+	| Natural_show {% pass0 %}
+	| Integer_toDouble {% pass0 %}
+	| Integer_show {% pass0 %}
+	| Double_show {% pass0 %}
+	| List_build {% pass0 %}
+	| List_fold {% pass0 %}
+	| List_length {% pass0 %}
+	| List_head {% pass0 %}
+	| List_last {% pass0 %}
+	| List_indexed {% pass0 %}
+	| List_reverse {% pass0 %}
+	| Optional_fold {% pass0 %}
+	| Optional_build {% pass0 %}
+	| Text_show {% pass0 %}
+  | Bool {% pass0 %}
+  | True {% pass0 %}
+  | False {% pass0 %}
+  | Optional {% pass0 %}
+  | None {% pass0 %}
+  | Natural {% pass0 %}
+  | Integer {% pass0 %}
+  | Double {% pass0 %}
+  | Text {% pass0 %}
+  | List {% pass0 %}
+  | Type {% pass0 %}
+  | Kind {% pass0 %}
+  | Sort {% pass0 %}
 
-combine       -> ( [\u2227] | "/\\"                ) whitespace {% pass0 %}
-combine_types -> ( [\u2A53] | "//\\\\"              ) whitespace {% pass0 %}
-prefer        -> ( [\u2AFD] | "//"                ) whitespace {% pass0 %}
-lambda        -> ( [\u03BB]  | "\\"                 ) whitespace {% pass0 %}
-forall        -> ( [\u2200] | "forall" ) whitespace {% pass0 %}
-arrow         -> ( [\u2192] | "->"                ) whitespace {% pass0 %}
+# Reserved identifiers, needed for some special cases of parsing
+Text     -> "Text" {% pass0 %}
+Location -> "Location" {% pass0 %}
+
+# Reminder of the reserved identifiers, needed for the `builtin` rule
+Bool              -> "Bool" {% pass0 %}
+True              -> "True" {% pass0 %}
+False             -> "False" {% pass0 %}
+Optional          -> "Optional" {% pass0 %}
+None              -> "None" {% pass0 %}
+Natural           -> "Natural" {% pass0 %}
+Integer           -> "Integer" {% pass0 %}
+Double            -> "Double" {% pass0 %}
+List              -> "List" {% pass0 %}
+Type              -> "Type" {% pass0 %}
+Kind              -> "Kind" {% pass0 %}
+Sort              -> "Sort" {% pass0 %}
+Natural_fold      -> "Natural/fold" {% pass0 %}
+Natural_build     -> "Natural/build" {% pass0 %}
+Natural_isZero    -> "Natural/isZero" {% pass0 %}
+Natural_even      -> "Natural/even" {% pass0 %}
+Natural_odd       -> "Natural/odd" {% pass0 %}
+Natural_toInteger -> "Natural/toInteger" {% pass0 %}
+Natural_show      -> "Natural/show" {% pass0 %}
+Integer_toDouble  -> "Integer/toDouble" {% pass0 %}
+Integer_show      -> "Integer/show" {% pass0 %}
+Double_show       -> "Double/show" {% pass0 %}
+List_build        -> "List/build" {% pass0 %}
+List_fold         -> "List/fold" {% pass0 %}
+List_length       -> "List/length" {% pass0 %}
+List_head         -> "List/head" {% pass0 %}
+List_last         -> "List/last" {% pass0 %}
+List_indexed      -> "List/indexed" {% pass0 %}
+List_reverse      -> "List/reverse" {% pass0 %}
+Optional_fold     -> "Optional/fold" {% pass0 %}
+Optional_build    -> "Optional/build" {% pass0 %}
+Text_show         -> "Text/show" {% pass0 %}
+
+combine       -> ( [\u2227] | "/\\"                ) {% pass0 %}
+combine_types -> ( [\u2A53] | "//\\\\"              ) {% pass0 %}
+prefer        -> ( [\u2AFD] | "//"                ) {% pass0 %}
+lambda        -> ( [\u03BB]  | "\\"                 ) {% pass0 %}
+forall        -> ( [\u2200] | "forall" ) {% pass0 %}
+arrow         -> ( [\u2192] | "->"                ) {% pass0 %}
 
 exponent -> "e" ( "+" | "-" ):? DIGIT:+
 
-double_literal -> ( "+" | "-" ):? DIGIT:+ ( "." DIGIT:+ ( exponent ):? | exponent) whitespace {% d => +flatten(d).join("") %}
+numeric_double_literal -> ( "+" | "-" ):? DIGIT:+ ( "." DIGIT:+ ( exponent ):? | exponent) {% d => +flatten(d).join("") %}
 
-natural_lit_raw -> DIGIT:+ {% d => d[0].join("")|0 %}
+minus_infinity_literal -> "-" Infinity {% () => -Infinity %}
+plus_infinity_literal -> Infinity {% () => Infinity %}
 
-integer_literal -> ( "+" | "-" ) natural_lit_raw whitespace {% d => d[0] == "+" ? +d[1] : -d[1] %}
+double_literal ->
+	# "2.0"
+		numeric_double_literal {% pass0 %}
+	# "-Infinity"
+	| minus_infinity_literal {% pass0 %}
+	# "Infinity"
+	| plus_infinity_literal {% pass0 %}
+	# "NaN"
+	| NaN {% () => NaN %}
 
-natural_literal -> natural_lit_raw whitespace {% pass0 %}
+natural_literal -> DIGIT:+ {% d => d[0].join("")|0 %}
 
-identifier -> label ( at natural_lit_raw whitespace ):? {% (d, _, reject) => reserved.includes(d[0]) ? reject : ({ type: "Var", value: [d[0], pass1(d[1]) || 0] }) %}
+integer_literal -> ( "+" | "-" ) natural_literal {% d => d[0] == "+" ? +d[1] : -d[1] %}
 
-missing -> missing_raw whitespace {% pass0 %}
+# If the identifier matches one of the names in the `builtin` rule, then it is a
+# builtin, and should be treated as the curresponding item in the list of
+# "Reserved identifiers for builtins" specified in the `standard/README.md` document.
+# It is a syntax error to specify a de Bruijn index in this case.
+# Otherwise, this is a variable with name and index matching the label and index.
+identifier -> variable {% pass0 %} | builtin {% d => ({ type: d[0], value: [] }) %}
+
+variable -> nonreserved_label ( whsp "@" natural_literal ):? {% (d, _, reject) => builtin.includes(d[0]) ? reject : ({ type: "Var", value: [d[0], pass(2)(d[1]) || 0] }) %}
 
 # Printable characters other than " ()[]{}<>/\,"
 #
 # Excluding those characters ensures that paths don't have to end with trailing
 # whitespace most of the time
-path_character ->
-      [\x21-\x22\x24-\x27\x2A-\x2B\x2D-\x2E\x30-\x3B\x3D\x40-\x5A\x5E-\x7A\x7C\x7E]
+path_character -> [\x21-\x22\x24-\x27\x2A-\x2B\x2D-\x2E\x30-\x3B\x3D\x40-\x5A\x5E-\x7A\x7C\x7E] {% pass0 %}
 
-path_component -> "/" path_character:+ {% d => collapse(d[1]) %}
+quoted_path_character -> [\x20-\x21\x23-\x2E\x30-\xFFFF] {% pass0 %}
 
-directory -> path_component:* {% pass0 %}
+unquoted_path_component -> path_character:+ {% collapse %}
+quoted_path_component -> quoted_path_character:+ {% collapse %}
 
-file -> path_component {% pass0 %}
+path_component -> "/" ( unquoted_path_component {% pass0 %} | [\x22] quoted_path_component [\x22] {% pass1 %} ) {% pass1 %}
 
-local_raw ->
-      ".." directory file {% d => ({ type: "Local", value: ["Here", ["..", ...d[1]], d[2]] }) %}
-	  | "."  directory file {% d => ({ type: "Local", value: ["Here", d[1], d[2]] }) %}
-	  | "~"  directory file {% d => ({ type: "Local", value: ["Home", d[1], d[2]] }) %}
-	  | directory file {% d => ({ type: "Local", value: ["Absolute", d[0], d[1]] }) %}
+# The last path-component matched by this rule is referred to as "file" in the semantics,
+# and the other path-components as "directory".
+path -> path_component:+
 
-local -> local_raw whitespace {% pass0 %}
+local ->
+      ".." path {% d => ({ type: "Local", value: ["Parent", d[1].slice(0, -1), d[1][-1]] }) %}
+	  | "."  path {% d => ({ type: "Local", value: ["Here", d[1].slice(0, -1), d[1][-1]] }) %}
+	  | "~"  path {% d => ({ type: "Local", value: ["Home", d[1].slice(0, -1), d[1][-1]] }) %}
+	  | path {% d => ({ type: "Local", value: ["Absolute", d[0].slice(0, -1), d[0][-1]] }) %}
 
 # `http[s]` URI grammar based on RFC7230 and RFC 3986 with some differences
 # noted below
 
 scheme -> "http" {% pass0 %} | "https" {% pass0 %}
 
-# NOTE: This does not match the official grammar for a URI.  Specifically, this
-# replaces `path-abempty` with `directory file`
-http_raw -> scheme "://" authority directory file ( "?" query ):? ( "#" fragment ):?
-{% d => ({ type: "Remote", value: [d[0], d[2], d[3], d[4], pass1(d[5]), pass1(d[6])] }) %}
+# NOTE: This does not match the official grammar for a URI.  Specifically:
+#
+# * path segments may be quoted instead of using percent-encoding
+# * this does not support fragment identifiers, which have no meaning within
+#   Dhall expressions and do not affect import resolution
+# * the characters "(" ")" and "," are not included in the `sub-delims` rule:
+#   in particular, these characters can't be used in authority, path or query
+#   strings.  This is because those characters have other meaning in Dhall
+#   and it would be confusing for the comma in
+#       [http://example.com/foo, bar]
+#   to be part of the URL instead of part of the list.  If you need a URL
+#   which contains parens or a comma, you must percent-encode them.
+#
+# Unquoted path components should be percent-decoded according to
+# https://tools.ietf.org/html/rfc3986#section-2
+http_raw -> scheme "://" authority url_path ( "?" query ):?
+{% d => ({ type: "Remote", value: [d[0], d[2], d[3].slice(0,-1), d[3][-1], pass1(d[4])] }) %}
+
+
+# Temporary rule to allow old-style `path-component`s and RFC3986 `segment`s in
+# the same grammar. Eventually we can just use `path-abempty` from the same
+# RFC. See issue #581
+
+url_path -> (path_component {% pass0 %} | "/" segment {% pass1 %} ):+ {% pass0 %} # FIXME
+
 
 authority -> ( userinfo "@" ):? host ( ":" port ):? {% collapse %}
 
 userinfo -> ( unreserved | pct_encoded | sub_delims | ":" ):* {% pass0 %}
 
-host -> IP_literal {% collapse %} | IPv4address {% collapse %} | reg_name {% collapse %}
+host -> IP_literal {% collapse %} | IPv4address {% collapse %} | domain {% collapse %}
 
 port -> DIGIT:* {% pass0 %}
 
@@ -411,24 +463,31 @@ ls32 -> ( h16 ":" h16 ) | IPv4address
 IPv4address -> dec_octet "." dec_octet "." dec_octet "." dec_octet
 
 dec_octet -> DIGIT {% collapse %}          | [\x31-\x39] DIGIT {% collapse %}          | "1" DIGIT DIGIT {% collapse %}          | "2" [\x30-\x34] DIGIT {% collapse %}          | "25" [\x30-\x35] {% collapse %}
-reg_name -> ( unreserved | pct_encoded | sub_delims ):* {% collapse %}
+
+# Look in RFC3986 3.2.2 for
+# "A registered name intended for lookup in the DNS"
+domain -> ( domainlabel "." ):* domainlabel ".":? {% collapse %}
+
+domainlabel -> ALPHANUM ( ( ALPHANUM | "-":+ ) ALPHANUM | ALPHANUM ):* {% collapse %}
+
+segment -> pchar:* {% collapse %}
 
 pchar -> ( unreserved | pct_encoded | sub_delims | ":" | "@") {% collapse %}
 
 query -> ( pchar | "/" | "?" ):* {% collapse %}
 
-fragment -> ( pchar | "/" | "?" ):* {% collapse %}
-
 pct_encoded -> "%" HEXDIG HEXDIG {% collapse %}
 
 unreserved  -> ( ALPHA | DIGIT | "-" | "." | "_" | "~" ) {% collapse %}
 
-sub_delims -> ( "!" | "$" | "&" | "'" | "(" | ")" | "*" | "+" | "," | ";" | "=")  {% collapse %}
+# this is the RFC3986 sub-delims rule, without "(", ")" or ","
+# see comments above the `http-raw` rule above
+sub_delims -> ( "!" | "$" | "&" | "'" | "*" | "+" | ";" | "=" )  {% collapse %}
 
 http ->
-    http_raw whitespace
-    ( using (import_hashed | open_parens import_hashed close_parens) ):?
-	{% d => (d[0].value.push(d[2] ? (d[2][2].length === 1 ? d[2][2][0] : d[2][2][1]) : null), d[0]) %}
+    http_raw
+    ( whsp using whsp1 import_expression ):?
+	{% d => (d[0].value.push(pass(3)(d[2])), d[0]) %}
 
 # Dhall supports unquoted environment variables that are Bash-compliant or
 # quoted environment variables that are POSIX-compliant
@@ -436,7 +495,7 @@ env -> "env:"
     ( bash_environment_variable
     | [\x22] posix_environment_variable [\x22]
     )
-    whitespace {% d => ({ type: "Env", value: [d[1].length === 1 ? d[1][0] : d[1][1]] }) %}
+		{% d => ({ type: "Env", value: [d[1].length === 1 ? d[1][0] : d[1][1]] }) %}
 
 # Bash supports a restricted subset of POSIX environment variables.  From the
 # Bash `man` page, an environment variable name is:
@@ -480,152 +539,210 @@ posix_environment_variable_character ->
 
 import_type -> missing {% () => ({ type: "Missing", value: [] }) %} | local {% pass0 %} | http {% pass0 %} | env {% pass0 %}
 
-hash -> "sha256:" HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG whitespace
-import_hashed -> import_type ( hash ):? {% tag("ImportHashed") %}
+hash -> "sha256:" HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG
+import_hashed -> import_type ( whsp1 hash ):? {% tag("ImportHashed") %}
 
-import -> import_hashed ( as Text ):? {% tag("Import") %}
+import -> import_hashed ( whsp as whsp1 ( Text {% pass0 %} | Location {% pass0 %} ) {% pass(3) %} ):? {% tag("Import") %}
 
 
 expression ->
 		# "\(x : a) -> b"
-      lambda open_parens label colon expression close_parens arrow expression {% d => ({ type: "Lam", value: [d[2], d[4], d[7]] }) %}
+      lambda whsp "(" whsp nonreserved_label whsp ":" whsp1 expression whsp ")" whsp arrow whsp expression {% d => ({ type: "Lam", value: [d[4], d[8], d[14]] }) %}
+
 		# "if a then b else c"
-    | if expression then expression else expression {% d => ({ type: "BoolIf", value: [d[1], d[3], d[5]] }) %}
+    | if whsp1 expression whsp then whsp1 expression whsp else whsp1 expression {% d => ({ type: "BoolIf", value: [d[2], d[6], d[10]] }) %}
+
 		# "let x : t = e1 in e2"
     # "let x     = e1 in e2"
-    | let label ( colon expression ):? equal expression in expression {% d => ({ type: "Let", value: [d[1], pass1(d[2]), d[4], d[6]] }) %}
-		# "forall (x : a) -> b"
-    | forall open_parens label colon expression close_parens arrow expression {% d => ({ type: "Pi", value: [d[2], d[4], d[7]] }) %}
-		# "a -> b"
-    | operator_expression arrow expression {% d => ({ type: "Pi", value: ["_", d[0], d[2]] }) %}
-    | annotated_expression {% pass0 %}
+    | let_binding:+ in whsp1 expression {% d => d[0].reduceRight((b,a) => ({ type: "Let", value: a.concat(b) }), d[3]) %}
 
-annotated_expression ->
+		# "forall (x : a) -> b"
+    | forall whsp "(" whsp nonreserved_label whsp ":" whsp1 expression whsp ")" whsp arrow whsp expression {% d => ({ type: "Pi", value: [d[4], d[8], d[14]] }) %}
+
+		# "a -> b"
+		#
+		# NOTE: Backtrack if parsing this alternative fails
+    | operator_expression whsp arrow whsp expression {% d => ({ type: "Pi", value: ["_", d[0], d[4]] }) %}
+
 		# "merge e1 e2 : t"
 		# "merge e1 e2"
-      merge import_expression import_expression ( colon application_expression ):? {% d => ({ type: "Merge", value: [d[1], d[2], pass1(d[3])] }) %}
-		# "[]  : List     t"
-		# "[]  : Optional t"
-		# "[x] : Optional t"
-    | open_bracket (empty_collection | non_empty_optional) {% d => pass0(pass1(d)) %}
+		#
+		# NOTE: Backtrack if parsing this alternative fails since we can't tell
+		# from the keyword whether there will be a type annotation or not
+    | merge whsp1 import_expression whsp1 import_expression whsp ":" whsp1 application_expression {% d => ({ type: "Merge", value: [d[2], d[4], d[8]] }) %}
+
+		# "[] : t"
+		#
+		# NOTE: Backtrack if parsing this alternative fails since we can't tell
+    # from the opening bracket whether or not this will be an empty list or
+		# a non-empty list
+    | "[" whsp "]" whsp ":" whsp1 application_expression {% d => ({ type: "ListLit", value: [[],d[6]] }) %}
+
+
+    # "toMap e : t"
+    #
+    # NOTE: Backtrack if parsing this alternative fails since we can't tell
+    # from the keyword whether there will be a type annotation or not
+    | toMap whsp1 import_expression whsp ":" whsp1 application_expression {% d => ({ type: "ToMap", value: [d[2],d[6]] }) %}
+
+    | annotated_expression {% pass0 %}
+
+let_binding ->
+	let whsp1 nonreserved_label whsp ( ":" whsp1 expression whsp ):? "=" whsp expression whsp {% d => [d[2],pass(2)(d[4]),d[7]] %}
+
+# Nonempty-whitespace to disambiguate `env:VARIABLE` from type annotations
+annotated_expression ->
 		# "x : t"
-    | operator_expression (colon expression):? {% d => d[1] == null ? d[0] : { type: "Annot", value: [d[0], d[1][1]] } %}
-
-empty_collection -> close_bracket colon (List | Optional) import_expression {% d => ({ type: d[2]+"Lit", value: [[], d[3]] }) %}
-
-non_empty_optional -> expression close_bracket colon Optional import_expression {% d => ({ type: "OptionalLit", value: [[d[0]], d[4]] }) %}
+    operator_expression (whsp ":" whsp1 expression):? {% d => d[1] == null ? d[0] : { type: "Annot", value: [d[0], d[1][3]] } %}
 
 operator_expression -> import_alt_expression {% pass0 %}
 
-import_alt_expression    -> or_expression            (import_alt            or_expression):* {% binop("ImportAlt") %}
-or_expression            -> plus_expression          (or                    plus_expression         ):* {% binop("BoolOr") %}
-plus_expression          -> text_append_expression   (plus whitespace_chunk text_append_expression  ):* {% binop("NaturalPlus", 2) %}
-text_append_expression   -> list_append_expression   (text_append           list_append_expression  ):* {% binop("TextAppend") %}
-list_append_expression   -> and_expression           (list_append           and_expression          ):* {% binop("ListAppend") %}
-and_expression           -> combine_expression       (and                   combine_expression      ):* {% binop("BoolAnd") %}
-combine_expression       -> prefer_expression        (combine               prefer_expression       ):* {% binop("Combine") %}
-prefer_expression        -> combine_types_expression (prefer                combine_types_expression):* {% binop("Prefer") %}
-combine_types_expression -> times_expression         (combine_types         times_expression        ):* {% binop("CombineTypes") %}
-times_expression         -> equal_expression         (times                 equal_expression        ):* {% binop("NaturalTimes") %}
-equal_expression         -> not_equal_expression     (double_equal          not_equal_expression    ):* {% binop("BoolEQ") %}
-not_equal_expression     -> application_expression   (not_equal             application_expression  ):* {% binop("BoolNE") %}
+# Nonempty-whitespace to disambiguate `http://a/a?a`
+import_alt_expression    -> or_expression            (whsp "?" whsp1 or_expression):* {% binop("ImportAlt", 3) %}
+or_expression            -> plus_expression          (whsp "||" whsp plus_expression):* {% binop("BoolOr", 3) %}
+# Nonempty-whitespace to disambiguate `f +2`
+plus_expression          -> text_append_expression   (whsp "+" whsp1 text_append_expression):* {% binop("NaturalPlus", 3) %}
+text_append_expression   -> list_append_expression   (whsp "++" whsp list_append_expression):* {% binop("TextAppend", 3) %}
+list_append_expression   -> and_expression           (whsp "#" whsp and_expression):* {% binop("ListAppend", 3) %}
+and_expression           -> combine_expression       (whsp "&&" whsp combine_expression):* {% binop("BoolAnd", 3) %}
+combine_expression       -> prefer_expression        (whsp combine whsp prefer_expression):* {% binop("Combine", 3) %}
+prefer_expression        -> combine_types_expression (whsp prefer whsp combine_types_expression):* {% binop("Prefer", 3) %}
+combine_types_expression -> times_expression         (whsp combine_types whsp times_expression):* {% binop("CombineTypes", 3) %}
+times_expression         -> equal_expression         (whsp "*" whsp equal_expression):* {% binop("NaturalTimes", 3) %}
+equal_expression         -> not_equal_expression     (whsp "==" whsp not_equal_expression):* {% binop("BoolEQ", 3) %}
+not_equal_expression     -> application_expression   (whsp "!=" whsp application_expression):* {% binop("BoolNE", 3) %}
 
 # Import expressions need to be separated by some whitespace, otherwise there
 # would be ambiguity: `./ab` could be interpreted as "import the file `./ab`",
 # or "apply the import `./a` to label `b`"
 application_expression ->
-    ( constructors | Some ):? import_expression (whitespace_chunk import_expression):*
-		{%
-		d => {
-			if (d[0] != null) {
-				return binop("App")([{ type: d[0][0], value: [d[1]] }, d[2]]);
-			} else {
-				return binop("App")([d[1],d[2]]);
-			}
-		}
-		%}
+		first_application_expression (whsp1 import_expression):*
+		{% binop("App") %}
+first_application_expression ->
+	# "merge e1 e2"
+		merge whsp1 import_expression whsp1 import_expression
+		{% d => ({ type: "Merge", value: [d[2],d[4],null]}) %}
+	# "Some e"
+	| Some whsp1 import_expression
+		{% d => ({ type: "Some", value: [d[2]] }) %}
+	# "toMap e"
+	| toMap whsp1 import_expression
+		{% d => ({ type: "ToMap", value: [d[2], null] }) %}
+	| import_expression {% pass0 %}
 
 import_expression -> import {% pass0 %} | selector_expression {% pass0 %}
 
 # `record.field` extracts one field of a record
 #
 # `record.{ field0, field1, field2 }` projects out several fields of a record
-selector_expression -> primitive_expression (dot ( label | labels )):*
-{% function(d) {
-	return d[1].reduce((r, v) => {
-		if (typeof v[1][0] === "string")
-			return { type: "Field", value: [r, v[1][0]] }
-		else return { type: "Project", value: [r, v[1][0]] }
-	}, d[0]);
-} %}
+#
+# NOTE: Backtrack when parsing the `*("." ...)`.  The reason why is that you
+# can't tell from parsing just the period whether "foo." will become "foo.bar"
+# (i.e. accessing field `bar` of the record `foo`) or `foo./bar` (i.e. applying
+# the function `foo` to the relative path `./bar`)
+selector_expression -> primitive_expression ("." selector):*
+{% d =>
+	d[1].reduce((r, v) => ({ type: v.type, value: [r, v.value[0]] }), d[0])
+%}
 
+
+selector ->
+	  any_label {% tag("Field") %}
+	| labels {% tag("Project") %}
+	| type_selector {% tag("ProjectType") %}
+
+labels -> "{" whsp ( any_label whsp ("," whsp any_label whsp):* | null ) "}"
+{% d => d[2].length ? [d[2][0]].concat(d[2][2].map(v => v[1])) : [] %}
+
+type_selector -> "(" whsp expression whsp ")" {% pass(2) %}
 
 primitive_expression ->
 		# "2.0"
-      double_literal {% d => ({ type: "DoubleLit", value: [d[0]] }) %}
+      double_literal {% tag("DoubleLit") %}
 		# 2
-    | natural_literal {% d => ({ type: "NaturalLit", value: [d[0]] }) %}
+    | natural_literal {% tag("NaturalLit") %}
 		# +2
 		# -2
-    | integer_literal {% d => ({ type: "IntegerLit", value: [d[0]] }) %}
+    | integer_literal {% tag("IntegerLit") %}
 		# '"ABC"'
     | text_literal {% d => ({ type: "TextLit", value: d[0] }) %}
 		# "{ foo = 1      , bar = True }"
 		# "{ foo : Integer, bar : Bool }"
-    | open_brace record_type_or_literal close_brace {% pass1 %}
+    | "{" whsp record_type_or_literal whsp "}" {% pass(2) %}
 		# "< Foo : Integer | Bar : Bool >"
 		# "< Foo : Integer | Bar = True >"
-    | open_angle union_type_or_literal  close_angle {% pass1 %}
+    | "<" whsp union_type_or_literal whsp ">" {% pass(2) %}
 		# "[1, 2, 3]"
     | non_empty_list_literal {% pass0 %}
-		# "List/head"
-    | reserved_namespaced {% d => ({ type: d[0], value: [] }) %}
 		# "x"
     # "x@2"
     | identifier {% pass0 %}
-		# "List"
-    | reserved {% d => ({ type: d[0], value: [] }) %}
 		# "(e)"
-    | open_parens expression close_parens {% pass1 %}
-
-labels -> open_brace (  label (comma label):* | null ) close_brace
-{% d => d[1].length ? [d[1][0]].concat(d[1][1].map(v => v[1])) : [] %}
+    | "(" complete_expression ")" {% pass1 %}
 
 record_type_or_literal ->
-      equal {% () => ({ type: "RecordLit", value: [] }) %}
-	  	| non_empty_record_type_or_literal {% pass0 %}
-      | null {% () => ({ type: "Record", value: [] }) %}
+		empty_record_literal {% pass0 %}
+	| non_empty_record_type_or_literal {% pass0 %}
+	| empty_record_type {% pass0 %}
+
+empty_record_literal -> "=" {% () => ({ type: "RecordLit", value: [] }) %}
+empty_record_type -> null {% () => ({ type: "Record", value: [] }) %}
 non_empty_record_type_or_literal ->
-    label (non_empty_record_literal | non_empty_record_type)
-	{% d => {d[1][0].value[0][0] = d[0]; return d[1][0]} %}
-non_empty_record_type    -> colon expression (comma label colon expression):*
+    any_label whsp ( non_empty_record_literal | non_empty_record_type )
+	{% d => {d[2][0].value[0][0] = d[0]; return d[2][0]} %}
+non_empty_record_type    -> ":" whsp1 expression (whsp "," whsp record_type_entry):*
 	{%
-	d => ({ type: "Record", value: [["",d[1]]].concat(d[2].map(v => [v[1],v[3]])) })
+	d => ({ type: "Record", value: [["",d[2]]].concat(d[3].map(v => v[3])) })
 	%}
-non_empty_record_literal -> equal expression (comma label equal expression):*
+record_type_entry -> any_label whsp ":" whsp1 expression {% d => [d[0], d[4]] %}
+non_empty_record_literal -> "=" whsp expression (whsp "," whsp record_literal_entry):*
 	{%
-	d => ({ type: "RecordLit", value: [["",d[1]]].concat(d[2].map(v => [v[1],v[3]])) })
+	d => ({ type: "RecordLit", value: [["",d[2]]].concat(d[3].map(v => v[3])) })
 	%}
+record_literal_entry -> any_label whsp "=" whsp expression {% d => [d[0],d[4]] %}
 
 union_type_or_literal ->
       non_empty_union_type_or_literal {% pass0 %}
-    | null {% () => ({ type: "Union", value: [] }) %}
-non_empty_union_type_or_literal ->
-    label
-    ( equal expression (bar label colon expression):*
-			{%
-			d => lbl => ({ type: "UnionLit", value: [[lbl,d[1]]].concat(d[2].map(v => [v[1],v[3]])) })
-			%}
-    | colon expression (bar non_empty_union_type_or_literal | null)
-			{%
-			d => lbl => d[2].length <= 1 ? { type: "Union", value: [[lbl,d[1]]] } :
-				d[2][1].type === "Union"
-				? { type: "Union", value: [[lbl,d[1]]].concat(d[2][1].value) }
-				// Shuffle the label to the front
-				: { type: "UnionLit", value: d[2][1].value[0].concat([[lbl,d[1]]].concat(d[2][1].slice(1)))}
-			%}
-    )
-	{% d => d[1](d[0]) %}
+    | empty_union_type {% pass0 %}
 
-non_empty_list_literal -> open_bracket expression (comma expression):* close_bracket
-	{% d => ({type: "ListLit", value: [[d[1]].concat(d[2].map(v => v[1])), null]}) %}
+empty_union_type -> null {% () => ({ type: "Union", value: [] }) %}
+
+non_empty_union_type_or_literal ->
+    any_label
+		( whsp
+			( union_literal_variant_value {% pass0 %}
+			| union_type_or_literal_variant_type {% pass0 %}
+			)
+			{% pass1 %}
+		| null {% d => lbl => ({ type: "Union", value: [[lbl,null]] }) %}
+		) {% d => d[1](d[0]) %}
+
+union_literal_variant_value ->
+    "=" whsp expression ( whsp "|" whsp union_type_entry ):*
+		{%
+		d => lbl => ({ type: "UnionLit", value: [[lbl,d[2]]].concat(d[3].map(v => v[3])) })
+		%}
+union_type_entry -> any_label ( whsp ":" whsp1 expression ):?
+		{% d => [d[0],pass(3)(d[1])] %}
+
+union_type_or_literal_variant_type ->
+	# FIXME
+	":" whsp1 expression whsp "|" whsp non_empty_union_type_or_literal
+		{% d => lbl =>
+			d[6].type === "Union"
+			? { type: "Union", value: [[lbl,d[2]]].concat(d[6].value) }
+			// Shuffle the label to the front
+			: { type: "UnionLit", value: [d[6].value[0]].concat([[lbl,d[2]]].concat(d[6].value.slice(1)))}
+		%}
+	| "|" whsp non_empty_union_type_or_literal
+		{% d => lbl =>
+			d[2].type === "Union"
+			? { type: "Union", value: [[lbl,null]].concat(d[2].value) }
+			// Shuffle the label to the front
+			: { type: "UnionLit", value: [d[2].value[0]].concat([[lbl,null]].concat(d[2].value.slice(1))) }
+		%}
+	| ":" whsp1 expression
+		{% d => lbl => ({ type: "Union", value: [[lbl,d[3]]] }) %}
+
+non_empty_list_literal -> "[" whsp expression whsp ("," whsp expression whsp):* "]"
+	{% d => ({ type: "ListLit", value: [[d[2]].concat(d[4].map(v => v[2])),null] }) %}

@@ -8,6 +8,7 @@ import Control.Plus (empty)
 import Data.Array (foldr)
 import Data.Array as Array
 import Data.Const (Const)
+import Data.Either (Either(..))
 import Data.Function (on)
 import Data.Functor.App as AppF
 import Data.Functor.Product (Product(..), product)
@@ -19,7 +20,7 @@ import Data.Int (even, toNumber)
 import Data.Lazy (Lazy, defer)
 import Data.Lens as Lens
 import Data.Map (Map)
-import Data.Maybe (Maybe(..), fromMaybe, isJust)
+import Data.Maybe (Maybe(..), isJust)
 import Data.Maybe.First (First)
 import Data.Monoid.Conj (Conj(..))
 import Data.Monoid.Disj (Disj(..))
@@ -31,7 +32,7 @@ import Data.Traversable (class Traversable, sequence, traverse)
 import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Core.AST (CONST, Expr, UNIT)
+import Dhall.Core.AST (CONST, Expr, TextLitF(..), UNIT)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, ConsNodeOpsM, OverCasesM(..), runAlgebraExprM)
 import Dhall.Core.AST.Types.Basics (S_, _S)
@@ -388,12 +389,6 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
         _, Just (Product (Tuple _ [])) -> simpler l
         _, _ -> reconstruct (_S::S_ "ListAppend") (AST.Pair l r)
       )
-    >>> expose (_S::S_ "OptionalLit")
-      (\(Product (Tuple (Identity ty) mv)) ->
-        case mv of
-          Nothing -> anew (_S::S_ "App") (AST.Pair (anew (_S::S_ "None") mempty) ty)
-          Just v -> anew (_S::S_ "Some") (Identity v)
-      )
     >>> expose (_S::S_ "Combine")
       (let
         decideThese = case _ of
@@ -439,6 +434,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
             default _ = reconstruct (_S::S_ "Merge") (AST.MergeF x y mty)
           in x # exposeW (_S::S_ "RecordLit")
             do \kvsX ->
+                -- TODO: union field
                 y # exposeW (_S::S_ "UnionLit")
                   do \(Product (Tuple (Tuple kY vY) _)) ->
                       case IOSM.get kY kvsX of
@@ -447,14 +443,20 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                   do \_ -> default unit
             do \_ -> default unit
       )
-    >>> expose (_S::S_ "Constructors")
-      (\e' -> extract e' # exposeW (_S::S_ "Union")
-        do \kts -> anew (_S::S_ "Record") $ kts # mapWithIndex \k t_ ->
-            anew (_S::S_ "Lam") $ AST.BindingBody k (t_) $
-              anew (_S::S_ "UnionLit") $ Product $ Tuple
-                (Tuple k (pure $ relayers (AST.mkVar (AST.V k 0)))) $
-              (fromMaybe <*> StrMapIsh.delete k) kts
-        do \_ -> reconstruct (_S::S_ "Constructors") e'
+    >>> expose (_S::S_ "ToMap")
+      (\(Product (Tuple (Identity x) mty)) ->
+          let
+            default _ = reconstruct (_S::S_ "ToMap") (Product (Tuple (Identity x) mty))
+          in x # exposeW (_S::S_ "RecordLit")
+            do \kvs ->
+                anew (_S::S_ "ListLit") $ Product $
+                  Tuple (if IOSM.isEmpty kvs then mty else Nothing) $
+                    IOSM.toUnfoldable kvs <#> \(Tuple k v) ->
+                      anew (_S::S_ "RecordLit") $ IOSM.fromFoldable
+                        [ Tuple "mapKey" (anew (_S::S_ "TextLit") (TextLit k))
+                        , Tuple "mapValue" v
+                        ]
+            do \_ -> default unit
       )
     >>> expose (_S::S_ "Field")
       (\(Tuple k r) ->
@@ -466,32 +468,31 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
               case IOSM.get k kvs of
                 Just v -> simpler v
                 _ -> default unit
-          do exposeW (_S::S_ "Union")
-              do \kvs ->
-                  case IOSM.get k kvs, IOSM.delete k kvs of
-                    Just ty, Just others ->
-                      anewAnd (_S::S_ "Lam") $ AST.BindingBody k ty $
-                        anew (_S::S_ "UnionLit") $ Product $ Tuple
-                          (Tuple k (pure $ relayers (AST.mkVar (AST.V k 0)))) $ others
-                    _, _ -> default unit
-              do \_ -> default unit
+          do \_ -> default unit
       )
     >>> expose (_S::S_ "Project")
-      (\(Tuple (AppF.App ks) r) ->
+      (\(Product (Tuple (Identity r) proj)) ->
         let
-          default _ = reconstruct (_S::S_ "Project") (Tuple (AppF.App ks) r)
-        in r # exposeW (_S::S_ "RecordLit")
-          do
-            \kvs ->
-              let
-                adapt = case _ of
-                  Both (_ :: Unit) v -> Just v
-                  _ -> Nothing
-              in case sequence $ IOSM.unionWith (pure (pure <<< adapt)) ks kvs of
-                -- TODO: recurse necessary?
-                Just vs' -> anewAnd (_S::S_ "RecordLit") vs'
-                _ -> default unit
-          do \_ -> default unit
+          default _ = reconstruct (_S::S_ "Project") (Product (Tuple (Identity r) proj))
+          mks = case proj of
+            Left (AppF.App ks) -> Just ks
+            Right t -> t # exposeW (_S::S_ "RecordLit") (Just <<< (unit <$ _)) \_ -> Nothing
+        in case mks of
+          Nothing -> default unit
+          Just ks
+            | IOSM.isEmpty ks -> anew (_S::S_ "RecordLit") IOSM.empty
+            | otherwise -> r # exposeW (_S::S_ "RecordLit")
+                do
+                  \kvs ->
+                    let
+                      adapt = case _ of
+                        Both (_ :: Unit) v -> Just v
+                        _ -> Nothing
+                    in case sequence $ IOSM.unionWith (pure (pure <<< adapt)) ks kvs of
+                      -- TODO: recurse necessary?
+                      Just vs' -> anewAnd (_S::S_ "RecordLit") vs'
+                      _ -> default unit
+                do \_ -> default unit
       )
     -- NOTE: eta-normalization, added
     >>> expose (_S::S_ "Lam")

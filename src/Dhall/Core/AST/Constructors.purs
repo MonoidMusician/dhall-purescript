@@ -1,8 +1,11 @@
 module Dhall.Core.AST.Constructors where
 
+import Data.Bifunctor (bimap)
 import Data.Const as ConstF
+import Data.Either (Either)
 import Data.Functor.App (App(..))
-import Data.Functor.Product (Product, product)
+import Data.Functor.Compose (Compose(..))
+import Data.Functor.Product (Product(..), product)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Identity (Identity(..))
@@ -10,6 +13,7 @@ import Data.Lens (Prism', prism', iso, only)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
+import Data.Newtype (unwrap)
 import Data.Symbol (class IsSymbol, SProxy(..))
 import Data.Tuple (Tuple(..), swap)
 import Data.Variant.Internal (FProxy)
@@ -17,7 +21,7 @@ import Dhall.Core.AST.Types (Const(..), Expr, ExprLayerRow, Var, embedW, project
 import Dhall.Core.AST.Types.Basics (BindingBody(..), CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
-import Prelude (class Functor, Unit, const, one, pure, unit, zero, (#), ($), (<<<))
+import Prelude (class Functor, Unit, const, identity, one, pure, unit, zero, (#), ($), (<<<))
 import Prim.Row as Row
 
 -- Constructors and prisms for each case of the AST
@@ -117,6 +121,9 @@ mkType = mkConst Type
 
 mkKind :: forall m a. Expr m a
 mkKind = mkConst Kind
+
+mkSort :: forall m a. Expr m a
+mkSort = mkConst Sort
 
 mkVar :: forall m a. Var -> Expr m a
 mkVar = mkExpr (SProxy :: SProxy "Var")
@@ -453,17 +460,6 @@ mkOptional = mkExpr (SProxy :: SProxy "Optional") unit
 _Optional :: forall r. ExprPrism ( "Optional" :: UNIT | r ) Unit
 _Optional = _ExprPrism (SProxy :: SProxy "Optional")
 
-mkOptionalLit :: forall m a. Expr m a -> Maybe (Expr m a) -> Expr m a
-mkOptionalLit ty lit = mkExprF (SProxy :: SProxy "OptionalLit")
-  (product (Identity ty) lit)
-
-_OptionalLit :: forall r o.
-  Prism' (VariantF ( "OptionalLit" :: FProxy (Product Identity Maybe) | r ) o)
-  { ty :: o, value :: Maybe o }
-_OptionalLit = _ExprFPrism (SProxy :: SProxy "OptionalLit") <<< _Newtype <<< iso into outof where
-  into (Tuple (Identity ty) value) = { ty, value }
-  outof { ty, value } = Tuple (Identity ty) value
-
 mkSome :: forall m a. Expr m a -> Expr m a
 mkSome val = mkExprF (SProxy :: SProxy "Some")
   (Identity val)
@@ -512,15 +508,15 @@ _RecordLit_empty :: forall r o m. StrMapIsh m =>
   Prism' (VariantF ( "RecordLit" :: FProxy m | r ) o) Unit
 _RecordLit_empty = _RecordLit <<< StrMapIsh._Empty
 
-mkUnion :: forall m a. Functor m => m (Expr m a) -> Expr m a
-mkUnion = mkExprF (SProxy :: SProxy "Union")
+mkUnion :: forall m a. Functor m => m (Maybe (Expr m a)) -> Expr m a
+mkUnion = mkExprF (SProxy :: SProxy "Union") <<< Compose
 
-_Union :: forall r m. Functor m => ExprFPrism ( "Union" :: FProxy m | r ) m
+_Union :: forall r m. Functor m => ExprFPrism ( "Union" :: FProxy (Compose m Maybe) | r ) (Compose m Maybe)
 _Union = _ExprFPrism (SProxy :: SProxy "Union")
 
 _Union_empty :: forall r o m. StrMapIsh m =>
-  Prism' (VariantF ( "Union" :: FProxy m | r ) o) Unit
-_Union_empty = _Union <<< StrMapIsh._Empty
+  Prism' (VariantF ( "Union" :: FProxy (Compose m Maybe) | r ) o) Unit
+_Union_empty = _Union <<< _Newtype <<< StrMapIsh._Empty
 
 mkUnionLit :: forall m a. Functor m => String -> Expr m a -> m (Expr m a) -> Expr m a
 mkUnionLit name value others = mkExprF (SProxy :: SProxy "UnionLit")
@@ -558,12 +554,12 @@ mkMerge x y t = mkExprF (SProxy :: SProxy "Merge")
 _Merge :: forall r. ExprFPrism ( "Merge" :: FProxy MergeF | r ) MergeF
 _Merge = _ExprFPrism (SProxy :: SProxy "Merge")
 
-mkConstructors :: forall m a. Expr m a -> Expr m a
-mkConstructors = mkExprF (SProxy :: SProxy "Constructors") <<< Identity
+mkToMap :: forall m a. Expr m a -> Maybe (Expr m a) -> Expr m a
+mkToMap x t = mkExprF (SProxy :: SProxy "ToMap")
+  (Product (Tuple (Identity x) t))
 
-_Constructors :: forall r o.
-  Prism' (VariantF ( "Constructors" :: FProxy Identity | r ) o) o
-_Constructors = _ExprFPrism (SProxy :: SProxy "Constructors") <<< _Newtype
+_ToMap :: forall r. ExprFPrism ( "ToMap" :: FProxy (Product Identity Maybe) | r ) (Product Identity Maybe)
+_ToMap = _ExprFPrism (SProxy :: SProxy "ToMap")
 
 mkField :: forall m a. Expr m a -> String -> Expr m a
 mkField expr field = mkExprF (SProxy :: SProxy "Field")
@@ -574,16 +570,16 @@ _Field :: forall r o. Prism'
   (Tuple o String)
 _Field = _ExprFPrism (SProxy :: SProxy "Field") <<< iso swap swap
 
-mkProject :: forall m a. Expr m a -> m Unit -> Expr m a
+mkProject :: forall m a. Expr m a -> Either (m Unit) (Expr m a) -> Expr m a
 mkProject expr fields = mkExprF (SProxy :: SProxy "Project")
-  (Tuple (App fields) expr)
+  (Product (Tuple (pure expr) (bimap App identity fields)))
 
 _Project :: forall m r o. Prism'
-  (VariantF ( "Project" :: FProxy (Tuple (App m Unit)) | r ) o)
-  (Tuple o (m Unit))
+  (VariantF ( "Project" :: FProxy (Product Identity (Either (App m Unit))) | r ) o)
+  (Tuple o (Either (m Unit) o))
 _Project = _ExprFPrism (SProxy :: SProxy "Project") <<< iso
-  do \(Tuple (App a) o) -> Tuple o a
-  do \(Tuple o a) -> Tuple (App a) o
+  do \(Product (Tuple (Identity o) e)) -> Tuple o (bimap unwrap identity e)
+  do \(Tuple o e) -> Product (Tuple (Identity o) (bimap App identity e))
 
 mkImportAlt :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkImportAlt = mkBinOp (SProxy :: SProxy "ImportAlt")

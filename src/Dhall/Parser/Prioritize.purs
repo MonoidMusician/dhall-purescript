@@ -60,7 +60,7 @@ symmetricize f a b =
     _, _ -> Just UNC
 
 -- Turn an "is better than" relation into a partial partial ordering.
-fromRelation :: forall t. Eq t =>
+fromRelation :: forall t.
   (t -> t -> Disj Boolean) ->
   (t -> t -> Maybe POrdering)
 fromRelation f = symmetricize \a b ->
@@ -68,7 +68,17 @@ fromRelation f = symmetricize \a b ->
     Disj true -> Just PGT
     Disj false -> Nothing
 
-fromLRPredicates :: forall t. Eq t =>
+fromGERelation :: forall t.
+  (t -> t -> Boolean) ->
+  (t -> t -> POrdering)
+fromGERelation f a b =
+  case f a b, f b a of
+    true, true -> PEQ
+    true, false -> PGT
+    false, true -> PLT
+    false, false -> UNC
+
+fromLRPredicates :: forall t.
   (t -> Boolean) ->
   (t -> Boolean) ->
   (t -> t -> Maybe POrdering)

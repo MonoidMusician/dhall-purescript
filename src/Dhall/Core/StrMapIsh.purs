@@ -39,6 +39,7 @@ class (Ord1 m, TraversableWithIndex String m) <= StrMapIsh m where
   unionWith :: forall a b c. (String -> These a b -> Maybe c) -> m a -> m b -> m c
   toUnfoldable :: forall f a. Unfoldable f => m a -> f (Tuple String a)
   fromFoldable :: forall f a. Foldable f => f (Tuple String a) -> m a
+  size :: forall a. m a -> Int
 
 symmetricDiff :: forall m a b. StrMapIsh m => m a -> m b -> m (Either a b)
 symmetricDiff = unionWith \_ -> case _ of
@@ -76,6 +77,7 @@ instance strMapMapString :: StrMapIsh (Map String) where
   unionWith = unionWithMapThese
   toUnfoldable = Map.toUnfoldable
   fromFoldable = Map.fromFoldable
+  size = Map.size
 
 newtype InsOrdStrMap a = InsOrdStrMap (Compose Array (Tuple String) a)
 derive instance newtypeIOSM :: Newtype (InsOrdStrMap a) _
@@ -137,6 +139,7 @@ instance strMapIshIOSM :: StrMapIsh InsOrdStrMap where
       Array.foldl inserting (map This <$> l) (map That <$> r)
   toUnfoldable = unIOSM >>> Array.toUnfoldable
   fromFoldable = mkIOSM <<< Array.nubBy (compare `on` fst) <<< Array.fromFoldable
+  size = unIOSM >>> Array.length
 
 -- FIXME: I don't think this is what I want for this name?
 set :: forall m a. StrMapIsh m => String -> a -> m a -> Maybe (m a)

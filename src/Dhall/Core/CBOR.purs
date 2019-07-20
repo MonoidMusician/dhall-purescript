@@ -9,6 +9,7 @@ import Data.Argonaut.Core as J
 import Data.Array (any, fold)
 import Data.Array as Array
 import Data.Const (Const(..))
+import Data.Either (Either(..))
 import Data.Functor.App (App(..))
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant as VariantF
@@ -18,7 +19,7 @@ import Data.Int as Int
 import Data.List (List)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Natural (intToNat, natToInt)
-import Data.Newtype (un)
+import Data.Newtype (un, unwrap)
 import Data.Traversable (traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..), fst)
@@ -67,6 +68,7 @@ encode = projectW >>> VariantF.match
   , "Const": un Const >>> case _ of
       Type -> J.fromString "Type"
       Kind -> J.fromString "Kind"
+      Sort -> J.fromString "Sort"
   , "App": \(Pair f z) -> tagged 0 $
       let
         rec a = a # projectW # VariantF.on (_S::S_ "App")
@@ -100,13 +102,19 @@ encode = projectW >>> VariantF.match
       case mty of
         Nothing -> [ encode rec, encode val ]
         Just ty -> [ encode rec, encode val, encode ty ]
+  , "ToMap": \(Product (Tuple (Identity rec) mty)) -> tagged 27
+      case mty of
+        Nothing -> [ encode rec ]
+        Just ty -> [ encode rec, encode ty ]
   , "Record": \m -> tagged 7 [ toObject $ encode <$> m ]
   , "RecordLit": \m -> tagged 8 [ toObject $ encode <$> m ]
   , "Field": \(Tuple name expr) -> tagged 9 [ encode expr, J.fromString name ]
   -- TODO: project by type
-  , "Project": \(Tuple (App names) expr) -> tagged 10 $ [ encode expr ] <>
-      (J.fromString <<< fst <$> StrMapIsh.toUnfoldable names)
-  , "Union": \m -> tagged 11 [ toObject $ encode <$> m ]
+  , "Project": \(Product (Tuple (Identity expr) projs)) -> tagged 10 $ [ encode expr ] <>
+      case projs of
+        Left (App names) -> (J.fromString <<< fst <$> StrMapIsh.toUnfoldable names)
+        Right fields -> [ encode fields ]
+  , "Union": \m -> tagged 11 [ toObject $ maybe null encode <$> unwrap m ]
   , "UnionLit": \(Product (Tuple (Tuple name val) m)) -> tagged 12
       [ J.fromString name, encode val, toObject $ encode <$> m ]
   , "BoolLit": un Const >>> J.fromBoolean
@@ -125,11 +133,6 @@ encode = projectW >>> VariantF.match
   , "Let": \(LetF name mty val expr) -> tagged 25 $
       [ J.fromString name, maybe null encode mty, encode val ] <> [ encode expr ]
   , "Annot": \(Pair val ty) -> tagged 26 [ encode val, encode ty ]
-  , "Constructors": \(Identity v) -> tagged 13 [ encode v ]
-  , "OptionalLit": \(Product (Tuple (Identity ty) mval)) ->
-      case mval of
-        Nothing -> tagged 0 [ J.fromString "None", encode ty ]
-        Just val -> tagged 5 [ null, encode val ]
   }
 
 null :: Json
@@ -172,6 +175,7 @@ encodeImport = case _ of
       [ int case importMode of
           Code -> 0
           RawText -> 1
+          Location -> 2
       ] <> case importType of
         Remote (URL url@{ path: File { directory: Directory dirs, file } }) ->
           [ int case url.scheme of
@@ -206,6 +210,7 @@ decodeImport q = do
   importMode <- decodeTag importMode' >>= case _ of
     0 -> Just Code
     1 -> Just RawText
+    2 -> Just Location
     _ -> Nothing
   { head: importType', tail: q3 } <- Array.uncons q2
   let
@@ -303,6 +308,7 @@ decode = J.caseJson
       "List" -> pure AST.mkList
       "Type" -> pure AST.mkType
       "Kind" -> pure AST.mkKind
+      "Sort" -> pure AST.mkSort
       _ -> empty
     decodeMaybe j = case J.toNull j of
       Just _ -> pure Nothing
@@ -389,13 +395,19 @@ decode = J.caseJson
       10 -> \q -> do
         { head, tail } <- Array.uncons q
         expr' <- decode head
-        tail' <- traverse J.toString tail
-        let names' = StrMapIsh.fromFoldable $ Tuple <$> tail' <@> unit
-        pure $ AST.mkProject expr' names'
+        proj' <- case traverse J.toString tail of
+          Just tail' ->
+            pure $ Left $ StrMapIsh.fromFoldable $ Tuple <$> tail' <@> unit
+          Nothing -> case tail of
+            [ fields ] -> do
+              fields' <- decode fields
+              pure $ Right fields'
+            _ -> empty
+        pure $ AST.mkProject expr' proj'
       11 -> case _ of
         [ m ] -> do
           m' <- fromObject m
-          AST.mkUnion <$> traverse decode m'
+          AST.mkUnion <$> traverse decodeMaybe m'
         _ -> empty
       12 -> case _ of
         [ name, val, m ] -> do
@@ -431,7 +443,8 @@ decode = J.caseJson
       26 -> case _ of
         [ val, ty ] -> AST.mkAnnot <$> decode val <*> decode ty
         _ -> empty
-      13 -> case _ of
-        [ v ] -> AST.mkConstructors <$> decode v
+      27 -> case _ of
+        [ val ] -> AST.mkToMap <$> decode val <@> Nothing
+        [ val, ty ] -> AST.mkToMap <$> decode val <*> (Just <$> decode ty)
         _ -> empty
       _ -> pure empty

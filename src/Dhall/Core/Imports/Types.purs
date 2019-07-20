@@ -130,7 +130,7 @@ prettyImportType (Env env) = "env:" <> env
 prettyImportType Missing = "missing"
 
 -- | How to interpret the import's contents (i.e. as Dhall code or raw text)
-data ImportMode = Code | RawText
+data ImportMode = Code | RawText | Location
 
 derive instance eqImportMode :: Eq ImportMode
 derive instance ordImportMode :: Ord ImportMode
@@ -179,6 +179,7 @@ prettyImport (Import { importHashed, importMode }) =
         suffix :: String
         suffix = case importMode of
             RawText -> " as Text"
+            Location -> " as Location"
             Code    -> ""
 
 type Header = { header :: String, value :: String }

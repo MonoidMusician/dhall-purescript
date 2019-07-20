@@ -5,6 +5,7 @@ import Prelude
 import Control.Monad.Free (hoistFree)
 import Data.Bifunctor (lmap)
 import Data.Functor.App (App(..))
+import Data.Functor.Compose (Compose(..))
 import Data.Functor.Product (bihoistProduct)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
@@ -21,10 +22,10 @@ import Type.Proxy (Proxy2)
 hoistExpr :: forall m m'. Functor m' => (m ~> m') -> Expr m ~> Expr m'
 hoistExpr nat = over Expr $ hoistFree \a ->
   VariantF.expandOverMatch
-    { "Project": lmap (over App nat)
+    { "Project": (bihoistProduct identity (lmap (over App nat)) $ _)
     , "Record": ($) nat
     , "RecordLit": ($) nat
-    , "Union": ($) nat
+    , "Union": ($) over Compose nat
     , "UnionLit": (bihoistProduct identity nat $ _)
     } identity a
 

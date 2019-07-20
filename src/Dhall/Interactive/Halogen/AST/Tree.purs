@@ -9,7 +9,9 @@ import Control.Comonad.Env (EnvT(..), withEnvT)
 import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.Const (Const)
+import Data.Either (Either(..))
 import Data.Exists (Exists, mkExists, runExists)
+import Data.Functor.App (App(..))
 import Data.Functor.Compose (Compose(..))
 import Data.Functor.Variant (FProxy, VariantF)
 import Data.Functor.Variant as VariantF
@@ -26,7 +28,7 @@ import Data.Maybe (Maybe(..), maybe, fromMaybe)
 import Data.Monoid (guard)
 import Data.Monoid.Disj (Disj)
 import Data.Natural (Natural, intToNat, natToInt)
-import Data.Newtype (class Newtype, under, unwrap)
+import Data.Newtype (class Newtype, un, under, unwrap)
 import Data.Number as Number
 import Data.Ord (abs, signum)
 import Data.Profunctor.Star (Star(..))
@@ -51,6 +53,10 @@ import Unsafe.Coerce (unsafeCoerce)
 type Rendering r m a = Star (Compose (SlottedHTML r) (These m)) a a
 rendering :: forall r m a. (a -> H.ComponentHTML (These m a) r Aff) -> Rendering r m a
 rendering f = Star $ Compose <<< SlottedHTML <<< f
+unrendering :: forall r m a. Rendering r m a -> (a -> H.ComponentHTML (These m a) r Aff)
+unrendering f = un SlottedHTML <<< un Compose <<< un Star f
+unrenderingWith :: forall r m a b. (a -> b) -> Rendering r m a -> (a -> H.ComponentHTML (These m b) r Aff)
+unrenderingWith g f = un SlottedHTML <<< (map <<< map) g <<< un Compose <<< un Star f
 renderingR :: forall r m a. (a -> H.ComponentHTML a r Aff) -> Rendering r m a
 renderingR f = Star $ Compose <<< map That <<< SlottedHTML <<< f
 type RenderAnd r m a = { df :: a, rndr :: Rendering r m a }
@@ -270,10 +276,11 @@ renderBuiltinTypes _ = identity
     named = []
     renderConst = pure $ mkLensed "constant" _Newtype $ renderingR \v ->
       HH.select
-        [ HE.onSelectedIndexChange (Array.(!!) [AST.Type, AST.Kind])
+        [ HE.onSelectedIndexChange (Array.(!!) [AST.Type, AST.Kind, AST.Sort])
         ]
         [ HH.option [ HP.selected (v == AST.Type) ] [ HH.text "Type" ]
         , HH.option [ HP.selected (v == AST.Kind) ] [ HH.text "Kind" ]
+        , HH.option [ HP.selected (v == AST.Sort) ] [ HH.text "Sort" ]
         ]
 
 renderBuiltinFuncs :: forall r m a. RenderingOptions -> RenderChunk AST.BuiltinFuncs r m a
@@ -324,9 +331,9 @@ renderBuiltinBinOps _ { rndr: renderA } = identity
 renderBuiltinOps :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.BuiltinOps r m a
 renderBuiltinOps opts { df, rndr: renderA } = renderBuiltinBinOps opts { df, rndr: renderA }
   >>> renderVFLensed (_S::S_ "Field") renderField
-  >>> renderVFLensed (_S::S_ "Constructors") [ mkLensed "argument" _Newtype renderA ]
   >>> renderVFLensed (_S::S_ "BoolIf") renderBoolIf
   >>> renderVFLensed (_S::S_ "Merge") renderMerge
+  >>> renderVFLensed (_S::S_ "ToMap") renderToMap
   >>> renderVFLensed (_S::S_ "Project") renderProject
   where
     renderField =
@@ -349,10 +356,18 @@ renderBuiltinOps opts { df, rndr: renderA } = renderBuiltinBinOps opts { df, rnd
       , mkLensed "argument" m_1 renderA
       , mkLensed "type" m_2 (renderMaybe opts { df, rndr: renderA })
       ]
+    renderToMap =
+      [ mkLensed "expression" (_Newtype <<< Tuple._1 <<< _Newtype) renderA
+      , mkLensed "type" (_Newtype <<< Tuple._2) (renderMaybe opts { df, rndr: renderA })
+      ]
     renderProject =
-      [ mkLensed "expression" Tuple._2 renderA
-      , mkLensed "fields" (Tuple._1 <<< _Newtype)
-        (renderIOSM opts { df: unit, rndr: rendering $ const $ HH.text $ "" })
+      [ mkLensed "expression" (_Newtype <<< Tuple._1 <<< _Newtype) renderA
+      , mkLensed "fields" (_Newtype <<< Tuple._2) $ rendering case _ of
+        Left (App fields) ->
+          (#) fields $ unrenderingWith (Left <<< App) $
+            renderIOSM opts { df: unit, rndr: rendering $ const $ HH.text $ "" }
+        Right fields ->
+          (#) fields $ unrenderingWith Right renderA
       ]
 
 renderBuiltinTypes2 :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.BuiltinTypes2 r m a
@@ -360,7 +375,7 @@ renderBuiltinTypes2 opts { df, rndr: renderA } = identity
   >>> renderVFLensed (_S::S_ "Record")
     [ mkLensed "types" identity (renderIOSM opts { df, rndr: renderA }) ]
   >>> renderVFLensed (_S::S_ "Union")
-    [ mkLensed "types" identity (renderIOSM opts { df, rndr: renderA }) ]
+    [ mkLensed "types" _Newtype (renderIOSM opts { df: Just df, rndr: renderMaybe opts { df, rndr: renderA } }) ]
 
 renderLiterals2 :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.Literals2 r m a
 renderLiterals2 opts { df, rndr: renderA } = identity
@@ -369,7 +384,6 @@ renderLiterals2 opts { df, rndr: renderA } = identity
   >>> renderVFLensed (_S::S_ "RecordLit")
     [ mkLensed "values" identity (renderIOSM opts { df, rndr: renderA }) ]
   >>> renderVFLensed (_S::S_ "UnionLit") renderUnionLit
-  >>> renderVFLensed (_S::S_ "OptionalLit") renderOptionalLit
   >>> renderVFLensed (_S::S_ "ListLit") renderListLit
   >>> renderVFLensed (_S::S_ "TextLit") [] -- TODO
   where
@@ -377,10 +391,6 @@ renderLiterals2 opts { df, rndr: renderA } = identity
       [ mkLensed "label" (Product._1 <<< Tuple._1) (renderString opts)
       , mkLensed "value" (Product._1 <<< Tuple._2) renderA
       , mkLensed "types" Product._2 (renderIOSM opts { df, rndr: renderA })
-      ]
-    renderOptionalLit =
-      [ mkLensed "type" (Product._1 <<< _Newtype) renderA
-      , mkLensed "value" Product._2 (renderMaybe opts { df, rndr: renderA })
       ]
     renderListLit =
       [ mkLensed "type" Product._1 (renderMaybe opts { df, rndr: renderA })

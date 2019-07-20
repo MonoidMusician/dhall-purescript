@@ -1,7 +1,7 @@
 module Dhall.Core.Zippers.Recursive.Navigate where
 
 import Dhall.Core.Zippers.Recursive (ZRec(..), downZRec, upZRec, (:<<~:))
-import Prelude
+import Prelude hiding (top)
 
 import Control.Alternative (class Alternative, empty)
 import Control.Comonad (extract)

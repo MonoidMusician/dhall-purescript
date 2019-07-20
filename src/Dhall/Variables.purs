@@ -26,7 +26,6 @@ import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, GenericExprAlgebraVT, GenericExprAlgebraVTM, NodeOps, NodeOpsM, elim1, elim1M, runAlgebraExpr, runOverCases, runOverCasesM)
 import Matryoshka (Algebra, cata)
 import Type.Row (type (+))
-import Type.Row as R
 import Type.RowList as RL
 
 -- | `shift` is used by both normalization and type-checking to avoid variable
