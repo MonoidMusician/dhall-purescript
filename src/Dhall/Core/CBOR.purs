@@ -109,7 +109,6 @@ encode = projectW >>> VariantF.match
   , "Record": \m -> tagged 7 [ toObject $ encode <$> m ]
   , "RecordLit": \m -> tagged 8 [ toObject $ encode <$> m ]
   , "Field": \(Tuple name expr) -> tagged 9 [ encode expr, J.fromString name ]
-  -- TODO: project by type
   , "Project": \(Product (Tuple (Identity expr) projs)) -> tagged 10 $ [ encode expr ] <>
       case projs of
         Left (App names) -> (J.fromString <<< fst <$> StrMapIsh.toUnfoldable names)
@@ -129,9 +128,12 @@ encode = projectW >>> VariantF.match
         rec (TextLit s) = [ J.fromString s ]
         rec (TextInterp s a m') = [ J.fromString s, encode a ] <> rec m'
       in tagged 18 (rec m)
-  -- TODO
-  , "Let": \(LetF name mty val expr) -> tagged 25 $
-      [ J.fromString name, maybe null encode mty, encode val ] <> [ encode expr ]
+  , "Let": \d0 -> tagged 25 $
+      let
+        rec (LetF name mty val expr) =
+          [ J.fromString name, maybe null encode mty, encode val ] <>
+          (expr # projectW # VariantF.on (_S::S_ "Let") rec \_ -> [ encode expr ])
+      in rec d0
   , "Annot": \(Pair val ty) -> tagged 26 [ encode val, encode ty ]
   }
 
@@ -391,7 +393,6 @@ decode = J.caseJson
           name' <- J.toString name
           pure $ AST.mkField expr' name'
         _ -> empty
-      -- TODO: project by type
       10 -> \q -> do
         { head, tail } <- Array.uncons q
         expr' <- decode head
@@ -435,11 +436,17 @@ decode = J.caseJson
             then J.toString >=> TextLit >>> pure
             else decode >=> pureTextLitF >>> pure
       24 -> ([ J.fromNumber 24.0 ] <> _) >>> decodeImport >>> map pure
-      -- TODO
-      25 -> case _ of
-        [ name, mty, val, expr ] -> do
-          AST.mkLet <$> J.toString name <*> decodeMaybe mty <*> decode val <*> decode expr
-        _ -> empty
+      25 ->
+        let
+          dec1 j | Array.length j < 4 = empty
+          dec1 j = dec j
+          dec =
+            case _ of
+              [ expr ] -> decode expr
+              j | [ name, mty, val ] <- Array.slice 0 3 j -> do
+                AST.mkLet <$> J.toString name <*> decodeMaybe mty <*> decode val <*> dec (Array.drop 3 j)
+              _ -> empty
+        in dec1
       26 -> case _ of
         [ val, ty ] -> AST.mkAnnot <$> decode val <*> decode ty
         _ -> empty
