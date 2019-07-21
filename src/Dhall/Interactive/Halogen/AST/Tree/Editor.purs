@@ -27,12 +27,11 @@ import Data.These (These(..))
 import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant as Variant
-import Dhall.Context as Dhall.Context
 import Dhall.Core (S_, _S)
 import Dhall.Core as AST
 import Dhall.Core.AST (ExprI, ExprRowVFI(..))
 import Dhall.Core.AST.Noted as Ann
-import Dhall.Core.AST.Operations.Location (Location)
+import Dhall.Core.AST.Operations.Location (Location, Derivation)
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Types.Basics (Three(..))
 import Dhall.Core.Imports.Types as Core.Imports
@@ -46,7 +45,7 @@ import Dhall.Interactive.Halogen.Inputs (inline_feather_button_action)
 import Dhall.Lib.Timeline (Timeline)
 import Dhall.Lib.Timeline as Timeline
 import Dhall.Parser as Dhall.Parser
-import Dhall.TypeCheck (Errors, L, TypeCheckError, locateE)
+import Dhall.TypeCheck (Errors, L, OxprE, Reference(..), TypeCheckError(..), Oxpr, oneStopShop, plain, topLoc, typecheckStep)
 import Effect.Aff (Aff)
 import Halogen as H
 import Halogen.HTML as HH
@@ -88,6 +87,10 @@ type ViewState =
 type ViewRender =
   { st :: ViewState
   , window :: ERROR Ixpr
+  , oxpr :: OxprE () ( "Not found" :: ExprRowVFI ) IOSM.InsOrdStrMap (Maybe Core.Imports.Import)
+  , explain ::
+      TypeCheckError (Errors ( "Not found" :: ExprRowVFI )) (L IOSM.InsOrdStrMap (Maybe Core.Imports.Import)) ->
+      Array (Reference (Maybe (OxprE () ( "Not found" :: ExprRowVFI ) IOSM.InsOrdStrMap (Maybe Core.Imports.Import))))
   , editable :: Boolean
   , exists :: Boolean
   , typechecks :: Boolean
@@ -206,19 +209,23 @@ viewer = H.mkComponent
     renderInfo :: ViewState -> ViewRender
     renderInfo st =
       let
-        from = { ctx: Dhall.Context.empty, expr: Ann.denote st.value }
         steps = (Variant.expand <$> st.view)
-        to = unWriterT $ locateE tpi steps from
-        typeof = unWriterT <<< locateE tpi (pure (Variant.inj (_S::S_ "typecheck") {})) =<< to
-        window = Ann.innote mempty <<< _.expr <$> to
+        base = oneStopShop (pure <<< tpi) (Ann.denote st.value)
+        to = unWriterT $ base.locate (pure (Tuple steps Nothing))
+        typeof = unWriterT <<< typecheckStep =<< to
+        window = Ann.innote mempty <<< plain <$> to
       in
         { st, window
+        , oxpr: base.oxpr
+        , explain: base.explain
+            {- <<< (map <<< map) case _ of
+            Tuple l Nothing -> Tuple (l <> steps) Nothing
+            Tuple l (Just e) -> Tuple l (Just e)
+            -}
         , editable: isJust (Loc.allWithin st.view)
         , exists: any tt window
         , typechecks: any tt typeof
         }
-    showError :: TypeCheckError (Errors ( "Not found" :: ExprRowVFI )) (L IOSM.InsOrdStrMap (Maybe Core.Imports.Import)) -> String
-    showError = unsafeCoerce >>> _.tag >>> _.type
     render :: ViewRender -> HH.ComponentHTML (ViewQuery Unit) () Aff
     render r = HH.div [ HP.class_ (H.ClassName "expr-viewer") ]
       [ HH.div [ HP.class_ (H.ClassName "header") ]
@@ -253,7 +260,12 @@ viewer = H.mkComponent
             flowers <#> ViewAction unit <<< bifoldMap pure (pure <<< SetView)
           Error errors' _ | errors <- NEA.toArray errors' ->
             HH.ul [ HP.class_ (H.ClassName "errors") ] $ errors <#>
-              showError >>> HH.text >>> pure >>> HH.li_
+              \t@(TypeCheckError { location, tag }) -> let errorName = (unsafeCoerce tag)."type" in
+                HH.li  [ HP.class_ (H.ClassName "error-display") ]
+                  [ HH.h3 [ HP.class_ (H.ClassName "error-name") ] [ HH.text errorName ]
+                  , HH.div [ HP.class_ (H.ClassName "error-location") ] [ renderLoc (fst $ extract location) ]
+                  , renderReferences renderErrorRef (r.explain t)
+                  ]
       , HH.div [ HP.class_ (H.ClassName "edit-bar") ] $ guard (r.editable && isJust r.st.selection) $
         [ inline_feather_button_action (Just (ViewAction unit [SetSelection (Ann.innote mempty $ pure Nothing)])) "trash-2" "Delete this node"
         , HH.text " "
@@ -278,12 +290,66 @@ renderLocation loc = HH.span [ HP.class_ (H.ClassName "location") ] $
         , typecheck: \_ -> inline_feather_button_action act "type" "Typechecked"
         }
 
+renderLoc :: forall p q. Derivation -> HH.HTML p q
+renderLoc loc = HH.span [ HP.class_ (H.ClassName "location") ] $
+  intercalate [ HH.span [ HP.class_ (H.ClassName "breadcrumb-sep") ] [] ] $
+    (<|>) (pure $ pure $ inline_feather_button_action Nothing "home" "Top of expression") $
+    List.reverse loc # mapWithIndex \i -> pure <<<
+      Variant.match
+        { within: ($) renderERVFI
+        , normalize: \_ -> inline_feather_button_action Nothing "cpu" "Normalized"
+        , typecheck: \_ -> inline_feather_button_action Nothing "type" "Typechecked"
+        , shift: \{ variable, delta } -> HH.text $ "↑(" <> show variable <> ", " <> show delta <> ")"
+        , substitute: \_ -> HH.text $ "[…]"
+        }
+
+renderErrorRef :: forall w r.
+  Maybe (Oxpr w r IOSM.InsOrdStrMap (Maybe Core.Imports.Import)) ->
+  H.ComponentHTML (ViewQuery Unit) () Aff
+renderErrorRef Nothing = HH.text "(missing)"
+renderErrorRef (Just oxpr) = case extract $ topLoc oxpr of
+  Tuple path Nothing -> HH.div_
+    [ renderLoc path
+    , un SlottedHTML $
+      renderExprWith { interactive: false, editable: false } mempty (Ann.innote mempty $ plain oxpr)
+      <#> ViewAction unit <<< bifoldMap pure (pure <<< SetView)
+    ]
+  -- the path is not helpful if the focus is made up
+  Tuple _ (Just _) -> HH.div_
+    [ un SlottedHTML $
+      renderExprWith { interactive: false, editable: false } mempty (Ann.innote mempty $plain oxpr)
+      <#> ViewAction unit <<< bifoldMap pure (pure <<< SetView)
+    ]
+
 renderERVFI :: forall p q. ExprRowVFI -> HH.HTML p q
 renderERVFI ervfi = HH.span [ HP.class_ (H.ClassName "index") ]
   [ HH.span [ HP.class_ (H.ClassName "type") ] [ HH.text (unsafeCoerce ervfi)."type" ]
   , HH.text " "
   , HH.span [ HP.class_ (H.ClassName "tag") ] [ HH.text (tagERVFI ervfi) ]
   ]
+
+renderReferences ::
+  forall p q a. (a -> HH.HTML p q) -> Array (Reference a) -> HH.HTML p q
+renderReferences renderA as = HH.div [ HP.class_ (H.ClassName "references") ] $
+  map (renderReference <<< map renderA) as
+
+renderReference :: forall p q. Reference (HH.HTML p q) -> HH.HTML p q
+renderReference = case _ of
+  Text desc -> HH.text desc
+  Br -> HH.br_
+  Reference a -> HH.div [ HP.class_ (H.ClassName "reference") ] [ a ]
+  List as -> HH.ol [ HP.class_ (H.ClassName "reference-list") ] $ as <#> \a ->
+    HH.li [ HP.class_ (H.ClassName "reference-item") ] [ renderReference a ]
+  Compare sl l sr r -> HH.div [ HP.class_ (H.ClassName "reference-compare") ]
+    [ HH.div [ HP.class_ (H.ClassName "reference-compare-left") ]
+      [ HH.div [ HP.class_ (H.ClassName "reference-compare-title") ] [ HH.text sl ]
+      , HH.div [ HP.class_ (H.ClassName "reference-compare-body") ] [ l ]
+      ]
+    , HH.div [ HP.class_ (H.ClassName "reference-compare-right") ]
+      [ HH.div [ HP.class_ (H.ClassName "reference-compare-title") ] [ HH.text sr ]
+      , HH.div [ HP.class_ (H.ClassName "reference-compare-body") ] [ r ]
+      ]
+    ]
 
 tagERVFI :: ExprRowVFI -> String
 tagERVFI = un ERVFI >>> Variant.match
@@ -357,10 +423,10 @@ tagERVFI = un ERVFI >>> Variant.match
   , "ToMap": case _ of
       Left (_ :: Unit) -> "expr"
       Right (_ :: Unit) -> "type"
-  , "App": if _ then "fn" else "arg"
-  , "Annot": if _ then "value" else "type"
-  , "Lam": if _ then "type" else "body"
-  , "Pi": if _ then "type" else "body"
+  , "App": not >>> if _ then "fn" else "arg"
+  , "Annot": not >>> if _ then "value" else "type"
+  , "Lam": not >>> if _ then "type" else "body"
+  , "Pi": not >>> if _ then "type" else "body"
   , "Let": case _ of
       Three1 -> "type"
       Three2 -> "value"

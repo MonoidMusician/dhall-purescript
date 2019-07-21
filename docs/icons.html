@@ -5,10 +5,14 @@
     <title>Dhall AST Editor: Icons test</title>
     <style>
     body {
-      font-size: 24px;
+      font-size: 18px;
       font-family: sans-serif;
       background-color: #242430;
       color: hsl(42, 41%, 80%);
+    }
+    ul, dl {
+      margin-block-start: 0.5em;
+      margin-block-end: 0.5em;
     }
     svg.feather {
       width: 1em;
@@ -128,7 +132,7 @@
       font-weight: bold;
     }
     .node-child {
-      padding-left: 1.5em;
+      padding-left: 1em;
     }
     .node-child > span:first-child {
       color: hsla(120, 83%, 32%, 0.90);
@@ -160,7 +164,7 @@
     }
     /* Magical shrinking AST */
     .node-child > .expression {
-      font-size: 95%;
+      font-size: 100%;
     }
     .selected {
       outline: 4px auto cyan;
@@ -168,6 +172,34 @@
 
     .breadcrumb-sep::after {
       content: " › ";
+    }
+
+    .references {
+      color: #e75656;
+    }
+    .references .reference {
+      color: hsl(42, 41%, 80%);
+    }
+    .error-name {
+      display: inline-block;
+    }
+    .error-location {
+      display: inline-block;
+      margin-left: 2em;
+      font-size: 80%;
+    }
+    .reference {
+      border: 2px solid #407d76;
+      padding: 2px;
+    }
+    .reference:hover {
+      border: 2px solid #33baba;
+    }
+    .reference > div > .location {
+      font-size: 60%;
+    }
+    .reference > div > .expression {
+      font-size: 60%;
     }
     </style>
     <style>

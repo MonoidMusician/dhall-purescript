@@ -51,6 +51,8 @@ instance showConst :: Show Const where
 data Var = V String Int
 derive instance eqVar :: Eq Var
 derive instance ordVar :: Ord Var
+instance showVar :: Show Var where
+  show (V name idx) = name <> "@" <> show idx
 
 -- Constant (non-recursive) literal types; the base of the AST, essentially
 type Literals (m :: Type -> Type) vs =
@@ -626,6 +628,7 @@ newtype ExprRowVFI = ERVFI ExprLayerFI
 derive instance newtypeERVFI :: Newtype ExprRowVFI _
 derive newtype instance eqERVFI :: Eq ExprRowVFI
 derive newtype instance ordERVFI :: Ord ExprRowVFI
+derive newtype instance showERVFI :: Show ExprRowVFI
 
 instance functorWithIndexERVF :: FunctorWithIndex String m => FunctorWithIndex ExprRowVFI (ExprRowVF m a) where
   mapWithIndex f (ERVF v) = ERVF (mapWithIndexV (f <<< ERVFI) v)

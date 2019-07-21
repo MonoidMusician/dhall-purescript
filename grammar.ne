@@ -642,7 +642,7 @@ import_expression -> import {% pass0 %} | selector_expression {% pass0 %}
 # the function `foo` to the relative path `./bar`)
 selector_expression -> primitive_expression ("." selector):*
 {% d =>
-	d[1].reduce((r, v) => ({ type: v.type, value: [r, v.value[0]] }), d[0])
+	d[1].reduce((r, v) => ({ type: v[1].type, value: [r, v[1].value[0]] }), d[0])
 %}
 
 
@@ -742,7 +742,7 @@ union_type_or_literal_variant_type ->
 			: { type: "UnionLit", value: [d[2].value[0]].concat([[lbl,null]].concat(d[2].value.slice(1))) }
 		%}
 	| ":" whsp1 expression
-		{% d => lbl => ({ type: "Union", value: [[lbl,d[3]]] }) %}
+		{% d => lbl => ({ type: "Union", value: [[lbl,d[2]]] }) %}
 
 non_empty_list_literal -> "[" whsp expression whsp ("," whsp expression whsp):* "]"
 	{% d => ({ type: "ListLit", value: [[d[2]].concat(d[4].map(v => v[2])),null] }) %}

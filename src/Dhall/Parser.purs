@@ -10,12 +10,14 @@ import Data.Either (Either(..))
 import Data.Foldable (oneOfMap)
 import Data.Function (on)
 import Data.Functor.Compose (Compose(..))
+import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (FProxy, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff, tt)
+import Data.Identity (Identity(..))
 import Data.Lens (Fold', preview)
 import Data.List (List)
-import Data.Maybe (Maybe(..), isJust)
+import Data.Maybe (Maybe(..), isJust, isNothing)
 import Data.Maybe.First (First)
 import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (unwrap)
@@ -259,6 +261,7 @@ priorities e1 e2 = (\f -> f e1 e2)
       <> keyword (_S::S_ "BoolIf") "if"
       <> prioritize_forall
       <> prioritize_env
+      <> prioritize_annot
 
 -- True if the left expression is more or equally prioritized than the right.
 isPrioritized :: ParseExpr -> ParseExpr -> Boolean
@@ -307,6 +310,25 @@ prioritize_env = Prioritize.fromLRPredicates
   do
     fits AST._Annot $ flip compose _.value $
       fits AST._Var $ unwrap >>> eq (AST.V "env" 0)
+
+prioritize_annot :: ParseExpr -> ParseExpr -> Maybe POrdering
+prioritize_annot = Prioritize.fromRelation \better worse -> Array.foldMap (Disj <<< isJust)
+  [ do
+      AST.MergeF x y ma <- reveal AST._Merge better
+      a <- ma
+      { value: xy', ty: a' } <- reveal AST._Annot worse
+      AST.MergeF x' y' mb <- reveal AST._Merge xy'
+      guard $ isNothing mb
+      guard $ x <+-= x'
+      guard $ y <+-= y'
+  , do
+      Product (Tuple (Identity x) ma) <- reveal AST._ToMap better
+      a <- ma
+      { value: xy', ty: a' } <- reveal AST._Annot worse
+      Product (Tuple (Identity x') mb) <- reveal AST._ToMap xy'
+      guard $ isNothing mb
+      guard $ x <+-= x'
+  ]
 
 {-
 unsafePartial $ Nullable.toMaybe (Parser.parseImpl "env:Natural") <#> map Parser.decodeFAST >>> \r -> case r of [a,b] -> Parser.priorities a b

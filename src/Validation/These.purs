@@ -80,6 +80,10 @@ hush :: forall e a. Erroring e a -> Maybe a
 hush (Error _ ma) = ma
 hush (Success a) = pure a
 
+hush' :: forall e a. Erroring e a -> Maybe a
+hush' (Error _ _) = Nothing
+hush' (Success a) = pure a
+
 -- | Throw an error! No frills.
 erroring :: forall e a. e -> Erroring e a
 erroring = (Error <@> empty) <<< pure
@@ -93,6 +97,14 @@ erroringBut e a = Error (pure e) (pure a)
 -- | Lift from Errors to Feedback, ERrors to FeedbackR
 liftW :: forall f a m. Functor f => Monoid m => f a -> W.WriterT m f a
 liftW m = W.WriterT (Tuple <$> m <@> mempty)
+
+hushW :: forall m e a. W.WriterT m (Erroring e) a -> Maybe a
+hushW (W.WriterT (Error _ ma)) = ma <#> \(Tuple a _) -> a
+hushW (W.WriterT (Success (Tuple a _))) = pure a
+
+hushW' :: forall m e a. W.WriterT m (Erroring e) a -> Maybe a
+hushW' (W.WriterT (Error _ _)) = Nothing
+hushW' (W.WriterT (Success (Tuple a _))) = pure a
 
 liftCL :: forall f g. Functor f => Applicative g => f ~> Compose f g
 liftCL = Compose <<< map pure
