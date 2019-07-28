@@ -253,6 +253,10 @@ viewer = H.mkComponent
                   , action: focus (Variant.inj (_S::S_ "typecheck") {} : here)
                   , tooltip: "View the type of this node"
                   }
+                , { icon: "underline"
+                  , action: focus (Variant.inj (_S::S_ "alphaNormalize") {} : here)
+                  , tooltip: "Alpha normalized"
+                  }
                 ]
             in
             renderExprWith opts
@@ -286,6 +290,7 @@ renderLocation loc = HH.span [ HP.class_ (H.ClassName "location") ] $
       let act = Just (len - i - 1) in
       Variant.match
         { within: HH.button [ HE.onClick (pure act) ] <<< pure <<< renderERVFI
+        , alphaNormalize: \_ -> inline_feather_button_action act "underline" "Alpha normalized"
         , normalize: \_ -> inline_feather_button_action act "cpu" "Normalized"
         , typecheck: \_ -> inline_feather_button_action act "type" "Typechecked"
         }
@@ -297,10 +302,11 @@ renderLoc loc = HH.span [ HP.class_ (H.ClassName "location") ] $
     List.reverse loc # mapWithIndex \i -> pure <<<
       Variant.match
         { within: ($) renderERVFI
+        , alphaNormalize: \_ -> inline_feather_button_action Nothing "underline" "Alpha normalized"
         , normalize: \_ -> inline_feather_button_action Nothing "cpu" "Normalized"
         , typecheck: \_ -> inline_feather_button_action Nothing "type" "Typechecked"
         , shift: \{ variable, delta } -> HH.text $ "↑(" <> show variable <> ", " <> show delta <> ")"
-        , substitute: \_ -> HH.text $ "[…]"
+        , substitute: \_ -> inline_feather_button_action Nothing "cloud-snow" "After Substitution"
         }
 
 renderErrorRef :: forall w r.
@@ -337,6 +343,7 @@ renderReference :: forall p q. Reference (HH.HTML p q) -> HH.HTML p q
 renderReference = case _ of
   Text desc -> HH.text desc
   Br -> HH.br_
+  Href link text -> HH.a [ HP.href link ] [ HH.text text ]
   Reference a -> HH.div [ HP.class_ (H.ClassName "reference") ] [ a ]
   List as -> HH.ol [ HP.class_ (H.ClassName "reference-list") ] $ as <#> \a ->
     HH.li [ HP.class_ (H.ClassName "reference-item") ] [ renderReference a ]

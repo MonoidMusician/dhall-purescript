@@ -176,9 +176,11 @@
 
     .references {
       color: #e75656;
+      font-style: italic;
     }
-    .references .reference {
+    .references .reference, .references .reference-compare .reference-compare-body {
       color: hsl(42, 41%, 80%);
+      font-style: normal;
     }
     .error-name {
       display: inline-block;
@@ -188,17 +190,17 @@
       margin-left: 2em;
       font-size: 80%;
     }
-    .reference {
+    .reference, .reference-compare-body {
       border: 2px solid #407d76;
       padding: 2px;
     }
-    .reference:hover {
+    .reference:hover, .reference-compare-body:hover {
       border: 2px solid #33baba;
     }
-    .reference > div > .location {
+    .reference > div > .location, .reference-compare-body > div > .location {
       font-size: 60%;
     }
-    .reference > div > .expression {
+    .reference > div > .expression, .reference-compare-body > div > .expression {
       font-size: 60%;
     }
     </style>

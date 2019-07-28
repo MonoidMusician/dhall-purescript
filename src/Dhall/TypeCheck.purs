@@ -71,9 +71,7 @@ import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
 import Dhall.Core.Zippers (_ix)
 import Dhall.Normalize as Dhall.Normalize
-import Dhall.Variables (freeInAlg, shiftAlgG, trackIntro)
-import Effect.Console (logShow)
-import Effect.Unsafe (unsafePerformEffect)
+import Dhall.Variables (alphaNormalizeAlgG, freeInAlg, shiftAlgG, trackIntro)
 import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, mapR, project, transCata, traverseR)
 import Type.Row (type (+))
 import Type.Row as R
@@ -120,6 +118,7 @@ newtype TypeCheckError r a = TypeCheckError
   , tag :: Variant r
   }
 derive instance functorTypeCheckError :: Functor (TypeCheckError r)
+derive newtype instance showTypeCheckError :: (Show a, Show (Variant r)) => Show (TypeCheckError r a)
 
 type WR w e = WriterT (Array (Variant w)) (V.Erroring e)
 type Feedback w r m a = WR w (TypeCheckError r (L m a))
@@ -213,11 +212,12 @@ instance traversableWithBiCtx :: Traversable f => Traversable (WithBiCtx f) wher
   sequence (WithBiCtx ctx fa) = WithBiCtx <$> traverse bisequence ctx <*> sequence fa
 
 -- Operations that can be performed on AST nodes:
---   Left left (BiContext): current context
---   Left right (Lazy): substitution+normalization (idempotent, but this isn't enforced ...)
+--   Left left (Lazy): alphaNormalize
+--   Left right left (Bicontext): current context
+--   Left right right (Lazy): substitution+normalization (idempotent, but this isn't enforced ...)
 --   Right (Lazy Feedback): typechecking
 -- TODO: more operations? extensibility? connect to GenericExprAlgebra?
-type Operations w r m a = Product (WithBiCtx Lazy) (Compose Lazy (Feedback w r m a))
+type Operations w r m a = Product (Product Lazy (WithBiCtx Lazy)) (Compose Lazy (Feedback w r m a))
 -- Operations, but requiring a context
 -- NOTE: the expression type is fixed to Oxpr here. It seems to work.
 type Operacions w r m a = ReaderT (BiContext (Oxpr w r m a)) (Operations w r m a)
@@ -234,13 +234,18 @@ typecheckSketch :: forall w r m a. Eq a => StrMapIsh m =>
   Lxpr m a -> Ocpr w r m a
 typecheckSketch alg = recursor2D
   \layer@(EnvT (Tuple loc e)) -> ReaderT \ctx -> Product $ Tuple
-      -- FIXME: is context empty after normalization? idk
-      do WithBiCtx (ctx <#> join bimap head2D) $ -- FIXME: memoization lost
-          defer \_ ->
-            let ctx' = ctx <#> theseLeft >>> map head2D in
-            normalizeLxpr $
-            substContextLxpr ctx' $
-            embed $ EnvT $ Tuple loc $ head2D <$> e
+      do Product $ Tuple
+          do
+            defer \_ ->
+              alphaNormalizeLxpr $
+              embed $ EnvT $ Tuple loc $ head2D <$> e
+          -- FIXME: is context empty after normalization? idk
+          do WithBiCtx (ctx <#> join bimap head2D) $ -- FIXME: memoization lost
+              defer \_ ->
+                let ctx' = ctx <#> theseLeft >>> map head2D in
+                normalizeLxpr $
+                substContextLxpr ctx' $
+                embed $ EnvT $ Tuple loc $ head2D <$> e
       do Compose $ defer \_ ->
           map (alsoOriginateFrom (Loc.stepF (_S::S_ "typecheck") <$> loc)) $
           alg $ WithBiCtx ctx $ (((layer))) #
@@ -249,17 +254,26 @@ typecheckSketch alg = recursor2D
             -- (in particular, if `layer` is `Let`/`Pi`/`Lam`)
             do mapEnvT $ _Newtype $ bicontextualizeWithin1 shiftInOxpr0 bicontextualizeWithin ctx
 
+-- Run the alpha-normalization operation.
+alphaNormalizeOp :: forall w r m a b. Operations w r m a b -> b
+alphaNormalizeOp (Product (Tuple (Product (Tuple lz _)) _)) = extract lz
+
 -- Get the context
 contextOp :: forall w r m a b. Operations w r m a b -> BiContext b
-contextOp (Product (Tuple (WithBiCtx ctx _) _)) = ctx
+contextOp (Product (Tuple (Product (Tuple _ (WithBiCtx ctx _))) _)) = ctx
 
 -- Run the normalization operation.
 normalizeOp :: forall w r m a b. Operations w r m a b -> b
-normalizeOp (Product (Tuple (WithBiCtx _ lz) _)) = extract lz
+normalizeOp (Product (Tuple (Product (Tuple _ (WithBiCtx _ lz))) _)) = extract lz
 
 -- Run the typechecking operation.
 typecheckOp :: forall w r m a. Operations w r m a ~> Feedback w r m a
 typecheckOp (Product (Tuple _ (Compose lz))) = extract lz
+
+-- Alphanormalize an Oxpr (once).
+alphaNormalizeStep :: forall w r m a.
+  Oxpr w r m a -> Oxpr w r m a
+alphaNormalizeStep = step2D >>> alphaNormalizeOp
 
 -- Get the context associated with the Oxpr node
 contextStep :: forall w r m a.
@@ -530,6 +544,12 @@ freeInOxpr = flip $ cata $ un Compose >>> extract >>> unEnvT >>> unwrap >>> free
 freeInLxpr :: forall m a. Foldable m => Var -> Lxpr m a -> Disj Boolean
 freeInLxpr = flip $ cata $ unEnvT >>> unwrap >>> freeInAlg
 
+alphaNormalizeLxpr :: forall m a. FunctorWithIndex String m => Lxpr m a -> Lxpr m a
+alphaNormalizeLxpr e = alsoOriginateFrom (Loc.moveF (_S::S_ "alphaNormalize") {} <$> extract e) $
+  (((e))) #
+    runLxprAlg (Variant.case_ # alphaNormalizeAlgG)
+      (Variant.inj (_S::S_ "alphaNormalize") { ctx: Dhall.Context.empty })
+
 shiftLxpr :: forall m a. FunctorWithIndex String m =>
   Int -> Var -> Lxpr m a -> Lxpr m a
 shiftLxpr delta variable e = alsoOriginateFrom (Loc.moveF (_S::S_ "shift") { delta, variable } <$> extract e) $
@@ -603,6 +623,7 @@ locateO' foc0 = Variant.match
       substContextOxpr (theseLeft <$> contextStep foc0) foc0
   , shift: \{ delta, variable } -> pure $
       shiftOxpr delta variable foc0
+  , alphaNormalize: \{} -> pure $ alphaNormalizeStep foc0
   , normalize: \{} -> pure $ normalizeStep foc0
   , typecheck: \{} -> typecheckStep foc0
   , within: \i -> V.liftW $
@@ -638,6 +659,8 @@ locateE' tpa = Variant.match
   in
   { substitute: \{} -> \(Tuple ctx e) ->
       pure (Tuple ctx (substContextExpr (theseLeft <$> ctx) e))
+  , alphaNormalize: \{} -> \(Tuple ctx e) ->
+      pure $ Tuple ctx $ alphaNormalize e
   , normalize: \{} -> substCtx >>> \(Tuple ctx e) -> do
       -- Ensure it typechecks before substituting and normalizing
       -- TODO: safe normalization fallback?
@@ -672,6 +695,7 @@ locateE tpa deriv { expr, ctx } =
 
 newtype Inconsistency a = Inconsistency (NonEmpty (NonEmpty List) a)
 derive instance newtypeInconsistency :: Newtype (Inconsistency a) _
+derive newtype instance showInconsistency :: Show a => Show (Inconsistency a)
 derive newtype instance functorInconsistency :: Functor Inconsistency
 derive newtype instance foldableInconsistency :: Foldable Inconsistency
 derive newtype instance foldable1Inconsistency :: Foldable1 Inconsistency
@@ -859,9 +883,22 @@ typingWithA tpa ctx0 e0 = do
   -- and run typechecking on eO
   pure $ bicontextualizeWithin ctxO eO
 
-type SimpleExpr = Expr (Const.Const Void) Void
+newtype NoStrMap a = NoStrMap (Const.Const Void a)
+derive instance newtypeNoStrMap :: Newtype (NoStrMap a) _
+derive newtype instance functorNoStrMap :: Functor NoStrMap
+derive newtype instance foldableNoStrMap :: Foldable NoStrMap
+derive newtype instance traversableNoStrMap :: Traversable NoStrMap
+instance functorWithIndexNoStrMap :: FunctorWithIndex i NoStrMap where
+  mapWithIndex _ (NoStrMap void) = absurd $ unwrap $ void
+instance foldableableWithIndexNoStrMap :: FoldableWithIndex i NoStrMap where
+  foldMapWithIndex _ (NoStrMap void) = absurd $ unwrap $ void
+  foldlWithIndex _ _ (NoStrMap void) = absurd $ unwrap $ void
+  foldrWithIndex _ _ (NoStrMap void) = absurd $ unwrap $ void
+instance traversableWithIndexNoStrMap :: TraversableWithIndex i NoStrMap where
+  traverseWithIndex _ (NoStrMap void) = absurd $ unwrap $ void
+type SimpleExpr = Expr NoStrMap Void
 rehydrate :: forall m a. Functor m => SimpleExpr -> Expr m a
-rehydrate = map absurd <<< hoistExpr (absurd <<< unwrap)
+rehydrate = map absurd <<< hoistExpr (absurd <<< unwrap <<< unwrap)
 
 typecheckAlgebra :: forall w r m a. Eq a => StrMapIsh m =>
   (a -> FeedbackE w r m a (Expr m a)) ->
@@ -1072,8 +1109,6 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
                 do head2D a
               Just rty' -> rty'
             else do
-              let ugh0 = unsafePerformEffect $ logShow (void $ plain aty0)
-              let ugh1 = unsafePerformEffect $ logShow (void $ plain aty1)
               -- SPECIAL!
               -- Recovery case: if the variable is unused in the return type
               -- then this is a non-dependent function
@@ -1441,6 +1476,7 @@ data Reference a
   | Reference a
   | List (Array (Reference a))
   | Compare String a String a
+  | Href String String
   -- | NodeType String
 derive instance functorReference :: Functor Reference
 
@@ -1549,41 +1585,36 @@ explain ctx nodeType =
       , reference $ typechecked <> within (_S::S_ "App") false
       ]
   , "Type mismatch": \(_ :: Unit) ->
-      [ Text $ "The function "
-      , reference $ within (_S::S_ "App") false
-      , Text $ " takes values in type "
-      , reference $ mempty
-          <> within (_S::S_ "Pi") false
+      [ compare
+          "The function takes values in type "
+          (  within (_S::S_ "Pi") false
           <> normalized <> typechecked
           <> within (_S::S_ "App") false
-      , Text $ " but was instead given a value "
-      , reference $ normalized <> within (_S::S_ "App") true
-      , Text $ " of type "
-      , reference $ normalized <> typechecked <> within (_S::S_ "App") true
+          ) " but was instead given a value of type "
+          (  normalized
+          <> typechecked
+          <> within (_S::S_ "App") true
+          )
       ]
   , "Invalid predicate": \(_ :: Unit) ->
       [ Text $ "If-then-else expressions take predicates whose type is "
       , referenceExpr AST.mkBool
-      , Text $ " but this predicate "
-      , reference $ within (_S::S_ "BoolIf") AST.Three1
-      , Text $ " had this type instead "
+      , Text $ " but the predicate had this type instead "
       , reference $ typechecked <> within (_S::S_ "BoolIf") AST.Three1
       ]
   , "If branch mismatch": \(_ :: Unit) ->
-    [ Text $ "If expressions must have the same type in the `then` branch as the `else` branch, "
-    , compare
-        " but the former was "
-        (typechecked <> within (_S::S_ "BoolIf") AST.Three2)
-        " and the latter was "
-        (typechecked <> within (_S::S_ "BoolIf") AST.Three3)
-    ]
+      [ Text $ "If expressions must have the same type in the `then` branch as the `else` branch, "
+      , compare
+          " but the former was "
+          (typechecked <> within (_S::S_ "BoolIf") AST.Three2)
+          " and the latter was "
+          (typechecked <> within (_S::S_ "BoolIf") AST.Three3)
+      ]
   , "If branch must be term": \(Tuple side mc) ->
       let focus = within (_S::S_ "BoolIf") if side then AST.Three3 else AST.Three2 in
       [ Text $ "If-then-else expressions must return a term "
       , Text $ "(since dependent types are forbidden)"
-      , Text $ " but the expression "
-      , reference focus
-      , Text $ " has type "
+      , Text $ " but the expression had type "
       , reference $ typechecked <> focus
       ] <> case mc of
         Nothing ->
@@ -1610,39 +1641,35 @@ explain ctx nodeType =
       , reference (typechecked <> focus)
       ]
   , "Missing list type": \(_ :: Unit) ->
-    [ Text "Empty list literals must be annotated with the type of their elements" ]
+      [ Text "Empty list literals must be annotated with the type of their elements" ]
   , "Invalid list element": \i ->
       [ Text $ "The list was annotated to have type "
       , reference $ within (_S::S_ "ListLit") (Left unit)
       , Text $ " but the element at index "
       , Text $ show i
-      , Text " had type "
+      , Text $ " had type "
       , reference $ typechecked <> within (_S::S_ "ListLit") (Right i)
       ]
   -- TODO: needs work
   , "Mismatched list elements": \i ->
-      [ Text $ "The list was annotated to have type "
+      [ Text $ "The list was assumed to have type "
       , reference $ typechecked <> within (_S::S_ "ListLit") (Right zero)
       , Text $ " but the element at index "
       , Text $ show i
-      , Text " had type "
+      , Text $ " had type "
       , reference $ typechecked <> within (_S::S_ "ListLit") (Right i)
       ]
   , "Cannot append non-list": \(side :: Boolean) ->
       let focus = within (_S::S_ "ListAppend") side in
-      [ Text $ "Appending lists requires the operands to be lists of equal types"
-      , Text $ " but the " <> (if side then "right" else "left") <> " side "
-      , reference $ focus
-      , Text $ " instead has type "
+      [ Text $ "Appending lists requires the operands to be lists"
+      , Text $ " but the " <> (if side then "right" else "left") <> " side instead had type "
       , reference $ normalized <> typechecked <> focus
       ]
   , "Cannot interpolate": \(i :: Natural) ->
       let focus = within (_S::S_ "TextLit") i in
       [ Text $ "Expressions interpolated into a text literal must have type "
       , referenceExpr AST.mkText
-      , Text $ " but "
-      , reference focus
-      , Text $ " instead has type "
+      , Text $ " but this instead had type "
       , reference $ typechecked <> focus
       ]
   , "List append mismatch": \(_ :: Unit) ->
@@ -1663,23 +1690,23 @@ explain ctx nodeType =
       , reference $ within (_S::S_ "ListLit") (Left unit)
       ]
   , "Invalid `Some`": \(mc :: Maybe Const) ->
-    let focus = within (_S::S_ "Some") unit in
-    [ Text $ "A optional literal must contain a term but Some was given an expression "
-    , reference $ focus
-    , Text $ " of type "
-    , reference $ typechecked <> focus
-    ] <> case mc of
-      Nothing ->
-        [ Text $ " which is not in a type universe, but instead had type "
-        , reference $ typechecked <> typechecked <> focus
-        ]
-      Just c ->
-        [ Compare
-            " which was in universe "
-            (expr (AST.mkConst c))
-            " instead of "
-            (expr (AST.mkConst AST.Type))
-        ]
+      let focus = within (_S::S_ "Some") unit in
+      [ Text $ "A optional literal must contain a term but Some was given an expression "
+      , reference $ focus
+      , Text $ " of type "
+      , reference $ typechecked <> focus
+      ] <> case mc of
+        Nothing ->
+          [ Text $ " which is not in a type universe, but instead had type "
+          , reference $ typechecked <> typechecked <> focus
+          ]
+        Just c ->
+          [ Compare
+              " which was in universe "
+              (expr (AST.mkConst c))
+              " instead of "
+              (expr (AST.mkConst AST.Type))
+          ]
   , "Duplicate record fields": \(keys :: NonEmptyList String) ->
       [ Text $ "The following names of fields occurred more than once in a Record (type): "
       , List $ Text <$> Array.fromFoldable keys
@@ -1745,16 +1772,12 @@ explain ctx nodeType =
       [
       ]
   , "Must merge a record": \(_ :: Unit) ->
-      [ Text $ "Using the `merge` operator requires a record as the first argument, but "
-      , reference $ within (_S::S_ "Merge") AST.Three1
-      , Text $ " has type "
-      , reference $ typechecked <> within (_S::S_ "Merge") AST.Three1
+      [ Text $ "Using the `merge` operator requires a record as the first argument, but this had type "
+      , reference $ normalized <> typechecked <> within (_S::S_ "Merge") AST.Three1
       ]
   , "Must merge a union": \(_ :: Unit) ->
-      [ Text $ "Using the `merge` operator requires a union as the second argument, but "
-      , reference $ within (_S::S_ "Merge") AST.Three2
-      , Text $ " has type "
-      , reference $ typechecked <> within (_S::S_ "Merge") AST.Three1
+      [ Text $ "Using the `merge` operator requires a union as the second argument, but this had type "
+      , reference $ normalized <> typechecked <> within (_S::S_ "Merge") AST.Three1
       ]
   -- TODO
   , "Missing handler": \names ->
@@ -1814,15 +1837,12 @@ explain ctx nodeType =
           normalized <> typechecked <> within (_S::S_ "Merge") AST.Three1)
       ]
   , "Cannot project": \(_ :: Unit) ->
-      [ Text $ "The projection operation can only be used on records, but "
-      , reference $ within (_S::S_ "Project") (Left unit)
-      , Text $ " had type "
+      [ Text $ "The projection operation can only be used on records, but the expression had type "
       , reference $ typechecked <> within (_S::S_ "Project") (Left unit)
       ]
   , "Cannot project by expression": \(_ :: Unit) ->
-      [ Text $ "The project-by-expression operation can only take a record type, but "
-      , reference $ within (_S::S_ "Project") (Right unit)
-      , Text $ " was not a record type"
+      [ Text $ "The project-by-expression operation can only take a record type, but this was not a record type "
+      , reference $ normalized <> within (_S::S_ "Project") (Right unit)
       ]
   , "Projection type mismatch": \key ->
       [ Text $ "The field "
@@ -1845,14 +1865,12 @@ explain ctx nodeType =
       , reference $ within (_S::S_ "Record") key <> normalized <> typechecked <> focus
       ]
   , "Cannot access": \(_ :: Unit) ->
-      [ Text $ "The field accessor only works on records and union types, but "
-      , reference $ normalized <> within (_S::S_ "Field") unit
-      , Text $ " was neither"
+      [ Text $ "The field accessor only works on records and union types, but this instead had type "
+      , reference $ normalized <> typechecked <> within (_S::S_ "Field") unit
       ]
   , "toMap takes a record": \(_ :: Unit) ->
-      [ Text $ "The `toMap` operation can only take a record, but "
-      , reference $ within (_S::S_ "ToMap") (Left unit)
-      , Text $ " was not a record"
+      [ Text $ "The `toMap` operation can only take a record, but this instead had type "
+      , reference $ normalized <> typechecked <> within (_S::S_ "ToMap") (Left unit)
       ]
   , "Invalid toMap type annotation": \(_ :: Unit) ->
       [ Text $ "The `toMap` operation should have a type annotation that looks like "

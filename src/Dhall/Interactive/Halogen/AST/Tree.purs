@@ -263,7 +263,7 @@ renderLiterals opts = identity
   >>> renderVFLensed (_S::S_ "DoubleLit") (lensedConst "value" (renderNumber opts))
 
 renderBuiltinTypes :: forall r m a. RenderingOptions -> RenderChunk AST.BuiltinTypes r m a
-renderBuiltinTypes _ = identity
+renderBuiltinTypes { editable } = identity
   >>> renderVFLensed (_S::S_ "Bool") named
   >>> renderVFLensed (_S::S_ "Natural") named
   >>> renderVFLensed (_S::S_ "Integer") named
@@ -275,13 +275,11 @@ renderBuiltinTypes _ = identity
   where
     named = []
     renderConst = pure $ mkLensed "constant" _Newtype $ renderingR \v ->
+      let vals = if editable then [ AST.Type, AST.Kind, AST.Sort ] else [ v ] in
       HH.select
-        [ HE.onSelectedIndexChange (Array.(!!) [AST.Type, AST.Kind, AST.Sort])
-        ]
-        [ HH.option [ HP.selected (v == AST.Type) ] [ HH.text "Type" ]
-        , HH.option [ HP.selected (v == AST.Kind) ] [ HH.text "Kind" ]
-        , HH.option [ HP.selected (v == AST.Sort) ] [ HH.text "Sort" ]
-        ]
+        [ HE.onSelectedIndexChange (Array.(!!) vals) ] $
+          vals <#> \vi ->
+            HH.option [ HP.selected (v == vi) ] [ HH.text (show vi) ]
 
 renderBuiltinFuncs :: forall r m a. RenderingOptions -> RenderChunk AST.BuiltinFuncs r m a
 renderBuiltinFuncs _ = identity

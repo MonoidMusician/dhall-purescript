@@ -22,6 +22,7 @@ type Within r =
 type Derived r =
   ( "typecheck" :: {}
   , "normalize" :: {}
+  , "alphaNormalize" :: {}
   | r
   )
 type Operated r =

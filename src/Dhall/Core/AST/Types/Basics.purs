@@ -11,6 +11,8 @@ import Data.Eq (class Eq1)
 import Data.Foldable (class Foldable, foldMap, foldl, foldr, oneOfMap)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, foldlWithIndex, foldrWithIndex)
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
+import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep.Show (genericShow)
 import Data.Lazy (defer)
 import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
@@ -42,6 +44,8 @@ instance showThree :: Show Three where
   show Three3 = "Three3"
 
 data Pair a = Pair a a
+derive instance genericPair :: Generic (Pair a) _
+instance showPair :: Show a => Show (Pair a) where show = genericShow
 derive instance eqPair :: Eq a => Eq (Pair a)
 derive instance ordPair :: Ord a => Ord (Pair a)
 derive instance eq1Pair :: Eq1 Pair
@@ -122,6 +126,8 @@ instance containerIPair :: ContainerI (Boolean) Pair' where
   ixF (Pair1 _) = true
 
 data Triplet a = Triplet a a a
+derive instance genericTriplet :: Generic (Triplet a) _
+instance showTriplet :: Show a => Show (Triplet a) where show = genericShow
 derive instance eqTriplet :: Eq a => Eq (Triplet a)
 derive instance ordTriplet :: Ord a => Ord (Triplet a)
 derive instance eq1Triplet :: Eq1 Triplet
@@ -211,6 +217,8 @@ instance containerITriplet :: ContainerI (Three) Triplet' where
   ixF (Triplet2 _ _) = Three3
 
 data TextLitF a = TextLit String | TextInterp String a (TextLitF a)
+derive instance genericTextLitF :: Generic (TextLitF a) _
+instance showTextLitF :: Show a => Show (TextLitF a) where show = genericShow
 derive instance eqTextLitF :: Eq a => Eq (TextLitF a)
 derive instance ordTextLitF :: Ord a => Ord (TextLitF a)
 derive instance eq1TextLitF :: Eq1 TextLitF
@@ -304,6 +312,8 @@ instance containerITextLitF :: ContainerI (Natural) TextLitF' where
   ixF (TextInterp1 _ _ z) = one + (ixF z)
 
 data MergeF a = MergeF a a (Maybe a)
+derive instance genericMergeF :: Generic (MergeF a) _
+instance showMergeF :: Show a => Show (MergeF a) where show = genericShow
 derive instance eqMergeF :: Eq a => Eq (MergeF a)
 derive instance ordMergeF :: Ord a => Ord (MergeF a)
 derive instance eq1MergeF :: Eq1 MergeF
@@ -393,6 +403,8 @@ instance containerIMergeF :: ContainerI (Three) MergeF' where
   ixF (MergeF2 _ _ z) = const Three3 (ixF z)
 
 data LetF a = LetF String (Maybe a) a a
+derive instance genericLetF :: Generic (LetF a) _
+instance showLetF :: Show a => Show (LetF a) where show = genericShow
 derive instance eqLetF :: Eq a => Eq (LetF a)
 derive instance ordLetF :: Ord a => Ord (LetF a)
 derive instance eq1LetF :: Eq1 LetF
@@ -482,6 +494,8 @@ instance containerILetF :: ContainerI (Three) LetF' where
   ixF (LetF2 _ _ _) = Three3
 
 data BindingBody a = BindingBody String a a
+derive instance genericBindingBody :: Generic (BindingBody a) _
+instance showBindingBody :: Show a => Show (BindingBody a) where show = genericShow
 derive instance eqBindingBody :: Eq a => Eq (BindingBody a)
 derive instance ordBindingBody :: Ord a => Ord (BindingBody a)
 derive instance eq1BindingBody :: Eq1 BindingBody
