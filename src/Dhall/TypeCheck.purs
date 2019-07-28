@@ -624,7 +624,7 @@ locateO' foc0 = Variant.match
   , shift: \{ delta, variable } -> pure $
       shiftOxpr delta variable foc0
   , alphaNormalize: \{} -> pure $ alphaNormalizeStep foc0
-  , normalize: \{} -> pure $ normalizeStep foc0
+  , normalize: \{} -> typecheckStep foc0 <#> \_ -> normalizeStep foc0
   , typecheck: \{} -> typecheckStep foc0
   , within: \i -> V.liftW $
       foc0 # unlayerO # ERVF # preview (_ix i) # do
