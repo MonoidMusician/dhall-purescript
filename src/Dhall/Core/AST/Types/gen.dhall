@@ -48,7 +48,7 @@ let List/withSiblings =
         λ(a : Type)
       → λ(l : List a)
       → let qd = { next : Optional a, this : a }
-
+        
         let st =
               { next :
                   Optional a
@@ -57,7 +57,7 @@ let List/withSiblings =
               , result :
                   List (withSiblings a)
               }
-
+        
         let dequeue =
                 λ(e : Optional a)
               → λ(s : st)
@@ -69,7 +69,7 @@ let List/withSiblings =
                   → [ { prev = e, this = q.this, next = q.next } ] # s.result
                 )
                 s.result
-
+        
         let presult =
               List/fold
               a
@@ -92,7 +92,7 @@ let List/withSiblings =
               , result =
                   [] : List (withSiblings a)
               }
-
+        
         in  dequeue (None a) presult
 
 let Functor = { type : Text }
@@ -261,9 +261,7 @@ let render_indexed_derivative_instance =
         )
 
 let build_function =
-        λ ( iter
-          : Type
-          )
+        λ(iter : Type)
       → λ(start_arg : iter)
       → λ(fold_arg : iter → ADT_arg → iter)
       → λ(finish_arg : ADT_case → { name : Text, result : iter } → Text)
@@ -277,22 +275,12 @@ let build_function =
                 , result =
                     List/foldl ADT_arg case.args iter fold_arg start_arg
                 }
-
+        
         in  List/fold
             ADT_case
             adt.cases
             Text
-            (   λ ( case
-                  : ADT_case
-                  )
-              → λ(s : Text)
-              →     fold_case
-                    case
-                ++  ''
-
-                                                                                                                                                                                                                                                                                                                                    ''
-                ++  s
-            )
+            (λ(case : ADT_case) → λ(s : Text) → fold_case case ++ "\n" ++ s)
             ""
 
 let build_function2 =
@@ -313,11 +301,11 @@ let build_function2 =
                     λ(a : Param) → param_case arg.ix r a
                 }
                 arg.arg
-
+        
         let each_case =
                 λ(case : ADT_case)
               →       if left
-
+                
                 then  List/foldl
                       { ix : Natural, arg : ADT_arg }
                       (with_param_index case.args)
@@ -327,7 +315,7 @@ let build_function2 =
                         → f r arg
                       )
                       value0
-
+                
                 else  List/fold
                       { ix : Natural, arg : ADT_arg }
                       (with_param_index case.args)
@@ -337,7 +325,7 @@ let build_function2 =
                         → f r arg
                       )
                       value0
-
+        
         in  List/fold
             ADT_case
             adt.cases
@@ -431,9 +419,9 @@ let mapWithIndex
         →     r
           ++  " ("
           ++  (       if is_functor p
-
+                
                 then  "mapWithIndex (\\i -> f (" ++ p.index ++ " i))"
-
+                
                 else  "f " ++ p.index
               )
           ++  " a"
@@ -480,9 +468,9 @@ let foldr
         → λ(r : Text)
         → λ(p : Param)
         →       if is_functor p
-
+          
           then  "(foldr f " ++ r ++ " a" ++ Natural/show ix ++ ")"
-
+          
           else  "(f a" ++ Natural/show ix ++ " " ++ r ++ ")"
       )
       (   λ(case : ADT_case)
@@ -501,9 +489,9 @@ let foldl
         → λ(r : Text)
         → λ(p : Param)
         →       if is_functor p
-
+          
           then  "(foldl f " ++ r ++ " a" ++ Natural/show ix ++ ")"
-
+          
           else  "(f " ++ r ++ " a" ++ Natural/show ix ++ ")"
       )
       (   λ(case : ADT_case)
@@ -523,9 +511,9 @@ let foldMapWithIndex
         → λ(p : Param)
         →     (if Natural/isZero ix then "" else r ++ " <> ")
           ++  (       if is_functor p
-
+                
                 then  "foldMapWithIndex (\\i -> f (" ++ p.index ++ " i)) "
-
+                
                 else  "f " ++ p.index ++ " "
               )
           ++  "a"
@@ -547,7 +535,7 @@ let foldrWithIndex
         → λ(r : Text)
         → λ(p : Param)
         →       if is_functor p
-
+          
           then      "(foldrWithIndex (\\i -> f ("
                 ++  p.index
                 ++  " i)) "
@@ -555,7 +543,7 @@ let foldrWithIndex
                 ++  " a"
                 ++  Natural/show ix
                 ++  ")"
-
+          
           else  "(f " ++ p.index ++ " a" ++ Natural/show ix ++ " " ++ r ++ ")"
       )
       (   λ(case : ADT_case)
@@ -574,7 +562,7 @@ let foldlWithIndex
         → λ(r : Text)
         → λ(p : Param)
         →       if is_functor p
-
+          
           then      "(foldlWithIndex (\\i -> f ("
                 ++  p.index
                 ++  " i)) "
@@ -582,7 +570,7 @@ let foldlWithIndex
                 ++  " a"
                 ++  Natural/show ix
                 ++  ")"
-
+          
           else  "(f " ++ p.index ++ " " ++ r ++ " a" ++ Natural/show ix ++ ")"
       )
       (   λ(case : ADT_case)
@@ -614,7 +602,7 @@ let traverse_pattern =
         (   λ(case : ADT_case)
           → λ(r : { ix : Natural, value : Text })
           →       if Natural/isZero r.ix
-
+            
             then      "  "
                   ++  setup
                   ++  " ("
@@ -623,7 +611,7 @@ let traverse_pattern =
                   ++  case.name
                   ++  r.value
                   ++  ")"
-
+            
             else      "  "
                   ++  setup
                   ++  " ("
@@ -651,9 +639,9 @@ let traverseWithIndex
       "traverseWithIndex f"
       (   λ(p : Param)
         →       if is_functor p
-
+          
           then  "traverseWithIndex (\\i -> f (" ++ p.index ++ " i)) "
-
+          
           else  "f " ++ p.index ++ " "
       )
 
@@ -699,9 +687,9 @@ let mergeWith =
             )
             adt
         ++  (       if le 2 (List/length ADT_case adt.cases)
-
+              
               then  "  mergeWith _ _ _ = Nothing"
-
+              
               else  ""
             )
 
@@ -719,7 +707,7 @@ let declarate
                   → r ++ " " ++ render_arg False v.value
                 )
                 case.name
-
+        
         in      "data "
             ++  adt.type
             ++  " a"
@@ -747,9 +735,9 @@ let render_Zipper_arg =
         { Hole =
               λ(p : Param)
             →       if is_functor p
-
+              
               then  render_arg True < Param = p | Const : Const >
-
+              
               else  "{- a -}"
         , Param =
             λ(p : Param) → render_arg False < Param = p | Const : Const >
@@ -772,9 +760,9 @@ let zipper_args_for_ix =
                 { Param =
                       λ(p : Param)
                     →       if eq arg.index index
-
+                      
                       then  < Hole = p | Param : Param | Const : Const >
-
+                      
                       else  < Param = p | Hole : Param | Const : Const >
                 , Const =
                     λ(c : Const) → < Const = c | Hole : Param | Param : Param >
@@ -799,13 +787,13 @@ let render_zipper_args_for_ix =
                   → { result =
                             r.result
                         ++  (       if eq arg.index index
-
+                              
                               then        if is_functor p
-
+                                    
                                     then  " z"
-
+                                    
                                     else  " {- a" ++ Natural/show r.ix ++ " -}"
-
+                              
                               else  " a" ++ Natural/show r.ix
                             )
                     , ix =
@@ -874,7 +862,7 @@ let differentiate
                       → r ++ " " ++ render_Zipper_arg arg
                     )
                     ""
-
+        
         in      "data "
             ++  adt.type
             ++  "' a"
@@ -939,7 +927,7 @@ let zipper_ADT
                     )
                     ([] : List ADT_arg)
                 }
-
+        
         in  { type =
                 adt.type ++ "'"
             , cases =
@@ -971,7 +959,7 @@ let upZF
                     { Hole =
                           λ(p : Param)
                         →       if is_functor p
-
+                          
                           then  { binding =
                                     r.binding ++ " a" ++ Natural/show r.ix
                                 , result =
@@ -982,7 +970,7 @@ let upZF
                                 , ix =
                                     r.ix + 1
                                 }
-
+                          
                           else  { binding =
                                     r.binding ++ " {- a -}"
                                 , result =
@@ -1018,7 +1006,7 @@ let upZF
                 , ix =
                     0
                 }
-
+        
         in      List/foldl
                 Zipper
                 (getZippers adt)
@@ -1026,7 +1014,7 @@ let upZF
                 (   λ(r : Text)
                   → λ(case : Zipper)
                   → let code = upZF1 case
-
+                    
                     in      r
                         ++  newline
                         ++  "    "
@@ -1053,7 +1041,7 @@ let downZF
                           λ(p : Param)
                         → { result =
                                     if is_functor p
-
+                              
                               then      r.result
                                     ++  " (downZF a"
                                     ++  Natural/show r.ix
@@ -1064,7 +1052,7 @@ let downZF
                                         case.args
                                         arg.index
                                     ++  "))"
-
+                              
                               else      r.result
                                     ++  " (a"
                                     ++  Natural/show r.ix
@@ -1085,7 +1073,7 @@ let downZF
                     arg.value
                 )
                 { result = case.name, ix = 0 }
-
+        
         in  List/fold
             ADT_case
             adt.cases
@@ -1093,7 +1081,7 @@ let downZF
             (   λ(case : ADT_case)
               → λ(r : Text)
               → let code = downZF1 case
-
+                
                 in      "  downZF ("
                     ++  all_bindings case
                     ++  ") = "
@@ -1118,13 +1106,13 @@ let ixF
                     { Hole =
                           λ(p : Param)
                         →       if is_functor p
-
+                          
                           then  { binding =
                                     r.binding ++ " z"
                                 , result =
                                     r.result ++ p.index ++ " (ixF z)"
                                 }
-
+                          
                           else  { binding =
                                     r.binding
                                 , result =
@@ -1140,7 +1128,7 @@ let ixF
                     arg
                 )
                 { binding = case.origin ++ Natural/show case.ix, result = "" }
-
+        
         in  List/fold
             Zipper
             (getZippers adt)
@@ -1148,7 +1136,7 @@ let ixF
             (   λ(case : Zipper)
               → λ(r : Text)
               → let code = ixF1 case
-
+                
                 in      "  ixF ("
                     ++  code.binding
                     ++  ") = "
@@ -1160,11 +1148,7 @@ let ixF
 
 let deriveGeneric =
         λ(type : Text)
-      →     "derive instance generic"
-        ++  type
-        ++  " :: Generic ("
-        ++  type
-        ++  " a) _"
+      → "derive instance generic" ++ type ++ " :: Generic (" ++ type ++ " a) _"
 
 let deriveShow =
         λ(type : Text)
@@ -1204,7 +1188,7 @@ let derivateFunctor =
 let instantiate =
         λ(adt : ADT)
       → let deriv = zipper_ADT adt
-
+        
         in      declarate adt
             ++  newline
             ++  deriveGeneric adt.type
