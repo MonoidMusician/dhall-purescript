@@ -99,18 +99,17 @@ rule _    _    = empty
 -}
 type Typer m a = a -> Expr m a
 
--- TODO: rename to "confirm"
-suggest :: forall w r m a x y. x -> Feedback w r m a y -> Feedback w r m a x
-suggest a = (<<<) wrap $ unwrap >>> case _ of
+confirm :: forall w r m a x y. x -> Feedback w r m a y -> Feedback w r m a x
+confirm a = (<<<) wrap $ unwrap >>> case _ of
   V.Success (Tuple _ accum) ->
     V.Success (Tuple a accum)
   V.Error es mtaccum ->
     V.Error es $ pure $ Tuple a $ foldMap extract mtaccum
 
-msuggest :: forall w r m a x. Maybe x -> Feedback w r m a x -> Feedback w r m a x
-msuggest = case _ of
+mconfirm :: forall w r m a x. Maybe x -> Feedback w r m a x -> Feedback w r m a x
+mconfirm = case _ of
   Nothing -> identity
-  Just a -> suggest a
+  Just a -> confirm a
 
 newtype TypeCheckError r a = TypeCheckError
   -- The main location where the typechecking error occurred
@@ -976,12 +975,12 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       OxprE w r m a -> OxprE w r m a ->
       (Unit -> FeedbackE w r m a Void) ->
       FeedbackE w r m a (OxprE w r m a)
-    checkEqL ty0 ty1 error = suggest ty0 $ checkEq ty0 ty1 error
+    checkEqL ty0 ty1 error = confirm ty0 $ checkEq ty0 ty1 error
     checkEqR ::
       OxprE w r m a -> OxprE w r m a ->
       (Unit -> FeedbackE w r m a Void) ->
       FeedbackE w r m a (OxprE w r m a)
-    checkEqR ty0 ty1 error = suggest ty1 $ checkEq ty0 ty1 error
+    checkEqR ty0 ty1 error = confirm ty1 $ checkEq ty0 ty1 error
 
     onConst :: forall x.
       (x -> FeedbackE w r m a (Expr m a)) ->
@@ -1003,7 +1002,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       SimpleExpr ->
       Pair (OxprE w r m a) ->
       FeedbackE w r m a (Lxpr m a)
-    checkBinOp t p = suggest (newborn (rehydrate t)) $ forWithIndex_ p $
+    checkBinOp t p = confirm (newborn (rehydrate t)) $ forWithIndex_ p $
       -- t should be simple enough that alphaNormalize is unnecessary
       \side operand -> typecheckStep operand >>= normalizeStep >>> case _ of
         ty_operand | rehydrate t == plain ty_operand -> pure unit
@@ -1122,7 +1121,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
               -- even if its argument does not have the right type
               errorHere (_S::S_ "Type mismatch") unit # case shifted of
                 Nothing -> identity
-                Just rty' -> suggest rty'
+                Just rty' -> confirm rty'
       in join $ checkArg <$> checkFn <*> typecheckStep a
   , "Annot": \(AST.Pair expr ty) ->
       map head2D $ join $ checkEqR
@@ -1164,12 +1163,12 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
   , "DoubleLit": always $ AST.mkDouble
   , "DoubleShow": always $ AST.mkArrow AST.mkDouble AST.mkText
   , "Text": identity aType
-  , "TextLit": \things -> suggest (newborn AST.mkText) $
+  , "TextLit": \things -> confirm (newborn AST.mkText) $
       forWithIndex_ things \i expr -> ensure (_S::S_ "Text") expr
         (errorHere (_S::S_ "Cannot interpolate") <<< const i)
   , "TextAppend": checkBinOp AST.mkText
   , "List": identity aFunctor
-  , "ListLit": \(Product (Tuple mty lit)) -> msuggest (head2D <$> mty) do
+  , "ListLit": \(Product (Tuple mty lit)) -> mconfirm (head2D <$> mty) do
       -- get the assumed type of the list
       (ty :: OxprE w r m a) <- case mty of
         -- either from annotation
@@ -1179,7 +1178,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           normalizeStep list # unlayerO #
             VariantF.on (_S::S_ "List") (const (pure unit))
               \_ -> absurd <$> error unit
-          suggest ty $ ensureType ty
+          confirm ty $ ensureType ty
             (errorHere (_S::S_ "Invalid list type"))
         -- or from the first element
         Nothing -> case Array.head lit of
@@ -1187,7 +1186,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           Just item -> do
             ensureTerm item
               (errorHere (_S::S_ "Invalid list type"))
-      suggest (mkFunctor AST.mkList (head2D ty)) $ forWithIndex_ lit \i item -> do
+      confirm (mkFunctor AST.mkList (head2D ty)) $ forWithIndex_ lit \i item -> do
         ty' <- typecheckStep item
         checkEq ty ty' \_ ->
           case mty of
@@ -1261,7 +1260,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         (errorHere (_S::S_ "Duplicate record fields")) kvs
       *> do
         kts <- traverse typecheckStep kvs
-        suggest (mk(_S::S_"Record") (head2D <$> kts)) do
+        confirm (mk(_S::S_"Record") (head2D <$> kts)) do
           kts' <- forWithIndex kts \field ty -> do
             c <- unwrap <$> ensure (_S::S_ "Const") ty
               (errorHere (_S::S_ "Invalid field type") <<< const field)
@@ -1280,7 +1279,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         (errorHere (_S::S_ "Duplicate union alternatives") <<< map fst) kts
       *> do
         -- FIXME: should this be the largest of `Type` or `Sort` returned?
-        suggest (newborn AST.mkType) $
+        confirm (newborn AST.mkType) $
           forWithIndex_ kts \(Tuple field _) ty -> do
             void $ ensure (_S::S_ "Const") ty
               (errorHere (_S::S_ "Invalid alternative type") <<< const field)
@@ -1382,7 +1381,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
                 pure $ Tuple (Just { key: k, fn: true }) output'
               Nothing -> do
                 pure $ Tuple (Just { key: k, fn: false }) item
-      suggest (head2D ty) ado
+      confirm (head2D ty) ado
         when (not Set.isEmpty diffX)
           (errorHere (_S::S_ "Unused handlers") diffX)
         forWithIndex_ ktsY \k mtY -> do
@@ -1405,7 +1404,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
               checkEq ty tX
                 (errorHere (_S::S_ "Handler type mismatch") <<< const (Tuple whence k))
         in unit
-  , "ToMap": \(Product (Tuple (Identity expr) mty)) -> msuggest (head2D <$> mty) do
+  , "ToMap": \(Product (Tuple (Identity expr) mty)) -> mconfirm (head2D <$> mty) do
       kts <- ensure (_S::S_ "Record") expr
         (errorHere (_S::S_ "toMap takes a record"))
       let
@@ -1428,7 +1427,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         _ <- ensure' (_S::S_ "Text") tyK error
         ty <- Dhall.Map.get "mapValue" tyS
           # noteHere (_S::S_ "Invalid toMap type annotation") unit
-        suggest ty $ ensureType ty (errorHere (_S::S_ "Invalid toMap type"))
+        confirm ty $ ensureType ty (errorHere (_S::S_ "Invalid toMap type"))
       ty <- ensureConsistentOxpr
         (errorHere (_S::S_ "Missing toMap type"))
         (errorHere (_S::S_ "Inconsistent toMap types") <<< (map <<< map) _.key)
