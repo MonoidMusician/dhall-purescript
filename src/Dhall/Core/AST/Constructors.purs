@@ -587,6 +587,18 @@ mkImportAlt = mkBinOp (SProxy :: SProxy "ImportAlt")
 _ImportAlt :: forall r. BinOpPrism ( "ImportAlt" :: FProxy Pair | r )
 _ImportAlt = _BinOpPrism (SProxy :: SProxy "ImportAlt")
 
+mkUsingHeaders :: forall m a. Expr m a -> Expr m a -> Expr m a
+mkUsingHeaders = mkBinOp (SProxy :: SProxy "UsingHeaders")
+
+_UsingHeaders :: forall r. BinOpPrism ( "UsingHeaders" :: FProxy Pair | r )
+_UsingHeaders = _BinOpPrism (SProxy :: SProxy "UsingHeaders")
+
+mkHashed :: forall m a. Expr m a -> String -> Expr m a
+mkHashed e hash = mkExprF (SProxy :: SProxy "Hashed") (Tuple hash e)
+
+_Hashed :: forall r. ExprFPrism ( "Hashed" :: FProxy (Tuple String) | r ) (Tuple String)
+_Hashed = _ExprFPrism (SProxy :: SProxy "Hashed")
+
 mkEmbed :: forall m a. a -> Expr m a
 mkEmbed = pure
 

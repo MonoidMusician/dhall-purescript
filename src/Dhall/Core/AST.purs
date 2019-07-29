@@ -53,6 +53,9 @@ import Dhall.Core.AST.Types
   , FunctorThings
   , FunctorThings'
   , FunctorThingsI
+  , ImportSyntax
+  , ImportSyntax'
+  , ImportSyntaxI
   , Literals
   , Literals'
   , Literals2
@@ -118,6 +121,7 @@ import Dhall.Core.AST.Constructors
   , _ExprFPrism
   , _ExprPrism
   , _Field
+  , _Hashed
   , _ImportAlt
   , _Integer
   , _IntegerLit
@@ -170,6 +174,7 @@ import Dhall.Core.AST.Constructors
   , _Union
   , _UnionLit
   , _Union_empty
+  , _UsingHeaders
   , _Var
   , mkAnnot
   , mkApp
@@ -193,6 +198,7 @@ import Dhall.Core.AST.Constructors
   , mkExprF
   , mkField
   , mkForall
+  , mkHashed
   , mkImportAlt
   , mkInteger
   , mkIntegerLit
@@ -241,4 +247,6 @@ import Dhall.Core.AST.Constructors
   , mkType
   , mkUnion
   , mkUnionLit
-  , mkVar) as Exports
+  , mkUsingHeaders
+  , mkVar
+  ) as Exports

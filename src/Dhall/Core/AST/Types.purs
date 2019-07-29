@@ -249,7 +249,6 @@ type BuiltinBinOps (m :: Type -> Type) vs =
   , "Combine" :: FProxy Pair
   , "CombineTypes" :: FProxy Pair
   , "Prefer" :: FProxy Pair
-  , "ImportAlt" :: FProxy Pair
   | vs
   )
 
@@ -265,7 +264,6 @@ type BuiltinBinOps' (m :: Type -> Type) (m' :: Type -> Type) vs =
   , "Combine" :: FProxy Pair'
   , "CombineTypes" :: FProxy Pair'
   , "Prefer" :: FProxy Pair'
-  , "ImportAlt" :: FProxy Pair'
   | vs
   )
 
@@ -281,7 +279,6 @@ type BuiltinBinOpsI vs =
   , "Combine" :: PairI
   , "CombineTypes" :: PairI
   , "Prefer" :: PairI
-  , "ImportAlt" :: PairI
   | vs
   )
 
@@ -356,15 +353,36 @@ type SyntaxI v =
   | v
   )
 
+type ImportSyntax (m :: Type -> Type) v =
+  ( "ImportAlt" :: FProxy Pair
+  , "UsingHeaders" :: FProxy Pair
+  , "Hashed" :: FProxy (Tuple String) -- Todo: better type?
+  | v
+  )
+
+type ImportSyntax' (m :: Type -> Type) (m' :: Type -> Type) v =
+  ( "ImportAlt" :: FProxy Pair'
+  , "UsingHeaders" :: FProxy Pair'
+  , "Hashed" :: FProxy (Tuple' String)
+  | v
+  )
+
+type ImportSyntaxI v =
+  ( "ImportAlt" :: PairI
+  , "UsingHeaders" :: PairI
+  , "Hashed" :: TupleI String
+  | v
+  )
+
 -- Non-recursive items
 type SimpleThings m vs = Literals m + BuiltinTypes m + BuiltinFuncs m + vs
 type SimpleThings' m m' vs = Literals' m m' + BuiltinTypes' m m' + BuiltinFuncs' m m' + vs
 type SimpleThingsI vs = LiteralsI + BuiltinTypesI + BuiltinFuncsI + vs
 
 -- Recursive items
-type FunctorThings m v = Literals2 m + BuiltinTypes2 m + BuiltinOps m + Syntax m + Variable m + v
-type FunctorThings' m m' v = Literals2' m m' + BuiltinTypes2' m m' + BuiltinOps' m m' + Syntax' m m' + Variable' m m' + v
-type FunctorThingsI v = Literals2I + BuiltinTypes2I + BuiltinOpsI + SyntaxI + VariableI + v
+type FunctorThings m v = Literals2 m + BuiltinTypes2 m + BuiltinOps m + Syntax m + Variable m + ImportSyntax m + v
+type FunctorThings' m m' v = Literals2' m m' + BuiltinTypes2' m m' + BuiltinOps' m m' + Syntax' m m' + Variable' m m' + ImportSyntax' m m' + v
+type FunctorThingsI v = Literals2I + BuiltinTypes2I + BuiltinOpsI + SyntaxI + VariableI + ImportSyntaxI + v
 
 -- Both together
 type AllTheThings m v = SimpleThings m + FunctorThings m + v
@@ -458,6 +476,9 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
       # VariantF.on (SProxy :: SProxy "CombineTypes") (binop "CombineTypes")
       # VariantF.on (SProxy :: SProxy "Prefer") (binop "Prefer")
       # VariantF.on (SProxy :: SProxy "ImportAlt") (binop "ImportAlt")
+      # VariantF.on (SProxy :: SProxy "UsingHeaders") (binop "UsingHeaders")
+      # VariantF.on (SProxy :: SProxy "Hashed")
+        (\(Tuple hash e) -> "(mkHashed " <> show hash <> " " <> e <> ")")
       # VariantF.on (SProxy :: SProxy "BoolIf")
         (\(Triplet c t f) -> "(mkBoolIf " <> c <> t <> f <> ")")
       # VariantF.on (SProxy :: SProxy "Some")
@@ -661,6 +682,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (SProxy :: SProxy "DoubleShow")
     # vfEqCase (SProxy :: SProxy "Embed")
     # vfEqCase (SProxy :: SProxy "Field")
+    # vfEqCase (SProxy :: SProxy "Hashed")
     # vfEqCase (SProxy :: SProxy "ImportAlt")
     # vfEqCase (SProxy :: SProxy "Integer")
     # vfEqCase (SProxy :: SProxy "IntegerLit")
@@ -706,6 +728,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (SProxy :: SProxy "ToMap")
     # vfEq1Case (SProxy :: SProxy "Union")
     # vfEq1Case (SProxy :: SProxy "UnionLit")
+    # vfEqCase (SProxy :: SProxy "UsingHeaders")
     # vfEqCase (SProxy :: SProxy "Var")
     ) e1 e2
 
@@ -731,6 +754,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (SProxy :: SProxy "DoubleShow")
     # vfOrdCase (SProxy :: SProxy "Embed")
     # vfOrdCase (SProxy :: SProxy "Field")
+    # vfOrdCase (SProxy :: SProxy "Hashed")
     # vfOrdCase (SProxy :: SProxy "ImportAlt")
     # vfOrdCase (SProxy :: SProxy "Integer")
     # vfOrdCase (SProxy :: SProxy "IntegerLit")
@@ -776,6 +800,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (SProxy :: SProxy "ToMap")
     # vfOrd1Case (SProxy :: SProxy "Union")
     # vfOrd1Case (SProxy :: SProxy "UnionLit")
+    # vfOrdCase (SProxy :: SProxy "UsingHeaders")
     # vfOrdCase (SProxy :: SProxy "Var")
     ) e1 e2
 
@@ -801,6 +826,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (SProxy :: SProxy "DoubleShow")
     # vfEqCase (SProxy :: SProxy "Embed")
     # vfEqCase (SProxy :: SProxy "Field")
+    # vfEqCase (SProxy :: SProxy "Hashed")
     # vfEqCase (SProxy :: SProxy "ImportAlt")
     # vfEqCase (SProxy :: SProxy "Integer")
     # vfEqCase (SProxy :: SProxy "IntegerLit")
@@ -846,6 +872,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (SProxy :: SProxy "ToMap")
     # vfEq1Case (SProxy :: SProxy "Union")
     # vfEq1Case (SProxy :: SProxy "UnionLit")
+    # vfEqCase (SProxy :: SProxy "UsingHeaders")
     # vfEqCase (SProxy :: SProxy "Var")
     ) e1 e2
 
@@ -871,6 +898,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (SProxy :: SProxy "DoubleShow")
     # vfOrdCase (SProxy :: SProxy "Embed")
     # vfOrdCase (SProxy :: SProxy "Field")
+    # vfOrdCase (SProxy :: SProxy "Hashed")
     # vfOrdCase (SProxy :: SProxy "ImportAlt")
     # vfOrdCase (SProxy :: SProxy "Integer")
     # vfOrdCase (SProxy :: SProxy "IntegerLit")
@@ -916,6 +944,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (SProxy :: SProxy "ToMap")
     # vfOrd1Case (SProxy :: SProxy "Union")
     # vfOrd1Case (SProxy :: SProxy "UnionLit")
+    # vfOrdCase (SProxy :: SProxy "UsingHeaders")
     # vfOrdCase (SProxy :: SProxy "Var")
     ) e1 e2
 

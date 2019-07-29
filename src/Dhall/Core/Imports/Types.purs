@@ -2,8 +2,8 @@ module Dhall.Core.Imports.Types where
 
 import Prelude
 
-import Data.Foldable (foldMap)
-import Data.List (List)
+import Data.Foldable (foldMap, intercalate)
+import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..))
 
 -- Most of this is just copied from dhall-haskell without further thought so far
@@ -25,6 +25,16 @@ instance monoidDirectory :: Monoid Directory where
 prettyDirectory :: Directory -> String
 prettyDirectory (Directory components) = foldMap ("/" <> _) components
 
+canonicalizeDirectory :: Directory -> Directory
+canonicalizeDirectory (Directory l0) = Directory (rec l0) where
+  rec Nil = Nil
+  rec ("." : l) = l
+  rec (".." : l) = case rec l of
+    Nil -> ".." : Nil
+    ".." : l' -> ".." : ".." : l'
+    _ : l' -> l'
+  rec (d : l) = d : rec l
+
 -- | A `File` is a `directory` followed by one additional path component
 -- | representing the `file` name
 newtype File = File { directory :: Directory, file :: String }
@@ -38,6 +48,9 @@ instance semigroupFile :: Semigroup File where
 
 prettyFile :: File -> String
 prettyFile (File { directory, file }) = prettyDirectory directory <> "/" <> file
+
+canonicalizeFile :: File -> File
+canonicalizeFile (File r) = File r { directory = canonicalizeDirectory r.directory }
 
 data FilePrefix
   = Absolute -- Absolute path
@@ -63,7 +76,7 @@ newtype URL = URL
     , authority :: String
     , path      :: File
     , query     :: Maybe String
-    , headers   :: Maybe ImportHashed
+    , headers   :: Maybe Headers
     }
 derive instance eqURL :: Eq URL
 derive instance ordURL :: Ord URL
@@ -84,6 +97,10 @@ derive instance ordImportType :: Ord ImportType
 parent :: File
 parent = File { directory: Directory (pure ".."), file: "" }
 
+getHeaders :: ImportType -> Maybe Headers
+getHeaders (Remote (URL { headers })) = headers
+getHeaders _ = Nothing
+
 instance semigroupImportType :: Semigroup ImportType where
   append (Local prefix file₀) (Local Here file₁) =
     Local prefix (file₀ <> file₁)
@@ -96,11 +113,6 @@ instance semigroupImportType :: Semigroup ImportType where
 
   append (Remote (URL url)) (Local Parent path) =
     Remote (URL (url { path = url.path <> parent <> path }))
-
-  append import₀ (Remote (URL url)) = Remote $ URL $ url { headers = headers' }
-    where
-      headers' = url.headers <#>
-        (ImportHashed { hash: Nothing, importType: import₀ } <> _)
 
   append _ import₁ =
     import₁
@@ -116,7 +128,10 @@ prettyImportType (Remote (URL url)) =
     <>  queryDoc
     <>  foldMap prettyHeaders url.headers
   where
-    prettyHeaders h = " using " <> prettyImportHashed h
+    prettyHeaders h =
+      " using " <> "[ " <> intercalate "," (prettyHeader <$> h) <> " ]"
+    prettyHeader { header, value } =
+      "{ mapKey = " <> show header <> ", mapValue = " <> show value <> " }"
 
     schemeDoc = case url.scheme of
         HTTP  -> "http"
@@ -129,34 +144,23 @@ prettyImportType (Remote (URL url)) =
 prettyImportType (Env env) = "env:" <> env
 prettyImportType Missing = "missing"
 
+canonicalizeImportType :: ImportType -> ImportType
+canonicalizeImportType (Local prefix file) =
+  Local prefix (canonicalizeFile file)
+canonicalizeImportType (Remote (URL url)) =
+  Remote (URL url { path = canonicalizeFile url.path })
+canonicalizeImportType (Env env) = Env env
+canonicalizeImportType Missing = Missing
+
 -- | How to interpret the import's contents (i.e. as Dhall code or raw text)
 data ImportMode = Code | RawText | Location
 
 derive instance eqImportMode :: Eq ImportMode
 derive instance ordImportMode :: Ord ImportMode
 
--- | A `ImportType` extended with an optional hash for semantic integrity checks
-newtype ImportHashed = ImportHashed
-  { hash       :: Maybe String
-  , importType :: ImportType
-  }
-
-derive instance eqImportHashed :: Eq ImportHashed
-derive instance ordImportHashed :: Ord ImportHashed
-
-instance semigroupImportHashed :: Semigroup ImportHashed where
-  append (ImportHashed ih0) (ImportHashed ih1) = ImportHashed
-    { hash: ih1.hash, importType: ih0.importType <> ih1.importType }
-
-prettyImportHashed :: ImportHashed -> String
-prettyImportHashed (ImportHashed { hash: Nothing, importType: p }) =
-  prettyImportType p
-prettyImportHashed (ImportHashed { hash: Just h, importType: p }) =
-  prettyImportType p <> " sha256:" <> h
-
 -- | Reference to an external resource
 newtype Import = Import
-  { importHashed :: ImportHashed
+  { importType :: ImportType
   , importMode   :: ImportMode
   }
 
@@ -165,7 +169,7 @@ derive instance ordImport :: Ord Import
 
 instance semigroupImport :: Semigroup Import where
   append (Import i0) (Import i1) = Import
-    { importHashed: i0.importHashed <> i1.importHashed
+    { importType: i0.importType <> i1.importType
     , importMode: i1.importMode
     }
 
@@ -173,14 +177,18 @@ instance showImport :: Show Import where
   show = prettyImport
 
 prettyImport :: Import -> String
-prettyImport (Import { importHashed, importMode }) =
-  prettyImportHashed importHashed <> suffix
+prettyImport (Import { importType, importMode }) =
+  prettyImportType importType <> suffix
       where
         suffix :: String
         suffix = case importMode of
             RawText -> " as Text"
             Location -> " as Location"
             Code    -> ""
+
+canonicalizeImport :: Import -> Import
+canonicalizeImport (Import i) =
+  Import i { importType = canonicalizeImportType i.importType }
 
 type Header = { header :: String, value :: String }
 type Headers = Array Header

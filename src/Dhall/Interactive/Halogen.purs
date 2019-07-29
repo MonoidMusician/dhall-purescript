@@ -92,7 +92,6 @@ builtinBinOps rest param = Star
   # renderCase (SProxy :: SProxy "Combine") (renderBinOp "∧")
   # renderCase (SProxy :: SProxy "CombineTypes") (renderBinOp "⩓")
   # renderCase (SProxy :: SProxy "Prefer") (renderBinOp "⫽")
-  # renderCase (SProxy :: SProxy "ImportAlt") (renderBinOp "?")
 
 main :: Effect Unit
 main = HA.runHalogenAff do

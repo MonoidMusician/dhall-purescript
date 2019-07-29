@@ -415,6 +415,8 @@ tagERVFI = un ERVFI >>> Variant.match
   , "CombineTypes": binop
   , "Prefer": binop
   , "ImportAlt": binop
+  , "UsingHeaders": binop
+  , "Hashed": \(_ :: Unit) -> "expr"
   , "BoolIf": case _ of
       Three1 -> "if"
       Three2 -> "then"

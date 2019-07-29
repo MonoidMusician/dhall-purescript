@@ -6,7 +6,7 @@ import Control.Apply (lift2)
 import Data.Const (Const(..))
 import Data.Foldable (class Foldable, fold, length)
 import Data.FoldableWithIndex (foldMapWithIndex)
-import Data.Functor.Variant (VariantF)
+import Data.Functor.Variant (FProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff)
 import Data.Identity (Identity(..))
@@ -16,12 +16,12 @@ import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (over, un, unwrap)
 import Data.These (These(..))
 import Data.Traversable (sequence)
-import Data.Tuple (Tuple(..), fst)
+import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Context (Context)
 import Dhall.Context as Dhall.Context
-import Dhall.Core.AST (BindingBody(..), CONST, Expr, LetF(..), S_, Var(..), Variable, _S, mkVar)
+import Dhall.Core.AST (BindingBody(..), CONST, Expr, LetF(..), Pair(..), S_, Var(..), Variable, _S, mkVar)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, GenericExprAlgebraVT, GenericExprAlgebraVTM, NodeOps, NodeOpsM, elim1, elim1M, runAlgebraExpr, runOverCases, runOverCasesM)
 import Matryoshka (Algebra, cata)
@@ -123,78 +123,98 @@ freeIn = flip $ cata $ freeInAlg <<< unwrap
 -----------------------------------------------------------------
 
 type Intro node = Tuple String (These node node)
+data MaybeIntro node
+  = DoNothing
+  | Clear
+  | Intro (Intro node)
 -- BindingBody binds in its last argument
 trackIntroBindingBody :: forall a b.
-  (Maybe (Intro a) -> a -> b) -> BindingBody a -> BindingBody b
+  (MaybeIntro a -> a -> b) -> BindingBody a -> BindingBody b
 trackIntroBindingBody next (BindingBody name ty body) = BindingBody name
-  do next Nothing ty
-  do next (Just (Tuple name (That ty))) body
+  do next DoNothing ty
+  do next (Intro (Tuple name (That ty))) body
 
 -- LetF binds in its last argument
 trackIntroLetF :: forall a b.
-  (Maybe (Intro a) -> a -> b) -> LetF a -> LetF b
+  (MaybeIntro a -> a -> b) -> LetF a -> LetF b
 trackIntroLetF next (LetF name mty value body) = LetF name
-  do next Nothing <$> mty
-  do next Nothing value
+  do next DoNothing <$> mty
+  do next DoNothing value
   let
     valty = case mty of
       Nothing -> This value
       Just ty -> Both value ty
-  in next (Just (Tuple name valty)) body
+  in next (Intro (Tuple name valty)) body
 
-trackIntroVar :: forall a. Maybe (Intro a) -> Maybe String
-trackIntroVar = map fst
+-- UsingHeaders clears the context in the right branch
+trackIntroUsingHeaders :: forall a b.
+  (MaybeIntro a -> a -> b) -> Pair a -> Pair b
+trackIntroUsingHeaders next (Pair expr headers) = Pair
+  do next DoNothing expr
+  do next Clear headers
+
+trackIntroVar :: forall a. MaybeIntro a -> Maybe String
+trackIntroVar (Intro (Tuple s _)) = Just s
+trackIntroVar _ = Nothing
 
 trackVar :: Var -> Maybe String -> Var
 trackVar v@(V x n) = case _ of
   Just x' | x == x' -> V x (n+1)
   _ -> v
 
-trackIntro :: forall m v a b. (Maybe (Intro a) -> a -> b) ->
-  VariantF (Variable m + v) a -> VariantF (Variable m + v) b
+trackIntro :: forall m v a b. (MaybeIntro a -> a -> b) ->
+  VariantF (Variable m + ( "UsingHeaders" :: FProxy Pair | v )) a ->
+  VariantF (Variable m + ( "UsingHeaders" :: FProxy Pair | v )) b
 trackIntro next = VariantF.expandOverMatch
   (trackIntroCases next)
-  (next Nothing)
+  (next DoNothing)
 
-trackIntroCases :: forall a b. (Maybe (Intro a) -> a -> b) ->
+trackIntroCases :: forall a b. (MaybeIntro a -> a -> b) ->
   { "Var" :: Const Var a -> Const Var b
   , "Lam" :: BindingBody a -> BindingBody b
   , "Pi"  :: BindingBody a -> BindingBody b
   , "Let" :: LetF a -> LetF b
+  , "UsingHeaders" :: Pair a -> Pair b
   }
 trackIntroCases next =
   { "Var": over Const identity
   , "Lam": trackIntroBindingBody next
   , "Pi": trackIntroBindingBody next
   , "Let": trackIntroLetF next
+  , "UsingHeaders": trackIntroUsingHeaders next
   }
 
-trackIntroCasesM :: forall a b f. Applicative f => (Maybe (Intro a) -> a -> f b) ->
+trackIntroCasesM :: forall a b f. Applicative f => (MaybeIntro a -> a -> f b) ->
   { "Var" :: Const Var a -> f (Const Var b)
   , "Lam" :: BindingBody a -> f (BindingBody b)
   , "Pi"  :: BindingBody a -> f (BindingBody b)
   , "Let" :: LetF a -> f (LetF b)
+  , "UsingHeaders" :: Pair a -> f (Pair b)
   }
 trackIntroCasesM next =
   { "Var": un Const >>> pure >>> map Const
   , "Lam": trackIntroBindingBody next >>> sequence
   , "Pi": trackIntroBindingBody next >>> sequence
   , "Let": trackIntroLetF next >>> sequence
+  , "UsingHeaders": trackIntroUsingHeaders next >>> sequence
   }
+
+type VariablePlus (m :: Type -> Type) v = Variable m
+  ( "UsingHeaders" :: FProxy Pair | v )
 
 -- A simple algebra for `freeIn`. Will work with anything that is
 -- vaguely like `Expr`.
 freeInAlg ::
   forall m v rl.
-    RL.RowToList (Variable m + v) rl =>
-    VariantF.FoldableVFRL rl (Variable m + v) =>
-  Algebra (VariantF (Variable m + v)) (Var -> Disj Boolean)
+    RL.RowToList (VariablePlus m + v) rl =>
+    VariantF.FoldableVFRL rl (VariablePlus m + v) =>
+  Algebra (VariantF (VariablePlus m + v)) (Var -> Disj Boolean)
 freeInAlg layer v | layer # VariantF.on (_S::S_ "Var") (eq (Const v)) ff = Disj true
 freeInAlg layer v = layer # trackIntro ((#) <<< trackVar v <<< trackIntroVar) >>> fold
 
 -- Generic Algebra for shifting variable references.
 type ShiftAlg node v = ( shift :: { delta :: Int, variable :: Var } | v )
-shiftAlgG :: forall m. GenericExprAlgebraVT NodeOps (Variable m) ShiftAlg
+shiftAlgG :: forall m. GenericExprAlgebraVT NodeOps (VariablePlus m) ShiftAlg
 shiftAlgG = elim1 (_S::S_ "shift")
   \i@{ delta, variable: v@(V x n) } node ->
     let recur = node.recurse <<< Variant.inj (_S::S_ "shift") <<< { delta, variable: _ } in
@@ -204,10 +224,11 @@ shiftAlgG = elim1 (_S::S_ "shift")
     , "Lam": trackIntroBindingBody (recur <<< trackVar v <<< trackIntroVar)
     , "Pi": trackIntroBindingBody (recur <<< trackVar v <<< trackIntroVar)
     , "Let": trackIntroLetF (recur <<< trackVar v <<< trackIntroVar)
+    , "UsingHeaders": trackIntroUsingHeaders (recur <<< trackVar v <<< trackIntroVar)
     }
 
 shiftAlgGM :: forall f m. Applicative f =>
-  GenericExprAlgebraVTM f (NodeOpsM f) (Variable m) ShiftAlg
+  GenericExprAlgebraVTM f (NodeOpsM f) (VariablePlus m) ShiftAlg
 shiftAlgGM = elim1M (_S::S_ "shift")
   \i@{ delta, variable: v@(V x n) } node ->
     let recur = node.recurse <<< Variant.inj (_S::S_ "shift") <<< { delta, variable: _ } in
@@ -217,13 +238,14 @@ shiftAlgGM = elim1M (_S::S_ "shift")
     , "Lam": sequence <<< trackIntroBindingBody (recur <<< trackVar v <<< trackIntroVar)
     , "Pi": sequence <<< trackIntroBindingBody (recur <<< trackVar v <<< trackIntroVar)
     , "Let": sequence <<< trackIntroLetF (recur <<< trackVar v <<< trackIntroVar)
+    , "UsingHeaders": sequence <<< trackIntroUsingHeaders (recur <<< trackVar v <<< trackIntroVar)
     }
 
 -- Generic Algebra for substituting variable references.
 -- (Note how the input type references `node`.)
 type SubstAlg node v = ( subst :: { variable :: Var, substitution :: node } | v )
 type ShiftSubstAlg node v = ShiftAlg node + SubstAlg node + v
-shiftSubstAlgG :: forall m. GenericExprAlgebraVT NodeOps (Variable m) ShiftSubstAlg
+shiftSubstAlgG :: forall m. GenericExprAlgebraVT NodeOps (VariablePlus m) ShiftSubstAlg
 shiftSubstAlgG rest = rest # shiftAlgG <<< Variant.on (_S::S_ "subst")
   \i@{ variable: variable, substitution } node -> Identity <<<
   let
@@ -245,7 +267,7 @@ shiftSubstAlgG rest = rest # shiftAlgG <<< Variant.on (_S::S_ "subst")
         trackIntroCases (next <<< trackIntroVar)
 
 shiftSubstAlgGM :: forall f m. Applicative f => Bind f =>
-  GenericExprAlgebraVTM f (NodeOpsM f) (Variable m) ShiftSubstAlg
+  GenericExprAlgebraVTM f (NodeOpsM f) (VariablePlus m) ShiftSubstAlg
 shiftSubstAlgGM rest = rest # shiftAlgGM <<< Variant.on (_S::S_ "subst")
   \i@{ variable: variable, substitution } node ->
   let
@@ -297,7 +319,7 @@ doRenameAlgG v0 v1 node = identity
 -- additionally, if the unbound variable name is also `_`, then the length of
 -- the context (i.e., the number of variables about to be named `_`) is added.
 type AlphaNormalizeAlg node v = ShiftSubstAlg node + ( "alphaNormalize" :: { ctx :: Context Unit } | v )
-alphaNormalizeAlgG :: forall m. GenericExprAlgebraVT ConsNodeOps (Variable m) AlphaNormalizeAlg
+alphaNormalizeAlgG :: forall m. GenericExprAlgebraVT ConsNodeOps (VariablePlus m) AlphaNormalizeAlg
 alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormalize") \{ ctx } node ->
   let
     norm = node.recurse <<< Variant.inj (_S::S_ "alphaNormalize")
@@ -325,4 +347,5 @@ alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormaliz
   , "Lam": renamBindingBody <<< trackIntroBindingBody (renam <<< trackIntroVar)
   , "Pi": renamBindingBody <<< trackIntroBindingBody (renam <<< trackIntroVar)
   , "Let": renamLetF <<< trackIntroLetF (renam <<< trackIntroVar)
+  , "UsingHeaders": trackIntroUsingHeaders (renam <<< trackIntroVar)
   }

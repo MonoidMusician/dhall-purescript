@@ -139,7 +139,7 @@ DIGIT -> [0-9] {% pass0 %}
 
 ALPHANUM -> ALPHA {% pass0 %} | DIGIT {% pass0 %}
 
-HEXDIG -> DIGIT {% pass0 %} | "A" {% pass0 %} | "B" {% pass0 %} | "C" {% pass0 %} | "D" {% pass0 %} | "E" {% pass0 %} | "F" {% pass0 %}
+HEXDIG -> DIGIT {% pass0 %} | [Aa] {% pass0 %} | [Bb] {% pass0 %} | [Cc] {% pass0 %} | [Dd] {% pass0 %} | [Ee] {% pass0 %} | [Ff] {% pass0 %}
 
 # A simple label cannot be one of the reserved keywords
 # listed in the `keyword` rule.
@@ -172,11 +172,14 @@ label -> ("`" quoted_label "`" {% pass1 %} | simple_label {% pass0 %}) {% pass0 
 # (unless quoted).
 # Their list can be found in the `builtin` rule.
 # The only place where this restriction applies is bound variables.
+# A nonreserved-label also cannot start with sha256-prefix.  This would be true
+# anyway since that contains a `:` but a PEG parser may want to explicitly
+# look for this case to avoid greedily matching the start of the prefix.
 # A PEG parser could use negative lookahead to avoid parsing those identifiers,
 # e.g. as follows:
 # nonreserved-label =
 #      builtin 1*simple-label-next-char
-#    / !builtin label
+#    / !(builtin / sha256-prefix) label
 nonreserved_label -> label {% (d, _, reject) => builtin.includes(d[0]) ? reject : d[0] %}
 
 # An any_label is allowed to be one of the reserved identifiers.
@@ -539,11 +542,11 @@ posix_environment_variable_character ->
 
 import_type -> missing {% () => ({ type: "Missing", value: [] }) %} | local {% pass0 %} | http {% pass0 %} | env {% pass0 %}
 
-hash -> "sha256:" HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG
-import_hashed -> import_type ( whsp1 hash ):? {% tag("ImportHashed") %}
+sha256_prefix -> "sha256:"
 
-import -> import_hashed ( whsp as whsp1 ( Text {% pass0 %} | Location {% pass0 %} ) {% pass(3) %} ):? {% tag("Import") %}
+hash -> sha256_prefix HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG {% d => collapse(d.slice(1)) %}
 
+import -> import_type ( whsp as whsp1 ( Text {% pass0 %} | Location {% pass0 %} ) {% pass(3) %} ):? {% tag("Import") %}
 
 expression ->
 		# "\(x : a) -> b"
@@ -616,8 +619,8 @@ not_equal_expression     -> application_expression   (whsp "!=" whsp application
 # would be ambiguity: `./ab` could be interpreted as "import the file `./ab`",
 # or "apply the import `./a` to label `b`"
 application_expression ->
-		first_application_expression (whsp1 import_expression):*
-		{% binop("App") %}
+		first_application_expression (whsp1 import_expression):* ( whsp1 hash (whsp1 import_expression):* ):?
+		{% d => d[2] ? binop("App")([tag("Hashed")([binop("App")([d[0], d[1]]), d[2][1]]), d[2][2]]) : binop("App")([d[0], d[1]]) %}
 first_application_expression ->
 	# "merge e1 e2"
 		merge whsp1 import_expression whsp1 import_expression

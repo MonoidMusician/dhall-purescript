@@ -17,7 +17,7 @@ import Data.HeytingAlgebra (ff, tt)
 import Data.Identity (Identity(..))
 import Data.Lens (Fold', preview)
 import Data.List (List)
-import Data.Maybe (Maybe(..), isJust, isNothing)
+import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
 import Data.Maybe.First (First)
 import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (unwrap)
@@ -28,7 +28,7 @@ import Data.Tuple (Tuple(..))
 import Dhall.Core (S_, _S)
 import Dhall.Core.AST (Const(..), Expr, ExprLayerRow, TextLitF(..), Var(..), ExprLayer, projectW)
 import Dhall.Core.AST as AST
-import Dhall.Core.Imports.Types (Directory, File(..), FilePrefix(..), Import(..), ImportHashed(..), ImportMode(..), ImportType(..), Scheme(..), URL(..))
+import Dhall.Core.Imports.Types (Directory, File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), Scheme(..), URL(..))
 import Dhall.Core.StrMapIsh as IOSM
 import Dhall.Parser.Prioritize (POrdering)
 import Dhall.Parser.Prioritize as Prioritize
@@ -144,13 +144,17 @@ decodeFAST (FAST r) =
       | Just { head, tail: vs } <- Array.uncons r."value"
       , [label, value] <- decodeA identity head ->
         AST.mkUnionLit (decodeS label) (decodeF value) (decodeLabelled decodeF vs)
-    "Import", [a, b] -> pure $ Import
-      { importHashed: decodeImportHashed (fromForeign a)
-      , importMode: case runExcept $ Foreign.readString b of
-          Right "Text" -> RawText
-          Right "Location" -> Location
-          _ -> Code
-      }
+    "Hashed", [a, b] -> AST.mkHashed (decodeF a) (decodeHash b)
+    "Import", [a, b] -> case decodeImportType (fromForeign a) of
+      Tuple mb importType ->
+        (maybe identity (flip AST.mkUsingHeaders <<< decodeFAST) mb) $
+          pure $ Import
+            { importType
+            , importMode: case runExcept $ Foreign.readString b of
+                Right "Text" -> RawText
+                Right "Location" -> Location
+                _ -> Code
+            }
     _, _ -> unsafeCrashWith $ "Unrecognized Expr: " <> r."type" <> " " <> unsafeCoerce r
 
 decodeTextLit :: Array Foreign -> TextLitF ParseExpr
@@ -168,20 +172,12 @@ decodeLabelled dec fs = IOSM.InsOrdStrMap $ Compose $ fs <#> unsafeCoerce >>>
     [s, a] -> Tuple (decodeS s) (dec a)
     _ -> unsafeCrashWith "Unrecognized labelled tuple"
 
-decodeImportHashed :: FAST Foreign -> ImportHashed
-decodeImportHashed (FAST r) = case r of
-  { "type": "ImportHashed", "value": [a, b] } -> ImportHashed
-    { importType: decodeImportType (fromForeign a)
-    , hash: decodeN decodeHash b
-    }
-  _ -> unsafeCrashWith "Unrecognized ImportHashed"
-
 decodeHash :: Foreign -> String
 decodeHash = decodeS
 
-decodeImportType :: FAST Foreign -> ImportType
+decodeImportType :: FAST Foreign -> Tuple (Maybe (FAST Foreign)) ImportType
 decodeImportType (FAST r) = case r of
-  { "type": "Missing" } -> Missing
+  { "type": "Missing" } -> Tuple Nothing Missing
   { "type": "Local", value: [t, dir, file] } ->
     let
       prefix =
@@ -191,17 +187,19 @@ decodeImportType (FAST r) = case r of
           "Parent" -> Parent
           "Home" -> Home
           _ -> unsafeCrashWith "Unrecognized FilePrefix"
-    in Local prefix $ File $
+    in Tuple Nothing $ Local prefix $ File $
     { directory: decodeDirectory dir, file: unsafeCoerce file }
-  { "type": "Remote", value } -> Remote (decodeURL value)
-  { "type": "Env", value: [env_var] } -> Env (decodeS env_var)
+  { "type": "Remote", value } -> Remote <$> decodeURL value
+  { "type": "Env", value: [env_var] } -> Tuple Nothing $ Env (decodeS env_var)
   _ -> unsafeCrashWith "Unrecognized ImportType"
 
 decodeDirectory :: Foreign -> Directory
 decodeDirectory = unsafeCoerce (Array.toUnfoldable :: Array ~> List)
 
-decodeURL :: Array Foreign -> URL
-decodeURL [ scheme, authority, dir, file, query, headers ] = URL
+decodeURL :: Array Foreign -> Tuple (Maybe (FAST Foreign)) URL
+decodeURL [ scheme, authority, dir, file, query, headers ] =
+  Tuple (decodeN fromForeign headers) $
+  URL
   { scheme: case decodeS scheme of
       "http" -> HTTP
       "https" -> HTTPS
@@ -210,7 +208,7 @@ decodeURL [ scheme, authority, dir, file, query, headers ] = URL
   , path: File $
     { directory: decodeDirectory dir, file: unsafeCoerce file }
   , query: decodeN decodeS query
-  , headers: decodeN (fromForeign >>> decodeImportHashed) headers
+  , headers: Nothing
   }
 decodeURL _ = unsafeCrashWith "Unrecognized URL"
 
@@ -304,7 +302,7 @@ prioritize_forall = Prioritize.fromRelation \better worse -> Disj $ isJust do
 prioritize_env :: ParseExpr -> ParseExpr -> Maybe POrdering
 prioritize_env = Prioritize.fromLRPredicates
   do
-    let isEnv (Import { importHashed: ImportHashed { importType: Env _ }}) = true
+    let isEnv (Import { importType: Env _ }) = true
         isEnv _ = false
     fits AST._Embed $ unwrap >>> isEnv
   do

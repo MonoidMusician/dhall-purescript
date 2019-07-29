@@ -2,7 +2,7 @@ module Dhall.TypeCheck where
 
 import Prelude
 
-import Control.Alternative (class Alternative)
+import Control.Alternative (class Alternative, (<|>))
 import Control.Comonad (class Comonad, extend, extract)
 import Control.Comonad.Cofree (Cofree, buildCofree, hoistCofree)
 import Control.Comonad.Cofree as Cofree
@@ -67,11 +67,12 @@ import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Location (BasedExprDerivation, Derived, Operated, Within, Derivation)
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Operations.Transformations (OverCases, OverCasesM(..))
+import Dhall.Core.Imports.Retrieve (headerType)
 import Dhall.Core.StrMapIsh (class StrMapIsh)
 import Dhall.Core.StrMapIsh as StrMapIsh
 import Dhall.Core.Zippers (_ix)
 import Dhall.Normalize as Dhall.Normalize
-import Dhall.Variables (alphaNormalizeAlgG, freeInAlg, shiftAlgG, trackIntro)
+import Dhall.Variables (MaybeIntro(..), alphaNormalizeAlgG, freeInAlg, shiftAlgG, trackIntro)
 import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, mapR, project, transCata, traverseR)
 import Type.Row (type (+))
 import Type.Row as R
@@ -350,8 +351,9 @@ bicontextualizeWithin1 :: forall m a node node'.
   AST.ExprLayerF m a node ->
   AST.ExprLayerF m a node'
 bicontextualizeWithin1 shiftIn_node' go ctx = trackIntro case _ of
-  Nothing -> go ctx
-  Just (Tuple name introed) -> go $
+  DoNothing -> go ctx
+  Clear -> go Dhall.Context.empty
+  Intro (Tuple name introed) -> go $
     -- NOTE: shift in the current entry as soon as it becomes part of the context
     -- (so it stays valid even if it references the name being shift in)
     Dhall.Context.insert name (join bimap (shiftIn_node' name <<< go ctx) introed) $
@@ -365,8 +367,9 @@ substcontextualizeWithin1 :: forall m a node node'.
   AST.ExprLayerF m a node ->
   AST.ExprLayerF m a node'
 substcontextualizeWithin1 shiftIn_node' go ctx = trackIntro case _ of
-  Nothing -> go ctx
-  Just (Tuple name introed) -> go $
+  DoNothing -> go ctx
+  Clear -> go Dhall.Context.empty
+  Intro (Tuple name introed) -> go $
     Dhall.Context.insert name (map (shiftIn_node' name <<< go ctx) $ theseLeft introed) $
       map (shiftIn_node' name) <$> ctx
 
@@ -378,8 +381,9 @@ substcontextualizeWithin10 :: forall m a node node'.
   AST.ExprLayerF m a node ->
   AST.ExprLayerF m a node'
 substcontextualizeWithin10 shiftIn_node' go ctx = trackIntro case _ of
-  Nothing -> go ctx
-  Just (Tuple name introed) -> go $
+  DoNothing -> go ctx
+  Clear -> go Dhall.Context.empty
+  Intro (Tuple name introed) -> go $
     Dhall.Context.insert name empty $
       map (shiftIn_node' name) <$> ctx
 
@@ -673,8 +677,9 @@ locateE' tpa = Variant.match
   , within: \i -> \(Tuple ctx e) -> V.liftW $
       let
         intro = Tuple <<< case _ of
-          Nothing -> ctx
-          Just (Tuple k th) -> join bimap (Variables.shift 1 (V k 0)) <$>
+          DoNothing -> ctx
+          Clear -> Dhall.Context.empty
+          Intro (Tuple k th) -> join bimap (Variables.shift 1 (V k 0)) <$>
             Dhall.Context.insert k th ctx
       in e # project # un ERVF # trackIntro intro # ERVF # preview (_ix i) # do
         V.note $ TypeCheckError
@@ -820,6 +825,7 @@ type Errors r =
   , "Invalid toMap type" :: Maybe Const
   , "Missing toMap type" :: Unit
   , "Inconsistent toMap types" :: Inconsistency (NonEmptyList (Maybe String))
+  , "Wrong header type" :: Unit
   , "Invalid input type" :: Unit
   , "Invalid output type" :: Unit
   , "No dependent types" :: Pair Const
@@ -1464,9 +1470,28 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           (noteHere (_S::S_ "Missing field") k)
         mty # maybe (pure ty0) \ty1 ->
           checkEqR ty0 ty1 (errorHere (_S::S_ "Projection type mismatch") <<< const k)
-  , "ImportAlt": \(Pair l _r) ->
+  , "Hashed": \(Tuple _ e) -> head2D <$> typecheckStep e
+  , "UsingHeaders": \(Pair l r) ->
+      head2D <$> typecheckStep l <* do
+        let error = errorHere (_S::S_ "Wrong header type")
+        (ty :: OxprE w r m a) <- typecheckStep r
+        AST.Pair list (ty' :: OxprE w r m a) <- ensure' (_S::S_ "App") ty error
+        _ <- ensure' (_S::S_ "List") list error
+        (rec :: m (OxprE w r m a)) <- ensure' (_S::S_ "Record") ty' error
+        when (StrMapIsh.size rec /= 2) (void $ error unit)
+        (mapKey :: OxprE w r m a) <- StrMapIsh.get "mapKey" rec # noteHere (_S::S_ "Wrong header type") unit
+        (mapValue :: OxprE w r m a) <- StrMapIsh.get "mapValue" rec # noteHere (_S::S_ "Wrong header type") unit
+        _ <- ensure' (_S::S_ "Text") mapKey error
+        _ <- ensure' (_S::S_ "Text") mapValue error
+        pure unit
+  , "ImportAlt": \(Pair l r) ->
       -- FIXME???
-      head2D <$> typecheckStep l
+      case unwrap $ head2D <$> typecheckStep l of
+        succ@(V.Success _) -> wrap succ
+        V.Error es ml ->
+          case unwrap $ head2D <$> typecheckStep r of
+            succ@(V.Success _) -> wrap succ
+            V.Error es' mr -> wrap $ V.Error (es <> es') (ml <|> mr)
   , "Embed": map newborn <<< tpa <<< unwrap
   }
 
@@ -1999,5 +2024,12 @@ explain ctx nodeType =
       , referenceExpr $ rehydrate ty
       , Text $ " but instead its " <> (if side then "right" else "left") <> " operand had type "
       , reference $ typechecked <> within' focus
+      ]
+  , "Wrong header type": \(_ :: Unit) ->
+      [ Compare
+          "Headers are expected to have type "
+          (expr headerType)
+          " but this instead had type "
+          (dereference $ typechecked <> within (_S::S_ "UsingHeaders") true)
       ]
   }

@@ -317,13 +317,29 @@ renderBuiltinBinOps _ { rndr: renderA } = identity
   >>> renderVFLensed (_S::S_ "Combine") renderBinOp
   >>> renderVFLensed (_S::S_ "CombineTypes") renderBinOp
   >>> renderVFLensed (_S::S_ "Prefer") renderBinOp
-  >>> renderVFLensed (_S::S_ "ImportAlt") renderBinOp
   where
     _l = lens' \(AST.Pair l r) -> Tuple l \l' -> AST.Pair l' r
     _r = lens' \(AST.Pair l r) -> Tuple r \r' -> AST.Pair l r'
     renderBinOp =
       [ mkLensed "L" _l renderA
       , mkLensed "R" _r renderA
+      ]
+
+renderImportSyntax :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.ImportSyntax r m a
+renderImportSyntax opts { rndr: renderA } = identity
+  >>> renderVFLensed (_S::S_ "ImportAlt") renderBinOp
+  >>> renderVFLensed (_S::S_ "UsingHeaders") renderBinOp
+  >>> renderVFLensed (_S::S_ "Hashed") renderHashed
+  where
+    _l = lens' \(AST.Pair l r) -> Tuple l \l' -> AST.Pair l' r
+    _r = lens' \(AST.Pair l r) -> Tuple r \r' -> AST.Pair l r'
+    renderBinOp =
+      [ mkLensed "L" _l renderA
+      , mkLensed "R" _r renderA
+      ]
+    renderHashed =
+      [ mkLensed "expression" _2 renderA
+      , mkLensed "sha256" _1 (renderString opts)
       ]
 
 renderBuiltinOps :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.BuiltinOps r m a
@@ -450,6 +466,7 @@ renderAllTheThings opts renderA = identity
   >>> renderLiterals2 opts renderA
   >>> renderBuiltinTypes2 opts renderA
   >>> renderSyntax opts renderA
+  >>> renderImportSyntax opts renderA
 
 type Ann = { collapsed :: Disj Boolean }
 type IdxAnn = Tuple Ann AST.ExprI
