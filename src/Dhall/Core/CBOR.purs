@@ -30,11 +30,11 @@ import Dhall.Core.AST as AST
 import Dhall.Core.AST.Types.Basics (pureTextLitF)
 import Dhall.Core.Imports.Retrieve (fromHeaders, headerType)
 import Dhall.Core.Imports.Types (Directory(..), File(..), FilePrefix(..), ImportMode(..), Scheme(..), URL(..), Headers)
-import Dhall.Core.StrMapIsh (class StrMapIsh)
-import Dhall.Core.StrMapIsh as StrMapIsh
+import Dhall.Map (class MapLike)
+import Dhall.Map as Dhall.Map
 import Foreign.Object as Foreign.Object
 
-encode :: forall m. StrMapIsh m => Expr m Import -> Json
+encode :: forall m. MapLike String m => Expr m Import -> Json
 encode = recenc Nil where
   recenc headers =
     let
@@ -128,7 +128,7 @@ encode = recenc Nil where
       , "Field": \(Tuple name expr) -> tagged 9 [ enc expr, J.fromString name ]
       , "Project": \(Product (Tuple (Identity expr) projs)) -> tagged 10 $ [ enc expr ] <>
           case projs of
-            Left (App names) -> (J.fromString <<< fst <$> StrMapIsh.toUnfoldable names)
+            Left (App names) -> (J.fromString <<< fst <$> Dhall.Map.toUnfoldable names)
             Right fields -> [ enc fields ]
       , "Union": \m -> tagged 11 [ toObject $ maybe null enc <$> unwrap m ]
       , "UnionLit": \(Product (Tuple (Tuple name val) m)) -> tagged 12
@@ -177,14 +177,14 @@ int :: Int -> Json
 int = J.fromNumber <<< Int.toNumber
 tagged :: Int -> Array Json -> Json
 tagged t a = J.fromArray $ [ int t ] <> a
-toObject :: forall m. StrMapIsh m => m Json -> Json
-toObject = StrMapIsh.toUnfoldable
+toObject :: forall m. MapLike String m => m Json -> Json
+toObject = Dhall.Map.toUnfoldable
   >>> (identity :: List ~> List)
   >>> Foreign.Object.fromFoldable
     >>> J.fromObject
-fromObject :: forall m. StrMapIsh m => Json -> Maybe (m Json)
+fromObject :: forall m. MapLike String m => Json -> Maybe (m Json)
 fromObject = pure
-  <<< StrMapIsh.fromFoldable
+  <<< Dhall.Map.fromFoldable
   <<< (identity :: List ~> List)
   <<< Foreign.Object.toUnfoldable
     <=< J.toObject
@@ -290,7 +290,7 @@ decodeImport q = do
     , headers
     }
 
-decode :: forall m. StrMapIsh m => Json -> Maybe (Expr m Import)
+decode :: forall m. MapLike String m => Json -> Maybe (Expr m Import)
 decode = J.caseJson
   (pure empty)
   (pure <<< AST.mkBoolLit)
@@ -423,7 +423,7 @@ decode = J.caseJson
         expr' <- decode head
         proj' <- case traverse J.toString tail of
           Just tail' ->
-            pure $ Left $ StrMapIsh.fromFoldable $ Tuple <$> tail' <@> unit
+            pure $ Left $ Dhall.Map.fromFoldable $ Tuple <$> tail' <@> unit
           Nothing -> case tail of
             [ fields ] -> do
               fields' <- decode fields

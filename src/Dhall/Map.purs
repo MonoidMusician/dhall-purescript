@@ -1,8 +1,9 @@
-module Dhall.Core.StrMapIsh where
+module Dhall.Map where
 
 import Prelude
 
 import Control.Alt (class Alt)
+import Control.Comonad (extract)
 import Control.Extend (extend)
 import Control.Plus (class Plus)
 import Data.Array as Array
@@ -29,19 +30,19 @@ import Type.Proxy (Proxy2(..))
 
 -- This abstracts the functor used for record and union cases in the AST
 -- (the major difference being that sometimes we want sorting vs ordering)
-class (Ord1 m, TraversableWithIndex String m) <= StrMapIsh m where
+class (Ord k, Ord1 m, TraversableWithIndex k m) <= MapLike k m | m -> k where
   empty :: forall a. m a
   isEmpty :: forall a. m a -> Boolean
-  get :: forall a. String -> m a -> Maybe a
-  modify :: forall a. String -> (a -> Tuple String a) -> m a -> Maybe (m a)
-  alter :: forall a. String -> (Maybe a -> Maybe a) -> m a -> m a
-  delete :: forall a. String -> m a -> Maybe (m a)
-  unionWith :: forall a b c. (String -> These a b -> Maybe c) -> m a -> m b -> m c
-  toUnfoldable :: forall f a. Unfoldable f => m a -> f (Tuple String a)
-  fromFoldable :: forall f a. Foldable f => f (Tuple String a) -> m a
+  get :: forall a. k -> m a -> Maybe a
+  modify :: forall a. k -> (a -> Tuple k a) -> m a -> Maybe (m a)
+  alter :: forall a. k -> (Maybe a -> Maybe a) -> m a -> m a
+  delete :: forall a. k -> m a -> Maybe (m a)
+  unionWith :: forall a b c. (k -> These a b -> Maybe c) -> m a -> m b -> m c
+  toUnfoldable :: forall f a. Unfoldable f => m a -> f (Tuple k a)
+  fromFoldable :: forall f a. Foldable f => f (Tuple k a) -> m a
   size :: forall a. m a -> Int
 
-symmetricDiff :: forall m a b. StrMapIsh m => m a -> m b -> m (Either a b)
+symmetricDiff :: forall k m a b. MapLike k m => m a -> m b -> m (Either a b)
 symmetricDiff = unionWith \_ -> case _ of
   Both _ _ -> Nothing
   This a -> Just (Left a)
@@ -63,7 +64,7 @@ unionWithMapThese f ma mb =
       This a, This _ -> This a
   in Map.mapMaybeWithKey f $ Map.unionWith combine (This <$> ma) (That <$> mb)
 
-instance strMapMapString :: StrMapIsh (Map String) where
+instance strMapMapString :: Ord k => MapLike k (Map k) where
   empty = Map.empty
   isEmpty = Map.isEmpty
   get = Map.lookup
@@ -79,47 +80,48 @@ instance strMapMapString :: StrMapIsh (Map String) where
   fromFoldable = Map.fromFoldable
   size = Map.size
 
-newtype InsOrdStrMap a = InsOrdStrMap (Compose Array (Tuple String) a)
-derive instance newtypeIOSM :: Newtype (InsOrdStrMap a) _
-derive newtype instance eqIOSM :: Eq a => Eq (InsOrdStrMap a)
-derive newtype instance ordIOSM :: Ord a => Ord (InsOrdStrMap a)
-derive newtype instance eq1IOSM :: Eq1 InsOrdStrMap
-derive newtype instance ord1IOSM :: Ord1 InsOrdStrMap
-mkIOSM :: forall a. Array (Tuple String a) -> InsOrdStrMap a
-mkIOSM = InsOrdStrMap <<< Compose
-unIOSM :: forall a. InsOrdStrMap a -> Array (Tuple String a)
-unIOSM (InsOrdStrMap (Compose as)) = as
-derive newtype instance functorIOSM :: Functor InsOrdStrMap
-derive newtype instance foldableIOSM :: Foldable InsOrdStrMap
-derive newtype instance traversableIOSM :: Traversable InsOrdStrMap
-derive newtype instance altIOSM :: Alt InsOrdStrMap
-derive newtype instance plusIOSM :: Plus InsOrdStrMap
-instance functorWithIndexIOSM :: FunctorWithIndex String InsOrdStrMap where
-  mapWithIndex f = over InsOrdStrMap $ over Compose $ map $ extend $ uncurry f
-instance foldableWithIndexIOSM :: FoldableWithIndex String InsOrdStrMap where
+newtype InsOrdMap k a = InsOrdMap (Compose Array (Tuple k) a)
+type InsOrdStrMap = InsOrdMap String
+derive instance newtypeIOSM :: Newtype (InsOrdMap k a) _
+derive newtype instance eqIOSM :: (Eq k, Eq a) => Eq (InsOrdMap k a)
+derive newtype instance ordIOSM :: (Ord k, Ord a) => Ord (InsOrdMap k a)
+derive newtype instance eq1IOSM :: Eq k => Eq1 (InsOrdMap k)
+derive newtype instance ord1IOSM :: Ord k => Ord1 (InsOrdMap k)
+mkIOSM :: forall k a. Array (Tuple k a) -> InsOrdMap k a
+mkIOSM = InsOrdMap <<< Compose
+unIOSM :: forall k a. InsOrdMap k a -> Array (Tuple k a)
+unIOSM (InsOrdMap (Compose as)) = as
+derive newtype instance functorIOSM :: Functor (InsOrdMap k)
+derive newtype instance foldableIOSM :: Foldable (InsOrdMap k)
+derive newtype instance traversableIOSM :: Traversable (InsOrdMap k)
+derive newtype instance altIOSM :: Alt (InsOrdMap k)
+derive newtype instance plusIOSM :: Plus (InsOrdMap k)
+instance functorWithIndexIOSM :: FunctorWithIndex k (InsOrdMap k) where
+  mapWithIndex f = over InsOrdMap $ over Compose $ map $ extend $ uncurry f
+instance foldableWithIndexIOSM :: FoldableWithIndex k (InsOrdMap k) where
   foldMapWithIndex f = unwrap >>> unwrap >>> foldMap (uncurry f)
   foldrWithIndex f b0 = unwrap >>> unwrap >>> foldr (uncurry f) b0
   foldlWithIndex f b0 = unwrap >>> unwrap >>> foldl (flip (uncurry (flip <<< f))) b0
-instance traversableWithIndexIOSM :: TraversableWithIndex String InsOrdStrMap where
+instance traversableWithIndexIOSM :: TraversableWithIndex k (InsOrdMap k) where
   traverseWithIndex f = unwrap >>> unwrap >>>
     traverse (\(Tuple k v) -> f k v <#> Tuple k) >>> map (wrap >>> wrap)
-instance strMapIshIOSM :: StrMapIsh InsOrdStrMap where
+instance strMapIshIOSM :: Ord k => MapLike k (InsOrdMap k) where
   empty = wrap $ wrap []
   isEmpty = unwrap >>> unwrap >>> Array.null
   get k = unwrap >>> unwrap >>> find (fst >>> eq k) >>> map snd
-  modify k f (InsOrdStrMap (Compose as)) = wrap <<< wrap <$> do
+  modify k f (InsOrdMap (Compose as)) = wrap <<< wrap <$> do
     i <- Array.findIndex (fst >>> eq k) as
-    Array.modifyAt i ((=<<) f) as
-  alter k f (InsOrdStrMap (Compose as)) = wrap $ wrap $
+    Array.modifyAt i (f <<< extract) as
+  alter k f (InsOrdMap (Compose as)) = wrap $ wrap $
     case Array.findIndex (fst >>> eq k) as of
       Nothing -> case f Nothing of
         Nothing -> as
         Just v -> [Tuple k v] <> as
       Just i -> (fromMaybe <*> Array.alterAt i (traverse (f <<< Just))) as
-  delete k (InsOrdStrMap (Compose as)) = wrap <<< wrap <$> do
+  delete k (InsOrdMap (Compose as)) = wrap <<< wrap <$> do
     i <- Array.findIndex (fst >>> eq k) as
     Array.deleteAt i as
-  unionWith f (InsOrdStrMap (Compose l')) (InsOrdStrMap (Compose r')) =
+  unionWith f (InsOrdMap (Compose l')) (InsOrdMap (Compose r')) =
     let
       combine = case _, _ of
         This a, That b -> Both a b
@@ -142,24 +144,24 @@ instance strMapIshIOSM :: StrMapIsh InsOrdStrMap where
   size = unIOSM >>> Array.length
 
 -- FIXME: I don't think this is what I want for this name?
-set :: forall m a. StrMapIsh m => String -> a -> m a -> Maybe (m a)
+set :: forall k m a. MapLike k m => k -> a -> m a -> Maybe (m a)
 set k v = modify k (pure (Tuple k v))
 
-insert :: forall m a. StrMapIsh m => String -> a -> m a -> m a
+insert :: forall k m a. MapLike k m => k -> a -> m a -> m a
 insert k v = alter k (pure (pure v))
 
-singleton :: forall m a. StrMapIsh m => String -> a -> m a
+singleton :: forall k m a. MapLike k m => k -> a -> m a
 singleton k v = insert k v empty
 
-_Empty :: forall m a. StrMapIsh m => Prism' (m a) Unit
+_Empty :: forall k m a. MapLike k m => Prism' (m a) Unit
 _Empty = prism' (const empty)
   \m -> if isEmpty m then Just unit else Nothing
 
-conv :: forall m m'. StrMapIsh m => StrMapIsh m' => m ~> m'
+conv :: forall k m m'. MapLike k m => MapLike k m' => m ~> m'
 conv = toUnfoldable >>> (identity :: List ~> List) >>> fromFoldable
 
-unordered :: forall m. StrMapIsh m => m ~> Map String
+unordered :: forall k m. MapLike k m => m ~> Map k
 unordered = conv
 
-convTo :: forall m m'. StrMapIsh m => StrMapIsh m' => Proxy2 m' -> m ~> m'
+convTo :: forall k m m'. MapLike k m => MapLike k m' => Proxy2 m' -> m ~> m'
 convTo Proxy2 = conv

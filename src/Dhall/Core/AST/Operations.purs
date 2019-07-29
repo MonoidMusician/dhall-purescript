@@ -13,8 +13,8 @@ import Data.Map (Map)
 import Data.Newtype (over)
 import Data.Traversable (class Traversable, sequence, traverse)
 import Dhall.Core.AST.Types (Expr(..), ExprLayerRow, embedW, projectW)
-import Dhall.Core.StrMapIsh (class StrMapIsh)
-import Dhall.Core.StrMapIsh as StrMapIsh
+import Dhall.Map (class MapLike)
+import Dhall.Map as Dhall.Map
 import Prim.Row as Row
 import Type.Proxy (Proxy2)
 
@@ -29,14 +29,14 @@ hoistExpr nat = over Expr $ hoistFree \a ->
     , "UnionLit": (bihoistProduct identity nat $ _)
     } identity a
 
-conv :: forall m m'. StrMapIsh m => StrMapIsh m' => Expr m ~> Expr m'
-conv = hoistExpr StrMapIsh.conv
+conv :: forall m m'. MapLike String m => MapLike String m' => Expr m ~> Expr m'
+conv = hoistExpr Dhall.Map.conv
 
-convTo :: forall m m'. StrMapIsh m => StrMapIsh m' => Proxy2 m' -> Expr m ~> Expr m'
-convTo = hoistExpr <<< StrMapIsh.convTo
+convTo :: forall m m'. MapLike String m => MapLike String m' => Proxy2 m' -> Expr m ~> Expr m'
+convTo = hoistExpr <<< Dhall.Map.convTo
 
-unordered :: forall m. StrMapIsh m => Expr m ~> Expr (Map String)
-unordered = hoistExpr StrMapIsh.unordered
+unordered :: forall m. MapLike String m => Expr m ~> Expr (Map String)
+unordered = hoistExpr Dhall.Map.unordered
 
 -- | Just a helper to handle recursive rewrites: top-down, requires explicit
 -- | recursion for the cases that are handled by the rewrite.

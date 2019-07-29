@@ -8,7 +8,7 @@ import Data.Map (Map)
 import Data.Set (Set)
 import Data.Variant (Variant)
 import Dhall.Core.AST (Expr)
-import Dhall.Core.StrMapIsh (InsOrdStrMap)
+import Dhall.Map (InsOrdStrMap)
 
 data Import = Import String
 derive instance eqImport :: Eq Import

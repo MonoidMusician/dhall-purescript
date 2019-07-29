@@ -14,8 +14,8 @@ import Data.Tuple (Tuple(..))
 import Dhall.Core.AST (S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports.Types (Header, Headers, Import(..), ImportType(..))
-import Dhall.Core.StrMapIsh (class StrMapIsh)
-import Dhall.Core.StrMapIsh as StrMapIsh
+import Dhall.Map (class MapLike)
+import Dhall.Map as Dhall.Map
 import Effect.Aff (Aff)
 import Foreign.Object as Foreign.Object
 import Milkis as M
@@ -49,17 +49,17 @@ nodeRetrieveURL headers url = milkisRetrieveURL (nodeFetch unit) headers url
 windowRetrieveURL :: Headers -> String -> Aff { result :: String, headers :: Headers }
 windowRetrieveURL headers url = milkisRetrieveURL (windowFetch unit) headers url
 
-headerType :: forall m a. StrMapIsh m => AST.Expr m a
-headerType = AST.mkRecord $ StrMapIsh.fromFoldable $
+headerType :: forall m a. MapLike String m => AST.Expr m a
+headerType = AST.mkRecord $ Dhall.Map.fromFoldable $
   [ Tuple "mapKey" AST.mkText
   , Tuple "mapValue"  AST.mkText
   ]
 
-toHeaders :: forall m a. StrMapIsh m => AST.Expr m a -> Maybe Headers
+toHeaders :: forall m a. MapLike String m => AST.Expr m a -> Maybe Headers
 toHeaders = AST.projectW >>> flip (VariantF.on (_S::S_ "ListLit")) (pure empty)
   \(Product (Tuple _ items)) -> traverse toHeader items
 
-toHeader :: forall m a. StrMapIsh m => AST.Expr m a -> Maybe Header
+toHeader :: forall m a. MapLike String m => AST.Expr m a -> Maybe Header
 toHeader = AST.projectW >>> flip (VariantF.on (_S::S_ "RecordLit")) (pure empty)
   \m ->
     let
@@ -68,20 +68,20 @@ toHeader = AST.projectW >>> flip (VariantF.on (_S::S_ "RecordLit")) (pure empty)
           AST.TextLit s -> pure s
           _ -> empty
     in { header: _, value: _ }
-      <$> (getLit =<< StrMapIsh.get "mapKey" m)
-      <*> (getLit =<< StrMapIsh.get "mapValue" m)
+      <$> (getLit =<< Dhall.Map.get "mapKey" m)
+      <*> (getLit =<< Dhall.Map.get "mapValue" m)
 
-fromHeaders :: forall m a. StrMapIsh m => Headers -> AST.Expr m a
+fromHeaders :: forall m a. MapLike String m => Headers -> AST.Expr m a
 fromHeaders [] = AST.mkListLit (Just headerType) []
 fromHeaders headers = AST.mkListLit Nothing $ fromHeader <$> headers
 
-fromHeader :: forall m a. StrMapIsh m => Header -> AST.Expr m a
-fromHeader { header, value } = AST.mkRecordLit $ StrMapIsh.fromFoldable
+fromHeader :: forall m a. MapLike String m => Header -> AST.Expr m a
+fromHeader { header, value } = AST.mkRecordLit $ Dhall.Map.fromFoldable
   [ Tuple "mapKey" $ AST.mkTextLit $ AST.TextLit header
   , Tuple "mapValue" $ AST.mkTextLit $ AST.TextLit value
   ]
 
-addHeader :: forall m a. StrMapIsh m => AST.Expr m a -> AST.Expr m a -> AST.Expr m a
+addHeader :: forall m a. MapLike String m => AST.Expr m a -> AST.Expr m a -> AST.Expr m a
 addHeader a b
   | Just { values: x } <- Lens.preview AST._ListLit (AST.projectW a)
   , Just { values: y } <- Lens.preview AST._ListLit (AST.projectW b) =
@@ -91,7 +91,7 @@ addHeader a b
       _ -> AST.mkListLit Nothing xy
 addHeader a b = AST.mkListAppend a b
 
-desugarHeaders :: forall m. StrMapIsh m => AST.Expr m Import -> AST.Expr m Import
+desugarHeaders :: forall m. MapLike String m => AST.Expr m Import -> AST.Expr m Import
 desugarHeaders = go Nil where
   go headers expr = AST.embedW $ let exprF = AST.projectW expr in
     VariantF.onMatch

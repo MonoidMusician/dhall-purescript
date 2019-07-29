@@ -68,8 +68,8 @@ import Dhall.Core.AST.Operations.Location (BasedExprDerivation, Derived, Operate
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Operations.Transformations (OverCases, OverCasesM(..))
 import Dhall.Core.Imports.Retrieve (headerType)
-import Dhall.Core.StrMapIsh (class StrMapIsh)
-import Dhall.Core.StrMapIsh as StrMapIsh
+import Dhall.Map (class MapLike)
+import Dhall.Map as Dhall.Map
 import Dhall.Core.Zippers (_ix)
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.Variables (MaybeIntro(..), alphaNormalizeAlgG, freeInAlg, shiftAlgG, trackIntro)
@@ -230,7 +230,7 @@ type Ocpr w r m a = TwoD (Operacions w r m a) (LxprF m a)
 -- Transforms the simple "typecheck one thing" algorithm to the full-blown
 -- Lxpr -> Ocpr transformation (which includes typechecking and normalizing
 -- each node).
-typecheckSketch :: forall w r m a. Eq a => StrMapIsh m =>
+typecheckSketch :: forall w r m a. Eq a => MapLike String m =>
   (WithBiCtx (LxprF m a) (Oxpr w r m a) -> Feedback w r m a (Lxpr m a)) ->
   Lxpr m a -> Ocpr w r m a
 typecheckSketch alg = recursor2D
@@ -602,14 +602,14 @@ tryShiftOutOxpr v e = Just (shiftOutOxpr v e)
 tryShiftOut0Oxpr :: forall w r m a. Foldable m => String -> Oxpr w r m a -> Maybe (Oxpr w r m a)
 tryShiftOut0Oxpr v = tryShiftOutOxpr (AST.V v 0)
 
-normalizeLxpr :: forall m a. StrMapIsh m => Eq a => Lxpr m a -> Lxpr m a
+normalizeLxpr :: forall m a. MapLike String m => Eq a => Lxpr m a -> Lxpr m a
 normalizeLxpr e = alsoOriginateFrom (Loc.stepF (_S::S_ "normalize") <$> extract e) $
   (extract <<< extract <<< unwrap) $
     -- TODO: use substLxpr and shiftLxpr here
     runLxprAlgM (Variant.case_ # Dhall.Normalize.normalizeWithAlgGW mempty)
       (Variant.inj (_S::S_ "normalize") mempty) e
 
-areEq :: forall w r m a. Eq a => StrMapIsh m => Oxpr w r m a -> Oxpr w r m a -> Boolean
+areEq :: forall w r m a. Eq a => MapLike String m => Oxpr w r m a -> Oxpr w r m a -> Boolean
 areEq ty0 ty1 =
   -- TODO: make sure ty0 and ty1 typecheck before normalizing them?
   let
@@ -617,7 +617,7 @@ areEq ty0 ty1 =
       normalizeStep >>> plain >>> AST.unordered >>> alphaNormalize
   in ty0' == ty1'
 
-locateO' :: forall w r m a. Eq a => StrMapIsh m =>
+locateO' :: forall w r m a. Eq a => MapLike String m =>
   OxprE w ( "Not found" :: ExprRowVFI | r ) m a ->
   Variant (Operated + Derived + Within + ()) ->
   FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a
@@ -638,14 +638,14 @@ locateO' foc0 = Variant.match
           }
   }
 
-locateO :: forall w r m a. Eq a => StrMapIsh m =>
+locateO :: forall w r m a. Eq a => MapLike String m =>
   OxprE w ( "Not found" :: ExprRowVFI | r ) m a ->
   Derivation ->
   FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a
     (OxprE w ( "Not found" :: ExprRowVFI | r ) m a)
 locateO foc0 deriv = foldr (\v foc -> foc >>= flip locateO' v) (pure foc0) deriv
 
-locateE' :: forall w r m a. Eq a => StrMapIsh m =>
+locateE' :: forall w r m a. Eq a => MapLike String m =>
   (a -> Expr m a) ->
   Variant (Operated + Derived + Within + ()) ->
   Tuple (BiContext (Expr m a)) (Expr m a) ->
@@ -688,7 +688,7 @@ locateE' tpa = Variant.match
           }
   }
 
-locateE :: forall w r m a. Eq a => StrMapIsh m =>
+locateE :: forall w r m a. Eq a => MapLike String m =>
   (a -> Expr m a) ->
   Derivation ->
   { expr :: Expr m a, ctx :: BiContext (Expr m a) } ->
@@ -725,7 +725,7 @@ consistency (List.Cons a0 (List.Cons a1 an)) =
   pure $ Inconsistency $ a0 :| a1 :| an
 consistency _ = empty
 
-ensureConsistency :: forall m f v. Applicative f => StrMapIsh m =>
+ensureConsistency :: forall m f v. Applicative f => MapLike String m =>
   (v -> v -> Boolean) ->
   (Inconsistency (NonEmptyList { key :: String, value :: v }) -> f Void) ->
   m v -> f Unit
@@ -733,7 +733,7 @@ ensureConsistency egal error = traverse_ error
   <<< consistency
   <<< tabulateGroupings egal
   <<< map (uncurry { key: _, value: _ })
-  <<< StrMapIsh.toUnfoldable
+  <<< Dhall.Map.toUnfoldable
 
 data WithHint f a = WithHint (Maybe a) (f a)
 derive instance functorWithHint :: Functor f => Functor (WithHint f)
@@ -746,7 +746,7 @@ instance foldableWithHint :: Foldable f => Foldable (WithHint f) where
 
 ensureConsistentOxpr ::
   forall i c f w r m a.
-    Applicative f => StrMapIsh m =>
+    Applicative f => MapLike String m =>
     FunctorWithIndex i c => Foldable c => Eq a =>
   (Unit -> f Void) ->
   (Inconsistency (NonEmptyList { key :: i, value :: L m a }) -> f Void) ->
@@ -860,7 +860,7 @@ reconstituteCtxFrom ctx0 f = foldr f' (pure ctx0) <<< un Context <<< unshift whe
     constructor with custom logic
 -}
 typeWithA :: forall w r m a.
-  Eq a => StrMapIsh m =>
+  Eq a => MapLike String m =>
   Typer m a ->
   Context (Expr m a) ->
   Expr m a ->
@@ -868,7 +868,7 @@ typeWithA :: forall w r m a.
 typeWithA tpa ctx0 e0 = map plain <<< typecheckStep =<< typingWithA tpa ctx0 e0
 
 typingWithA :: forall w r m a.
-  Eq a => StrMapIsh m =>
+  Eq a => MapLike String m =>
   Typer m a ->
   Context (Expr m a) ->
   Expr m a ->
@@ -906,7 +906,7 @@ type SimpleExpr = Expr NoStrMap Void
 rehydrate :: forall m a. Functor m => SimpleExpr -> Expr m a
 rehydrate = map absurd <<< hoistExpr (absurd <<< unwrap <<< unwrap)
 
-typecheckAlgebra :: forall w r m a. Eq a => StrMapIsh m =>
+typecheckAlgebra :: forall w r m a. Eq a => MapLike String m =>
   (a -> FeedbackE w r m a (Expr m a)) ->
   WithBiCtx (LxprF m a) (OxprE w r m a) -> FeedbackE w r m a (Lxpr m a)
 typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # VariantF.match
@@ -1222,7 +1222,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
   , "ListIndexed": always $
       AST.mkForall "a" $
         AST.mkArrow (AST.mkApp AST.mkList a0) $
-          AST.mkApp AST.mkList $ AST.mkRecord $ StrMapIsh.fromFoldable
+          AST.mkApp AST.mkList $ AST.mkRecord $ Dhall.Map.fromFoldable
             [Tuple "index" AST.mkNatural, Tuple "value" a0]
   , "ListReverse": always $
       AST.mkForall "a" $ join AST.mkArrow
@@ -1290,7 +1290,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         (errorHere (_S::S_ "Duplicate union alternatives")) kts
       *> do
         ty <- typecheckStep expr
-        let kts' = StrMapIsh.insert field ty kts
+        let kts' = Dhall.Map.insert field ty kts
         forWithIndex_ kts' \field' kind -> do
           void $ ensure (_S::S_ "Const") kind
             (errorHere (_S::S_ "Invalid alternative type") <<< const field')
@@ -1307,7 +1307,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
                 (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
               pure { kts, const }
           when (constL /= constR) $ errorHere (_S::S_ "Record kind mismatch") $ here
-          let combined = StrMapIsh.unionWith (pure pure) ktsL ktsR
+          let combined = Dhall.Map.unionWith (pure pure) ktsL ktsR
           mk(_S::S_"Record") <$> forWithIndex combined \k ->
             case _ of
               Both ktsL' ktsR' ->
@@ -1327,7 +1327,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
                 (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
               pure { kts, const }
           when (constL /= constR) $ errorHere (_S::S_ "Record kind mismatch") $ here
-          let combined = StrMapIsh.unionWith (pure pure) ktsL ktsR
+          let combined = Dhall.Map.unionWith (pure pure) ktsL ktsR
           mk(_S::S_"Record") <$> forWithIndex combined \k ->
             case _ of
               Both ktsL' ktsR' ->
@@ -1351,7 +1351,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           This a -> a
           That b -> b
           Both a _ -> a
-      pure $ mk(_S::S_"Record") $ map head2D $ StrMapIsh.unionWith (pure preference) ktsR ktsL
+      pure $ mk(_S::S_"Record") $ map head2D $ Dhall.Map.unionWith (pure preference) ktsR ktsL
   , "Merge": \(AST.MergeF handlers cases mty) -> do
       Tuple ktsX (Compose ktsY) <- Tuple
         <$> ensure (_S::S_ "Record") handlers
@@ -1371,7 +1371,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         Nothing -> case un First $ foldMapWithIndex (curry pure) ktsX of
           Nothing -> errorHere (_S::S_ "Missing merge type") $ unit
           Just (Tuple k item) -> do
-            mtY <- StrMapIsh.get k ktsY #
+            mtY <- Dhall.Map.get k ktsY #
               noteHere (_S::S_ "Unused handlers") diffX
             case mtY of
               Just _ -> do
@@ -1386,7 +1386,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         when (not Set.isEmpty diffX)
           (errorHere (_S::S_ "Unused handlers") diffX)
         forWithIndex_ ktsY \k mtY -> do
-          tX <- StrMapIsh.get k ktsX #
+          tX <- Dhall.Map.get k ktsX #
             noteHere (_S::S_ "Missing handler") diffY
           case mtY of
             Just tY -> do
@@ -1410,7 +1410,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         (errorHere (_S::S_ "toMap takes a record"))
       let
         mapType ty =
-          mkFunctor AST.mkList $ mk(_S::S_ "Record") $ StrMapIsh.fromFoldable
+          mkFunctor AST.mkList $ mk(_S::S_ "Record") $ Dhall.Map.fromFoldable
             [ Tuple "mapKey" $ mk(_S::S_ "Text") (wrap unit)
             , Tuple "mapValue" ty
             ]
@@ -1422,11 +1422,11 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           VariantF.on (_S::S_ "List") (const (pure unit))
             \_ -> absurd <$> error unit
         tyS <- ensure' (_S::S_ "Record") rty error
-        when (StrMapIsh.size tyS /= 2) (void $ error unit)
-        tyK <- StrMapIsh.get "mapKey" tyS
+        when (Dhall.Map.size tyS /= 2) (void $ error unit)
+        tyK <- Dhall.Map.get "mapKey" tyS
           # noteHere (_S::S_ "Invalid toMap type annotation") unit
         _ <- ensure' (_S::S_ "Text") tyK error
-        ty <- StrMapIsh.get "mapValue" tyS
+        ty <- Dhall.Map.get "mapValue" tyS
           # noteHere (_S::S_ "Invalid toMap type annotation") unit
         suggest ty $ ensureType ty (errorHere (_S::S_ "Invalid toMap type"))
       ty <- ensureConsistentOxpr
@@ -1439,11 +1439,11 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       let
         error _ = errorHere (_S::S_ "Cannot access") unit
         handleRecord kts = do
-          case StrMapIsh.get field kts of
+          case Dhall.Map.get field kts of
             Just ty -> pure (head2D ty)
             Nothing -> errorHere (_S::S_ "Missing field") $ field
         handleType kts = do
-          case StrMapIsh.get field kts of
+          case Dhall.Map.get field kts of
             Just (Just ty) -> pure $ mk(_S::S_"Pi") $ map head2D $ (AST.BindingBody field ty expr)
             Just Nothing -> pure $ head2D expr
             Nothing -> errorHere (_S::S_ "Missing field") $ field
@@ -1466,7 +1466,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           ks <- ensure' (_S::S_ "Record") fields (errorHere (_S::S_ "Cannot project by expression"))
           ks # traverse \ty -> Just ty <$ typecheckStep ty
       mk(_S::S_"Record") <<< map head2D <$> forWithIndex ks \k mty -> do
-        ty0 <- StrMapIsh.get k kts #
+        ty0 <- Dhall.Map.get k kts #
           (noteHere (_S::S_ "Missing field") k)
         mty # maybe (pure ty0) \ty1 ->
           checkEqR ty0 ty1 (errorHere (_S::S_ "Projection type mismatch") <<< const k)
@@ -1478,9 +1478,9 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         AST.Pair list (ty' :: OxprE w r m a) <- ensure' (_S::S_ "App") ty error
         _ <- ensure' (_S::S_ "List") list error
         (rec :: m (OxprE w r m a)) <- ensure' (_S::S_ "Record") ty' error
-        when (StrMapIsh.size rec /= 2) (void $ error unit)
-        (mapKey :: OxprE w r m a) <- StrMapIsh.get "mapKey" rec # noteHere (_S::S_ "Wrong header type") unit
-        (mapValue :: OxprE w r m a) <- StrMapIsh.get "mapValue" rec # noteHere (_S::S_ "Wrong header type") unit
+        when (Dhall.Map.size rec /= 2) (void $ error unit)
+        (mapKey :: OxprE w r m a) <- Dhall.Map.get "mapKey" rec # noteHere (_S::S_ "Wrong header type") unit
+        (mapValue :: OxprE w r m a) <- Dhall.Map.get "mapValue" rec # noteHere (_S::S_ "Wrong header type") unit
         _ <- ensure' (_S::S_ "Text") mapKey error
         _ <- ensure' (_S::S_ "Text") mapValue error
         pure unit
@@ -1507,7 +1507,7 @@ derive instance functorReference :: Functor Reference
 
 oneStopShop ::
   forall w m a.
-    StrMapIsh m => Eq a => Show a =>
+    MapLike String m => Eq a => Show a =>
   (a -> FeedbackE w ( "Not found" :: ExprRowVFI ) m a (Expr m a)) ->
   Expr m a ->
   { oxpr :: OxprE w ( "Not found" :: ExprRowVFI ) m a
@@ -1557,7 +1557,7 @@ oneStopShop tpa e0 = { oxpr, locate, explain: explainHere } where
 -- (for the user to read)
 explain ::
   forall r m a.
-    StrMapIsh m =>
+    MapLike String m =>
   BiContext Unit ->
   VariantF (AST.ExprLayerRow m a) Unit ->
   Variant (Errors r) ->
@@ -1899,7 +1899,7 @@ explain ctx nodeType =
       ]
   , "Invalid toMap type annotation": \(_ :: Unit) ->
       [ Text $ "The `toMap` operation should have a type annotation that looks like "
-      , referenceExpr $ AST.mkApp AST.mkList $ AST.mkRecord $ StrMapIsh.fromFoldable
+      , referenceExpr $ AST.mkApp AST.mkList $ AST.mkRecord $ Dhall.Map.fromFoldable
         [ Tuple "mapKey" AST.mkText
         , Tuple "mapValue" (AST.mkVar (V "_" 0))
         ]
@@ -1926,7 +1926,7 @@ explain ctx nodeType =
           ]
   , "Missing toMap type": \(_ :: Unit) ->
       [ Text $ "The `toMap` operation, when its record is empty, must be annotated with a result type that looks like "
-      , referenceExpr $ AST.mkApp AST.mkList $ AST.mkRecord $ StrMapIsh.fromFoldable
+      , referenceExpr $ AST.mkApp AST.mkList $ AST.mkRecord $ Dhall.Map.fromFoldable
         [ Tuple "mapKey" AST.mkText
         , Tuple "mapValue" (AST.mkVar (V "_" 0))
         ]

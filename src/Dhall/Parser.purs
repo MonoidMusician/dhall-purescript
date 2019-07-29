@@ -9,7 +9,6 @@ import Data.Array as Array
 import Data.Either (Either(..))
 import Data.Foldable (oneOfMap)
 import Data.Function (on)
-import Data.Functor.Compose (Compose(..))
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant (FProxy, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
@@ -29,7 +28,7 @@ import Dhall.Core (S_, _S)
 import Dhall.Core.AST (Const(..), Expr, ExprLayerRow, TextLitF(..), Var(..), ExprLayer, projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports.Types (Directory, File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), Scheme(..), URL(..))
-import Dhall.Core.StrMapIsh as IOSM
+import Dhall.Map as Dhall.Map
 import Dhall.Parser.Prioritize (POrdering)
 import Dhall.Parser.Prioritize as Prioritize
 import Foreign (Foreign)
@@ -38,7 +37,7 @@ import Partial.Unsafe (unsafeCrashWith)
 import Prim.Row as Row
 import Unsafe.Coerce (unsafeCoerce)
 
-type ParseExpr = Expr IOSM.InsOrdStrMap Import
+type ParseExpr = Expr Dhall.Map.InsOrdStrMap Import
 
 parse :: String -> Maybe ParseExpr
 parse s = case parseAll s <#> disambiguate of
@@ -121,7 +120,7 @@ decodeFAST (FAST r) =
     "App", [a, b] -> AST.mkApp (decodeF a) (decodeF b)
     "BoolIf", [a, b, c] -> AST.mkBoolIf (decodeF a) (decodeF b) (decodeF c)
     "Field", [a, b] -> AST.mkField (decodeF a) (decodeS b)
-    "Project", [a, b] -> AST.mkProject (decodeF a) (Left (IOSM.fromFoldable (Tuple <$> decodeA decodeS b <@> unit)))
+    "Project", [a, b] -> AST.mkProject (decodeF a) (Left (Dhall.Map.fromFoldable (Tuple <$> decodeA decodeS b <@> unit)))
     "ProjectType", [a, b] -> AST.mkProject (decodeF a) (Right (decodeF b))
     "Merge", [a, b, c] -> AST.mkMerge (decodeF a) (decodeF b) (decodeN decodeF c)
     "ToMap", [a, b] -> AST.mkToMap (decodeF a) (decodeN decodeF b)
@@ -166,8 +165,8 @@ decodeTextLit = Array.foldr f (TextLit "") where
         TextLit s -> TextLit (s' <> s)
         TextInterp s a t -> TextInterp (s' <> s) a t
 
-decodeLabelled :: forall a. (Foreign -> a) -> Array Foreign -> IOSM.InsOrdStrMap a
-decodeLabelled dec fs = IOSM.InsOrdStrMap $ Compose $ fs <#> unsafeCoerce >>>
+decodeLabelled :: forall a. (Foreign -> a) -> Array Foreign -> Dhall.Map.InsOrdStrMap a
+decodeLabelled dec fs = Dhall.Map.mkIOSM $ fs <#> unsafeCoerce >>>
   case _ of
     [s, a] -> Tuple (decodeS s) (dec a)
     _ -> unsafeCrashWith "Unrecognized labelled tuple"
@@ -235,7 +234,7 @@ firstVar e = e # projectW #
 pc ::
   forall s f r'.
     IsSymbol s =>
-    Row.Cons s (FProxy f) r' (ExprLayerRow IOSM.InsOrdStrMap Import) =>
+    Row.Cons s (FProxy f) r' (ExprLayerRow Dhall.Map.InsOrdStrMap Import) =>
   SProxy s ->
   (ParseExpr -> ParseExpr -> Maybe POrdering)
 pc s = prioritizeVF s `on` projectW
@@ -243,7 +242,7 @@ pc s = prioritizeVF s `on` projectW
 keyword ::
   forall s f r'.
     IsSymbol s =>
-    Row.Cons s (FProxy f) r' (ExprLayerRow IOSM.InsOrdStrMap Import) =>
+    Row.Cons s (FProxy f) r' (ExprLayerRow Dhall.Map.InsOrdStrMap Import) =>
   SProxy s ->
   String ->
   (ParseExpr -> ParseExpr -> Maybe POrdering)
@@ -272,17 +271,17 @@ infix 9 isPrioritized as <+-=
 
 -- Reveal the shape of a node if it matches the right constructor
 reveal :: forall a.
-  (Fold' (First a) (ExprLayer IOSM.InsOrdStrMap Import) a) ->
-  Expr IOSM.InsOrdStrMap Import ->
+  (Fold' (First a) (ExprLayer Dhall.Map.InsOrdStrMap Import) a) ->
+  Expr Dhall.Map.InsOrdStrMap Import ->
   Maybe a
 reveal cons = projectW >>> preview cons
 
 -- Check if it fits the pattern, based on the constructor and the condition
 -- of the constructor data
 fits :: forall a.
-  (Fold' (First a) (ExprLayer IOSM.InsOrdStrMap Import) a) ->
+  (Fold' (First a) (ExprLayer Dhall.Map.InsOrdStrMap Import) a) ->
   (a -> Boolean) ->
-  Expr IOSM.InsOrdStrMap Import ->
+  Expr Dhall.Map.InsOrdStrMap Import ->
   Boolean
 fits cons pred = reveal cons >>> any pred
 

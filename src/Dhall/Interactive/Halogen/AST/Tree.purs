@@ -38,7 +38,7 @@ import Data.Tuple (Tuple(..))
 import Dhall.Core (S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Noted as Ann
-import Dhall.Core.StrMapIsh as IOSM
+import Dhall.Map as Dhall.Map
 import Dhall.Interactive.Halogen.AST (SlottedHTML(..))
 import Dhall.Interactive.Halogen.Inputs (inline_feather_button_action)
 import Effect.Aff (Aff)
@@ -166,14 +166,14 @@ renderArray opts { df, rndr: renderA } = rendering \as ->
 renderIOSM :: forall r m a.
   RenderingOptions -> -- TODO
   RenderAnd r m a ->
-  Rendering r m (IOSM.InsOrdStrMap a)
+  Rendering r m (Dhall.Map.InsOrdStrMap a)
 renderIOSM opts { df, rndr: renderA } = rendering \as ->
   HH.div [ HP.class_ $ H.ClassName "strmap-parent" ]
   [ HH.dl [ HP.class_ $ H.ClassName "strmap" ] $
-      IOSM.unIOSM as # Lens.ifoldMapOf itraversed \i (Tuple s a) ->
-        let here v = IOSM.mkIOSM $ IOSM.unIOSM as #
+      Dhall.Map.unIOSM as # Lens.ifoldMapOf itraversed \i (Tuple s a) ->
+        let here v = Dhall.Map.mkIOSM $ Dhall.Map.unIOSM as #
               Lens.set (unIndex (Lens.elementsOf itraversed (eq i))) v
-            without = (fromMaybe <*> IOSM.delete s) as
+            without = (fromMaybe <*> Dhall.Map.delete s) as
         in
         [ HH.dt_
           [ inline_feather_button_action (Just (That without)) "minus-square" "Remove this field"
@@ -186,7 +186,7 @@ renderIOSM opts { df, rndr: renderA } = rendering \as ->
         , HH.dd_ [ unwrap $ unwrap $ unwrap renderA a <#> Tuple s >>> here ]
         ]
     , HH.div_
-      let new = IOSM.mkIOSM $ IOSM.unIOSM as # (_ <> [Tuple "" df]) in
+      let new = Dhall.Map.mkIOSM $ Dhall.Map.unIOSM as # (_ <> [Tuple "" df]) in
       [ inline_feather_button_action (Just (That new)) "plus-square" "Add another field"
       ]
     ]
@@ -253,7 +253,7 @@ renderBindingBody opts renderA =
 type RenderChunk cases r m a =
   forall conses.
   Rendering r m (VariantF conses a) ->
-  Rendering r m (VariantF (cases IOSM.InsOrdStrMap conses) a)
+  Rendering r m (VariantF (cases Dhall.Map.InsOrdStrMap conses) a)
 
 renderLiterals :: forall r m a. RenderingOptions -> RenderChunk AST.Literals r m a
 renderLiterals opts = identity
@@ -470,8 +470,8 @@ renderAllTheThings opts renderA = identity
 
 type Ann = { collapsed :: Disj Boolean }
 type IdxAnn = Tuple Ann AST.ExprI
-type AnnExpr = Ann.Expr IOSM.InsOrdStrMap Ann
-type IdxAnnExpr = Ann.Expr IOSM.InsOrdStrMap IdxAnn
+type AnnExpr = Ann.Expr Dhall.Map.InsOrdStrMap Ann
+type IdxAnnExpr = Ann.Expr Dhall.Map.InsOrdStrMap IdxAnn
 
 type Action o =
   { icon :: String

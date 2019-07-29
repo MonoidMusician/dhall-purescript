@@ -20,7 +20,7 @@ import Data.Profunctor.Star (Star(..))
 import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..), fst)
 import Dhall.Core.AST as AST
-import Dhall.Core.StrMapIsh as IOSM
+import Dhall.Map as Dhall.Map
 import Dhall.Interactive.Halogen.Inputs (QueryExpanding)
 import Dhall.Interactive.Halogen.Inputs as Inputs
 import Dhall.Interactive.Halogen.Types (RenderValue_)
@@ -121,13 +121,13 @@ type InputIOSM r e o = Tuple
   { default :: e
   , renderer :: Renderer r (Tuple String e) o
   }
-  (IOSM.InsOrdStrMap e)
+  (Dhall.Map.InsOrdStrMap e)
 
 listicleIOSM :: forall r e o.
-  H.Component HH.HTML (Const Void) (InputIOSM r e o) (Either o (IOSM.InsOrdStrMap e)) Aff
+  H.Component HH.HTML (Const Void) (InputIOSM r e o) (Either o (Dhall.Map.InsOrdStrMap e)) Aff
 listicleIOSM = un ProComponent $ ProComponent listicle # dimap
-  do bimap (\i -> i { default = Tuple mempty i.default }) IOSM.unIOSM
-  do map IOSM.mkIOSM
+  do bimap (\i -> i { default = Tuple mempty i.default }) Dhall.Map.unIOSM
+  do map Dhall.Map.mkIOSM
 
 type Expandable r =
   ( expanding :: H.Slot QueryExpanding String (Array String)
@@ -293,14 +293,14 @@ annotatedF :: forall f a annot r.
 annotatedF = _Newtype <<< annotated
 
 type Listicle r o e =
-  ( listicle :: H.Slot (Const Void) (Either (o -> o) (IOSM.InsOrdStrMap e)) Slot
-  , "UnionLit" :: H.Slot (Const Void) (Either (Either (o -> o) (Tuple String e)) (IOSM.InsOrdStrMap e)) Slot
+  ( listicle :: H.Slot (Const Void) (Either (o -> o) (Dhall.Map.InsOrdStrMap e)) Slot
+  , "UnionLit" :: H.Slot (Const Void) (Either (Either (o -> o) (Tuple String e)) (Dhall.Map.InsOrdStrMap e)) Slot
   , "ListLit" :: H.Slot (Const Void) (Either (Either (o -> o) (Maybe e)) (Array e)) Slot
   | r
   )
 
 listicleSlot :: forall e o r r'. e -> (o -> Renderer r' (Tuple String e) (o -> o)) -> Slot ->
-  RenderValue_ (SlottedHTML (Listicle r o e)) (EnvT o IOSM.InsOrdStrMap e)
+  RenderValue_ (SlottedHTML (Listicle r o e)) (EnvT o Dhall.Map.InsOrdStrMap e)
 listicleSlot default renderer slot = annotatedF \o -> Star \i -> SlottedHTML $
   HH.slot (SProxy :: SProxy "listicle") slot listicleIOSM
     (Tuple { default, renderer: renderer o } i) pure
@@ -343,7 +343,7 @@ collapsible collapsed renderer annot =
         un SlottedHTML $ output <$> collapsed
   where collapse _ r = r { collapsed = not r.collapsed }
 
-newtype F a = F (VariantF (AST.AllTheThings IOSM.InsOrdStrMap ()) a)
+newtype F a = F (VariantF (AST.AllTheThings Dhall.Map.InsOrdStrMap ()) a)
 derive newtype instance functorF :: Functor F
 type AnnotatedHoley =
   Cofree (Compose Maybe F) (Collapsible ())

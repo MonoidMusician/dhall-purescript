@@ -36,9 +36,8 @@ import Dhall.Core.AST (CONST, Expr, TextLitF(..), UNIT)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, ConsNodeOpsM, OverCasesM(..), runAlgebraExprM)
 import Dhall.Core.AST.Types.Basics (S_, _S)
-import Dhall.Core.StrMapIsh (class StrMapIsh)
-import Dhall.Core.StrMapIsh as IOSM
-import Dhall.Core.StrMapIsh as StrMapIsh
+import Dhall.Map (class MapLike)
+import Dhall.Map as Dhall.Map
 import Dhall.Normalize.Apps (AppsF(..), appsG, noappG, noapplitG, noapplitG', (~))
 import Dhall.Variables (ShiftSubstAlg, shiftSubstAlgGM)
 import Dhall.Variables as Variables
@@ -51,7 +50,7 @@ import Type.Row (type (+))
 -- | ill-typed expression into a well-typed expression.
 -- | However, `normalize` will not fail if the expression is ill-typed and will
 -- | leave ill-typed sub-expressions unevaluated.
-normalize :: forall m a. StrMapIsh m => Eq a => Expr m a -> Expr m a
+normalize :: forall m a. MapLike String m => Eq a => Expr m a -> Expr m a
 normalize = normalizeWith mempty
 
 -- | This function is used to determine whether folds like `Natural/fold` or
@@ -98,7 +97,7 @@ type Preview' a b = Lens.Fold (First b) a a b b
     That is, if the functions in custom context are not total then the Dhall language, evaluated
     with those functions is not total either.
 -}
-normalizeWith :: forall m a. StrMapIsh m => Eq a => Normalizer m a -> Expr m a -> Expr m a
+normalizeWith :: forall m a. MapLike String m => Eq a => Normalizer m a -> Expr m a -> Expr m a
 normalizeWith ctx = extract <<< extract <<< unwrap <<< normalizeWithW ctx
 
 newtype W a = W (Tuple (Conj Boolean) (Lazy a))
@@ -131,7 +130,7 @@ lowerOps node =
   , recurse: \i -> node.recurse i >>> Identity <<< extract
   }
 
-normalizeWithAlgGW :: forall m a v node. StrMapIsh m => Eq a =>
+normalizeWithAlgGW :: forall m a v node. MapLike String m => Eq a =>
   GNormalizer (AST.ExprLayerRow m a) (Variant (NormalizeAlg node v)) node () ->
   (Variant v -> Record (ConsNodeOpsM W (AST.ExprLayerRow m a) (Variant (NormalizeAlg node v)) node ()) -> node -> W node) ->
   (Variant (NormalizeAlg node v) -> Record (ConsNodeOpsM W (AST.ExprLayerRow m a) (Variant (NormalizeAlg node v)) node ()) -> node -> W node)
@@ -397,9 +396,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           Both a b -> decide (AST.Pair a b)
         decide = binOpWith (previewF (_S::S_ "RecordLit")) \l r -> case _, _ of
           Just a, Just b -> anew (_S::S_ "RecordLit") $
-              StrMapIsh.unionWith (pure $ pure <<< decideThese) a b
-          Just a, _ | StrMapIsh.isEmpty a -> simpler r
-          _, Just b | StrMapIsh.isEmpty b -> simpler l
+              Dhall.Map.unionWith (pure $ pure <<< decideThese) a b
+          Just a, _ | Dhall.Map.isEmpty a -> simpler r
+          _, Just b | Dhall.Map.isEmpty b -> simpler l
           _, _ -> reconstruct (_S::S_ "Combine") (AST.Pair l r)
       in decide)
     >>> expose (_S::S_ "CombineTypes")
@@ -410,9 +409,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           Both a b -> decide (AST.Pair a b)
         decide = binOpWith (previewF (_S::S_ "Record")) \l r -> case _, _ of
           Just a, Just b -> anew (_S::S_ "Record") $
-              StrMapIsh.unionWith (pure $ pure <<< decideThese) a b
-          Just a, _ | StrMapIsh.isEmpty a -> simpler r
-          _, Just b | StrMapIsh.isEmpty b -> simpler l
+              Dhall.Map.unionWith (pure $ pure <<< decideThese) a b
+          Just a, _ | Dhall.Map.isEmpty a -> simpler r
+          _, Just b | Dhall.Map.isEmpty b -> simpler l
           _, _ -> reconstruct (_S::S_ "CombineTypes") (AST.Pair l r)
       in decide)
     >>> expose (_S::S_ "Prefer")
@@ -423,9 +422,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           Both a _ -> a
         decide = binOpWith (previewF (_S::S_ "RecordLit")) \l r -> case _, _ of
           Just a, Just b -> anew (_S::S_ "RecordLit") $
-              StrMapIsh.unionWith (pure $ pure <<< preference) a b
-          Just a, _ | StrMapIsh.isEmpty a -> simpler r
-          _, Just b | StrMapIsh.isEmpty b -> simpler l
+              Dhall.Map.unionWith (pure $ pure <<< preference) a b
+          Just a, _ | Dhall.Map.isEmpty a -> simpler r
+          _, Just b | Dhall.Map.isEmpty b -> simpler l
           _, _ -> reconstruct (_S::S_ "Prefer") (AST.Pair l r)
       in decide)
     >>> expose (_S::S_ "Merge")
@@ -437,7 +436,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                 -- TODO: union field
                 y # exposeW (_S::S_ "UnionLit")
                   do \(Product (Tuple (Tuple kY vY) _)) ->
-                      case IOSM.get kY kvsX of
+                      case Dhall.Map.get kY kvsX of
                         Just vX -> anewAnd (_S::S_ "App") (AST.Pair vX vY)
                         _ -> default unit
                   do \_ -> default unit
@@ -450,9 +449,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           in x # exposeW (_S::S_ "RecordLit")
             do \kvs ->
                 anew (_S::S_ "ListLit") $ Product $
-                  Tuple (if IOSM.isEmpty kvs then mty else Nothing) $
-                    IOSM.toUnfoldable kvs <#> \(Tuple k v) ->
-                      anew (_S::S_ "RecordLit") $ IOSM.fromFoldable
+                  Tuple (if Dhall.Map.isEmpty kvs then mty else Nothing) $
+                    Dhall.Map.toUnfoldable kvs <#> \(Tuple k v) ->
+                      anew (_S::S_ "RecordLit") $ Dhall.Map.fromFoldable
                         [ Tuple "mapKey" (anew (_S::S_ "TextLit") (TextLit k))
                         , Tuple "mapValue" v
                         ]
@@ -465,7 +464,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
         in r # exposeW (_S::S_ "RecordLit")
           do
             \kvs ->
-              case IOSM.get k kvs of
+              case Dhall.Map.get k kvs of
                 Just v -> simpler v
                 _ -> default unit
           do \_ -> default unit
@@ -480,7 +479,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
         in case mks of
           Nothing -> default unit
           Just ks
-            | IOSM.isEmpty ks -> anew (_S::S_ "RecordLit") IOSM.empty
+            | Dhall.Map.isEmpty ks -> anew (_S::S_ "RecordLit") Dhall.Map.empty
             | otherwise -> r # exposeW (_S::S_ "RecordLit")
                 do
                   \kvs ->
@@ -488,7 +487,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                       adapt = case _ of
                         Both (_ :: Unit) v -> Just v
                         _ -> Nothing
-                    in case sequence $ IOSM.unionWith (pure (pure <<< adapt)) ks kvs of
+                    in case sequence $ Dhall.Map.unionWith (pure (pure <<< adapt)) ks kvs of
                       -- TODO: recurse necessary?
                       Just vs' -> anewAnd (_S::S_ "RecordLit") vs'
                       _ -> default unit
@@ -525,14 +524,14 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           Just ret -> instead ret
           _ -> reconstruct (_S::S_ "App") (AST.Pair fn arg)
 
-normalizeWithW :: forall m a. StrMapIsh m => Eq a =>
+normalizeWithW :: forall m a. MapLike String m => Eq a =>
   Normalizer m a -> Expr m a ->
   W (Expr m a)
 normalizeWithW (GNormalizer normApp) =
   Variant.inj (_S::S_ "normalize") mempty # runAlgebraExprM
     (Variant.case_ # normalizeWithAlgGW (GNormalizer \_ -> normApp unit))
 
-builtinsG :: forall node ops v m a. StrMapIsh m =>
+builtinsG :: forall node ops v m a. MapLike String m =>
   (node -> node) ->
   GNormalizer (AST.ExprLayerRow m a)
     (Variant (ShiftSubstAlg node v)) node ops
@@ -737,7 +736,7 @@ optionalfnsG again = GNormalizer \node -> case _ of
       pure \_ -> again $ Lens.review (appsG node) (just~NoApp x)
   _ -> Nothing
 
-listfnsG :: forall all' node v ops m. StrMapIsh m =>
+listfnsG :: forall all' node v ops m. MapLike String m =>
   (node -> node) ->
   GNormalizer
     ( "App" :: FProxy AST.Pair
@@ -823,11 +822,11 @@ listfnsG again = GNormalizer \node -> case _ of
       pure \_ -> again $
         let
           mty' = if Array.null xs then Nothing else
-            Just $ mk node (_S::S_ "Record") $ IOSM.fromFoldable
+            Just $ mk node (_S::S_ "Record") $ Dhall.Map.fromFoldable
               [ Tuple "index" $ mk node (_S::S_ "Natural") mempty
               , Tuple "value" (Lens.review (appsG node) t)
               ]
-          adapt i x = mk node (_S::S_ "RecordLit") $ IOSM.fromFoldable
+          adapt i x = mk node (_S::S_ "RecordLit") $ Dhall.Map.fromFoldable
             [ Tuple "index" $ mk node (_S::S_ "NaturalLit") $ wrap $ intToNat i
             , Tuple "value" x
             ]
@@ -841,21 +840,21 @@ listfnsG again = GNormalizer \node -> case _ of
 
 -- | Returns `true` if two expressions are α-equivalent and β-equivalent and
 -- | `false` otherwise
-judgmentallyEqual' :: forall m a. StrMapIsh m => Eq a => Expr m a -> Expr m a -> Boolean
+judgmentallyEqual' :: forall m a. MapLike String m => Eq a => Expr m a -> Expr m a -> Boolean
 judgmentallyEqual' eL0 eR0 = alphaBetaNormalize eL0 == alphaBetaNormalize eR0
   where
     alphaBetaNormalize :: Expr m a -> Expr m a
     alphaBetaNormalize = Variables.alphaNormalize <<< normalize
 
 -- | Additionally normalizes the order of fields
-judgmentallyEqual :: forall m a. StrMapIsh m => Eq a => Expr m a -> Expr m a -> Boolean
+judgmentallyEqual :: forall m a. MapLike String m => Eq a => Expr m a -> Expr m a -> Boolean
 judgmentallyEqual = judgmentallyEqual' `on` AST.unordered
 
 -- | Check if an expression is in a normal form given a context of evaluation.
-isNormalized :: forall m a. StrMapIsh m => Eq a => Expr m a -> Boolean
+isNormalized :: forall m a. MapLike String m => Eq a => Expr m a -> Boolean
 isNormalized = isNormalizedWith mempty
 
 -- | Quickly check if an expression is in normal form
-isNormalizedWith :: forall m a. StrMapIsh m => Eq a => Normalizer m a -> Expr m a -> Boolean
+isNormalizedWith :: forall m a. MapLike String m => Eq a => Normalizer m a -> Expr m a -> Boolean
 isNormalizedWith ctx e0 = case normalizeWithW ctx e0 of
   W (Tuple (Conj wasNormalized) _) -> wasNormalized

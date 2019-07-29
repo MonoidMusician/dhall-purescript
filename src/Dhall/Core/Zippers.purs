@@ -41,8 +41,8 @@ import Data.TraversableWithIndex as TraversableWithIndex
 import Data.Tuple (Tuple(..), uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Core.StrMapIsh (InsOrdStrMap(..), mkIOSM, unIOSM)
 import Dhall.Core.Zippers.Merge (class Merge)
+import Dhall.Map (InsOrdMap(..), mkIOSM, unIOSM)
 import Partial.Unsafe (unsafePartial)
 import Prim.RowList as RL
 import Type.Data.RowList (RLProxy(..))
@@ -587,40 +587,40 @@ instance containerMap :: Ord k => Container (k) (Map k) (Map' k) where
   downZF as = as # mapWithIndex \i a ->
     a :<-: defer \_ -> Map' (Product (Tuple (Const i) (Map.delete i as)))
 
-newtype InsOrdStrMap' a = InsOrdStrMap' (Product (Const String) (Product InsOrdStrMap InsOrdStrMap) a)
-derive instance newtypeInsOrdStrMap' :: Newtype (InsOrdStrMap' a) _
-derive newtype instance eqInsOrdStrMap' :: Eq a => Eq (InsOrdStrMap' a)
-derive newtype instance ordInsOrdStrMap' :: Ord a => Ord (InsOrdStrMap' a)
-derive newtype instance eq1InsOrdStrMap' :: Eq1 InsOrdStrMap'
-derive newtype instance ord1InsOrdStrMap' :: Ord1 InsOrdStrMap'
-derive newtype instance functorInsOrdStrMap' :: Functor InsOrdStrMap'
-derive newtype instance foldableInsOrdStrMap' :: Foldable InsOrdStrMap'
-derive newtype instance traversableInsOrdStrMap' :: Traversable InsOrdStrMap'
-derive newtype instance mergeInsOrdStrMap' :: Merge InsOrdStrMap'
-derive newtype instance functorWithIndexInsOrdStrMap' :: FunctorWithIndex (Either Void (Either String String)) InsOrdStrMap'
-derive newtype instance foldableWithIndexInsOrdStrMap' :: FoldableWithIndex (Either Void (Either String String)) InsOrdStrMap'
-derive newtype instance traversableWithIndexInsOrdStrMap' :: TraversableWithIndex (Either Void (Either String String)) InsOrdStrMap'
-instance containerInsOrdStrMap' :: Container
-  (Either Void (Either String String)) InsOrdStrMap'
-  (Product' (Const String) (Const Void)
-    (Product InsOrdStrMap InsOrdStrMap) (Product' InsOrdStrMap InsOrdStrMap' InsOrdStrMap InsOrdStrMap')
+newtype InsOrdMap' k a = InsOrdMap' (Product (Const k) (Product (InsOrdMap k) (InsOrdMap k)) a)
+derive instance newtypeInsOrdMap' :: Newtype (InsOrdMap' k a) _
+derive newtype instance eqInsOrdMap' :: (Eq k, Eq a) => Eq (InsOrdMap' k a)
+derive newtype instance ordInsOrdMap' :: (Ord k, Ord a) => Ord (InsOrdMap' k a)
+derive newtype instance eq1InsOrdMap' :: Eq k => Eq1 (InsOrdMap' k)
+derive newtype instance ord1InsOrdMap' :: Ord k => Ord1 (InsOrdMap' k)
+derive newtype instance functorInsOrdMap' :: Functor (InsOrdMap' k)
+derive newtype instance foldableInsOrdMap' :: Foldable (InsOrdMap' k)
+derive newtype instance traversableInsOrdMap' :: Traversable (InsOrdMap' k)
+derive newtype instance mergeInsOrdMap' :: Ord k => Merge (InsOrdMap' k)
+derive newtype instance functorWithIndexInsOrdMap' :: FunctorWithIndex (Either Void (Either k k)) (InsOrdMap' k)
+derive newtype instance foldableWithIndexInsOrdMap' :: FoldableWithIndex (Either Void (Either k k)) (InsOrdMap' k)
+derive newtype instance traversableWithIndexInsOrdMap' :: TraversableWithIndex (Either Void (Either k k)) (InsOrdMap' k)
+instance containerInsOrdMap' :: Ord k => Container
+  (Either Void (Either k k)) (InsOrdMap' k)
+  (Product' (Const k) (Const Void)
+    (Product (InsOrdMap k) (InsOrdMap k)) (Product' (InsOrdMap k) (InsOrdMap' k) (InsOrdMap k) (InsOrdMap' k))
   ) where
-  upZF = InsOrdStrMap' <<< upZF
-  downZF = over InsOrdStrMap' downZF
-type InsOrdStrMapI = String
+  upZF = InsOrdMap' <<< upZF
+  downZF = over InsOrdMap' downZF
+type InsOrdMapI k = k
 
-instance containerIIOSM :: ContainerI String InsOrdStrMap' where
-  ixF (InsOrdStrMap' (Product (Tuple (Const k) _))) = k
+instance containerIIOSM :: Ord k => ContainerI k (InsOrdMap' k) where
+  ixF (InsOrdMap' (Product (Tuple (Const k) _))) = k
 
-instance containerIOSM :: Container String InsOrdStrMap InsOrdStrMap' where
+instance containerIOSM :: Ord k => Container k (InsOrdMap k) (InsOrdMap' k) where
   upZF (a :<-: z) = case extract z of
-    InsOrdStrMap' (Product (Tuple (Const k) (Product (Tuple prev next)))) ->
+    InsOrdMap' (Product (Tuple (Const k) (Product (Tuple prev next)))) ->
       mkIOSM (unIOSM prev <> [Tuple k a] <> unIOSM next)
-  downZF (InsOrdStrMap (Compose as)) = mkIOSM $ as #
+  downZF (InsOrdMap (Compose as)) = mkIOSM $ as #
     let l = Array.length as in
     mapWithIndex \i (Tuple k a) -> Tuple k $
       a :<-: defer \_ ->
         let
           prev = mkIOSM $ Array.slice 0 i as
           next = mkIOSM $ Array.slice (i+1) l as
-        in InsOrdStrMap' (Product (Tuple (Const k) (Product (Tuple prev next))))
+        in InsOrdMap' (Product (Tuple (Const k) (Product (Tuple prev next))))

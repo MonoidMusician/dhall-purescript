@@ -35,7 +35,7 @@ import Dhall.Core.AST.Operations.Location (Location, Derivation)
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Types.Basics (Three(..))
 import Dhall.Core.Imports.Types as Core.Imports
-import Dhall.Core.StrMapIsh as IOSM
+import Dhall.Map as Dhall.Map
 import Dhall.Core.Zippers (_ix)
 import Dhall.Core.Zippers.Recursive (_recurse)
 import Dhall.Interactive.Halogen.AST (SlottedHTML(..))
@@ -77,7 +77,7 @@ data EditQuery a
   | Check (Ixpr -> a) -- check its current value
   | UserInput a String
 
-type ERROR = Erroring (TypeCheckError (Errors + ( "Not found" :: ExprRowVFI )) (L IOSM.InsOrdStrMap (Maybe Core.Imports.Import)))
+type ERROR = Erroring (TypeCheckError (Errors + ( "Not found" :: ExprRowVFI )) (L Dhall.Map.InsOrdStrMap (Maybe Core.Imports.Import)))
 type ViewState =
   { parsed :: Maybe Ixpr
   , value :: Ixpr
@@ -87,10 +87,10 @@ type ViewState =
 type ViewRender =
   { st :: ViewState
   , window :: ERROR Ixpr
-  , oxpr :: OxprE () ( "Not found" :: ExprRowVFI ) IOSM.InsOrdStrMap (Maybe Core.Imports.Import)
+  , oxpr :: OxprE () ( "Not found" :: ExprRowVFI ) Dhall.Map.InsOrdStrMap (Maybe Core.Imports.Import)
   , explain ::
-      TypeCheckError (Errors ( "Not found" :: ExprRowVFI )) (L IOSM.InsOrdStrMap (Maybe Core.Imports.Import)) ->
-      Array (Reference (Maybe (OxprE () ( "Not found" :: ExprRowVFI ) IOSM.InsOrdStrMap (Maybe Core.Imports.Import))))
+      TypeCheckError (Errors ( "Not found" :: ExprRowVFI )) (L Dhall.Map.InsOrdStrMap (Maybe Core.Imports.Import)) ->
+      Array (Reference (Maybe (OxprE () ( "Not found" :: ExprRowVFI ) Dhall.Map.InsOrdStrMap (Maybe Core.Imports.Import))))
   , editable :: Boolean
   , exists :: Boolean
   , typechecks :: Boolean
@@ -106,10 +106,10 @@ data ViewQuery a
   | Raise a EditActions
   | Receive a { parsed :: Maybe Ixpr, value :: Ixpr }
 
-hole :: AST.Expr IOSM.InsOrdStrMap (Maybe Core.Imports.Import)
+hole :: AST.Expr Dhall.Map.InsOrdStrMap (Maybe Core.Imports.Import)
 hole = pure Nothing
 
-tpi :: Maybe Core.Imports.Import -> AST.Expr IOSM.InsOrdStrMap (Maybe Core.Imports.Import)
+tpi :: Maybe Core.Imports.Import -> AST.Expr Dhall.Map.InsOrdStrMap (Maybe Core.Imports.Import)
 tpi _ = hole
 
 unWriterT :: forall m f a. Functor f => WriterT m f a -> f a
@@ -310,7 +310,7 @@ renderLoc loc = HH.span [ HP.class_ (H.ClassName "location") ] $
         }
 
 renderErrorRef :: forall w r.
-  Maybe (Oxpr w r IOSM.InsOrdStrMap (Maybe Core.Imports.Import)) ->
+  Maybe (Oxpr w r Dhall.Map.InsOrdStrMap (Maybe Core.Imports.Import)) ->
   H.ComponentHTML (ViewQuery Unit) () Aff
 renderErrorRef Nothing = HH.text "(missing)"
 renderErrorRef (Just oxpr) = case extract $ topLoc oxpr of

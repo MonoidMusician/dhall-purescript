@@ -22,8 +22,7 @@ import Data.Symbol (class IsSymbol)
 import Data.These (These(..))
 import Data.Traversable (class Foldable, class Traversable, and, sequence)
 import Data.Tuple (Tuple(..))
-import Dhall.Core.StrMapIsh (InsOrdStrMap)
-import Dhall.Core.StrMapIsh as IOSM
+import Dhall.Map as Dhall.Map
 import Prim.Row as Row
 import Prim.RowList as RL
 import Type.Data.RowList (RLProxy(..))
@@ -63,10 +62,10 @@ viaThese :: forall a b c. (a -> b -> c) -> These a b -> Maybe c
 viaThese f (Both a b) = Just (f a b)
 viaThese _ _ = Nothing
 
-mergeWithOfStrMapIsh :: forall f a b c. IOSM.StrMapIsh f =>
+mergeWithOfMapLike :: forall k f a b c. Dhall.Map.MapLike k f =>
   (a -> b -> c) -> f a -> f b -> Maybe (f c)
-mergeWithOfStrMapIsh f ma mb =
-  sequence $ IOSM.unionWith (const (Just <<< viaThese f)) ma mb
+mergeWithOfMapLike f ma mb =
+  sequence $ Dhall.Map.unionWith (const (Just <<< viaThese f)) ma mb
 
 instance mergeIdentity :: Merge Identity where
   mergeWith f (Identity a) (Identity b) = Just (Identity (f a b))
@@ -123,10 +122,10 @@ instance mergeCompose :: (Traversable f, Merge f, Merge g) => Merge (Compose f g
 
 instance mergeMap :: Ord k => Merge (Map k) where
   mergeWith f ma mb =
-    sequence $ IOSM.unionWithMapThese (const (Just <<< viaThese f)) ma mb
+    sequence $ Dhall.Map.unionWithMapThese (const (Just <<< viaThese f)) ma mb
 
-instance mergeInsOrdStrMap :: Merge InsOrdStrMap where
-  mergeWith = mergeWithOfStrMapIsh
+instance mergeInsOrdMap :: Ord k => Merge (Dhall.Map.InsOrdMap k) where
+  mergeWith = mergeWithOfMapLike
 
 mergeWithVF :: forall rl fs a b c.
   RL.RowToList fs rl =>

@@ -19,8 +19,8 @@ import Data.Tuple (Tuple(..), swap)
 import Data.Variant.Internal (FProxy)
 import Dhall.Core.AST.Types (Const(..), Expr, ExprLayerRow, Var, embedW, projectW)
 import Dhall.Core.AST.Types.Basics (BindingBody(..), CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
-import Dhall.Core.StrMapIsh (class StrMapIsh)
-import Dhall.Core.StrMapIsh as StrMapIsh
+import Dhall.Map (class MapLike)
+import Dhall.Map as Dhall.Map
 import Prelude (class Functor, Unit, const, identity, one, pure, unit, zero, (#), ($), (<<<))
 import Prim.Row as Row
 
@@ -493,9 +493,9 @@ _Record :: forall r m. Functor m => ExprFPrism
   ( "Record" :: FProxy m | r ) m
 _Record = _ExprFPrism (SProxy :: SProxy "Record")
 
-_Record_empty :: forall r o m. StrMapIsh m =>
+_Record_empty :: forall r o m. MapLike String m =>
   Prism' (VariantF ( "Record" :: FProxy m | r ) o) Unit
-_Record_empty = _Record <<< StrMapIsh._Empty
+_Record_empty = _Record <<< Dhall.Map._Empty
 
 mkRecordLit :: forall a m. Functor m => m (Expr m a) -> Expr m a
 mkRecordLit = mkExprF (SProxy :: SProxy "RecordLit")
@@ -504,9 +504,9 @@ _RecordLit :: forall r m. Functor m => ExprFPrism
   ( "RecordLit" :: FProxy m | r ) m
 _RecordLit = _ExprFPrism (SProxy :: SProxy "RecordLit")
 
-_RecordLit_empty :: forall r o m. StrMapIsh m =>
+_RecordLit_empty :: forall r o m. MapLike String m =>
   Prism' (VariantF ( "RecordLit" :: FProxy m | r ) o) Unit
-_RecordLit_empty = _RecordLit <<< StrMapIsh._Empty
+_RecordLit_empty = _RecordLit <<< Dhall.Map._Empty
 
 mkUnion :: forall m a. Functor m => m (Maybe (Expr m a)) -> Expr m a
 mkUnion = mkExprF (SProxy :: SProxy "Union") <<< Compose
@@ -514,9 +514,9 @@ mkUnion = mkExprF (SProxy :: SProxy "Union") <<< Compose
 _Union :: forall r m. Functor m => ExprFPrism ( "Union" :: FProxy (Compose m Maybe) | r ) (Compose m Maybe)
 _Union = _ExprFPrism (SProxy :: SProxy "Union")
 
-_Union_empty :: forall r o m. StrMapIsh m =>
+_Union_empty :: forall r o m. MapLike String m =>
   Prism' (VariantF ( "Union" :: FProxy (Compose m Maybe) | r ) o) Unit
-_Union_empty = _Union <<< _Newtype <<< StrMapIsh._Empty
+_Union_empty = _Union <<< _Newtype <<< Dhall.Map._Empty
 
 mkUnionLit :: forall m a. Functor m => String -> Expr m a -> m (Expr m a) -> Expr m a
 mkUnionLit name value others = mkExprF (SProxy :: SProxy "UnionLit")

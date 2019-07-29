@@ -23,7 +23,7 @@ import Data.Variant as Variant
 import Dhall.Context as Dhall.Context
 import Dhall.Core.AST (Expr, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
-import Dhall.Core.StrMapIsh as IOSM
+import Dhall.Map as Dhall.Map
 import Dhall.Normalize (GNormalizerF(..), Normalizer)
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.Normalize.Apps (apps, noapplit, (~))
@@ -32,7 +32,7 @@ import Prim.RowList (Nil, Cons, class RowToList)
 import Record as Record
 import Type.RowList (RLProxy(..))
 
-type StandardExpr = Expr IOSM.InsOrdStrMap Void
+type StandardExpr = Expr Dhall.Map.InsOrdStrMap Void
 
 newtype Type a = Type
   { extract  :: StandardExpr -> Maybe a
@@ -209,20 +209,20 @@ record opts = Type
 
 class InterpretRL rl r | rl -> r where
   expectedR :: RLProxy rl -> InterpretOptions ->
-    IOSM.InsOrdStrMap StandardExpr
+    Dhall.Map.InsOrdStrMap StandardExpr
   expectedV :: RLProxy rl -> InterpretOptions ->
-    IOSM.InsOrdStrMap StandardExpr
+    Dhall.Map.InsOrdStrMap StandardExpr
   extractR :: RLProxy rl -> InterpretOptions ->
-    IOSM.InsOrdStrMap StandardExpr ->
+    Dhall.Map.InsOrdStrMap StandardExpr ->
     Maybe (Record r)
   extractV :: RLProxy rl -> InterpretOptions ->
     String -> StandardExpr ->
     Maybe (Variant r)
 
 instance interpretNil :: InterpretRL Nil () where
-  expectedR _ _ = IOSM.empty
+  expectedR _ _ = Dhall.Map.empty
   extractR _ _ _ = Just {}
-  expectedV _ _ = IOSM.empty
+  expectedV _ _ = Dhall.Map.empty
   extractV _ _ _ _ = Nothing
 
 instance interpretCons ::
@@ -234,19 +234,19 @@ instance interpretCons ::
   , InterpretRL rl' r'
   ) => InterpretRL (Cons s t rl') r where
   expectedR _ opts =
-    IOSM.insert (opts.fieldModifier field) t.expected
+    Dhall.Map.insert (opts.fieldModifier field) t.expected
       (expectedR (RLProxy :: RLProxy rl') opts)
     where
       (Type t :: Type t) = autoWith opts
       field = reflectSymbol (_S::S_ s)
   extractR _ opts vs = Record.insert (_S::S_ s)
-    <$> (IOSM.get (opts.fieldModifier field) vs >>= t.extract)
+    <$> (Dhall.Map.get (opts.fieldModifier field) vs >>= t.extract)
     <*> extractR (RLProxy :: RLProxy rl') opts vs
     where
       (Type t :: Type t) = autoWith opts
       field = reflectSymbol (_S::S_ s)
   expectedV _ opts =
-    IOSM.insert (opts.constructorModifier field) t.expected
+    Dhall.Map.insert (opts.constructorModifier field) t.expected
       (expectedV (RLProxy :: RLProxy rl') opts)
     where
       (Type t :: Type t) = autoWith opts
@@ -277,18 +277,18 @@ instance injectRecord ::
 
 class InjectRL rl r | rl -> r where
   declaredR :: RLProxy rl -> InterpretOptions ->
-    IOSM.InsOrdStrMap StandardExpr
+    Dhall.Map.InsOrdStrMap StandardExpr
   declaredV :: RLProxy rl -> InterpretOptions ->
-    IOSM.InsOrdStrMap StandardExpr
+    Dhall.Map.InsOrdStrMap StandardExpr
   embedR :: RLProxy rl -> InterpretOptions -> Record r ->
-    IOSM.InsOrdStrMap StandardExpr
+    Dhall.Map.InsOrdStrMap StandardExpr
   embedV :: RLProxy rl -> InterpretOptions -> Variant r ->
-    Product (Tuple String) IOSM.InsOrdStrMap StandardExpr
+    Product (Tuple String) Dhall.Map.InsOrdStrMap StandardExpr
 
 instance injectNil :: InjectRL Nil () where
-  declaredR _ _ = IOSM.empty
-  embedR _ _ _ = IOSM.empty
-  declaredV _ _ = IOSM.empty
+  declaredR _ _ = Dhall.Map.empty
+  embedR _ _ _ = Dhall.Map.empty
+  declaredV _ _ = Dhall.Map.empty
   embedV _ _ = Variant.case_
 
 instance injectCons ::
@@ -300,19 +300,19 @@ instance injectCons ::
   , InjectRL rl' r'
   ) => InjectRL (Cons s t rl') r where
   declaredR _ opts =
-    IOSM.insert (opts.fieldModifier field) t.declared
+    Dhall.Map.insert (opts.fieldModifier field) t.declared
       (declaredR (RLProxy :: RLProxy rl') opts)
     where
       (InputType t :: InputType t) = injectWith opts
       field = reflectSymbol (_S::S_ s)
-  embedR _ opts vs = IOSM.insert (opts.fieldModifier field)
+  embedR _ opts vs = Dhall.Map.insert (opts.fieldModifier field)
       do Record.get (_S::S_ s) vs # t.embed
       do Record.delete (_S::S_ s) vs # embedR (RLProxy :: RLProxy rl') opts
     where
       (InputType t :: InputType t) = injectWith opts
       field = reflectSymbol (_S::S_ s)
   declaredV _ opts =
-    IOSM.insert (opts.constructorModifier field) t.declared
+    Dhall.Map.insert (opts.constructorModifier field) t.declared
       (declaredV (RLProxy :: RLProxy rl') opts)
     where
       (InputType t :: InputType t) = injectWith opts
@@ -323,14 +323,14 @@ instance injectCons ::
             do Tuple (opts.constructorModifier field) (t.embed v)
             do declaredV (RLProxy :: RLProxy rl') opts
       do embedV (RLProxy :: RLProxy rl') opts >>>
-          (map >>> over Product) (IOSM.insert (opts.constructorModifier field) t.declared)
+          (map >>> over Product) (Dhall.Map.insert (opts.constructorModifier field) t.declared)
     where
       (InputType t :: InputType t) = injectWith opts
       field = reflectSymbol (_S::S_ s)
 
 interpretFnWith :: forall a b. Partial =>
   InputType a -> Type b ->
-  Normalizer IOSM.InsOrdStrMap Void ->
+  Normalizer Dhall.Map.InsOrdStrMap Void ->
   Type (a -> b)
 interpretFnWith (InputType a :: InputType a) (Type b :: Type b) ctx = Type
   { expected: AST.mkArrow a.declared b.expected
@@ -340,7 +340,7 @@ interpretFnWith (InputType a :: InputType a) (Type b :: Type b) ctx = Type
 type InjectFn instances fnty =
   instances ->
     { ty :: StandardExpr
-    , normalize :: String -> fnty -> Normalizer IOSM.InsOrdStrMap Void
+    , normalize :: String -> fnty -> Normalizer Dhall.Map.InsOrdStrMap Void
     }
 
 injectFnArg :: forall input instances fnty.
@@ -370,11 +370,11 @@ injectFn (Tuple (Type i :: Type i) (InputType o :: InputType o)) =
 
 injectToContext :: forall fnty.
   { ty :: StandardExpr
-  , normalize :: String -> fnty -> Normalizer IOSM.InsOrdStrMap Void
+  , normalize :: String -> fnty -> Normalizer Dhall.Map.InsOrdStrMap Void
   } ->
   String ->
   { ctx :: Dhall.Context.Context StandardExpr
-  , normalize :: fnty -> Normalizer IOSM.InsOrdStrMap Void
+  , normalize :: fnty -> Normalizer Dhall.Map.InsOrdStrMap Void
   }
 injectToContext { ty, normalize } name =
   { ctx: Dhall.Context.Context $ pure $ Tuple name ty
