@@ -44,6 +44,7 @@ import Effect.Aff (Aff)
 import Effect.Aff as Aff
 import Effect.Aff.AVar as AVar
 import Effect.Class (liftEffect)
+import Effect.Class.Console (logShow)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Validation.These as V
@@ -52,6 +53,7 @@ newtype Localized = Localized Import
 derive instance newtypeLocalized :: Newtype Localized _
 derive newtype instance eqLocalized :: Eq Localized
 derive newtype instance ordLocalized :: Ord Localized
+derive newtype instance showLocalized :: Show Localized
 
 type ImportExpr = Expr InsOrdStrMap Import
 type LocalizedExpr = Expr InsOrdStrMap Localized
@@ -245,10 +247,11 @@ resolveImports = pure
   -- (Eta-expanded because it calls this recursively, of course)
   >=> do \expr -> resolveHeaders expr
   -- Traverse to set up resolving each individual import
-  >=> do \expr -> traverse (resolveImport >>> pause) expr
+  -- Caching stage 2: check hashes, before `ImportAlt` resolution
+  >=> do \expr -> traverse (resolveImport >=> checkHashes >>> pause) expr
   -- Handle failures in `ImportAlt` expressions, running effects only as necessary
   >=> resume <<< resolveAlternatives
-  -- Caching stage 2: check that the hashes match, and cache the uncached exprs
+  -- Caching stage 3: cache the uncached exprs
   >=> cacheResults
 
 -- Run the effects encoded in the tree, avoiding evaluating second alternatives,
@@ -283,7 +286,8 @@ replaceCached = rewriteTopDownA $ VariantF.on (_S::S_ "Hashed")
         -- standard would suggest it should be checked here
         -- TODO: verify expression typechecks and is (alpha-)normalized?
         | Just decoded <- decode (CBOR.decode cached)
-        , Just noImports <- traverse (pure Nothing) decoded ->
+        , Just noImports <- traverse (pure Nothing) decoded -> do
+          liftAff $ logShow noImports
           pure $ Tuple true noImports
       -- Recurse since this was a cache miss, maybe an inner node will succeed
       _ -> Tuple false <$> replaceCached expr
@@ -293,27 +297,35 @@ replaceCached = rewriteTopDownA $ VariantF.on (_S::S_ "Hashed")
     -- Return the node, or the one from the cache
     pure $ AST.mkHashed expr' hash
 
--- For hashed expressions, verify that the hash matches, and add to the cache,
--- and return the normalized node.
+-- For hashed expressions, verify that the hash matches and return the
+-- normalized node.
+checkHashes :: forall w r. ResolvedExpr -> M w r ResolvedExpr
+checkHashes = rewriteTopDownA $ VariantF.on (_S::S_ "Hashed")
+  \(Tuple hash expr) -> do
+    let exprn = Hash.neutralize expr
+    let hash' = Hash.hash (absurd <$> exprn :: ImportExpr)
+    when (hash /= hash') do
+      throw (Variant.inj (_S::S_ "Hash mismatch") { expected: hash, actual: hash' })
+    -- Recurse on the original but return the *normalized* node
+    -- See: https://github.com/dhall-lang/dhall-lang/issues/690#issuecomment-518442494
+    void $ checkHashes expr
+    pure $ AST.mkHashed exprn hash
+
+-- For hashed expressions, add to the cache, and return the node without the hash.
 cacheResults :: forall w r. ResolvedExpr -> M w r ResolvedExpr
 cacheResults = rewriteTopDownA $ VariantF.on (_S::S_ "Hashed")
   \(Tuple hash expr) -> do
-    let expri = absurd <$> expr :: ImportExpr
-    let hash' = Hash.hash expri
-    when (hash /= hash') do
-      throw (Variant.inj (_S::S_ "Hash mismatch") { expected: hash, actual: hash' })
     -- Hashes that were not cached need to be put into the cache
-    wasCached <- gets $ _.toBeCached >>> Set.member hash
+    wasCached <- gets $ _.toBeCached >>> not Set.member hash
     when (not wasCached) do
       cacher <- asks _.cacher
       -- Ignore errors when putting it into the cache
       liftAff' (pure (pure unit)) $
-        cacher.put hash (CBOR.encode $ encode expri)
+        cacher.put hash (CBOR.encode $ encode $ (absurd <$> expr :: ImportExpr))
       -- Make sure not to put this hash twice
       modify_ $ prop (_S::S_ "toBeCached") $ Set.delete hash
-    -- Recurse and return the *normalized* node, removing the hash
-    -- See: https://github.com/dhall-lang/dhall-lang/issues/690#issuecomment-518442494
-    Hash.neutralize <$> cacheResults expr
+    -- Recurse, dropping the hash now
+    cacheResults expr
 
 -- Resolve and normalize headers expressions, and match them up with their
 -- imports (storing them as PS `Headers` data now, no longer a Dhall expr)
@@ -393,10 +405,12 @@ resolveImport i@(Localized (Import { importMode, importType })) =
             Map.insert i { text, resolved: Just resolving }
           -- Fully parse, resolve, and verify the import
           resolved <- retrieveExprVerified text #
-            withCleanup (AVar.kill (Aff.error "Import failed") resolving)
+            withCleanup (AVar.kill (Aff.error $ "Import failed " <> show i) resolving)
           -- And stick it in the AVar, both for any listeners that popped up
           -- in parallel, and for future reference
-          liftAff $ AVar.put resolved resolving
+          -- NOTE: this may be called even if the AVar is killed, because of the
+          -- error-recovering semantics of V.Erroring
+          void $ liftAff $ AVar.tryPut resolved resolving
           -- And return it, of course
           pure resolved
     -- Verify an imported expr

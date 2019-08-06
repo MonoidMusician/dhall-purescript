@@ -401,13 +401,13 @@ path_component -> "/" ( unquoted_path_component {% pass0 %} | [\x22] quoted_path
 
 # The last path-component matched by this rule is referred to as "file" in the semantics,
 # and the other path-components as "directory".
-path -> path_component:+
+path -> path_component:+ {% pass0 %}
 
 local ->
       ".." path {% d => ({ type: "Local", value: ["Parent", d[1].slice(0, -1), d[1][d[1].length-1]] }) %}
 	  | "."  path {% d => ({ type: "Local", value: ["Here", d[1].slice(0, -1), d[1][d[1].length-1]] }) %}
 	  | "~"  path {% d => ({ type: "Local", value: ["Home", d[1].slice(0, -1), d[1][d[1].length-1]] }) %}
-	  | path {% d => ({ type: "Local", value: ["Absolute", d[0].slice(0, -1), d[0][d[1].length-1]] }) %}
+	  | path {% d => ({ type: "Local", value: ["Absolute", d[0].slice(0, -1), d[0][d[0].length-1]] }) %}
 
 # `http[s]` URI grammar based on RFC7230 and RFC 3986 with some differences
 # noted below

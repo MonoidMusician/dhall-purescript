@@ -195,7 +195,7 @@ decodeImportType (FAST r) = case r of
   _ -> unsafeCrashWith "Unrecognized ImportType"
 
 decodeDirectory :: Foreign -> Directory
-decodeDirectory = unsafeCoerce (Array.toUnfoldable :: Array ~> List)
+decodeDirectory = unsafeCoerce ((Array.reverse >>> Array.toUnfoldable) :: Array ~> List)
 
 decodeURL :: Array Foreign -> Tuple (Maybe (FAST Foreign)) URL
 decodeURL [ scheme, authority, dir, file, query, headers ] =

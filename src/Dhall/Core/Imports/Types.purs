@@ -4,7 +4,7 @@ import Prelude
 
 import Data.Array (mapMaybe)
 import Data.Foldable (foldMap, intercalate)
-import Data.List (List(..), (:))
+import Data.List (List(..), (:), reverse)
 import Data.Maybe (Maybe(..))
 
 -- Most of this is just copied from dhall-haskell without further thought so far
@@ -24,7 +24,7 @@ instance monoidDirectory :: Monoid Directory where
   mempty = Directory mempty
 
 prettyDirectory :: Directory -> String
-prettyDirectory (Directory components) = foldMap ("/" <> _) components
+prettyDirectory (Directory components) = foldMap ("/" <> _) (reverse components)
 
 canonicalizeDirectory :: Directory -> Directory
 canonicalizeDirectory (Directory l0) = Directory (rec l0) where
