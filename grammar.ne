@@ -404,10 +404,10 @@ path_component -> "/" ( unquoted_path_component {% pass0 %} | [\x22] quoted_path
 path -> path_component:+
 
 local ->
-      ".." path {% d => ({ type: "Local", value: ["Parent", d[1].slice(0, -1), d[1][-1]] }) %}
-	  | "."  path {% d => ({ type: "Local", value: ["Here", d[1].slice(0, -1), d[1][-1]] }) %}
-	  | "~"  path {% d => ({ type: "Local", value: ["Home", d[1].slice(0, -1), d[1][-1]] }) %}
-	  | path {% d => ({ type: "Local", value: ["Absolute", d[0].slice(0, -1), d[0][-1]] }) %}
+      ".." path {% d => ({ type: "Local", value: ["Parent", d[1].slice(0, -1), d[1][d[1].length-1]] }) %}
+	  | "."  path {% d => ({ type: "Local", value: ["Here", d[1].slice(0, -1), d[1][d[1].length-1]] }) %}
+	  | "~"  path {% d => ({ type: "Local", value: ["Home", d[1].slice(0, -1), d[1][d[1].length-1]] }) %}
+	  | path {% d => ({ type: "Local", value: ["Absolute", d[0].slice(0, -1), d[0][d[1].length-1]] }) %}
 
 # `http[s]` URI grammar based on RFC7230 and RFC 3986 with some differences
 # noted below
@@ -430,14 +430,14 @@ scheme -> "http" {% pass0 %} | "https" {% pass0 %}
 # Unquoted path components should be percent-decoded according to
 # https://tools.ietf.org/html/rfc3986#section-2
 http_raw -> scheme "://" authority url_path ( "?" query ):?
-{% d => ({ type: "Remote", value: [d[0], d[2], d[3].slice(0,-1), d[3][-1], pass1(d[4])] }) %}
+{% d => ({ type: "Remote", value: [d[0], d[2], d[3].slice(0,-1), d[3][d[3].length-1], pass1(d[4])] }) %}
 
 
 # Temporary rule to allow old-style `path-component`s and RFC3986 `segment`s in
 # the same grammar. Eventually we can just use `path-abempty` from the same
 # RFC. See issue #581
 
-url_path -> (path_component {% pass0 %} | "/" segment {% pass1 %} ):+ {% pass0 %} # FIXME
+url_path -> ( "/" [\x22] quoted_path_component [\x22] {% pass(2) %} | "/" segment {% pass1 %} ):+ {% pass0 %} # FIXME
 
 
 authority -> ( userinfo "@" ):? host ( ":" port ):? {% collapse %}
@@ -474,7 +474,7 @@ dec_octet -> DIGIT {% collapse %}          | [\x31-\x39] DIGIT {% collapse %}   
 # "A registered name intended for lookup in the DNS"
 domain -> ( domainlabel "." ):* domainlabel ".":? {% collapse %}
 
-domainlabel -> ALPHANUM ( ( ALPHANUM | "-":+ ) ALPHANUM | ALPHANUM ):* {% collapse %}
+domainlabel -> ALPHANUM:+ ( "-":+ ALPHANUM:+ ):* {% collapse %}
 
 segment -> pchar:* {% collapse %}
 
