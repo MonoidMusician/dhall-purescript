@@ -98,6 +98,7 @@ type Errors r = TC.Errors
     { expected :: String
     , actual :: String
     }
+  , "Import failed to resolve" :: Localized
   | r
   )
 type Feedback w r = TC.Feedback (Infos w) (Errors r) InsOrdStrMap Import
@@ -182,6 +183,13 @@ tell v = liftFeedback $ WriterT $ pure $ Tuple unit (pure v)
 throw :: forall w r a. Variant (Errors r) -> M w r a
 throw e = liftFeedback $ WriterT $
   V.Error (pure (TC.TypeCheckError { location: loc, tag: e })) Nothing
+
+withCleanup :: forall w r a.
+  Aff Unit -> M w r a -> M w r a
+withCleanup h (M (ReaderT rf)) = M $ ReaderT \r -> Compose $
+  unwrap (rf r) >>= \a -> a <$ case a of
+    WriterT (V.Error _ _) -> h
+    _ -> pure unit
 
 note :: forall w r. Variant (Errors r) -> Maybe ~> M w r
 note e = case _ of
@@ -373,7 +381,8 @@ resolveImport i@(Localized (Import { importMode, importType })) =
         -- resolving (in the case of diamond imports, a sibling may wait for the
         -- first thread to complete resolving the shared import)
         Just resolving -> do
-          liftAff $ AVar.read resolving
+          liftAff' (pure (throw (Variant.inj (_S::S_ "Import failed to resolve") i))) $
+            AVar.read resolving
         -- Otherwise, create the resolved value
         Nothing -> do
           -- First obtain the text of the import, from cache or retrieved
@@ -383,7 +392,8 @@ resolveImport i@(Localized (Import { importMode, importType })) =
           modify_ $ prop (_S::S_ "cache") $
             Map.insert i { text, resolved: Just resolving }
           -- Fully parse, resolve, and verify the import
-          resolved <- retrieveExprVerified text
+          resolved <- retrieveExprVerified text #
+            withCleanup (AVar.kill (Aff.error "Import failed") resolving)
           -- And stick it in the AVar, both for any listeners that popped up
           -- in parallel, and for future reference
           liftAff $ AVar.put resolved resolving
