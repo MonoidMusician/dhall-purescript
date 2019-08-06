@@ -1,6 +1,6 @@
 exports.encode = function(r) {
-  require("cbor-js").encode(r);
+  return require("cbor-js").encode(r);
 };
 exports.decode = function(r) {
-  require("cbor-js").encode(r);
+  return require("cbor-js").decode(r);
 };
