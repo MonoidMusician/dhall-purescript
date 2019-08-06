@@ -13,7 +13,7 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Dhall.Core.AST (S_, _S)
 import Dhall.Core.AST as AST
-import Dhall.Core.Imports.Types (Header, Headers, Import(..), ImportType(..))
+import Dhall.Core.Imports.Types (Header, Headers, Import(..), ImportType(..), URL(..), prettyFile, prettyFilePrefix)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
 import Effect.Aff (Aff)
@@ -49,6 +49,32 @@ nodeRetrieveURL headers url = milkisRetrieveURL (nodeFetch unit) headers url
 windowRetrieveURL :: Headers -> String -> Aff { result :: String, headers :: Headers }
 windowRetrieveURL headers url = milkisRetrieveURL (windowFetch unit) headers url
 
+locationType :: forall m a. MapLike String m => AST.Expr m a
+locationType = AST.mkUnion $ Dhall.Map.fromFoldable $
+  [ Tuple "Environment" $ Just AST.mkText
+  , Tuple "Local" $ Just AST.mkText
+  , Tuple "Missing" $ Nothing
+  , Tuple "Remote" $ Just AST.mkText
+  ]
+
+fromLocation :: forall m a. MapLike String m => ImportType -> AST.Expr m a
+fromLocation = case _ of
+  Missing -> AST.mkField locationType "Missing"
+  Env e -> AST.mkApp (AST.mkField locationType "Environment") $ AST.mkTextLit' e
+  Local pre l -> AST.mkApp (AST.mkField locationType "Local") $ AST.mkTextLit' $
+    prettyFilePrefix pre <> prettyFile l
+  Remote (URL url) ->
+    AST.mkApp (AST.mkField locationType "Remote") $ AST.mkTextLit'
+    let
+      queryDoc = case url.query of
+        Nothing -> ""
+        Just q  -> "?" <> q
+    in  show url.scheme
+    <>  "://"
+    <>  url.authority
+    <>  prettyFile url.path
+    <>  queryDoc
+
 headerType :: forall m a. MapLike String m => AST.Expr m a
 headerType = AST.mkRecord $ Dhall.Map.fromFoldable $
   [ Tuple "mapKey" AST.mkText
@@ -77,19 +103,19 @@ fromHeaders headers = AST.mkListLit Nothing $ fromHeader <$> headers
 
 fromHeader :: forall m a. MapLike String m => Header -> AST.Expr m a
 fromHeader { header, value } = AST.mkRecordLit $ Dhall.Map.fromFoldable
-  [ Tuple "mapKey" $ AST.mkTextLit $ AST.TextLit header
-  , Tuple "mapValue" $ AST.mkTextLit $ AST.TextLit value
+  [ Tuple "mapKey" $ AST.mkTextLit' header
+  , Tuple "mapValue" $ AST.mkTextLit' value
   ]
 
-addHeader :: forall m a. MapLike String m => AST.Expr m a -> AST.Expr m a -> AST.Expr m a
-addHeader a b
+appendHeader :: forall m a. MapLike String m => AST.Expr m a -> AST.Expr m a -> AST.Expr m a
+appendHeader a b
   | Just { values: x } <- Lens.preview AST._ListLit (AST.projectW a)
   , Just { values: y } <- Lens.preview AST._ListLit (AST.projectW b) =
     let xy = x <> y in
     case xy of
       [] -> AST.mkListLit (Just headerType) []
       _ -> AST.mkListLit Nothing xy
-addHeader a b = AST.mkListAppend a b
+appendHeader a b = AST.mkListAppend a b
 
 desugarHeaders :: forall m. MapLike String m => AST.Expr m Import -> AST.Expr m Import
 desugarHeaders = go Nil where
@@ -101,7 +127,7 @@ desugarHeaders = go Nil where
             headers0 = AST.mkListLit (Just headerType) []
           in case i.importType of
             Remote _
-              | head <- foldr addHeader headers0 headers
+              | head <- foldr appendHeader headers0 headers
               , head /= headers0
                 -> VariantF.inj (_S::S_ "UsingHeaders") $
                     AST.Pair (AST.embedW new) head

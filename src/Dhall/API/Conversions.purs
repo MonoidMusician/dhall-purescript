@@ -143,7 +143,7 @@ string = Type
 instance injectString :: Inject String where
   injectWith _ = InputType
     { declared: AST.mkText
-    , embed: AST.mkTextLit <<< AST.TextLit
+    , embed: AST.mkTextLit'
     }
 
 instance interpretMaybe :: Interpret a => Interpret (Maybe a) where

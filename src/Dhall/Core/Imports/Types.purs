@@ -2,6 +2,7 @@ module Dhall.Core.Imports.Types where
 
 import Prelude
 
+import Data.Array (mapMaybe)
 import Data.Foldable (foldMap, intercalate)
 import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..))
@@ -70,6 +71,9 @@ prettyFilePrefix Home = "~"
 data Scheme = HTTP | HTTPS
 derive instance eqScheme :: Eq Scheme
 derive instance ordScheme :: Ord Scheme
+instance showScheme :: Show Scheme where
+  show HTTP = "http"
+  show HTTPS = "https"
 
 newtype URL = URL
     { scheme    :: Scheme
@@ -101,6 +105,12 @@ getHeaders :: ImportType -> Maybe Headers
 getHeaders (Remote (URL { headers })) = headers
 getHeaders _ = Nothing
 
+isLocal :: ImportType -> Boolean
+isLocal (Remote _) = false
+isLocal (Local _ _) = true
+isLocal (Env _) = true
+isLocal Missing = false -- TODO
+
 instance semigroupImportType :: Semigroup ImportType where
   append (Local prefix file₀) (Local Here file₁) =
     Local prefix (file₀ <> file₁)
@@ -121,7 +131,7 @@ prettyImportType :: ImportType -> String
 prettyImportType (Local prefix file) =
   prettyFilePrefix prefix <> prettyFile file
 prettyImportType (Remote (URL url)) =
-        schemeDoc
+        show url.scheme
     <>  "://"
     <>  url.authority
     <>  prettyFile url.path
@@ -132,10 +142,6 @@ prettyImportType (Remote (URL url)) =
       " using " <> "[ " <> intercalate "," (prettyHeader <$> h) <> " ]"
     prettyHeader { header, value } =
       "{ mapKey = " <> show header <> ", mapValue = " <> show value <> " }"
-
-    schemeDoc = case url.scheme of
-        HTTP  -> "http"
-        HTTPS -> "https"
 
     queryDoc = case url.query of
         Nothing -> ""
@@ -161,7 +167,7 @@ derive instance ordImportMode :: Ord ImportMode
 -- | Reference to an external resource
 newtype Import = Import
   { importType :: ImportType
-  , importMode   :: ImportMode
+  , importMode :: ImportMode
   }
 
 derive instance eqImport :: Eq Import
@@ -192,3 +198,14 @@ canonicalizeImport (Import i) =
 
 type Header = { header :: String, value :: String }
 type Headers = Array Header
+
+getHeader :: String -> Headers -> Array String
+getHeader header = mapMaybe \r ->
+  if r.header == header then Just r.value else Nothing
+
+addHeaders :: Headers -> Import -> Import
+addHeaders headers = case _ of
+  Import { importMode, importType: Remote (URL url) } ->
+    let url' = url { headers = Just headers <> url.headers } in
+    Import { importMode, importType: Remote (URL url') }
+  i -> i

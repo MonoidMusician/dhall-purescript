@@ -368,6 +368,9 @@ _Text = _ExprPrism (SProxy :: SProxy "Text")
 mkTextLit :: forall m a. TextLitF (Expr m a) -> Expr m a
 mkTextLit = mkExprF (SProxy :: SProxy "TextLit")
 
+mkTextLit' :: forall m a. String -> Expr m a
+mkTextLit' = mkTextLit <<< TextLit
+
 _TextLit :: forall r. ExprFPrism ( "TextLit" :: FProxy TextLitF | r ) TextLitF
 _TextLit = _ExprFPrism (SProxy :: SProxy "TextLit")
 

@@ -243,6 +243,7 @@ import Dhall.Core.AST.Constructors
   , mkText
   , mkTextAppend
   , mkTextLit
+  , mkTextLit'
   , mkToMap
   , mkType
   , mkUnion
