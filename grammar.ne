@@ -619,8 +619,9 @@ not_equal_expression     -> application_expression   (whsp "!=" whsp application
 # would be ambiguity: `./ab` could be interpreted as "import the file `./ab`",
 # or "apply the import `./a` to label `b`"
 application_expression ->
-		first_application_expression (whsp1 import_expression):* ( whsp1 hash (whsp1 import_expression):* ):?
-		{% d => d[2] ? binop("App")([tag("Hashed")([binop("App")([d[0], d[1]]), d[2][1]]), d[2][2]]) : binop("App")([d[0], d[1]]) %}
+		#first_application_expression (whsp1 ( hash {% tag("Hashed") %} | import_expression {% tag("App") %} ) ):*
+		#{% d => d[1].reduce((a, b) => ({ type: b[1].type, value: [a].concat(b[1].value) }), d[0]) %}
+		first_application_expression (whsp1 import_expression):* {% binop("App") %}
 first_application_expression ->
 	# "merge e1 e2"
 		merge whsp1 import_expression whsp1 import_expression
@@ -633,7 +634,11 @@ first_application_expression ->
 		{% d => ({ type: "ToMap", value: [d[2], null] }) %}
 	| import_expression {% pass0 %}
 
-import_expression -> import {% pass0 %} | selector_expression {% pass0 %}
+import_expression ->
+	( import {% pass0 %}
+	| selector_expression {% pass0 %}
+	) (whsp1 hash):?
+	{% d => d[1] == null ? d[0] : ({ type: "Hashed", value: [d[0], d[1][1]] }) %}
 
 # `record.field` extracts one field of a record
 #
