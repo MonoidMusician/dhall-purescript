@@ -2,7 +2,7 @@
 
 @{%
 function binop(type, i=1) {
-	return data => data[1].reduce((r, v) => ({ type, value: [r, v[i]] }), data[0]);
+  return data => data[1].reduce((r, v) => ({ type, value: [r, v[i]] }), data[0]);
 };
 
 function nuller() { return null; }
@@ -42,27 +42,27 @@ function collapse(items) {
 }
 
 const keyword =
-	[ "if"
-	, "then"
-	, "else"
-	, "let"
-	, "in"
-	, "using"
-	, "missing"
-	, "as"
-	, "Infinity"
-	, "NaN"
-	, "merge"
-	, "Some"
-	, "toMap"
-	, "assert"
-	, "forall" // FIXME
-	];
+  [ "if"
+  , "then"
+  , "else"
+  , "let"
+  , "in"
+  , "using"
+  , "missing"
+  , "as"
+  , "Infinity"
+  , "NaN"
+  , "merge"
+  , "Some"
+  , "toMap"
+  , "assert"
+  , "forall" // FIXME
+  ];
 
 const builtin =
   [ "Type"
   , "Kind"
-	, "Sort"
+  , "Sort"
   , "Bool"
   , "True"
   , "False"
@@ -110,9 +110,9 @@ block_comment_char -> . | end_of_line
 
 # FIXME
 block_comment_continue ->
-		"-}"
-	| block_comment block_comment_continue
-	| block_comment_char block_comment_continue
+    "-}"
+  | block_comment block_comment_continue
+  | block_comment_char block_comment_continue
 
 not_end_of_line -> . # Regex /./ does not match newlines
 
@@ -151,16 +151,16 @@ HEXDIG -> DIGIT {% pass0 %} | [Aa] {% pass0 %} | [Bb] {% pass0 %} | [Cc] {% pass
 #     / !keyword (simple-label-first-char *simple-label-next-char)
 simple_label_first_char -> ALPHA {% pass0 %} | "_" {% pass0 %}
 simple_label_next_char ->
-		ALPHANUM {% pass0 %}
-	| "-" {% pass0 %}
-	| "/" {% pass0 %}
-	| "_" {% pass0 %}
+    ALPHANUM {% pass0 %}
+  | "-" {% pass0 %}
+  | "/" {% pass0 %}
+  | "_" {% pass0 %}
 simple_label ->
-	simple_label_first_char simple_label_next_char:*
-	{% (d, _, reject) => {
-		let r = d[0] + d[1].join("");
-		return keyword.includes(r) ? reject : r;
-	} %}
+  simple_label_first_char simple_label_next_char:*
+  {% (d, _, reject) => {
+    let r = d[0] + d[1].join("");
+    return keyword.includes(r) ? reject : r;
+  } %}
 
 quoted_label_char -> [\x20-\x5F\x61-x7E]
 quoted_label -> quoted_label_char:+ {% collapse %}
@@ -197,19 +197,19 @@ any_label -> label {% pass0 %}
 # * Dhall strings also allow Unicode escape sequences of the form `\u{XXX}`
 double_quote_chunk ->
       interpolation {% pass0 %}
-		| "\\" double_quote_escaped {% pass1 %}
-		| double_quote_char {% pass0 %}
+    | "\\" double_quote_escaped {% pass1 %}
+    | double_quote_char {% pass0 %}
 
 double_quote_escaped ->
-	( [\x22\x24\x5C\x2F\x62\x66\x6E\x72\x74] {% pass0 %}
-	| "u" unicode_escape {% pass1 %}
-	) {% pass0 %}
+  ( [\x22\x24\x5C\x2F\x62\x66\x6E\x72\x74] {% pass0 %}
+  | "u" unicode_escape {% pass1 %}
+  ) {% pass0 %}
 
 unicode_escape ->
-		HEXDIG HEXDIG HEXDIG HEXDIG
-		{% d => String.fromCharCode(parseInt(d[1]+d[2]+d[3]+d[4], 16)) %}
-	| "{" HEXDIG:+ "}"
-		{% d => String.fromCodePoint(parseInt(d[1].join(""), 16)) %}
+    HEXDIG HEXDIG HEXDIG HEXDIG
+    {% d => String.fromCharCode(parseInt(d[1]+d[2]+d[3]+d[4], 16)) %}
+  | "{" HEXDIG:+ "}"
+    {% d => String.fromCodePoint(parseInt(d[1].join(""), 16)) %}
 
 # Printable characters except double quote and backslash
 # FIXME
@@ -229,11 +229,11 @@ double_quote_literal -> [\x22] double_quote_chunk:* [\x22] {% pass1 %}
 # If you try to end the string literal with a single quote then you get "'''",
 # which is interpreted as an escaped pair of single quotes
 single_quote_continue ->
-			interpolation single_quote_continue {% d => [d[0]].concat(d[1]) %}
-		| escaped_quote_pair single_quote_continue {% d => [d[0]].concat(d[1]) %}
-		| escaped_interpolation single_quote_continue {% d => [d[0]].concat(d[1]) %}
-		| single_quote_char single_quote_continue {% d => [d[0]].concat(d[1]) %}
-		| "''" {% () => "" %}
+      interpolation single_quote_continue {% d => [d[0]].concat(d[1]) %}
+    | escaped_quote_pair single_quote_continue {% d => [d[0]].concat(d[1]) %}
+    | escaped_interpolation single_quote_continue {% d => [d[0]].concat(d[1]) %}
+    | single_quote_char single_quote_continue {% d => [d[0]].concat(d[1]) %}
+    | "''" {% () => "" %}
 
 # Escape two single quotes (i.e. replace this sequence with "''")
 escaped_quote_pair -> "'''" {% () => "''" %}
@@ -273,29 +273,29 @@ keyword ->
     | using {% pass0 %} | missing {% pass0 %} | as {% pass0 %}
     | Infinity {% pass0 %} | NaN {% pass0 %}
     | merge {% pass0 %} | Some {% pass0 %} | toMap {% pass0 %}
-		| assert {% pass0 %} | "forall" {% pass0 %}
+    | assert {% pass0 %} | "forall" {% pass0 %}
 
 builtin ->
-		Natural_fold {% pass0 %}
-	| Natural_build {% pass0 %}
-	| Natural_isZero {% pass0 %}
-	| Natural_even {% pass0 %}
-	| Natural_odd {% pass0 %}
-	| Natural_toInteger {% pass0 %}
-	| Natural_show {% pass0 %}
-	| Integer_toDouble {% pass0 %}
-	| Integer_show {% pass0 %}
-	| Double_show {% pass0 %}
-	| List_build {% pass0 %}
-	| List_fold {% pass0 %}
-	| List_length {% pass0 %}
-	| List_head {% pass0 %}
-	| List_last {% pass0 %}
-	| List_indexed {% pass0 %}
-	| List_reverse {% pass0 %}
-	| Optional_fold {% pass0 %}
-	| Optional_build {% pass0 %}
-	| Text_show {% pass0 %}
+    Natural_fold {% pass0 %}
+  | Natural_build {% pass0 %}
+  | Natural_isZero {% pass0 %}
+  | Natural_even {% pass0 %}
+  | Natural_odd {% pass0 %}
+  | Natural_toInteger {% pass0 %}
+  | Natural_show {% pass0 %}
+  | Integer_toDouble {% pass0 %}
+  | Integer_show {% pass0 %}
+  | Double_show {% pass0 %}
+  | List_build {% pass0 %}
+  | List_fold {% pass0 %}
+  | List_length {% pass0 %}
+  | List_head {% pass0 %}
+  | List_last {% pass0 %}
+  | List_indexed {% pass0 %}
+  | List_reverse {% pass0 %}
+  | Optional_fold {% pass0 %}
+  | Optional_build {% pass0 %}
+  | Text_show {% pass0 %}
   | Bool {% pass0 %}
   | True {% pass0 %}
   | False {% pass0 %}
@@ -364,14 +364,14 @@ minus_infinity_literal -> "-" Infinity {% () => -Infinity %}
 plus_infinity_literal -> Infinity {% () => Infinity %}
 
 double_literal ->
-	# "2.0"
-		numeric_double_literal {% pass0 %}
-	# "-Infinity"
-	| minus_infinity_literal {% pass0 %}
-	# "Infinity"
-	| plus_infinity_literal {% pass0 %}
-	# "NaN"
-	| NaN {% () => NaN %}
+  # "2.0"
+    numeric_double_literal {% pass0 %}
+  # "-Infinity"
+  | minus_infinity_literal {% pass0 %}
+  # "Infinity"
+  | plus_infinity_literal {% pass0 %}
+  # "NaN"
+  | NaN {% () => NaN %}
 
 natural_literal -> DIGIT:+ {% d => d[0].join("")|0 %}
 
@@ -405,9 +405,9 @@ path -> path_component:+ {% pass0 %}
 
 local ->
       ".." path {% d => ({ type: "Local", value: ["Parent", d[1].slice(0, -1), d[1][d[1].length-1]] }) %}
-	  | "."  path {% d => ({ type: "Local", value: ["Here", d[1].slice(0, -1), d[1][d[1].length-1]] }) %}
-	  | "~"  path {% d => ({ type: "Local", value: ["Home", d[1].slice(0, -1), d[1][d[1].length-1]] }) %}
-	  | path {% d => ({ type: "Local", value: ["Absolute", d[0].slice(0, -1), d[0][d[0].length-1]] }) %}
+    | "."  path {% d => ({ type: "Local", value: ["Here", d[1].slice(0, -1), d[1][d[1].length-1]] }) %}
+    | "~"  path {% d => ({ type: "Local", value: ["Home", d[1].slice(0, -1), d[1][d[1].length-1]] }) %}
+    | path {% d => ({ type: "Local", value: ["Absolute", d[0].slice(0, -1), d[0][d[0].length-1]] }) %}
 
 # `http[s]` URI grammar based on RFC7230 and RFC 3986 with some differences
 # noted below
@@ -493,7 +493,7 @@ sub_delims -> ( "!" | "$" | "&" | "'" | "*" | "+" | ";" | "=" )  {% collapse %}
 http ->
     http_raw
     ( whsp using whsp1 import_expression ):?
-	{% d => (d[0].value.push(pass(3)(d[2])), d[0]) %}
+  {% d => (d[0].value.push(pass(3)(d[2])), d[0]) %}
 
 # Dhall supports unquoted environment variables that are Bash-compliant or
 # quoted environment variables that are POSIX-compliant
@@ -501,7 +501,7 @@ env -> "env:"
     ( bash_environment_variable
     | [\x22] posix_environment_variable [\x22]
     )
-		{% d => ({ type: "Env", value: [d[1].length === 1 ? d[1][0] : d[1][1]] }) %}
+    {% d => ({ type: "Env", value: [d[1].length === 1 ? d[1][0] : d[1][1]] }) %}
 
 # Bash supports a restricted subset of POSIX environment variables.  From the
 # Bash `man` page, an environment variable name is:
@@ -552,36 +552,36 @@ hash -> sha256_prefix HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HEXDIG HE
 import -> import_type ( whsp as whsp1 ( Text {% pass0 %} | Location {% pass0 %} ) {% pass(3) %} ):? {% tag("Import") %}
 
 expression ->
-		# "\(x : a) -> b"
+    # "\(x : a) -> b"
       lambda whsp "(" whsp nonreserved_label whsp ":" whsp1 expression whsp ")" whsp arrow whsp expression {% d => ({ type: "Lam", value: [d[4], d[8], d[14]] }) %}
 
-		# "if a then b else c"
+    # "if a then b else c"
     | if whsp1 expression whsp then whsp1 expression whsp else whsp1 expression {% d => ({ type: "BoolIf", value: [d[2], d[6], d[10]] }) %}
 
-		# "let x : t = e1 in e2"
+    # "let x : t = e1 in e2"
     # "let x     = e1 in e2"
     | let_binding:+ in whsp1 expression {% d => d[0].reduceRight((b,a) => ({ type: "Let", value: a.concat(b) }), d[3]) %}
 
-		# "forall (x : a) -> b"
+    # "forall (x : a) -> b"
     | forall whsp "(" whsp nonreserved_label whsp ":" whsp1 expression whsp ")" whsp arrow whsp expression {% d => ({ type: "Pi", value: [d[4], d[8], d[14]] }) %}
 
-		# "a -> b"
-		#
-		# NOTE: Backtrack if parsing this alternative fails
+    # "a -> b"
+    #
+    # NOTE: Backtrack if parsing this alternative fails
     | operator_expression whsp arrow whsp expression {% d => ({ type: "Pi", value: ["_", d[0], d[4]] }) %}
 
-		# "merge e1 e2 : t"
-		# "merge e1 e2"
-		#
-		# NOTE: Backtrack if parsing this alternative fails since we can't tell
-		# from the keyword whether there will be a type annotation or not
+    # "merge e1 e2 : t"
+    # "merge e1 e2"
+    #
+    # NOTE: Backtrack if parsing this alternative fails since we can't tell
+    # from the keyword whether there will be a type annotation or not
     | merge whsp1 import_expression whsp1 import_expression whsp ":" whsp1 application_expression {% d => ({ type: "Merge", value: [d[2], d[4], d[8]] }) %}
 
-		# "[] : t"
-		#
-		# NOTE: Backtrack if parsing this alternative fails since we can't tell
+    # "[] : t"
+    #
+    # NOTE: Backtrack if parsing this alternative fails since we can't tell
     # from the opening bracket whether or not this will be an empty list or
-		# a non-empty list
+    # a non-empty list
     | "[" whsp "]" whsp ":" whsp1 application_expression {% d => ({ type: "ListLit", value: [[],d[6]] }) %}
 
 
@@ -591,17 +591,17 @@ expression ->
     # from the keyword whether there will be a type annotation or not
     | toMap whsp1 import_expression whsp ":" whsp1 application_expression {% d => ({ type: "ToMap", value: [d[2],d[6]] }) %}
 
-		# "assert : Natural/even 1 ≡ False"
-		| assert whsp ":" whsp1 expression {% d => ({ type: "Assert", value: [d[4]] }) %} # FIXME?
+    # "assert : Natural/even 1 ≡ False"
+    | assert whsp ":" whsp1 expression {% d => ({ type: "Assert", value: [d[4]] }) %} # FIXME?
 
     | annotated_expression {% pass0 %}
 
 let_binding ->
-	let whsp1 nonreserved_label whsp ( ":" whsp1 expression whsp ):? "=" whsp expression whsp {% d => [d[2],pass(2)(d[4]),d[7]] %}
+  let whsp1 nonreserved_label whsp ( ":" whsp1 expression whsp ):? "=" whsp expression whsp {% d => [d[2],pass(2)(d[4]),d[7]] %}
 
 # Nonempty-whitespace to disambiguate `env:VARIABLE` from type annotations
 annotated_expression ->
-		# "x : t"
+    # "x : t"
     operator_expression (whsp ":" whsp1 expression):? {% d => d[1] == null ? d[0] : { type: "Annot", value: [d[0], d[1][3]] } %}
 
 operator_expression -> import_alt_expression {% pass0 %}
@@ -626,26 +626,26 @@ equivalent_expression    -> application_expression   (whsp equivalent whsp appli
 # would be ambiguity: `./ab` could be interpreted as "import the file `./ab`",
 # or "apply the import `./a` to label `b`"
 application_expression ->
-		#first_application_expression (whsp1 ( hash {% tag("Hashed") %} | import_expression {% tag("App") %} ) ):*
-		#{% d => d[1].reduce((a, b) => ({ type: b[1].type, value: [a].concat(b[1].value) }), d[0]) %}
-		first_application_expression (whsp1 import_expression):* {% binop("App") %}
+    #first_application_expression (whsp1 ( hash {% tag("Hashed") %} | import_expression {% tag("App") %} ) ):*
+    #{% d => d[1].reduce((a, b) => ({ type: b[1].type, value: [a].concat(b[1].value) }), d[0]) %}
+    first_application_expression (whsp1 import_expression):* {% binop("App") %}
 first_application_expression ->
-	# "merge e1 e2"
-		merge whsp1 import_expression whsp1 import_expression
-		{% d => ({ type: "Merge", value: [d[2],d[4],null]}) %}
-	# "Some e"
-	| Some whsp1 import_expression
-		{% d => ({ type: "Some", value: [d[2]] }) %}
-	# "toMap e"
-	| toMap whsp1 import_expression
-		{% d => ({ type: "ToMap", value: [d[2], null] }) %}
-	| import_expression {% pass0 %}
+  # "merge e1 e2"
+    merge whsp1 import_expression whsp1 import_expression
+    {% d => ({ type: "Merge", value: [d[2],d[4],null]}) %}
+  # "Some e"
+  | Some whsp1 import_expression
+    {% d => ({ type: "Some", value: [d[2]] }) %}
+  # "toMap e"
+  | toMap whsp1 import_expression
+    {% d => ({ type: "ToMap", value: [d[2], null] }) %}
+  | import_expression {% pass0 %}
 
 import_expression ->
-	( import {% pass0 %}
-	| selector_expression {% pass0 %}
-	) (whsp1 hash):?
-	{% d => d[1] == null ? d[0] : ({ type: "Hashed", value: [d[0], d[1][1]] }) %}
+  ( import {% pass0 %}
+  | selector_expression {% pass0 %}
+  ) (whsp1 hash):?
+  {% d => d[1] == null ? d[0] : ({ type: "Hashed", value: [d[0], d[1][1]] }) %}
 
 # `record.field` extracts one field of a record
 #
@@ -657,14 +657,14 @@ import_expression ->
 # the function `foo` to the relative path `./bar`)
 selector_expression -> primitive_expression ("." selector):*
 {% d =>
-	d[1].reduce((r, v) => ({ type: v[1].type, value: [r, v[1].value[0]] }), d[0])
+  d[1].reduce((r, v) => ({ type: v[1].type, value: [r, v[1].value[0]] }), d[0])
 %}
 
 
 selector ->
-	  any_label {% tag("Field") %}
-	| labels {% tag("Project") %}
-	| type_selector {% tag("ProjectType") %}
+    any_label {% tag("Field") %}
+  | labels {% tag("Project") %}
+  | type_selector {% tag("ProjectType") %}
 
 labels -> "{" whsp ( any_label whsp ("," whsp any_label whsp):* | null ) "}"
 {% d => d[2].length ? [d[2][0]].concat(d[2][2].map(v => v[1])) : [] %}
@@ -672,48 +672,48 @@ labels -> "{" whsp ( any_label whsp ("," whsp any_label whsp):* | null ) "}"
 type_selector -> "(" whsp expression whsp ")" {% pass(2) %}
 
 primitive_expression ->
-		# "2.0"
+    # "2.0"
       double_literal {% tag("DoubleLit") %}
-		# 2
+    # 2
     | natural_literal {% tag("NaturalLit") %}
-		# +2
-		# -2
+    # +2
+    # -2
     | integer_literal {% tag("IntegerLit") %}
-		# '"ABC"'
+    # '"ABC"'
     | text_literal {% d => ({ type: "TextLit", value: d[0] }) %}
-		# "{ foo = 1      , bar = True }"
-		# "{ foo : Integer, bar : Bool }"
+    # "{ foo = 1      , bar = True }"
+    # "{ foo : Integer, bar : Bool }"
     | "{" whsp record_type_or_literal whsp "}" {% pass(2) %}
-		# "< Foo : Integer | Bar : Bool >"
-		# "< Foo : Integer | Bar = True >"
+    # "< Foo : Integer | Bar : Bool >"
+    # "< Foo : Integer | Bar = True >"
     | "<" whsp union_type_or_literal whsp ">" {% pass(2) %}
-		# "[1, 2, 3]"
+    # "[1, 2, 3]"
     | non_empty_list_literal {% pass0 %}
-		# "x"
+    # "x"
     # "x@2"
     | identifier {% pass0 %}
-		# "(e)"
+    # "(e)"
     | "(" complete_expression ")" {% pass1 %}
 
 record_type_or_literal ->
-		empty_record_literal {% pass0 %}
-	| non_empty_record_type_or_literal {% pass0 %}
-	| empty_record_type {% pass0 %}
+    empty_record_literal {% pass0 %}
+  | non_empty_record_type_or_literal {% pass0 %}
+  | empty_record_type {% pass0 %}
 
 empty_record_literal -> "=" {% () => ({ type: "RecordLit", value: [] }) %}
 empty_record_type -> null {% () => ({ type: "Record", value: [] }) %}
 non_empty_record_type_or_literal ->
     any_label whsp ( non_empty_record_literal | non_empty_record_type )
-	{% d => {d[2][0].value[0][0] = d[0]; return d[2][0]} %}
+  {% d => {d[2][0].value[0][0] = d[0]; return d[2][0]} %}
 non_empty_record_type    -> ":" whsp1 expression (whsp "," whsp record_type_entry):*
-	{%
-	d => ({ type: "Record", value: [["",d[2]]].concat(d[3].map(v => v[3])) })
-	%}
+  {%
+  d => ({ type: "Record", value: [["",d[2]]].concat(d[3].map(v => v[3])) })
+  %}
 record_type_entry -> any_label whsp ":" whsp1 expression {% d => [d[0], d[4]] %}
 non_empty_record_literal -> "=" whsp expression (whsp "," whsp record_literal_entry):*
-	{%
-	d => ({ type: "RecordLit", value: [["",d[2]]].concat(d[3].map(v => v[3])) })
-	%}
+  {%
+  d => ({ type: "RecordLit", value: [["",d[2]]].concat(d[3].map(v => v[3])) })
+  %}
 record_literal_entry -> any_label whsp "=" whsp expression {% d => [d[0],d[4]] %}
 
 union_type_or_literal ->
@@ -724,40 +724,40 @@ empty_union_type -> null {% () => ({ type: "Union", value: [] }) %}
 
 non_empty_union_type_or_literal ->
     any_label
-		( whsp
-			( union_literal_variant_value {% pass0 %}
-			| union_type_or_literal_variant_type {% pass0 %}
-			)
-			{% pass1 %}
-		| null {% d => lbl => ({ type: "Union", value: [[lbl,null]] }) %}
-		) {% d => d[1](d[0]) %}
+    ( whsp
+      ( union_literal_variant_value {% pass0 %}
+      | union_type_or_literal_variant_type {% pass0 %}
+      )
+      {% pass1 %}
+    | null {% d => lbl => ({ type: "Union", value: [[lbl,null]] }) %}
+    ) {% d => d[1](d[0]) %}
 
 union_literal_variant_value ->
     "=" whsp expression ( whsp "|" whsp union_type_entry ):*
-		{%
-		d => lbl => ({ type: "UnionLit", value: [[lbl,d[2]]].concat(d[3].map(v => v[3])) })
-		%}
+    {%
+    d => lbl => ({ type: "UnionLit", value: [[lbl,d[2]]].concat(d[3].map(v => v[3])) })
+    %}
 union_type_entry -> any_label ( whsp ":" whsp1 expression ):?
-		{% d => [d[0],pass(3)(d[1])] %}
+    {% d => [d[0],pass(3)(d[1])] %}
 
 union_type_or_literal_variant_type ->
-	# FIXME
-	":" whsp1 expression whsp "|" whsp non_empty_union_type_or_literal
-		{% d => lbl =>
-			d[6].type === "Union"
-			? { type: "Union", value: [[lbl,d[2]]].concat(d[6].value) }
-			// Shuffle the label to the front
-			: { type: "UnionLit", value: [d[6].value[0]].concat([[lbl,d[2]]].concat(d[6].value.slice(1)))}
-		%}
-	| "|" whsp non_empty_union_type_or_literal
-		{% d => lbl =>
-			d[2].type === "Union"
-			? { type: "Union", value: [[lbl,null]].concat(d[2].value) }
-			// Shuffle the label to the front
-			: { type: "UnionLit", value: [d[2].value[0]].concat([[lbl,null]].concat(d[2].value.slice(1))) }
-		%}
-	| ":" whsp1 expression
-		{% d => lbl => ({ type: "Union", value: [[lbl,d[2]]] }) %}
+  # FIXME
+  ":" whsp1 expression whsp "|" whsp non_empty_union_type_or_literal
+    {% d => lbl =>
+      d[6].type === "Union"
+      ? { type: "Union", value: [[lbl,d[2]]].concat(d[6].value) }
+      // Shuffle the label to the front
+      : { type: "UnionLit", value: [d[6].value[0]].concat([[lbl,d[2]]].concat(d[6].value.slice(1)))}
+    %}
+  | "|" whsp non_empty_union_type_or_literal
+    {% d => lbl =>
+      d[2].type === "Union"
+      ? { type: "Union", value: [[lbl,null]].concat(d[2].value) }
+      // Shuffle the label to the front
+      : { type: "UnionLit", value: [d[2].value[0]].concat([[lbl,null]].concat(d[2].value.slice(1))) }
+    %}
+  | ":" whsp1 expression
+    {% d => lbl => ({ type: "Union", value: [[lbl,d[2]]] }) %}
 
 non_empty_list_literal -> "[" whsp expression whsp ("," whsp expression whsp):* "]"
-	{% d => ({ type: "ListLit", value: [[d[2]].concat(d[4].map(v => v[2])),null] }) %}
+  {% d => ({ type: "ListLit", value: [[d[2]].concat(d[4].map(v => v[2])),null] }) %}
