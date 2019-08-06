@@ -249,6 +249,7 @@ type BuiltinBinOps (m :: Type -> Type) vs =
   , "Combine" :: FProxy Pair
   , "CombineTypes" :: FProxy Pair
   , "Prefer" :: FProxy Pair
+  , "Equivalent" :: FProxy Pair
   | vs
   )
 
@@ -264,6 +265,7 @@ type BuiltinBinOps' (m :: Type -> Type) (m' :: Type -> Type) vs =
   , "Combine" :: FProxy Pair'
   , "CombineTypes" :: FProxy Pair'
   , "Prefer" :: FProxy Pair'
+  , "Equivalent" :: FProxy Pair'
   | vs
   )
 
@@ -279,6 +281,7 @@ type BuiltinBinOpsI vs =
   , "Combine" :: PairI
   , "CombineTypes" :: PairI
   , "Prefer" :: PairI
+  , "Equivalent" :: PairI
   | vs
   )
 
@@ -289,6 +292,7 @@ type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
   , "Project" :: FProxy (Product Identity (Either (App m Unit)))
   , "Merge" :: FProxy (MergeF)
   , "ToMap" :: FProxy (Product Identity Maybe)
+  , "Assert" :: FProxy Identity
   | v
   )
 
@@ -298,6 +302,7 @@ type BuiltinOps' (m :: Type -> Type) (m' :: Type -> Type) v = BuiltinBinOps' m m
   , "Project" :: FProxy (Product' Identity Identity' (Either (App m Unit)) (Either' (App m Unit)))
   , "Merge" :: FProxy (MergeF')
   , "ToMap" :: FProxy (Product' Identity Identity' Maybe Maybe')
+  , "Assert" :: FProxy Identity'
   | v
   )
 
@@ -307,6 +312,7 @@ type BuiltinOpsI v = BuiltinBinOpsI
   , "Project" :: ProductI IdentityI EitherI
   , "Merge" :: MergeFI
   , "ToMap" :: ProductI IdentityI MaybeI
+  , "Assert" :: IdentityI
   | v
   )
 
@@ -477,12 +483,15 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
       # VariantF.on (SProxy :: SProxy "Prefer") (binop "Prefer")
       # VariantF.on (SProxy :: SProxy "ImportAlt") (binop "ImportAlt")
       # VariantF.on (SProxy :: SProxy "UsingHeaders") (binop "UsingHeaders")
+      # VariantF.on (SProxy :: SProxy "Equivalent") (binop "Equivalent")
       # VariantF.on (SProxy :: SProxy "Hashed")
         (\(Tuple hash e) -> "(mkHashed " <> show hash <> " " <> e <> ")")
       # VariantF.on (SProxy :: SProxy "BoolIf")
         (\(Triplet c t f) -> "(mkBoolIf " <> c <> t <> f <> ")")
       # VariantF.on (SProxy :: SProxy "Some")
         (\(Identity v) -> "(mkSome " <> v <> ")")
+      # VariantF.on (SProxy :: SProxy "Assert")
+        (\(Identity v) -> "(mkAssert " <> v <> ")")
       # VariantF.on (SProxy :: SProxy "Field")
         (\(Tuple field e) -> "(mkField " <> e <> show field <> ")")
       # VariantF.on (SProxy :: SProxy "Lam")
@@ -667,6 +676,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     ( VariantF.case_
     # vfEqCase (SProxy :: SProxy "Annot")
     # vfEqCase (SProxy :: SProxy "App")
+    # vfEqCase (SProxy :: SProxy "Assert")
     # vfEqCase (SProxy :: SProxy "Bool")
     # vfEqCase (SProxy :: SProxy "BoolAnd")
     # vfEqCase (SProxy :: SProxy "BoolEQ")
@@ -681,6 +691,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (SProxy :: SProxy "DoubleLit")
     # vfEqCase (SProxy :: SProxy "DoubleShow")
     # vfEqCase (SProxy :: SProxy "Embed")
+    # vfEqCase (SProxy :: SProxy "Equivalent")
     # vfEqCase (SProxy :: SProxy "Field")
     # vfEqCase (SProxy :: SProxy "Hashed")
     # vfEqCase (SProxy :: SProxy "ImportAlt")
@@ -739,6 +750,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     ( VariantF.case_
     # vfOrdCase (SProxy :: SProxy "Annot")
     # vfOrdCase (SProxy :: SProxy "App")
+    # vfOrdCase (SProxy :: SProxy "Assert")
     # vfOrdCase (SProxy :: SProxy "Bool")
     # vfOrdCase (SProxy :: SProxy "BoolAnd")
     # vfOrdCase (SProxy :: SProxy "BoolEQ")
@@ -753,6 +765,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (SProxy :: SProxy "DoubleLit")
     # vfOrdCase (SProxy :: SProxy "DoubleShow")
     # vfOrdCase (SProxy :: SProxy "Embed")
+    # vfOrdCase (SProxy :: SProxy "Equivalent")
     # vfOrdCase (SProxy :: SProxy "Field")
     # vfOrdCase (SProxy :: SProxy "Hashed")
     # vfOrdCase (SProxy :: SProxy "ImportAlt")
@@ -811,6 +824,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     ( VariantF.case_
     # vfEqCase (SProxy :: SProxy "Annot")
     # vfEqCase (SProxy :: SProxy "App")
+    # vfEqCase (SProxy :: SProxy "Assert")
     # vfEqCase (SProxy :: SProxy "Bool")
     # vfEqCase (SProxy :: SProxy "BoolAnd")
     # vfEqCase (SProxy :: SProxy "BoolEQ")
@@ -825,6 +839,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (SProxy :: SProxy "DoubleLit")
     # vfEqCase (SProxy :: SProxy "DoubleShow")
     # vfEqCase (SProxy :: SProxy "Embed")
+    # vfEqCase (SProxy :: SProxy "Equivalent")
     # vfEqCase (SProxy :: SProxy "Field")
     # vfEqCase (SProxy :: SProxy "Hashed")
     # vfEqCase (SProxy :: SProxy "ImportAlt")
@@ -883,6 +898,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     ( VariantF.case_
     # vfOrdCase (SProxy :: SProxy "Annot")
     # vfOrdCase (SProxy :: SProxy "App")
+    # vfOrdCase (SProxy :: SProxy "Assert")
     # vfOrdCase (SProxy :: SProxy "Bool")
     # vfOrdCase (SProxy :: SProxy "BoolAnd")
     # vfOrdCase (SProxy :: SProxy "BoolEQ")
@@ -897,6 +913,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (SProxy :: SProxy "DoubleLit")
     # vfOrdCase (SProxy :: SProxy "DoubleShow")
     # vfOrdCase (SProxy :: SProxy "Embed")
+    # vfOrdCase (SProxy :: SProxy "Equivalent")
     # vfOrdCase (SProxy :: SProxy "Field")
     # vfOrdCase (SProxy :: SProxy "Hashed")
     # vfOrdCase (SProxy :: SProxy "ImportAlt")

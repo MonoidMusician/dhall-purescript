@@ -54,7 +54,7 @@ import Data.String as String
 import Data.Symbol (class IsSymbol)
 import Data.These (These(..), theseLeft)
 import Data.Traversable (class Traversable, for, sequence, traverse)
-import Data.TraversableWithIndex (class TraversableWithIndex, forWithIndex)
+import Data.TraversableWithIndex (class TraversableWithIndex, forWithIndex, traverseWithIndex)
 import Data.Tuple (Tuple(..), curry, fst, uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
@@ -68,9 +68,9 @@ import Dhall.Core.AST.Operations.Location (BasedExprDerivation, Derived, Operate
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Operations.Transformations (OverCases, OverCasesM(..))
 import Dhall.Core.Imports.Retrieve (headerType)
+import Dhall.Core.Zippers (_ix)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
-import Dhall.Core.Zippers (_ix)
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.Variables (MaybeIntro(..), alphaNormalizeAlgG, freeInAlg, shiftAlgG, trackIntro)
 import Matryoshka (class Corecursive, class Recursive, ana, cata, embed, mapR, project, transCata, traverseR)
@@ -83,16 +83,9 @@ axiom Type = pure Kind
 axiom Kind = pure Sort
 axiom Sort = empty
 
-rule :: forall f. Alternative f => Const -> Const -> f Const
-rule Type Type = pure Type
-rule Kind Type = pure Type
-rule Kind Kind = pure Kind
-rule Sort Type = pure Type
-rule Sort Kind = pure Sort
-rule Sort Sort = pure Sort
--- This forbids dependent types. If this ever changes, then the fast
--- path in the Let case of typeWithA will become unsound.
-rule _    _    = empty
+rule :: forall f. Applicative f => Const -> Const -> f Const
+rule _ Type = pure Type
+rule a b = pure $ max a b
 
 {-| Function that converts the value inside an `Embed` constructor into a new
     expression
@@ -827,9 +820,12 @@ type Errors r =
   , "Wrong header type" :: Unit
   , "Invalid input type" :: Unit
   , "Invalid output type" :: Unit
-  , "No dependent types" :: Pair Const
   , "Unbound variable" :: Var
   , "Annotation mismatch" :: Unit
+  , "Not an equivalence" :: Unit
+  , "Assertion failed" :: Unit
+  , "Incomparable expression" :: Boolean
+  , "Equivalent type mismatch" :: Unit
   , "`Sort` has no type" :: Unit
   , "Unexpected type" :: Tuple Boolean SimpleExpr
   | r
@@ -1080,16 +1076,13 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       ty_body <- typecheckStep body
       kO <- ensureConst ty_body
         (errorHere (_S::S_ "Invalid output type"))
-      _ <- rule kI kO #
-        noteHere (_S::S_ "No dependent types") (Pair kI kO)
       pure $ mk(_S::S_"Pi") (AST.BindingBody name (head2D ty) (head2D ty_body))
   , "Pi": \(AST.BindingBody name ty ty_body) -> do
       kI <- ensureConst ty
         (errorHere (_S::S_ "Invalid input type"))
       kO <- ensureConst ty_body
         (errorHere (_S::S_ "Invalid output type"))
-      map (newborn <<< AST.mkConst) $ rule kI kO #
-        noteHere (_S::S_ "No dependent types") (Pair kI kO)
+      map (newborn <<< AST.mkConst) $ rule kI kO
   , "Let": \(AST.LetF name mty value expr) -> do
       ty0 <- typecheckStep value
       ty <- fromMaybe ty0 <$> for mty \ty' -> do
@@ -1129,6 +1122,19 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         <@> ty
         <@> errorHere (_S::S_ "Annotation mismatch")
         <* typecheckStep ty
+  , "Equivalent": \p -> do
+      Pair lty rty <- p # traverseWithIndex \i t ->
+        ensureTerm t
+          (errorHere (_S::S_ "Incomparable expression") <<< const i)
+      _ <- checkEqR lty rty
+        (errorHere (_S::S_ "Equivalent type mismatch"))
+      pure $ newborn AST.mkType
+  , "Assert": \(Identity equiv) -> do
+      Pair l r <- ensure' (_S::S_ "Equivalent") equiv
+        (errorHere (_S::S_ "Not an equivalence"))
+      _ <- checkEqR l r
+        (errorHere (_S::S_ "Assertion failed"))
+      pure $ head2D equiv
   , "Bool": identity aType
   , "BoolLit": always $ AST.mkBool
   , "BoolAnd": checkBinOp AST.mkBool
@@ -1951,26 +1957,6 @@ explain ctx nodeType =
           do \_ -> (within (_S::S_ "Pi") true)
       in
       notAType "output" ty_body
-  , "No dependent types": \(Pair kI kO) ->
-      let
-        { ty, ty_body } = nodeType # VariantF.on (_S::S_ "Lam")
-          do \_ ->
-              { ty: within (_S::S_ "Lam") false
-              , ty_body: typechecked <> within (_S::S_ "Lam") true
-              }
-          -- NOTE: assume it is a Pi type, if it's not a Lam
-          do \_ ->
-              { ty: within (_S::S_ "Pi") false
-              , ty_body: within (_S::S_ "Pi") true
-              }
-      in
-      [ Text $ "The input type "
-      , reference ty
-      , Text $ " (in universe ", Text $ show kI, Text ")"
-      , Text $ " cannot be in a smaller universe than the output type "
-      , reference ty_body
-      , Text $ " (in universe ", Text $ show kO, Text ")"
-      ]
   , "Unbound variable": \(AST.V name idx) ->
       let
         scope =

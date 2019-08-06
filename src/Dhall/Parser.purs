@@ -143,6 +143,8 @@ decodeFAST (FAST r) =
       | Just { head, tail: vs } <- Array.uncons r."value"
       , [label, value] <- decodeA identity head ->
         AST.mkUnionLit (decodeS label) (decodeF value) (decodeLabelled decodeF vs)
+    "Assert", [a] -> AST.mkAssert (decodeF a)
+    "Equivalent", [a, b] -> AST.mkEquivalent (decodeF a) (decodeF b)
     "Hashed", [a, b] -> AST.mkHashed (decodeF a) (decodeHash b)
     "Import", [a, b] -> case decodeImportType (fromForeign a) of
       Tuple mb importType ->

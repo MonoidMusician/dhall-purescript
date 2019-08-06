@@ -55,6 +55,7 @@ const keyword =
 	, "merge"
 	, "Some"
 	, "toMap"
+	, "assert"
 	, "forall" // FIXME
 	];
 
@@ -262,6 +263,7 @@ Infinity          -> "Infinity" {% pass0 %}
 NaN               -> "NaN" {% pass0 %}
 Some              -> "Some" {% pass0 %}
 toMap             -> "toMap" {% pass0 %}
+assert            -> "assert" {% pass0 %}
 
 # Unused rule that could be used as negative lookahead in the
 # `simple-label` rule for parsers that support this.
@@ -271,7 +273,7 @@ keyword ->
     | using {% pass0 %} | missing {% pass0 %} | as {% pass0 %}
     | Infinity {% pass0 %} | NaN {% pass0 %}
     | merge {% pass0 %} | Some {% pass0 %} | toMap {% pass0 %}
-		| "forall" {% pass0 %}
+		| assert {% pass0 %} | "forall" {% pass0 %}
 
 builtin ->
 		Natural_fold {% pass0 %}
@@ -348,6 +350,7 @@ Text_show         -> "Text/show" {% pass0 %}
 
 combine       -> ( [\u2227] | "/\\"                ) {% pass0 %}
 combine_types -> ( [\u2A53] | "//\\\\"              ) {% pass0 %}
+equivalent    -> ( [\u2261] | "==="              ) {% pass0 %}
 prefer        -> ( [\u2AFD] | "//"                ) {% pass0 %}
 lambda        -> ( [\u03BB]  | "\\"                 ) {% pass0 %}
 forall        -> ( [\u2200] | "forall" ) {% pass0 %}
@@ -588,6 +591,9 @@ expression ->
     # from the keyword whether there will be a type annotation or not
     | toMap whsp1 import_expression whsp ":" whsp1 application_expression {% d => ({ type: "ToMap", value: [d[2],d[6]] }) %}
 
+		# "assert : Natural/even 1 ≡ False"
+		| assert whsp ":" whsp1 expression {% d => ({ type: "Assert", value: [d[4]] }) %} # FIXME?
+
     | annotated_expression {% pass0 %}
 
 let_binding ->
@@ -613,7 +619,8 @@ prefer_expression        -> combine_types_expression (whsp prefer whsp combine_t
 combine_types_expression -> times_expression         (whsp combine_types whsp times_expression):* {% binop("CombineTypes", 3) %}
 times_expression         -> equal_expression         (whsp "*" whsp equal_expression):* {% binop("NaturalTimes", 3) %}
 equal_expression         -> not_equal_expression     (whsp "==" whsp not_equal_expression):* {% binop("BoolEQ", 3) %}
-not_equal_expression     -> application_expression   (whsp "!=" whsp application_expression):* {% binop("BoolNE", 3) %}
+not_equal_expression     -> equivalent_expression    (whsp "!=" whsp equivalent_expression):* {% binop("BoolNE", 3) %}
+equivalent_expression    -> application_expression   (whsp equivalent whsp application_expression):* {% binop("Equivalent", 3) %}
 
 # Import expressions need to be separated by some whitespace, otherwise there
 # would be ambiguity: `./ab` could be interpreted as "import the file `./ab`",

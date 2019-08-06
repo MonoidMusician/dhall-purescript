@@ -317,6 +317,7 @@ renderBuiltinBinOps _ { rndr: renderA } = identity
   >>> renderVFLensed (_S::S_ "Combine") renderBinOp
   >>> renderVFLensed (_S::S_ "CombineTypes") renderBinOp
   >>> renderVFLensed (_S::S_ "Prefer") renderBinOp
+  >>> renderVFLensed (_S::S_ "Equivalent") renderBinOp
   where
     _l = lens' \(AST.Pair l r) -> Tuple l \l' -> AST.Pair l' r
     _r = lens' \(AST.Pair l r) -> Tuple r \r' -> AST.Pair l r'
@@ -348,6 +349,7 @@ renderBuiltinOps opts { df, rndr: renderA } = renderBuiltinBinOps opts { df, rnd
   >>> renderVFLensed (_S::S_ "BoolIf") renderBoolIf
   >>> renderVFLensed (_S::S_ "Merge") renderMerge
   >>> renderVFLensed (_S::S_ "ToMap") renderToMap
+  >>> renderVFLensed (_S::S_ "Assert") renderAssert
   >>> renderVFLensed (_S::S_ "Project") renderProject
   where
     renderField =
@@ -373,6 +375,9 @@ renderBuiltinOps opts { df, rndr: renderA } = renderBuiltinBinOps opts { df, rnd
     renderToMap =
       [ mkLensed "expression" (_Newtype <<< Tuple._1 <<< _Newtype) renderA
       , mkLensed "type" (_Newtype <<< Tuple._2) (renderMaybe opts { df, rndr: renderA })
+      ]
+    renderAssert =
+      [ mkLensed "assertion" _Newtype renderA
       ]
     renderProject =
       [ mkLensed "expression" (_Newtype <<< Tuple._1 <<< _Newtype) renderA

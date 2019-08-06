@@ -584,6 +584,19 @@ _Project = _ExprFPrism (SProxy :: SProxy "Project") <<< iso
   do \(Product (Tuple (Identity o) e)) -> Tuple o (bimap unwrap identity e)
   do \(Tuple o e) -> Product (Tuple (Identity o) (bimap App identity e))
 
+mkAssert :: forall m a. Expr m a -> Expr m a
+mkAssert = mkExprF (SProxy :: SProxy "Assert") <<< Identity
+
+_Assert :: forall r o.
+  Prism' (VariantF ( "Assert" :: FProxy Identity | r ) o) o
+_Assert = _ExprFPrism (SProxy :: SProxy "Assert") <<< _Newtype
+
+mkEquivalent :: forall m a. Expr m a -> Expr m a -> Expr m a
+mkEquivalent = mkBinOp (SProxy :: SProxy "Equivalent")
+
+_Equivalent :: forall r. BinOpPrism ( "Equivalent" :: FProxy Pair | r )
+_Equivalent = _BinOpPrism (SProxy :: SProxy "Equivalent")
+
 mkImportAlt :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkImportAlt = mkBinOp (SProxy :: SProxy "ImportAlt")
 

@@ -416,6 +416,7 @@ tagERVFI = un ERVFI >>> Variant.match
   , "Prefer": binop
   , "ImportAlt": binop
   , "UsingHeaders": binop
+  , "Equivalent": binop
   , "Hashed": \(_ :: Unit) -> "expr"
   , "BoolIf": case _ of
       Three1 -> "if"
@@ -432,6 +433,7 @@ tagERVFI = un ERVFI >>> Variant.match
   , "ToMap": case _ of
       Left (_ :: Unit) -> "expr"
       Right (_ :: Unit) -> "type"
+  , "Assert": \(_ :: Unit) -> "assertion"
   , "App": not >>> if _ then "fn" else "arg"
   , "Annot": not >>> if _ then "value" else "type"
   , "Lam": not >>> if _ then "type" else "body"

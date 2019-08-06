@@ -101,6 +101,7 @@ encode = recenc Nil where
       , "Prefer": operator 9
       , "CombineTypes": operator 10
       , "ImportAlt": operator 11
+      , "Equivalent": operator 12
       , "ListLit": \(Product (Tuple ty vals)) ->
           let
             listAnn = ty >>= \ty' ->
@@ -139,11 +140,12 @@ encode = recenc Nil where
       , "IntegerLit": tagged 16 <<< pure <<< un Const >>> Int.toNumber >>> J.fromNumber
       -- TODO
       , "DoubleLit": un Const >>> J.fromNumber
-      , "TextLit": \m ->
+      , "TextLit": \m -> tagged 18 $
           let
             rec (TextLit s) = [ J.fromString s ]
             rec (TextInterp s a m') = [ J.fromString s, enc a ] <> rec m'
-          in tagged 18 (rec m)
+          in rec m
+      , "Assert": \(Identity e) -> tagged 19 [ enc e ]
       , "Let": \d0 -> tagged 25 $
           let
             rec (LetF name mty val expr) =
@@ -383,6 +385,7 @@ decode = J.caseJson
             9 -> pure AST.mkPrefer
             10 -> pure AST.mkCombineTypes
             11 -> pure AST.mkImportAlt
+            12 -> pure AST.mkEquivalent
             _ -> empty
           pure $ c l' r'
         _ -> empty
@@ -460,6 +463,9 @@ decode = J.caseJson
           if Int.even i
             then J.toString >=> TextLit >>> pure
             else decode >=> pureTextLitF >>> pure
+      19 -> case _ of
+        [ e ] -> AST.mkAssert <$> decode e
+        _ -> empty
       24 -> ([ J.fromNumber 24.0 ] <> _) >>> decodeImport >=> \r ->
         (maybe pure (\h e -> AST.mkUsingHeaders e <$> decode h) r.headers) =<<
         pure (pure r.import)

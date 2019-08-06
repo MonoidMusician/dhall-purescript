@@ -97,6 +97,7 @@ import Dhall.Core.AST.Constructors
   , SimplePrism
   , _Annot
   , _App
+  , _Assert
   , _BinOp
   , _BinOpPrism
   , _Bool
@@ -116,6 +117,7 @@ import Dhall.Core.AST.Constructors
   , _DoubleShow
   , _E
   , _Embed
+  , _Equivalent
   , _Expr
   , _ExprF
   , _ExprFPrism
@@ -179,6 +181,7 @@ import Dhall.Core.AST.Constructors
   , mkAnnot
   , mkApp
   , mkArrow
+  , mkAssert
   , mkBinOp
   , mkBool
   , mkBoolAnd
@@ -194,6 +197,7 @@ import Dhall.Core.AST.Constructors
   , mkDoubleLit
   , mkDoubleShow
   , mkEmbed
+  , mkEquivalent
   , mkExpr
   , mkExprF
   , mkField
