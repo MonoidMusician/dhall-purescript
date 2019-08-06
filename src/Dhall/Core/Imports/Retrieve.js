@@ -1,3 +1,7 @@
+exports.getEnv = function() {
+  return process.env;
+};
+
 exports.responseHeaders = function(resp) {
   var obj = {};
   Array.from(resp.headers.entries()).forEach(function(item) {

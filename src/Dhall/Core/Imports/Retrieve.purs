@@ -18,6 +18,7 @@ import Dhall.Core.AST as AST
 import Dhall.Core.Imports.Types (FilePrefix(..), Header, Headers, Import(..), ImportType(..), getHeaders, prettyFile, prettyFilePrefix, prettyURL)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
+import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
@@ -27,10 +28,14 @@ import Milkis.Impl (FetchImpl)
 import Node.Buffer as Node.Buffer
 import Node.Encoding (Encoding(UTF8))
 import Node.FS.Aff as Node.FS.Aff
-import Node.Process as Node.Process
+
+foreign import getEnv :: Effect (Foreign.Object.Object String)
+
+lookupEnv :: String -> Effect (Maybe String)
+lookupEnv k = Foreign.Object.lookup k <$> getEnv
 
 nodeRetrieveEnv :: String -> Aff String
-nodeRetrieveEnv name = liftEffect $ Node.Process.lookupEnv name >>= case _ of
+nodeRetrieveEnv name = liftEffect $ lookupEnv name >>= case _ of
   Nothing -> throw $ "Unknown envionment variable: " <> name
   Just v -> pure v
 
@@ -65,13 +70,7 @@ nodeRetrieve i = case i of
   Missing -> empty
   Env name -> nodeRetrieveEnv name <#> { headers: [], result: _ }
   Local prefix path -> do
-    pre <- liftEffect case prefix of
-      Absolute -> pure "/"
-      Here -> Node.Process.cwd <#> (_ <> "/")
-      Parent -> Node.Process.cwd <#> (_ <> "/../")
-      -- TODO: use os.homedir()?
-      Home -> Node.Process.lookupEnv "HOME" <#> maybe "~/" (_ <> "/")
-    nodeRetrieveFile (pre <> prettyFile path) <#> { headers: [], result: _ }
+    nodeRetrieveFile (prettyFilePrefix prefix <> prettyFile path) <#> { headers: [], result: _ }
   Remote url -> nodeRetrieveURL
     (fromMaybe empty (getHeaders i))
     (prettyURL url)
@@ -82,8 +81,8 @@ nodeCache ::
   }
 nodeCache =
   let
-    xdg = Node.Process.lookupEnv "XDG_CACHE_HOME"
-    home = Node.Process.lookupEnv "HOME" <#> map (_ <> "/.cache")
+    xdg = lookupEnv "XDG_CACHE_HOME"
+    home = lookupEnv "HOME" <#> map (_ <> "/.cache")
     dirs = traverse liftEffect [ xdg, home ]
     onDirs :: forall a. (String -> Aff a) -> Aff a
     onDirs f = dirs >>= (oneOfMap <<< oneOfMap) f
