@@ -85,6 +85,18 @@ newtype URL = URL
 derive instance eqURL :: Eq URL
 derive instance ordURL :: Ord URL
 
+prettyURL :: URL -> String
+prettyURL (URL url) =
+        show url.scheme
+    <>  "://"
+    <>  url.authority
+    <>  prettyFile url.path
+    <>  queryDoc
+  where
+    queryDoc = case url.query of
+        Nothing -> ""
+        Just q  -> "?" <> q
+
 -- | The type of import (i.e. local vs. remote vs. environment)
 data ImportType
   -- Local path
@@ -128,27 +140,18 @@ instance semigroupImportType :: Semigroup ImportType where
     import₁
 
 prettyImportType :: ImportType -> String
+prettyImportType (Env env) = "env:" <> env
+prettyImportType Missing = "missing"
 prettyImportType (Local prefix file) =
   prettyFilePrefix prefix <> prettyFile file
-prettyImportType (Remote (URL url)) =
-        show url.scheme
-    <>  "://"
-    <>  url.authority
-    <>  prettyFile url.path
-    <>  queryDoc
-    <>  foldMap prettyHeaders url.headers
+prettyImportType (Remote u@(URL url)) =
+      prettyURL u
+  <>  foldMap prettyHeaders url.headers
   where
     prettyHeaders h =
       " using " <> "[ " <> intercalate "," (prettyHeader <$> h) <> " ]"
     prettyHeader { header, value } =
       "{ mapKey = " <> show header <> ", mapValue = " <> show value <> " }"
-
-    queryDoc = case url.query of
-        Nothing -> ""
-        Just q  -> "?" <> q
-
-prettyImportType (Env env) = "env:" <> env
-prettyImportType Missing = "missing"
 
 canonicalizeImportType :: ImportType -> ImportType
 canonicalizeImportType (Local prefix file) =

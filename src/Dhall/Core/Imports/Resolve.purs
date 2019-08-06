@@ -2,6 +2,7 @@ module Dhall.Core.Imports.Resolve where
 
 import Prelude
 
+import Control.Alt ((<|>))
 import Control.Monad.Reader (ReaderT(..))
 import Control.Monad.Writer (WriterT(..))
 import Control.Plus (empty)
@@ -28,6 +29,7 @@ import Data.Variant as Variant
 import Dhall.Context as Dhall.Context
 import Dhall.Core (Expr, Headers, Import(..), ImportMode(..), ImportType(..), Pair(..), S_, URL(..), _S, normalize, rewriteTopDownA)
 import Dhall.Core as AST
+import Dhall.Core.AST.Operations (rewriteBottomUpA')
 import Dhall.Core.CBOR (decode, encode)
 import Dhall.Core.Imports.Hash as Hash
 import Dhall.Core.Imports.Retrieve (fromLocation, toHeaders)
@@ -46,11 +48,8 @@ import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Validation.These as V
 
--- Resolve location
--- Retrieve location (as text)
--- Valdate location
-
 newtype Localized = Localized Import
+derive instance newtypeLocalized :: Newtype Localized _
 derive newtype instance eqLocalized :: Eq Localized
 derive newtype instance ordLocalized :: Ord Localized
 
@@ -107,8 +106,16 @@ type Feedback w r = TC.Feedback (Infos w) (Errors r) InsOrdStrMap Import
 loc :: L InsOrdStrMap Import
 loc = pure $ Tuple empty empty
 
+-- The not-quite-Monad stack that resolution occurs in:
+-- - Aff for effects
+-- - Reader over R
+-- - Aff-State over S
+-- - Writer over Array (Variant (Infos w))
+-- - Errors over NonEmptyArray (Variant (Errors r))
 newtype M w r a = M
-  (ReaderT (Tuple R (Ref S)) (Compose Aff (Feedback w r)) a)
+  (ReaderT (Tuple R (Ref S)) (N w r) a)
+-- Half of M: no ReaderT
+type N w r = Compose Aff (Feedback w r)
 derive instance newtypeM :: Newtype (M w r a) _
 derive newtype instance functorM :: Functor (M w r)
 derive newtype instance applyM :: Apply (M w r)
@@ -130,6 +137,14 @@ instance bindM :: Bind (M w r) where
           V.Success (Tuple b w') -> V.Success (Tuple b (w <> w'))
           V.Error es' mb -> V.Error (es <> es') (mb <#> map (append w))
       V.Error es Nothing -> pure (V.Error es Nothing)
+
+-- Run the `ReaderT` layer but pause the remaining effects
+pause :: forall w r a. M w r a -> M w r (N w r a)
+pause (M (ReaderT rf)) = M (ReaderT \r -> pure (rf r))
+
+-- Run the remaining effects
+resume :: forall w r. N w r ~> M w r
+resume n = M (ReaderT (pure n))
 
 runM :: forall w r a. R -> S -> M w r a -> Aff (Tuple (Feedback w r a) S)
 runM r s (M (ReaderT rf)) = do
@@ -221,10 +236,31 @@ resolveImports = pure
   -- Resolve headers so that they are available as PS values
   -- (Eta-expanded because it calls this recursively, of course)
   >=> do \expr -> resolveHeaders expr
-  -- Traverse to resolve each individual import, and squash the resulting tree
-  >=> do \expr -> traverse resolveImport expr <#> join -- Look! Expr is a Monad!
+  -- Traverse to set up resolving each individual import
+  >=> do \expr -> traverse (resolveImport >>> pause) expr
+  -- Handle failures in `ImportAlt` expressions, running effects only as necessary
+  >=> resume <<< resolveAlternatives
   -- Caching stage 2: check that the hashes match, and cache the uncached exprs
   >=> cacheResults
+
+-- Run the effects encoded in the tree, avoiding evaluating second alternatives,
+-- except to recover from an error in the first
+resolveAlternatives :: forall w r.
+  Expr InsOrdStrMap (N w r ResolvedExpr) -> N w r ResolvedExpr
+resolveAlternatives = rewriteBottomUpA' $ identity
+  <<< VariantF.on (_S::S_ "Embed") unwrap -- this is like a `join`
+  <<< VariantF.on (_S::S_ "ImportAlt") recover
+  where
+    recover :: Pair (N w r ResolvedExpr) -> N w r ResolvedExpr
+    recover (Pair l r) = Compose do
+      l' <- unwrap l
+      case l' of
+        WriterT (V.Success a) -> pure $ WriterT (V.Success a)
+        WriterT (V.Error as ma) -> do
+          r' <- unwrap r
+          case r' of
+            WriterT (V.Success a) -> pure $ WriterT (V.Success a)
+            WriterT (V.Error bs mb) -> pure $ WriterT (V.Error (as <> bs) (ma <|> mb))
 
 -- For hashes found in the cache, replace the expression with that
 replaceCached :: forall w r. LocalizedExpr -> M w r LocalizedExpr
@@ -235,6 +271,8 @@ replaceCached = rewriteTopDownA $ VariantF.on (_S::S_ "Hashed")
     fromCache <- liftAff' (pure (pure Nothing)) $ Just <$> cacher.get hash
     Tuple wasCached expr' <- case fromCache of
       Just cached
+        -- Note: the hash is verified in stage 2, though a strict reading of the
+        -- standard would suggest it should be checked here
         -- TODO: verify expression typechecks and is (alpha-)normalized?
         | Just decoded <- decode (CBOR.decode cached)
         , Just noImports <- traverse (pure Nothing) decoded ->
@@ -247,7 +285,8 @@ replaceCached = rewriteTopDownA $ VariantF.on (_S::S_ "Hashed")
     -- Return the node, or the one from the cache
     pure $ AST.mkHashed expr' hash
 
--- For hashed expressions, verify that the hash matches, and add to the cache
+-- For hashed expressions, verify that the hash matches, and add to the cache,
+-- and return the normalized node.
 cacheResults :: forall w r. ResolvedExpr -> M w r ResolvedExpr
 cacheResults = rewriteTopDownA $ VariantF.on (_S::S_ "Hashed")
   \(Tuple hash expr) -> do
@@ -264,8 +303,9 @@ cacheResults = rewriteTopDownA $ VariantF.on (_S::S_ "Hashed")
         cacher.put hash (CBOR.encode $ encode expri)
       -- Make sure not to put this hash twice
       modify_ $ prop (_S::S_ "toBeCached") $ Set.delete hash
-    -- Recurse and return the same node
-    AST.mkHashed <$> cacheResults expr <@> hash
+    -- Recurse and return the *normalized* node, removing the hash
+    -- See: https://github.com/dhall-lang/dhall-lang/issues/690#issuecomment-518442494
+    Hash.neutralize <$> cacheResults expr
 
 -- Resolve and normalize headers expressions, and match them up with their
 -- imports (storing them as PS `Headers` data now, no longer a Dhall expr)
@@ -273,16 +313,15 @@ resolveHeaders :: forall w r. LocalizedExpr -> M w r LocalizedExpr
 resolveHeaders = rewriteTopDownA $ VariantF.on (_S::S_ "UsingHeaders")
   \(Pair expr headers) -> do
     -- Resolve imports on the headers
+    -- Note: the result must be well-typed
     headers' <- resolveImports headers
-    -- Make sure they typecheck
-    void $ liftFeedback $ rehydrateFeedback $
-      typeWithA absurd Dhall.Context.empty headers'
     -- Normalize them
     let headers'' = normalize headers'
     -- And extract a literal value
     resolved <- toHeaders headers'' #
       note (Variant.inj (_S::S_ "Invalid headers") unit)
     -- Recurse, add inner headers first, then these outer ones
+    -- (Note that the UsingHeaders node disappears)
     resolveHeaders expr <#> map
       \(Localized i) -> Localized (addHeaders resolved i)
 
@@ -296,6 +335,12 @@ retrieveImport i = do
 
 parseImport :: forall w r. String -> M w r ImportExpr
 parseImport = Parser.parse >>> note (Variant.inj (_S::S_ "Parse error") unit)
+
+-- Ensure the expr typechecks
+ensureWellTyped :: forall w r. ResolvedExpr -> M w r ResolvedExpr
+ensureWellTyped e = e <$ do
+  void $ liftFeedback $ rehydrateFeedback $
+    typeWithA absurd Dhall.Context.empty e
 
 -- The main workhorse: turn a localized import into a resolved expression
 resolveImport :: forall w r. Localized -> M w r ResolvedExpr
@@ -351,15 +396,11 @@ resolveImport i@(Localized (Import { importMode, importType })) =
       -- Localize and recursively resolve imports
       >=> recurse
       -- Ensure it typechecks
-      >=> typecheck
+      >=> ensureWellTyped
     -- Recurse, pushing context onto the stack and resolving all the imports
     -- based on that locale
     recurse = local (Lens.prop (_S::S_ "stack") (List.Cons i)) <<<
       resolveImportsHere
-    -- Ensure the expr typechecks
-    typecheck e = e <$ do
-      void $ liftFeedback $ rehydrateFeedback $
-        typeWithA absurd Dhall.Context.empty e
 
     -- Make sure this import is not trying to import itself
     checkCycle a = a <$ do

@@ -3,28 +3,39 @@ module Dhall.Core.Imports.Retrieve where
 import Prelude
 
 import Control.Plus (empty)
+import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Const (Const(..))
+import Data.Foldable (oneOfMap)
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant as VariantF
 import Data.Lens as Lens
 import Data.List (List(..), foldr, (:))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Dhall.Core.AST (S_, _S)
 import Dhall.Core.AST as AST
-import Dhall.Core.Imports.Types (Header, Headers, Import(..), ImportType(..), URL(..), prettyFile, prettyFilePrefix)
+import Dhall.Core.Imports.Types (FilePrefix(..), Header, Headers, Import(..), ImportType(..), getHeaders, prettyFile, prettyFilePrefix, prettyURL)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
 import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
+import Effect.Exception (throw)
 import Foreign.Object as Foreign.Object
 import Milkis as M
 import Milkis.Impl (FetchImpl)
+import Node.Buffer as Node.Buffer
 import Node.Encoding (Encoding(UTF8))
 import Node.FS.Aff as Node.FS.Aff
+import Node.Process as Node.Process
 
-nodeRetrieveFile :: String -> Aff { result :: String, headers :: Headers }
-nodeRetrieveFile path = Node.FS.Aff.readTextFile UTF8 path <#> { headers: [], result: _ }
+nodeRetrieveEnv :: String -> Aff String
+nodeRetrieveEnv name = liftEffect $ Node.Process.lookupEnv name >>= case _ of
+  Nothing -> throw $ "Unknown envionment variable: " <> name
+  Just v -> pure v
+
+nodeRetrieveFile :: String -> Aff String
+nodeRetrieveFile path = Node.FS.Aff.readTextFile UTF8 path
 
 foreign import responseHeaders :: M.Response -> M.Headers
 foreign import nodeFetch :: Unit -> FetchImpl
@@ -49,6 +60,42 @@ nodeRetrieveURL headers url = milkisRetrieveURL (nodeFetch unit) headers url
 windowRetrieveURL :: Headers -> String -> Aff { result :: String, headers :: Headers }
 windowRetrieveURL headers url = milkisRetrieveURL (windowFetch unit) headers url
 
+nodeRetrieve :: ImportType -> Aff { result :: String, headers :: Headers }
+nodeRetrieve i = case i of
+  Missing -> empty
+  Env name -> nodeRetrieveEnv name <#> { headers: [], result: _ }
+  Local prefix path -> do
+    pre <- liftEffect case prefix of
+      Absolute -> pure "/"
+      Here -> Node.Process.cwd <#> (_ <> "/")
+      Parent -> Node.Process.cwd <#> (_ <> "/../")
+      -- TODO: use os.homedir()?
+      Home -> Node.Process.lookupEnv "HOME" <#> maybe "~/" (_ <> "/")
+    nodeRetrieveFile (pre <> prettyFile path) <#> { headers: [], result: _ }
+  Remote url -> nodeRetrieveURL
+    (fromMaybe empty (getHeaders i))
+    (prettyURL url)
+
+nodeCache ::
+  { get :: String -> Aff ArrayBuffer
+  , put :: String -> ArrayBuffer -> Aff Unit
+  }
+nodeCache =
+  let
+    xdg = Node.Process.lookupEnv "XDG_CACHE_HOME"
+    home = Node.Process.lookupEnv "HOME" <#> map (_ <> "/.cache")
+    dirs = traverse liftEffect [ xdg, home ]
+    onDirs :: forall a. (String -> Aff a) -> Aff a
+    onDirs f = dirs >>= (oneOfMap <<< oneOfMap) f
+  in
+    { get: \hash -> onDirs \dir ->
+        Node.FS.Aff.readFile (dir <> "/dhall/1220" <> hash) >>=
+          (liftEffect <<< Node.Buffer.toArrayBuffer)
+    , put: \hash val -> onDirs \dir ->
+        Node.FS.Aff.writeFile (dir <> "/dhall/1220" <> hash) =<<
+          (liftEffect <<< Node.Buffer.fromArrayBuffer) val
+    }
+
 locationType :: forall m a. MapLike String m => AST.Expr m a
 locationType = AST.mkUnion $ Dhall.Map.fromFoldable $
   [ Tuple "Environment" $ Just AST.mkText
@@ -63,17 +110,9 @@ fromLocation = case _ of
   Env e -> AST.mkApp (AST.mkField locationType "Environment") $ AST.mkTextLit' e
   Local pre l -> AST.mkApp (AST.mkField locationType "Local") $ AST.mkTextLit' $
     prettyFilePrefix pre <> prettyFile l
-  Remote (URL url) ->
-    AST.mkApp (AST.mkField locationType "Remote") $ AST.mkTextLit'
-    let
-      queryDoc = case url.query of
-        Nothing -> ""
-        Just q  -> "?" <> q
-    in  show url.scheme
-    <>  "://"
-    <>  url.authority
-    <>  prettyFile url.path
-    <>  queryDoc
+  Remote url ->
+    AST.mkApp (AST.mkField locationType "Remote") $ AST.mkTextLit' $
+      prettyURL url
 
 headerType :: forall m a. MapLike String m => AST.Expr m a
 headerType = AST.mkRecord $ Dhall.Map.fromFoldable $
