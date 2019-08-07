@@ -391,6 +391,7 @@ tagERVFI = un ERVFI >>> Variant.match
   , "ListReverse": identity absurd
   , "OptionalFold": identity absurd
   , "OptionalBuild": identity absurd
+  , "TextShow": identity absurd
   , "TextLit": \i -> "interp@" <> show i
   , "ListLit":
       either (\(_ :: Unit) -> "type")

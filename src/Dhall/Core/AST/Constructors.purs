@@ -14,7 +14,7 @@ import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
 import Data.Newtype (unwrap)
-import Data.Symbol (class IsSymbol, SProxy(..))
+import Data.Symbol (class IsSymbol, SProxy)
 import Data.Tuple (Tuple(..), swap)
 import Data.Variant.Internal (FProxy)
 import Dhall.Core.AST.Types (Const(..), Expr, ExprLayerRow, Var, embedW, projectW)
@@ -391,6 +391,12 @@ mkTextAppend = mkBinOp (_S::S_ "TextAppend")
 
 _TextAppend :: forall r. BinOpPrism ( "TextAppend" :: FProxy Pair | r )
 _TextAppend = _BinOpPrism (_S::S_ "TextAppend")
+
+mkTextShow :: forall m a. Expr m a
+mkTextShow = mkExpr (_S::S_ "TextShow") unit
+
+_TextShow :: forall r. ExprPrism ( "TextShow" :: UNIT | r ) Unit
+_TextShow = _ExprPrism (_S::S_ "TextShow")
 
 mkList :: forall m a. Expr m a
 mkList = mkExpr (_S::S_ "List") unit

@@ -22,7 +22,7 @@ import Data.Natural (Natural)
 import Data.Newtype (class Newtype, un, unwrap, wrap)
 import Data.Ord (class Ord1, compare1)
 import Data.String (joinWith)
-import Data.Symbol (class IsSymbol, SProxy(..))
+import Data.Symbol (class IsSymbol, SProxy)
 import Data.Traversable (class Traversable, sequence)
 import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..))
@@ -187,6 +187,7 @@ type BuiltinFuncs (m :: Type -> Type) vs =
   , "ListReverse" :: UNIT
   , "OptionalFold" :: UNIT
   , "OptionalBuild" :: UNIT
+  , "TextShow" :: UNIT
   | vs
   )
 
@@ -210,6 +211,7 @@ type BuiltinFuncs' (m :: Type -> Type) (m' :: Type -> Type) vs =
   , "ListReverse" :: VOID
   , "OptionalFold" :: VOID
   , "OptionalBuild" :: VOID
+  , "TextShow" :: VOID
   | vs
   )
 
@@ -233,6 +235,7 @@ type BuiltinFuncsI vs =
   , "ListReverse" :: Void
   , "OptionalFold" :: Void
   , "OptionalBuild" :: Void
+  , "TextShow" :: Void
   | vs
   )
 
@@ -548,6 +551,7 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
       # VariantF.on (_S::S_ "ListReverse") (const "mkListReverse")
       # VariantF.on (_S::S_ "OptionalFold") (const "mkOptionalFold")
       # VariantF.on (_S::S_ "OptionalBuild") (const "mkOptionalBuild")
+      # VariantF.on (_S::S_ "TextShow") (const "mkTextShow")
       # VariantF.on (_S::S_ "Const")
         (case _ of
           ConstF.Const Type -> "(mkConst Type)"
@@ -736,6 +740,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (_S::S_ "Text")
     # vfEqCase (_S::S_ "TextAppend")
     # vfEqCase (_S::S_ "TextLit")
+    # vfEqCase (_S::S_ "TextShow")
     # vfEqCase (_S::S_ "ToMap")
     # vfEq1Case (_S::S_ "Union")
     # vfEq1Case (_S::S_ "UnionLit")
@@ -810,6 +815,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (_S::S_ "Text")
     # vfOrdCase (_S::S_ "TextAppend")
     # vfOrdCase (_S::S_ "TextLit")
+    # vfOrdCase (_S::S_ "TextShow")
     # vfOrdCase (_S::S_ "ToMap")
     # vfOrd1Case (_S::S_ "Union")
     # vfOrd1Case (_S::S_ "UnionLit")
@@ -884,6 +890,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (_S::S_ "Text")
     # vfEqCase (_S::S_ "TextAppend")
     # vfEqCase (_S::S_ "TextLit")
+    # vfEqCase (_S::S_ "TextShow")
     # vfEqCase (_S::S_ "ToMap")
     # vfEq1Case (_S::S_ "Union")
     # vfEq1Case (_S::S_ "UnionLit")
@@ -958,6 +965,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (_S::S_ "Text")
     # vfOrdCase (_S::S_ "TextAppend")
     # vfOrdCase (_S::S_ "TextLit")
+    # vfOrdCase (_S::S_ "TextShow")
     # vfOrdCase (_S::S_ "ToMap")
     # vfOrd1Case (_S::S_ "Union")
     # vfOrd1Case (_S::S_ "UnionLit")

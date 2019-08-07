@@ -10,12 +10,12 @@ import Data.Functor.Product (Product(..))
 import Data.Functor.Variant as VariantF
 import Data.Lens as Lens
 import Data.List (List(..), foldr, (:))
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Dhall.Core.AST (S_, _S)
 import Dhall.Core.AST as AST
-import Dhall.Core.Imports.Types (FilePrefix(..), Header, Headers, Import(..), ImportType(..), getHeaders, prettyFile, prettyFilePrefix, prettyURL)
+import Dhall.Core.Imports.Types (Header, Headers, Import(..), ImportType(..), getHeaders, prettyFile, prettyFilePrefix, prettyURL)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
 import Effect (Effect)
@@ -74,6 +74,11 @@ nodeRetrieve i = case i of
   Remote url -> nodeRetrieveURL
     (fromMaybe empty (getHeaders i))
     (prettyURL url)
+
+nodeReadBinary :: String -> Aff ArrayBuffer
+nodeReadBinary file =
+  Node.FS.Aff.readFile file >>=
+    (liftEffect <<< Node.Buffer.toArrayBuffer)
 
 nodeCache ::
   { get :: String -> Aff ArrayBuffer

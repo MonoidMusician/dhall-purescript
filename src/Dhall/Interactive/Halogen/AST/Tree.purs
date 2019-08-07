@@ -302,6 +302,7 @@ renderBuiltinFuncs _ = identity
   >>> renderVFLensed (_S::S_ "ListReverse") named
   >>> renderVFLensed (_S::S_ "OptionalFold") named
   >>> renderVFLensed (_S::S_ "OptionalBuild") named
+  >>> renderVFLensed (_S::S_ "TextShow") named
   where named = []
 
 renderBuiltinBinOps :: forall r m a. RenderingOptions -> RenderAnd r m a -> RenderChunk AST.BuiltinBinOps r m a

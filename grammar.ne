@@ -493,7 +493,7 @@ sub_delims -> ( "!" | "$" | "&" | "'" | "*" | "+" | ";" | "=" )  {% collapse %}
 http ->
     http_raw
     ( whsp using whsp1 import_expression ):?
-  {% d => (d[0].value.push(pass(3)(d[2])), d[0]) %}
+  {% d => (d[0].value[5] = pass(3)(d[1]), d[0]) %}
 
 # Dhall supports unquoted environment variables that are Bash-compliant or
 # quoted environment variables that are POSIX-compliant

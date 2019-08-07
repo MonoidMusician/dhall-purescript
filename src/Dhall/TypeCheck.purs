@@ -1173,6 +1173,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       forWithIndex_ things \i expr -> ensure (_S::S_ "Text") expr
         (errorHere (_S::S_ "Cannot interpolate") <<< const i)
   , "TextAppend": checkBinOp AST.mkText
+  , "TextShow": always $ AST.mkArrow AST.mkText AST.mkText
   , "List": identity aFunctor
   , "ListLit": \(Product (Tuple mty lit)) -> mconfirm (head2D <$> mty) do
       -- get the assumed type of the list

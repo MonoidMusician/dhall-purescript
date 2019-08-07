@@ -64,7 +64,7 @@ encode = recenc Nil where
       , "ListReverse": pure $ J.fromString "List/reverse"
       , "OptionalFold": pure $ J.fromString "Optional/fold"
       , "OptionalBuild": pure $ J.fromString "Optional/build"
-      -- , "TextShow": pure $ J.fromString "Text/show"
+      , "TextShow": pure $ J.fromString "Text/show"
       , "Bool": pure $ J.fromString "Bool"
       , "Optional": pure $ J.fromString "Optional"
       , "None": pure $ J.fromString "None"
@@ -326,7 +326,7 @@ decode = J.caseJson
       "List/reverse" -> pure AST.mkListReverse
       "Optional/fold" -> pure AST.mkOptionalFold
       "Optional/build" -> pure AST.mkOptionalBuild
-      -- "Text/show" -> pure AST.mkTextShow
+      "Text/show" -> pure AST.mkTextShow
       "Bool" -> pure AST.mkBool
       "Optional" -> pure AST.mkOptional
       "None" -> pure AST.mkNone

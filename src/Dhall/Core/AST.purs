@@ -172,6 +172,7 @@ import Dhall.Core.AST.Constructors
   , _TextLit
   , _TextLit_empty
   , _TextLit_single
+  , _TextShow
   , _ToMap
   , _Union
   , _UnionLit
@@ -248,6 +249,7 @@ import Dhall.Core.AST.Constructors
   , mkTextAppend
   , mkTextLit
   , mkTextLit'
+  , mkTextShow
   , mkToMap
   , mkType
   , mkUnion

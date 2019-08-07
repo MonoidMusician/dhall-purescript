@@ -105,6 +105,7 @@ decodeFAST (FAST r) =
     "List/reverse", _ -> AST.mkListReverse
     "Optional/fold", _ -> AST.mkOptionalFold
     "Optional/build", _ -> AST.mkOptionalBuild
+    "Text/show", _ -> AST.mkTextShow
     "BoolAnd", [a, b] -> AST.mkBoolAnd (decodeF a) (decodeF b)
     "BoolOr", [a, b] -> AST.mkBoolOr (decodeF a) (decodeF b)
     "BoolEQ", [a, b] -> AST.mkBoolEQ (decodeF a) (decodeF b)
@@ -211,7 +212,7 @@ decodeURL [ scheme, authority, dir, file, query, headers ] =
   , query: decodeN decodeS query
   , headers: Nothing
   }
-decodeURL _ = unsafeCrashWith "Unrecognized URL"
+decodeURL a = unsafeCrashWith $ "Unrecognized URL" <> unsafeCoerce a
 
 disambiguate :: Array ParseExpr -> Array ParseExpr
 disambiguate [] = []
