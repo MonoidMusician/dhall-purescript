@@ -19,6 +19,10 @@ startsWith :: String -> String -> Boolean
 startsWith str pre =
   pre == String.take (String.length pre) str
 
+endsWith :: String -> String -> Boolean
+endsWith str post =
+  post == String.drop (String.length str - String.length post) str
+
 endingWith :: String -> String -> Maybe String
 endingWith str post =
   let { before, after } = String.splitAt (String.length str - String.length post) str

@@ -6,6 +6,7 @@ import Data.Array (mapMaybe)
 import Data.Foldable (foldMap, intercalate)
 import Data.List (List(..), (:), reverse)
 import Data.Maybe (Maybe(..))
+import Data.String as String
 
 -- Most of this is just copied from dhall-haskell without further thought so far
 
@@ -204,7 +205,8 @@ type Headers = Array Header
 
 getHeader :: String -> Headers -> Array String
 getHeader header = mapMaybe \r ->
-  if r.header == header then Just r.value else Nothing
+  if String.toLower r.header == String.toLower header
+    then Just r.value else Nothing
 
 addHeaders :: Headers -> Import -> Import
 addHeaders headers = case _ of

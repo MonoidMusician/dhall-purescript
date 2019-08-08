@@ -8,17 +8,19 @@ import Data.Array (foldMap)
 import Data.Array as Array
 import Data.Foldable (traverse_)
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
-import Data.Newtype (unwrap)
+import Data.Newtype (unwrap, wrap)
 import Data.String (Pattern(..), stripSuffix)
+import Data.String as String
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
-import Dhall.Core (alphaNormalize)
+import Dhall.Core (Directory(..), File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), alphaNormalize)
 import Dhall.Core as AST
 import Dhall.Core.CBOR (decode)
 import Dhall.Core.Imports.Resolve as Resolve
-import Dhall.Core.Imports.Retrieve (nodeReadBinary, nodeRetrieveFile)
+import Dhall.Core.Imports.Retrieve (nodeCacheIn, nodeReadBinary, nodeRetrieve, nodeRetrieveFile)
 import Dhall.Lib.CBOR as CBOR
 import Dhall.Map (InsOrdStrMap)
+import Dhall.Test (Actions)
 import Dhall.Test as Test
 import Dhall.Test.Util (eqArrayBuffer)
 import Dhall.Test.Util as Util
@@ -29,6 +31,7 @@ import Effect.Class (liftEffect)
 import Effect.Class.Console (log)
 import Effect.Ref as Ref
 import Node.Path (FilePath)
+import Node.Process as Process
 import Validation.These as V
 
 root = "./dhall-lang/tests/" :: String
@@ -57,25 +60,47 @@ testType ty = testType' ty ".dhall"
 
 testType' :: String -> String -> (FilePath -> Aff Unit) -> (FilePath -> Aff Unit) -> Aff Unit
 testType' ty suff success failure = do
-  successes <- Util.discover2 ("A" <> suff) $ root <> ty <> "/success"
-  count0 <- liftEffect $ Ref.new 0
-  let incr0 f a = f a <* do liftEffect $ Ref.modify_ (_ + 1) count0
-  traverse_ (logErrorWith <$> log <*> incr0 success) successes
-  count1 <- liftEffect $ Ref.new 0
-  let incr1 f a = f a <* do liftEffect $ Ref.modify_ (_ + 1) count1
-  failures <- Util.discover2 suff $ root <> ty <> "/failure"
-  traverse_ (logErrorWith <$> log <*> incr1 failure) failures
-  counted0 <- liftEffect $ Ref.read count0
-  counted1 <- liftEffect $ Ref.read count1
-  log $ ty <> " score: (" <> show counted0 <> " + " <> show counted1 <> ") / (" <>
-    (show $ Array.length successes) <> " + " <> (show $ Array.length failures) <> ") = " <> (show $ (100 * (counted0 + counted1)) / (Array.length successes + Array.length failures)) <> "%"
+  argv <- liftEffect $ Array.drop 2 <$> Process.argv
+  when (Array.null argv || Array.elem ty argv) do
+    successes <- Util.discover2 ("A" <> suff) (root <> ty <> "/success") <#>
+      Array.filter (\a -> not Array.any (Util.endsWith a) argv)
+    count0 <- liftEffect $ Ref.new 0
+    let incr0 f a = f a <* do liftEffect $ Ref.modify_ (_ + 1) count0
+    traverse_ (logErrorWith <$> log <*> incr0 success) successes
+    count1 <- liftEffect $ Ref.new 0
+    let incr1 f a = f a <* do liftEffect $ Ref.modify_ (_ + 1) count1
+    failures <- Util.discover2 suff (root <> ty <> "/failure") <#>
+      Array.filter (\a -> not Array.any (Util.endsWith a) argv)
+    traverse_ (logErrorWith <$> log <*> incr1 failure) failures
+    counted0 <- liftEffect $ Ref.read count0
+    counted1 <- liftEffect $ Ref.read count1
+    log $ ty <> " score: (" <> show counted0 <> " + " <> show counted1 <> ") / (" <>
+      (show $ Array.length successes) <> " + " <> (show $ Array.length failures) <> ") = " <> (show $ (100 * (counted0 + counted1)) / (Array.length successes + Array.length failures)) <> "%"
+
+mkActions :: String -> String -> String -> Actions
+mkActions ty file = Test.mkActions'
+  let split = String.split (String.Pattern "/") file in
+  { stack: pure $ wrap $ Import
+    { importMode: Code
+    , importType: Local Here $ File
+      { directory: Directory $
+          (Array.toUnfoldable <<< Array.reverse) $ Array.dropEnd 1 split
+      , file: fromMaybe "" $ Array.last split
+      }
+    }
+  , cacher:
+    { get: (nodeCacheIn ("./dhall-lang/tests/" <> ty <> "/cache")).get
+    , put: \_ _ -> pure unit
+    }
+  , retriever: nodeRetrieve
+  }
 
 test :: Aff Unit
 test = do
   testType "parser"
     do \success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
-        let actA = Test.mkActions textA
+        let actA = mkActions "parser" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
         binB <- nodeReadBinary (success <> "B.dhallb")
@@ -83,18 +108,18 @@ test = do
           throwError (error "Binary did not match")
     do \failure -> do
         text <- nodeRetrieveFile (failure <> ".dhall")
-        let act = Test.mkActions text
+        let act = mkActions "parser" failure text
         let parsed = act.parse # unwrap # extract
         when (isJust parsed) do
           throwError (error "Was not supposed to parse")
   testType "normalization"
     do \success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
-        let actA = Test.mkActions textA
+        let actA = mkActions "normalization" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
         textB <- nodeRetrieveFile (success <> "B.dhall")
-        let actB = Test.mkActions textB
+        let actB = mkActions "normalization" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
         when (extract parsedA.unsafeNormalized /= parsedB.parsed) do
@@ -104,11 +129,11 @@ test = do
   testType "alpha-normalization"
     do \success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
-        let actA = Test.mkActions textA
+        let actA = mkActions "alpha-normalization" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
         textB <- nodeRetrieveFile (success <> "B.dhall")
-        let actB = Test.mkActions textB
+        let actB = mkActions "alpha-normalization" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
         when (alphaNormalize parsedA.parsed /= parsedB.parsed) do
@@ -118,7 +143,7 @@ test = do
   testType "semantic-hash"
     do \success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
-        let actA = Test.mkActions textA
+        let actA = mkActions "semantic-hash" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse"
         importedA <- parsedA.imports # unwrap # extract # unwrap >>=
@@ -136,13 +161,13 @@ test = do
   testType "typecheck"
     do \success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
-        let actA = Test.mkActions textA
+        let actA = mkActions "typecheck" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
         importedA <- parsedA.imports # unwrap # extract # unwrap >>=
           noteFb "Failed to resolve A"
         textB <- nodeRetrieveFile (success <> "B.dhall")
-        let actB = Test.mkActions textB
+        let actB = mkActions "typecheck" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
@@ -151,7 +176,7 @@ test = do
           noteFb "Typechecking failed"
     do \failure -> do
         text <- nodeRetrieveFile (failure <> ".dhall")
-        let act = Test.mkActions text
+        let act = mkActions "typecheck" failure text
         parsed <- act.parse # unwrap # extract #
           note "Failed to parse"
         imported <- parsed.imports # unwrap # extract # unwrap >>=
@@ -161,7 +186,7 @@ test = do
   testType "type-inference"
     do \success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
-        let actA = Test.mkActions textA
+        let actA = mkActions "type-inference" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
         importedA <- parsedA.imports # unwrap # extract # unwrap >>=
@@ -169,7 +194,7 @@ test = do
         typecheckedA <- importedA.typechecked # unwrap # extract #
           noteFb "Failed to typecheck A"
         textB <- nodeRetrieveFile (success <> "B.dhall")
-        let actB = Test.mkActions textB
+        let actB = mkActions "type-inference" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
@@ -178,13 +203,36 @@ test = do
           throwError (error "Type inference did not match")
     do \failure ->
         throwError (error "Why is there a type-inference failure?")
+  testType "import"
+    do \success -> do
+        textA <- nodeRetrieveFile (success <> "A.dhall")
+        let actA = mkActions "import" success textA
+        parsedA <- actA.parse # unwrap # extract #
+          note "Failed to parse A"
+        importedA <- parsedA.imports # unwrap # extract # unwrap >>=
+          noteFb "Failed to resolve A"
+        textB <- nodeRetrieveFile (success <> "B.dhall")
+        let actB = mkActions "import" success textB
+        parsedB <- actB.parse # unwrap # extract #
+          note "Failed to parse B"
+        importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
+          note "Failed to resolve B"
+        when (importedA.resolved /= importedB.resolved) do
+          throwError (error "Imports did not match")
+    do \failure -> do
+        text <- nodeRetrieveFile (failure <> ".dhall")
+        let act = mkActions "import" failure text
+        parsed <- act.parse # unwrap # extract #
+          note "Failed to parse"
+        void $ parsed.imports # unwrap # extract # unwrap >>=
+          etonFb "Was not supposed to import correctly"
   testType' "binary-decode" ".dhallb"
     do \success -> do
         binA <- nodeReadBinary (success <> "A.dhallb")
         decodedA <- binA # CBOR.decode # decode #
           note "Failed to decode A"
         textB <- nodeRetrieveFile (success <> "B.dhall")
-        let actB = Test.mkActions textB
+        let actB = mkActions "binary-decode" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
         when (decodedA /= parsedB.parsed) do

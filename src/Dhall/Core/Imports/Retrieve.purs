@@ -3,6 +3,7 @@ module Dhall.Core.Imports.Retrieve where
 import Prelude
 
 import Control.Plus (empty)
+import Data.Array as Array
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Const (Const(..))
 import Data.Foldable (oneOfMap)
@@ -11,11 +12,12 @@ import Data.Functor.Variant as VariantF
 import Data.Lens as Lens
 import Data.List (List(..), foldr, (:))
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.String as String
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Dhall.Core.AST (S_, _S)
 import Dhall.Core.AST as AST
-import Dhall.Core.Imports.Types (Header, Headers, Import(..), ImportType(..), getHeaders, prettyFile, prettyFilePrefix, prettyURL)
+import Dhall.Core.Imports.Types (Directory(..), File(..), FilePrefix(..), Header, Headers, Import(..), ImportType(..), getHeaders, prettyFile, prettyFilePrefix, prettyURL)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
 import Effect (Effect)
@@ -65,6 +67,17 @@ nodeRetrieveURL headers url = milkisRetrieveURL (nodeFetch unit) headers url
 windowRetrieveURL :: Headers -> String -> Aff { result :: String, headers :: Headers }
 windowRetrieveURL headers url = milkisRetrieveURL (windowFetch unit) headers url
 
+moveHere :: String -> ImportType -> ImportType
+moveHere _ i@(Local Absolute _) = i
+moveHere _ i@(Local Home _) = i
+moveHere here (Local Parent (File { directory, file })) =
+  let adddir = Directory $ (Array.toUnfoldable <<< Array.reverse) $ String.split (String.Pattern "/") (here <> "/..")
+  in Local Here (File { directory: adddir <> directory, file })
+moveHere here (Local Here (File { directory, file })) =
+  let adddir = Directory $ (Array.toUnfoldable <<< Array.reverse) $ String.split (String.Pattern "/") (here)
+  in Local Here (File { directory: adddir <> directory, file })
+moveHere _ i = i
+
 nodeRetrieve :: ImportType -> Aff { result :: String, headers :: Headers }
 nodeRetrieve i = case i of
   Missing -> empty
@@ -79,6 +92,19 @@ nodeReadBinary :: String -> Aff ArrayBuffer
 nodeReadBinary file =
   Node.FS.Aff.readFile file >>=
     (liftEffect <<< Node.Buffer.toArrayBuffer)
+
+nodeCacheIn :: String ->
+  { get :: String -> Aff ArrayBuffer
+  , put :: String -> ArrayBuffer -> Aff Unit
+  }
+nodeCacheIn dir =
+  { get: \hash ->
+      Node.FS.Aff.readFile (dir <> "/dhall/1220" <> hash) >>=
+        (liftEffect <<< Node.Buffer.toArrayBuffer)
+  , put: \hash val ->
+      Node.FS.Aff.writeFile (dir <> "/dhall/1220" <> hash) =<<
+        (liftEffect <<< Node.Buffer.fromArrayBuffer) val
+  }
 
 nodeCache ::
   { get :: String -> Aff ArrayBuffer

@@ -41,11 +41,13 @@ parse = Parser.parse
 noImports :: forall f a. Traversable f => f a -> Maybe (f Void)
 noImports = traverse (const Nothing)
 resolve' :: Resolve.ImportExpr -> Aff (Resolve.Feedback () () Resolve.ResolvedExpr)
-resolve' e = Resolve.runM
+resolve' = resolve''
   { stack: mempty
   , retriever: Retrieve.nodeRetrieve
   , cacher: Retrieve.nodeCache
-  } mempty (Resolve.resolveImportsHere e) <#> \(Tuple fb _) -> fb
+  }
+resolve'' :: Resolve.R -> Resolve.ImportExpr -> Aff (Resolve.Feedback () () Resolve.ResolvedExpr)
+resolve'' resolver e = Resolve.runM resolver mempty (Resolve.resolveImportsHere e) <#> \(Tuple fb _) -> fb
 resolve :: Expr (InsOrdMap String) Import -> Aff (Maybe (Expr (InsOrdMap String) Void))
 resolve e = resolve' e <#> \fb -> V.hushW' fb
 tc :: forall t14. MapLike String t14 => Expr t14 Void -> Maybe (Expr t14 Void)
@@ -96,7 +98,14 @@ type Actions =
   }
 
 mkActions :: String -> Actions
-mkActions text =
+mkActions = mkActions'
+  { stack: mempty
+  , retriever: Retrieve.nodeRetrieve
+  , cacher: Retrieve.nodeCache
+  }
+
+mkActions' :: Resolve.R -> String -> Actions
+mkActions' resolver text =
   { text
   , parse: Compose $ defer \_ -> parse text <#> \parsed ->
       { parsed
@@ -109,7 +118,7 @@ mkActions text =
       , imports:
           product
             (Compose $ defer \_ -> traverse (const Nothing) parsed)
-            (Compose $ resolve' parsed)
+            (Compose $ resolve'' resolver parsed)
           <#> \resolved ->
           { resolved
           , unsafeNormalized: defer \_ -> normalize resolved

@@ -22,7 +22,7 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un, unwrap)
 import Data.Set (Set)
 import Data.Set as Set
-import Data.Traversable (traverse, traverse_)
+import Data.Traversable (sequence, traverse, traverse_)
 import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
 import Data.Variant as Variant
@@ -182,9 +182,12 @@ modify_ = state <<< (<<<) (Tuple unit)
 tell :: forall w r. Variant (Infos w) -> M w r Unit
 tell v = liftFeedback $ WriterT $ pure $ Tuple unit (pure v)
 
-throw :: forall w r a. Variant (Errors r) -> M w r a
-throw e = liftFeedback $ WriterT $
+throwFb :: forall w r a. Variant (Errors r) -> Feedback w r a
+throwFb e = WriterT $
   V.Error (pure (TC.TypeCheckError { location: loc, tag: e })) Nothing
+
+throw :: forall w r a. Variant (Errors r) -> M w r a
+throw e = liftFeedback $ throwFb e
 
 withCleanup :: forall w r a.
   Aff Unit -> M w r a -> M w r a
@@ -247,31 +250,44 @@ resolveImports = pure
   -- (Eta-expanded because it calls this recursively, of course)
   >=> do \expr -> resolveHeaders expr
   -- Traverse to set up resolving each individual import
-  -- Caching stage 2: check hashes, before `ImportAlt` resolution
-  >=> do \expr -> traverse (resolveImport >=> checkHashes >>> pause) expr
+  >=> do \expr -> traverse (resolveImport >>> pause) expr
   -- Handle failures in `ImportAlt` expressions, running effects only as necessary
-  >=> resume <<< resolveAlternatives
+  -- Caching stage 2: check hashes, before `ImportAlt` resolution
+  >=> map resume >>> resolveAlternativesAndCheckHashes
   -- Caching stage 3: cache the uncached exprs
   >=> cacheResults
 
 -- Run the effects encoded in the tree, avoiding evaluating second alternatives,
--- except to recover from an error in the first
-resolveAlternatives :: forall w r.
-  Expr InsOrdStrMap (N w r ResolvedExpr) -> N w r ResolvedExpr
-resolveAlternatives = rewriteBottomUpA' $ identity
+-- except to recover from an error in the first.
+-- For hashed expressions, verify that the hash matches and return the
+-- normalized node.
+-- I wish these did not have to be one step.
+resolveAlternativesAndCheckHashes :: forall w r.
+  Expr InsOrdStrMap (M w r ResolvedExpr) -> M w r ResolvedExpr
+resolveAlternativesAndCheckHashes = rewriteBottomUpA' $ identity
   <<< VariantF.on (_S::S_ "Embed") unwrap -- this is like a `join`
   <<< VariantF.on (_S::S_ "ImportAlt") recover
+  <<< VariantF.on (_S::S_ "Hashed") (sequence >=> checkHash)
   where
-    recover :: Pair (N w r ResolvedExpr) -> N w r ResolvedExpr
-    recover (Pair l r) = Compose do
-      l' <- unwrap l
+    checkHash :: Tuple String ResolvedExpr -> M w r ResolvedExpr
+    checkHash = \(Tuple hash expr) -> do
+      let exprn = Hash.neutralize expr
+      let hash' = Hash.hash (absurd <$> exprn :: ImportExpr)
+      when (hash /= hash') do
+        throw (Variant.inj (_S::S_ "Hash mismatch") { expected: hash, actual: hash' })
+      -- Recurse on the original but return the *normalized* node
+      -- See: https://github.com/dhall-lang/dhall-lang/issues/690#issuecomment-518442494
+      pure $ AST.mkHashed exprn hash
+    recover :: Pair (M w r ResolvedExpr) -> M w r ResolvedExpr
+    recover (Pair l r) = M $ ReaderT \rs -> Compose $ WriterT <$> do
+      l' <- unwrap <$> unwrap (unwrap (unwrap l) rs)
       case l' of
-        WriterT (V.Success a) -> pure $ WriterT (V.Success a)
-        WriterT (V.Error as ma) -> do
-          r' <- unwrap r
+        V.Success a -> pure $ V.Success a
+        V.Error as ma -> do
+          r' <- unwrap <$> unwrap (unwrap (unwrap r) rs)
           case r' of
-            WriterT (V.Success a) -> pure $ WriterT (V.Success a)
-            WriterT (V.Error bs mb) -> pure $ WriterT (V.Error (as <> bs) (ma <|> mb))
+            V.Success a -> pure $ V.Success a
+            V.Error bs mb -> pure $ V.Error (as <> bs) (ma <|> mb)
 
 -- For hashes found in the cache, replace the expression with that
 replaceCached :: forall w r. LocalizedExpr -> M w r LocalizedExpr
@@ -296,20 +312,6 @@ replaceCached = rewriteTopDownA $ VariantF.on (_S::S_ "Hashed")
       modify_ $ prop (_S::S_ "toBeCached") $ Set.insert hash
     -- Return the node, or the one from the cache
     pure $ AST.mkHashed expr' hash
-
--- For hashed expressions, verify that the hash matches and return the
--- normalized node.
-checkHashes :: forall w r. ResolvedExpr -> M w r ResolvedExpr
-checkHashes = rewriteTopDownA $ VariantF.on (_S::S_ "Hashed")
-  \(Tuple hash expr) -> do
-    let exprn = Hash.neutralize expr
-    let hash' = Hash.hash (absurd <$> exprn :: ImportExpr)
-    when (hash /= hash') do
-      throw (Variant.inj (_S::S_ "Hash mismatch") { expected: hash, actual: hash' })
-    -- Recurse on the original but return the *normalized* node
-    -- See: https://github.com/dhall-lang/dhall-lang/issues/690#issuecomment-518442494
-    void $ checkHashes expr
-    pure $ AST.mkHashed exprn hash
 
 -- For hashed expressions, add to the cache, and return the node without the hash.
 cacheResults :: forall w r. ResolvedExpr -> M w r ResolvedExpr

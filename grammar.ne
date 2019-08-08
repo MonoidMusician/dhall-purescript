@@ -114,7 +114,7 @@ block_comment_continue ->
   | block_comment block_comment_continue
   | block_comment_char block_comment_continue
 
-not_end_of_line -> . # Regex /./ does not match newlines
+not_end_of_line -> [^\n]
 
 # NOTE: Slightly different from Haskell-style single-line comments because this
 # does not require a space after the dashes
@@ -181,7 +181,7 @@ label -> ("`" quoted_label "`" {% pass1 %} | simple_label {% pass0 %}) {% pass0 
 # nonreserved-label =
 #      builtin 1*simple-label-next-char
 #    / !(builtin / sha256-prefix) label
-nonreserved_label -> label {% (d, _, reject) => builtin.includes(d[0]) ? reject : d[0] %}
+nonreserved_label -> ("`" quoted_label "`" {% pass1 %} | simple_label {% (d, _, reject) => builtin.includes(d[0]) ? reject : d[0] %}) {% pass0 %}
 
 # An any_label is allowed to be one of the reserved identifiers.
 any_label -> label {% pass0 %}
@@ -384,7 +384,7 @@ integer_literal -> ( "+" | "-" ) natural_literal {% d => d[0] == "+" ? +d[1] : -
 # Otherwise, this is a variable with name and index matching the label and index.
 identifier -> variable {% pass0 %} | builtin {% d => ({ type: d[0], value: [] }) %}
 
-variable -> nonreserved_label ( whsp "@" natural_literal ):? {% (d, _, reject) => builtin.includes(d[0]) ? reject : ({ type: "Var", value: [d[0], pass(2)(d[1]) || 0] }) %}
+variable -> nonreserved_label ( whsp "@" natural_literal ):? {% d => ({ type: "Var", value: [d[0], pass(2)(d[1]) || 0] }) %}
 
 # Printable characters other than " ()[]{}<>/\,"
 #
