@@ -379,6 +379,7 @@ tagERVFI = un ERVFI >>> Variant.match
   , "NaturalOdd": identity absurd
   , "NaturalToInteger": identity absurd
   , "NaturalShow": identity absurd
+  , "NaturalSubtract": identity absurd
   , "IntegerShow": identity absurd
   , "IntegerToDouble": identity absurd
   , "DoubleShow": identity absurd
@@ -399,9 +400,6 @@ tagERVFI = un ERVFI >>> Variant.match
   , "Some": \(_ :: Unit) -> "value"
   , "None": identity absurd
   , "RecordLit": \(k :: String) -> "values@" <> show k
-  , "UnionLit":
-      either (\(_ :: Unit) -> "value")
-      \k -> "types@" <> show k
   , "Record": \(k :: String) -> "types@" <> show k
   , "Union": \(Tuple (k :: String) (_ :: Unit)) -> "types@" <> show k
   , "BoolAnd": binop

@@ -1159,6 +1159,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
   , "NaturalOdd": always $ AST.mkArrow AST.mkNatural AST.mkBool
   , "NaturalToInteger": always $ AST.mkArrow AST.mkNatural AST.mkInteger
   , "NaturalShow": always $ AST.mkArrow AST.mkNatural AST.mkText
+  , "NaturalSubtract": always $ AST.mkArrow AST.mkNatural $ AST.mkArrow AST.mkNatural AST.mkNatural
   , "NaturalPlus": checkBinOp AST.mkNatural
   , "NaturalTimes": checkBinOp AST.mkNatural
   , "Integer": identity aType
@@ -1290,17 +1291,6 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           forWithIndex_ kts \(Tuple field _) ty -> do
             void $ ensure (_S::S_ "Const") ty
               (errorHere (_S::S_ "Invalid alternative type") <<< const field)
-  , "UnionLit": \(Product (Tuple (Tuple field expr) kts)) ->
-      -- TODO: check field not in kts
-      ensureNodupes
-        (errorHere (_S::S_ "Duplicate union alternatives")) kts
-      *> do
-        ty <- typecheckStep expr
-        let kts' = Dhall.Map.insert field ty kts
-        forWithIndex_ kts' \field' kind -> do
-          void $ ensure (_S::S_ "Const") kind
-            (errorHere (_S::S_ "Invalid alternative type") <<< const field')
-        pure $ mk(_S::S_"Union") $ Compose $ (Just <<< head2D) <$> kts'
   , "Combine":
       let
         combineTypes here (p :: Pair (OxprE w r m a)) = do
@@ -1772,10 +1762,7 @@ explain ctx nodeType =
       ]
   , "Invalid alternative type": \name ->
       let
-        focus = nodeType # VariantF.on (_S::S_ "UnionLit")
-          do \_ -> typechecked <> within (_S::S_ "UnionLit") (Right name)
-          -- NOTE: assume it is a Union type, if it's not a UnionLit
-          do \_ -> within (_S::S_ "Union") (Tuple name unit)
+        focus = within (_S::S_ "Union") (Tuple name unit)
       in
       [ Text $ "Union alternative types must live in a universe, but "
       , Text $ "`" <> name <> "` "
@@ -1786,19 +1773,13 @@ explain ctx nodeType =
   -- TODO
   , "Must combine a record": \(Tuple path side) ->
       let
-        focus name = nodeType # VariantF.on (_S::S_ "UnionLit")
-          do \_ -> typechecked <> within (_S::S_ "UnionLit") (Right name)
-          -- NOTE: assume it is a Union type, if it's not a UnionLit
-          do \_ -> within (_S::S_ "Union") (Tuple name unit)
+        focus name = within (_S::S_ "Union") (Tuple name unit)
       in
       [
       ]
   , "Record kind mismatch": \path ->
       let
-        focus name = nodeType # VariantF.on (_S::S_ "UnionLit")
-          do \_ -> typechecked <> within (_S::S_ "UnionLit") (Right name)
-          -- NOTE: assume it is a Union type, if it's not a UnionLit
-          do \_ -> within (_S::S_ "Union") (Tuple name unit)
+        focus name = within (_S::S_ "Union") (Tuple name unit)
       in
       [
       ]

@@ -106,6 +106,7 @@ decodeFAST (FAST r) =
     "Optional/fold", _ -> AST.mkOptionalFold
     "Optional/build", _ -> AST.mkOptionalBuild
     "Text/show", _ -> AST.mkTextShow
+    "Natural/subtract", _ -> AST.mkNaturalSubtract
     "BoolAnd", [a, b] -> AST.mkBoolAnd (decodeF a) (decodeF b)
     "BoolOr", [a, b] -> AST.mkBoolOr (decodeF a) (decodeF b)
     "BoolEQ", [a, b] -> AST.mkBoolEQ (decodeF a) (decodeF b)
@@ -140,10 +141,6 @@ decodeFAST (FAST r) =
     "Record", vs -> AST.mkRecord (decodeLabelled decodeF vs)
     "RecordLit", vs -> AST.mkRecordLit (decodeLabelled decodeF vs)
     "Union", vs -> AST.mkUnion (decodeLabelled (decodeN decodeF) vs)
-    "UnionLit", _
-      | Just { head, tail: vs } <- Array.uncons r."value"
-      , [label, value] <- decodeA identity head ->
-        AST.mkUnionLit (decodeS label) (decodeF value) (decodeLabelled decodeF vs)
     "Assert", [a] -> AST.mkAssert (decodeF a)
     "Equivalent", [a, b] -> AST.mkEquivalent (decodeF a) (decodeF b)
     "Hashed", [a, b] -> AST.mkHashed (decodeF a) (decodeHash b)

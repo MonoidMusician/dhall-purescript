@@ -290,6 +290,7 @@ renderBuiltinFuncs _ = identity
   >>> renderVFLensed (_S::S_ "NaturalOdd") named
   >>> renderVFLensed (_S::S_ "NaturalToInteger") named
   >>> renderVFLensed (_S::S_ "NaturalShow") named
+  >>> renderVFLensed (_S::S_ "NaturalSubtract") named
   >>> renderVFLensed (_S::S_ "IntegerShow") named
   >>> renderVFLensed (_S::S_ "IntegerToDouble") named
   >>> renderVFLensed (_S::S_ "DoubleShow") named
@@ -403,15 +404,9 @@ renderLiterals2 opts { df, rndr: renderA } = identity
   >>> renderVFLensed (_S::S_ "Some") [ mkLensed "value" _Newtype renderA ]
   >>> renderVFLensed (_S::S_ "RecordLit")
     [ mkLensed "values" identity (renderIOSM opts { df, rndr: renderA }) ]
-  >>> renderVFLensed (_S::S_ "UnionLit") renderUnionLit
   >>> renderVFLensed (_S::S_ "ListLit") renderListLit
   >>> renderVFLensed (_S::S_ "TextLit") [] -- TODO
   where
-    renderUnionLit =
-      [ mkLensed "label" (Product._1 <<< Tuple._1) (renderString opts)
-      , mkLensed "value" (Product._1 <<< Tuple._2) renderA
-      , mkLensed "types" Product._2 (renderIOSM opts { df, rndr: renderA })
-      ]
     renderListLit =
       [ mkLensed "type" Product._1 (renderMaybe opts { df, rndr: renderA })
       , mkLensed "values" Product._2 (renderArray opts { df, rndr: renderA })

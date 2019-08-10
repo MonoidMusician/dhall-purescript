@@ -2,7 +2,7 @@ module Dhall.Core.CBOR where
 
 import Prelude
 
-import Control.MonadZero (guard)
+import Control.MonadZero (guard, (<|>))
 import Control.Plus (empty)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Core as J
@@ -64,6 +64,7 @@ encode = recenc Nil where
       , "ListReverse": pure $ J.fromString "List/reverse"
       , "OptionalFold": pure $ J.fromString "Optional/fold"
       , "OptionalBuild": pure $ J.fromString "Optional/build"
+      , "NaturalSubtract": pure $ J.fromString "Natural/subtract"
       , "TextShow": pure $ J.fromString "Text/show"
       , "Bool": pure $ J.fromString "Bool"
       , "Optional": pure $ J.fromString "Optional"
@@ -130,10 +131,8 @@ encode = recenc Nil where
       , "Project": \(Product (Tuple (Identity expr) projs)) -> tagged 10 $ [ enc expr ] <>
           case projs of
             Left (App names) -> (J.fromString <<< fst <$> Dhall.Map.toUnfoldable names)
-            Right fields -> [ enc fields ]
+            Right fields -> [ J.fromArray [ enc fields ] ]
       , "Union": \m -> tagged 11 [ toObject $ maybe null enc <$> unwrap m ]
-      , "UnionLit": \(Product (Tuple (Tuple name val) m)) -> tagged 12
-          [ J.fromString name, enc val, toObject $ enc <$> m ]
       , "BoolLit": un Const >>> J.fromBoolean
       , "BoolIf": \(Triplet t l r) -> tagged 14 $ enc <$> [ t, l, r ]
       , "NaturalLit": tagged 15 <<< pure <<< un Const >>> natToInt >>> Int.toNumber >>> J.fromNumber
@@ -169,8 +168,11 @@ encode = recenc Nil where
             headers0 = AST.mkListLit (Just headerType) []
             headers1 = foldr addHeader headers0 headers
             headers2 = addHeader headers1 (fromHeaders moreHeaders)
+            headers3 = case Lens.preview AST._ListLit (AST.projectW headers2) of
+              Just { values: [] } -> Nothing
+              _ -> Just headers2
           in
-            enc headers2
+            maybe null enc headers3
       }
 
 null :: Json
@@ -297,12 +299,20 @@ decode = J.caseJson
   (pure empty)
   (pure <<< AST.mkBoolLit)
   -- TODO: distinguish number types???
-  (pure <<< AST.mkDoubleLit)
+  numberHack
   builtin
   (\a -> do
     { head, tail } <- Array.uncons a
-    tag <- decodeTag head
-    decodeTagged tag tail
+    (<|>)
+      do
+        var <- J.toString head
+        case tail of
+          [ idx ] | var /= "_", Just i <- decodeTag idx ->
+            pure $ AST.mkVar (AST.V var i)
+          _ -> Nothing
+      do
+        tag <- decodeTag head
+        decodeTagged tag tail
   )
   (pure empty)
   where
@@ -327,6 +337,7 @@ decode = J.caseJson
       "Optional/fold" -> pure AST.mkOptionalFold
       "Optional/build" -> pure AST.mkOptionalBuild
       "Text/show" -> pure AST.mkTextShow
+      "Natural/subtract" -> pure AST.mkNaturalSubtract
       "Bool" -> pure AST.mkBool
       "Optional" -> pure AST.mkOptional
       "None" -> pure AST.mkNone
@@ -339,6 +350,16 @@ decode = J.caseJson
       "Kind" -> pure AST.mkKind
       "Sort" -> pure AST.mkSort
       _ -> empty
+    -- FIXME: awful, awful hack
+    numberHack n =
+      let
+        n' = Int.fromNumber n >>=
+          case _ of
+            i | i >= 0 -> pure i
+            _ -> empty
+      in case n' of
+        Nothing -> pure (AST.mkDoubleLit n)
+        Just i -> pure (AST.mkVar (AST.V "_" i))
     decodeMaybe j = case J.toNull j of
       Just _ -> pure Nothing
       Nothing -> Just <$> decode j
@@ -393,7 +414,7 @@ decode = J.caseJson
         { head, tail } <- Array.uncons q
         head' <- decodeMaybe head
         tail' <- traverse decode tail
-        guard $ any tt head' || any tt tail'
+        guard $ (any tt head' :: Boolean) /= any tt tail'
         pure $ AST.mkListLit (AST.mkApp AST.mkList <$> head') tail'
       5 -> case _ of
         [ nll, t ] -> do
@@ -428,8 +449,8 @@ decode = J.caseJson
           Just tail' ->
             pure $ Left $ Dhall.Map.fromFoldable $ Tuple <$> tail' <@> unit
           Nothing -> case tail of
-            [ fields ] -> do
-              fields' <- decode fields
+            [ fields ] | Just [ fieldType ] <- J.toArray fields -> do
+              fields' <- decode fieldType
               pure $ Right fields'
             _ -> empty
         pure $ AST.mkProject expr' proj'
@@ -438,19 +459,15 @@ decode = J.caseJson
           m' <- fromObject m
           AST.mkUnion <$> traverse decodeMaybe m'
         _ -> empty
-      12 -> case _ of
-        [ name, val, m ] -> do
-          name' <- J.toString name
-          val' <- decode val
-          m' <- fromObject m
-          AST.mkUnionLit name' val' <$> traverse decode m'
-        _ -> empty
       14 -> case _ of
         [ t, l, r ] -> AST.mkBoolIf <$> decode t <*> decode l <*> decode r
         _ -> empty
       15 -> case _ of
         [ n ] -> do
-          n' <- J.toNumber n >>= Int.fromNumber >>> map intToNat
+          n' <- J.toNumber n >>= Int.fromNumber >>=
+            case _ of
+              i | i >= 0 -> pure (intToNat i)
+              _ -> empty
           pure $ AST.mkNaturalLit n'
         _ -> empty
       16 -> case _ of

@@ -86,7 +86,6 @@ type Literals2 (m :: Type -> Type) v =
   , "Some" :: FProxy Identity
   , "None" :: CONST Unit
   , "RecordLit" :: FProxy m
-  , "UnionLit" :: FProxy (Product (Tuple String) m)
   | v
   )
 
@@ -96,7 +95,6 @@ type Literals2' (m :: Type -> Type) (m' :: Type -> Type) v =
   , "Some" :: FProxy Identity'
   , "None" :: VOID
   , "RecordLit" :: FProxy m'
-  , "UnionLit" :: FProxy (Product' (Tuple String) (Tuple' String) m m')
   | v
   )
 
@@ -106,7 +104,6 @@ type Literals2I v =
   , "Some" :: IdentityI
   , "None" :: Void
   , "RecordLit" :: String
-  , "UnionLit" :: ProductI (TupleI String) String
   | v
   )
 
@@ -175,6 +172,7 @@ type BuiltinFuncs (m :: Type -> Type) vs =
   , "NaturalOdd" :: UNIT
   , "NaturalToInteger" :: UNIT
   , "NaturalShow" :: UNIT
+  , "NaturalSubtract" :: UNIT
   , "IntegerShow" :: UNIT
   , "IntegerToDouble" :: UNIT
   , "DoubleShow" :: UNIT
@@ -199,6 +197,7 @@ type BuiltinFuncs' (m :: Type -> Type) (m' :: Type -> Type) vs =
   , "NaturalOdd" :: VOID
   , "NaturalToInteger" :: VOID
   , "NaturalShow" :: VOID
+  , "NaturalSubtract" :: VOID
   , "IntegerShow" :: VOID
   , "IntegerToDouble" :: VOID
   , "DoubleShow" :: VOID
@@ -223,6 +222,7 @@ type BuiltinFuncsI vs =
   , "NaturalOdd" :: Void
   , "NaturalToInteger" :: Void
   , "NaturalShow" :: Void
+  , "NaturalSubtract" :: Void
   , "IntegerShow" :: Void
   , "IntegerToDouble" :: Void
   , "DoubleShow" :: Void
@@ -539,6 +539,7 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
       # VariantF.on (_S::S_ "NaturalOdd") (const "mkNaturalOdd")
       # VariantF.on (_S::S_ "NaturalToInteger") (const "mkNaturalToInteger")
       # VariantF.on (_S::S_ "NaturalShow") (const "mkNaturalShow")
+      # VariantF.on (_S::S_ "NaturalSubtract") (const "mkNaturalSubtract")
       # VariantF.on (_S::S_ "IntegerShow") (const "mkIntegerShow")
       # VariantF.on (_S::S_ "IntegerToDouble") (const "mkIntegerToDouble")
       # VariantF.on (_S::S_ "DoubleShow") (const "mkDoubleShow")
@@ -570,8 +571,6 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
           )
       # VariantF.on (_S::S_ "Union")
         (\a -> "(mkUnion " <> rec (mb <$> unwrap a) <> ")")
-      # VariantF.on (_S::S_ "UnionLit")
-        (\(Product (Tuple (Tuple ty val) a)) -> "(mkUnionLit " <> ty <> val <> rec a <> ")")
       )
 
 instance eqExpr :: (Eq1 m, Eq a) => Eq (Expr m a) where
@@ -727,6 +726,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (_S::S_ "NaturalShow")
     # vfEqCase (_S::S_ "NaturalTimes")
     # vfEqCase (_S::S_ "NaturalToInteger")
+    # vfEqCase (_S::S_ "NaturalSubtract")
     # vfEqCase (_S::S_ "None")
     # vfEqCase (_S::S_ "Optional")
     # vfEqCase (_S::S_ "OptionalBuild")
@@ -743,7 +743,6 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (_S::S_ "TextShow")
     # vfEqCase (_S::S_ "ToMap")
     # vfEq1Case (_S::S_ "Union")
-    # vfEq1Case (_S::S_ "UnionLit")
     # vfEqCase (_S::S_ "UsingHeaders")
     # vfEqCase (_S::S_ "Var")
     ) e1 e2
@@ -802,6 +801,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (_S::S_ "NaturalShow")
     # vfOrdCase (_S::S_ "NaturalTimes")
     # vfOrdCase (_S::S_ "NaturalToInteger")
+    # vfOrdCase (_S::S_ "NaturalSubtract")
     # vfOrdCase (_S::S_ "None")
     # vfOrdCase (_S::S_ "Optional")
     # vfOrdCase (_S::S_ "OptionalBuild")
@@ -818,7 +818,6 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (_S::S_ "TextShow")
     # vfOrdCase (_S::S_ "ToMap")
     # vfOrd1Case (_S::S_ "Union")
-    # vfOrd1Case (_S::S_ "UnionLit")
     # vfOrdCase (_S::S_ "UsingHeaders")
     # vfOrdCase (_S::S_ "Var")
     ) e1 e2
@@ -877,6 +876,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (_S::S_ "NaturalShow")
     # vfEqCase (_S::S_ "NaturalTimes")
     # vfEqCase (_S::S_ "NaturalToInteger")
+    # vfEqCase (_S::S_ "NaturalSubtract")
     # vfEqCase (_S::S_ "None")
     # vfEqCase (_S::S_ "Optional")
     # vfEqCase (_S::S_ "OptionalBuild")
@@ -893,7 +893,6 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (_S::S_ "TextShow")
     # vfEqCase (_S::S_ "ToMap")
     # vfEq1Case (_S::S_ "Union")
-    # vfEq1Case (_S::S_ "UnionLit")
     # vfEqCase (_S::S_ "UsingHeaders")
     # vfEqCase (_S::S_ "Var")
     ) e1 e2
@@ -952,6 +951,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (_S::S_ "NaturalShow")
     # vfOrdCase (_S::S_ "NaturalTimes")
     # vfOrdCase (_S::S_ "NaturalToInteger")
+    # vfOrdCase (_S::S_ "NaturalSubtract")
     # vfOrdCase (_S::S_ "None")
     # vfOrdCase (_S::S_ "Optional")
     # vfOrdCase (_S::S_ "OptionalBuild")
@@ -968,7 +968,6 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (_S::S_ "TextShow")
     # vfOrdCase (_S::S_ "ToMap")
     # vfOrd1Case (_S::S_ "Union")
-    # vfOrd1Case (_S::S_ "UnionLit")
     # vfOrdCase (_S::S_ "UsingHeaders")
     # vfOrdCase (_S::S_ "Var")
     ) e1 e2

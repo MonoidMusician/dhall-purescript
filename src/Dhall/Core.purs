@@ -131,6 +131,7 @@ import Dhall.Core.AST
   , _NaturalOdd
   , _NaturalPlus
   , _NaturalShow
+  , _NaturalSubtract
   , _NaturalTimes
   , _NaturalToInteger
   , _None
@@ -153,7 +154,6 @@ import Dhall.Core.AST
   , _TextLit_single
   , _ToMap
   , _Union
-  , _UnionLit
   , _Union_empty
   , _UsingHeaders
   , _Var
@@ -212,6 +212,7 @@ import Dhall.Core.AST
   , mkNaturalOdd
   , mkNaturalPlus
   , mkNaturalShow
+  , mkNaturalSubtract
   , mkNaturalTimes
   , mkNaturalToInteger
   , mkNone
@@ -232,7 +233,6 @@ import Dhall.Core.AST
   , mkToMap
   , mkType
   , mkUnion
-  , mkUnionLit
   , mkUsingHeaders
   , mkVar
   , projectW

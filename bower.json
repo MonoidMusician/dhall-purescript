@@ -26,7 +26,8 @@
     "purescript-node-fs-aff": "^6.0.0",
     "purescript-argonaut-core": "^5.0.0",
     "purescript-memoize": "^5.0.0",
-    "purescript-node-process": "^7.0.0"
+    "purescript-node-process": "^7.0.0",
+    "purescript-node-child-process": "^6.0.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"

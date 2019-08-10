@@ -3,17 +3,23 @@ module Dhall.Test.Standard where
 import Prelude
 
 import Control.Comonad (extract)
+import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.Writer (WriterT(..))
 import Data.Array (foldMap)
 import Data.Array as Array
+import Data.ArrayBuffer.Types (ArrayBuffer)
+import Data.Either (Either(..))
 import Data.Foldable (traverse_)
+import Data.FoldableWithIndex (forWithIndex_)
+import Data.Map (Map)
+import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Newtype (unwrap, wrap)
 import Data.String (Pattern(..), stripSuffix)
 import Data.String as String
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
-import Dhall.Core (Directory(..), File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), alphaNormalize)
+import Dhall.Core (Directory(..), File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), alphaNormalize, conv, unordered)
 import Dhall.Core as AST
 import Dhall.Core.CBOR (decode)
 import Dhall.Core.Imports.Resolve as Resolve
@@ -26,12 +32,18 @@ import Dhall.Test.Util (eqArrayBuffer)
 import Dhall.Test.Util as Util
 import Dhall.TypeCheck as TC
 import Effect (Effect)
-import Effect.Aff (Aff, catchError, error, launchAff_, message, throwError)
+import Effect.Aff (Aff, catchError, error, launchAff_, makeAff, message, throwError)
+import Effect.Aff.Class (liftAff)
 import Effect.Class (liftEffect)
-import Effect.Class.Console (log)
+import Effect.Class.Console (log, logShow)
+import Effect.Ref (Ref)
 import Effect.Ref as Ref
+import Node.Buffer as Buffer
+import Node.ChildProcess as ChildProcess
+import Node.Encoding (Encoding(..))
 import Node.Path (FilePath)
 import Node.Process as Process
+import Node.Stream as Stream
 import Validation.These as V
 
 root = "./dhall-lang/tests/" :: String
@@ -51,31 +63,41 @@ etonFb :: forall w e a b.
 etonFb _ (WriterT (V.Error es _)) = pure unit
 etonFb msg (WriterT (V.Success (Tuple a _))) = throwError (error msg)
 
-logErrorWith :: Aff Unit -> Aff Unit -> Aff Unit
+type R =
+  { filter :: String -> String -> Maybe Boolean
+  , results :: Ref (Map String Int)
+  }
+type RT = ReaderT R Aff
+
+logErrorWith :: RT Unit -> RT Unit -> RT Unit
 logErrorWith desc = catchError <@> \err ->
   desc *> log ("  " <> message err)
 
-testType :: String -> (FilePath -> Aff Unit) -> (FilePath -> Aff Unit) -> Aff Unit
+testType :: String -> (Boolean -> FilePath -> Aff Unit) -> (Boolean -> FilePath -> Aff Unit) -> RT Unit
 testType ty = testType' ty ".dhall"
 
-testType' :: String -> String -> (FilePath -> Aff Unit) -> (FilePath -> Aff Unit) -> Aff Unit
-testType' ty suff success failure = do
-  argv <- liftEffect $ Array.drop 2 <$> Process.argv
-  when (Array.null argv || Array.elem ty argv) do
-    successes <- Util.discover2 ("A" <> suff) (root <> ty <> "/success") <#>
-      Array.filter (\a -> not Array.any (Util.endsWith a) argv)
-    count0 <- liftEffect $ Ref.new 0
-    let incr0 f a = f a <* do liftEffect $ Ref.modify_ (_ + 1) count0
-    traverse_ (logErrorWith <$> log <*> incr0 success) successes
-    count1 <- liftEffect $ Ref.new 0
-    let incr1 f a = f a <* do liftEffect $ Ref.modify_ (_ + 1) count1
-    failures <- Util.discover2 suff (root <> ty <> "/failure") <#>
-      Array.filter (\a -> not Array.any (Util.endsWith a) argv)
-    traverse_ (logErrorWith <$> log <*> incr1 failure) failures
-    counted0 <- liftEffect $ Ref.read count0
-    counted1 <- liftEffect $ Ref.read count1
-    log $ ty <> " score: (" <> show counted0 <> " + " <> show counted1 <> ") / (" <>
-      (show $ Array.length successes) <> " + " <> (show $ Array.length failures) <> ") = " <> (show $ (100 * (counted0 + counted1)) / (Array.length successes + Array.length failures)) <> "%"
+testType' :: String -> String -> (Boolean -> FilePath -> Aff Unit) -> (Boolean -> FilePath -> Aff Unit) -> RT Unit
+testType' section suff success failure = do
+  { filter, results } <- ask
+  let
+    incr :: Ref Int -> RT Unit
+    incr c = liftEffect $ Ref.modify_ (_ + 1) c
+  successes <- liftAff $ Util.discover2 ("A" <> suff) (root <> section <> "/success") <#>
+    Array.mapMaybe (\file -> Tuple <$> filter section file <@> file)
+  count0 <- liftEffect $ Ref.new 0
+  traverse_ (\(Tuple verb file) -> logErrorWith (log file) (log file *> liftAff (success verb file) *> incr count0)) successes
+  count1 <- liftEffect $ Ref.new 0
+  failures <- liftAff $ Util.discover2 suff (root <> section <> "/failure") <#>
+    Array.mapMaybe (\file -> Tuple <$> filter section file <@> file)
+  traverse_ (\(Tuple verb file) -> logErrorWith (log file) (log file *> liftAff (failure verb file) *> incr count1)) failures
+  counted0 <- liftEffect $ Ref.read count0
+  counted1 <- liftEffect $ Ref.read count1
+  let execed = Array.length successes + Array.length failures
+  let percent = (100 * (counted0 + counted1)) / execed
+  when (execed > 0) do
+    liftEffect $ Ref.modify_ (Map.insert section percent) results
+    log $ section <> " score: (" <> show counted0 <> " + " <> show counted1 <> ") / (" <>
+      (show $ Array.length successes) <> " + " <> (show $ Array.length failures) <> ") = " <> (show percent) <> "%"
 
 mkActions :: String -> String -> String -> Actions
 mkActions ty file = Test.mkActions'
@@ -95,25 +117,46 @@ mkActions ty file = Test.mkActions'
   , retriever: nodeRetrieve
   }
 
-test :: Aff Unit
+logDiag :: ArrayBuffer -> Aff Unit
+logDiag ab = makeAff \cb -> do
+  cp <- ChildProcess.spawn "cbor2diag.rb" [] ChildProcess.defaultSpawnOptions
+  ChildProcess.onError cp \_ -> cb (Right unit)
+  let stdout = ChildProcess.stdout cp
+  result <- Ref.new mempty
+  Stream.onDataString stdout UTF8 \res ->
+    Ref.modify_ (_ <> res) result
+  ChildProcess.onExit cp \_ -> do
+    res <- Ref.read result
+    log res
+    cb (Right unit)
+  let stdin = ChildProcess.stdin cp
+  buffer <- Buffer.fromArrayBuffer ab
+  void $ Stream.write stdin buffer (Stream.end stdin mempty)
+  pure mempty
+
+test :: RT Unit
 test = do
   testType "parser"
-    do \success -> do
+    do \verb success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
         let actA = mkActions "parser" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
         binB <- nodeReadBinary (success <> "B.dhallb")
         when ((extract parsedA.encoded).cbor `not eqArrayBuffer` binB) do
+          when verb do
+            logShow parsedA.parsed
+            logDiag (extract parsedA.encoded).cbor
+            logDiag binB
           throwError (error "Binary did not match")
-    do \failure -> do
+    do \verb failure -> do
         text <- nodeRetrieveFile (failure <> ".dhall")
         let act = mkActions "parser" failure text
         let parsed = act.parse # unwrap # extract
         when (isJust parsed) do
           throwError (error "Was not supposed to parse")
   testType "normalization"
-    do \success -> do
+    do \verb success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
         let actA = mkActions "normalization" success textA
         parsedA <- actA.parse # unwrap # extract #
@@ -122,12 +165,16 @@ test = do
         let actB = mkActions "normalization" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
-        when (extract parsedA.unsafeNormalized /= parsedB.parsed) do
+        let norm = (conv <<< unordered) (extract parsedA.unsafeNormalized)
+        when (norm /= parsedB.parsed) do
+          when verb do
+            logShow $ norm
+            logShow $ parsedB.parsed
           throwError (error "Normalization did not match")
-    do \failure ->
+    do \verb failure ->
         throwError (error "Why is there a normalization failure?")
   testType "alpha-normalization"
-    do \success -> do
+    do \verb success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
         let actA = mkActions "alpha-normalization" success textA
         parsedA <- actA.parse # unwrap # extract #
@@ -138,10 +185,10 @@ test = do
           note "Failed to parse B"
         when (alphaNormalize parsedA.parsed /= parsedB.parsed) do
           throwError (error "Alpha-normalization did not match")
-    do \failure ->
+    do \verb failure ->
         throwError (error "Why is there an alpha-normalization failure?")
   testType "semantic-hash"
-    do \success -> do
+    do \verb success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
         let actA = mkActions "semantic-hash" success textA
         parsedA <- actA.parse # unwrap # extract #
@@ -156,10 +203,10 @@ test = do
           throwError $ error $ "Binary did not match"
             <> "\n    Got: " <> hashA
             <> "\n    Exp: " <> hashB
-    do \failure ->
+    do \verb failure ->
         throwError (error "Why is there a semantic hash failure?")
   testType "typecheck"
-    do \success -> do
+    do \verb success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
         let actA = mkActions "typecheck" success textA
         parsedA <- actA.parse # unwrap # extract #
@@ -174,7 +221,7 @@ test = do
           note "Failed to resolve B"
         void $ Test.tc' (AST.mkAnnot importedA.resolved importedB.resolved) #
           noteFb "Typechecking failed"
-    do \failure -> do
+    do \verb failure -> do
         text <- nodeRetrieveFile (failure <> ".dhall")
         let act = mkActions "typecheck" failure text
         parsed <- act.parse # unwrap # extract #
@@ -184,7 +231,7 @@ test = do
         imported.typechecked # unwrap # extract #
           etonFb "Was not supposed to typecheck"
   testType "type-inference"
-    do \success -> do
+    do \verb success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
         let actA = mkActions "type-inference" success textA
         parsedA <- actA.parse # unwrap # extract #
@@ -201,10 +248,10 @@ test = do
           note "Failed to resolve B"
         when (extract typecheckedA.normalizedType /= importedB.resolved) do
           throwError (error "Type inference did not match")
-    do \failure ->
+    do \verb failure ->
         throwError (error "Why is there a type-inference failure?")
   testType "import"
-    do \success -> do
+    do \verb success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
         let actA = mkActions "import" success textA
         parsedA <- actA.parse # unwrap # extract #
@@ -219,7 +266,7 @@ test = do
           note "Failed to resolve B"
         when (importedA.resolved /= importedB.resolved) do
           throwError (error "Imports did not match")
-    do \failure -> do
+    do \verb failure -> do
         text <- nodeRetrieveFile (failure <> ".dhall")
         let act = mkActions "import" failure text
         parsed <- act.parse # unwrap # extract #
@@ -227,7 +274,7 @@ test = do
         void $ parsed.imports # unwrap # extract # unwrap >>=
           etonFb "Was not supposed to import correctly"
   testType' "binary-decode" ".dhallb"
-    do \success -> do
+    do \verb success -> do
         binA <- nodeReadBinary (success <> "A.dhallb")
         decodedA <- binA # CBOR.decode # decode #
           note "Failed to decode A"
@@ -236,12 +283,42 @@ test = do
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
         when (decodedA /= parsedB.parsed) do
-          throwError (error "Binary did not match")
-    do \failure -> do
+          when verb do
+            logShow decodedA
+            logShow parsedB.parsed
+          throwError (error "Expressions did not match")
+    do \verb failure -> do
         bin <- nodeReadBinary (failure <> ".dhallb")
         let decoded = (bin # CBOR.decode # decode) :: Maybe Resolve.ImportExpr
         when (isJust decoded) do
           throwError (error "Was not supposed to decode")
 
 main :: Effect Unit
-main = launchAff_ test
+main = launchAff_ do
+  argv <- Array.drop 2 <$> liftEffect Process.argv
+  let
+    { no: sections_, yes: files_ } =
+      Array.partition (String.contains (String.Pattern "/")) argv
+    separate as =
+      { yes: Array.filter (not Util.startsWith <@> "-") as
+      , no: Array.mapMaybe (Util.startingWith <@> "-") as
+      }
+    sections = separate sections_
+    files = separate files_
+    filter :: String -> String -> Maybe Boolean
+    filter section file =
+      let
+        allowed = Array.elem section sections.yes || Array.elem file files.yes ||
+          (Array.null sections.yes && Array.null files.yes)
+        rejected = Array.elem section sections.no || Array.elem file files.no
+      in if allowed && not rejected
+        then Just (Array.elem file files.yes)
+        else Nothing
+  results <- liftEffect $ Ref.new mempty
+  runReaderT test { filter, results }
+  finalResults <- liftEffect $ Ref.read results
+  if finalResults == mempty
+    then log "No tests run"
+    else
+      forWithIndex_ finalResults \k v ->
+        log $ k <> ": " <> show v <> "%"

@@ -305,6 +305,12 @@ mkNaturalShow = mkExpr (_S::S_ "NaturalShow") unit
 _NaturalShow :: forall r. ExprPrism ( "NaturalShow" :: UNIT | r ) Unit
 _NaturalShow = _ExprPrism (_S::S_ "NaturalShow")
 
+mkNaturalSubtract :: forall m a. Expr m a
+mkNaturalSubtract = mkExpr (_S::S_ "NaturalSubtract") unit
+
+_NaturalSubtract :: forall r. ExprPrism ( "NaturalSubtract" :: UNIT | r ) Unit
+_NaturalSubtract = _ExprPrism (_S::S_ "NaturalSubtract")
+
 mkNaturalPlus :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkNaturalPlus = mkBinOp (_S::S_ "NaturalPlus")
 
@@ -526,17 +532,6 @@ _Union = _ExprFPrism (_S::S_ "Union")
 _Union_empty :: forall r o m. MapLike String m =>
   Prism' (VariantF ( "Union" :: FProxy (Compose m Maybe) | r ) o) Unit
 _Union_empty = _Union <<< _Newtype <<< Dhall.Map._Empty
-
-mkUnionLit :: forall m a. Functor m => String -> Expr m a -> m (Expr m a) -> Expr m a
-mkUnionLit name value others = mkExprF (_S::S_ "UnionLit")
-  (product (Tuple name value) others)
-
-_UnionLit :: forall r o m. Functor m => Prism'
-  (VariantF ( "UnionLit" :: FProxy (Product (Tuple String) m) | r ) o)
-  { label :: String, value :: o, tys :: m o }
-_UnionLit = _ExprFPrism (_S::S_ "UnionLit") <<< _Newtype <<< iso into outof where
-  into (Tuple (Tuple label value) tys) = { label, value, tys }
-  outof { label, value, tys } = Tuple (Tuple label value) tys
 
 mkCombine :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkCombine = mkBinOp (_S::S_ "Combine")

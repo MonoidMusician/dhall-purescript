@@ -165,3 +165,7 @@ unordered = conv
 
 convTo :: forall k m m'. MapLike k m => MapLike k m' => Proxy2 m' -> m ~> m'
 convTo Proxy2 = conv
+
+toUnfoldableSorted :: forall k m f a. MapLike k m => Unfoldable f =>
+  m a -> f (Tuple k a)
+toUnfoldableSorted = unordered >>> toUnfoldable

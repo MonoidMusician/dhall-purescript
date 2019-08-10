@@ -19,6 +19,11 @@ startsWith :: String -> String -> Boolean
 startsWith str pre =
   pre == String.take (String.length pre) str
 
+startingWith :: String -> String -> Maybe String
+startingWith str pre =
+  let { before, after } = String.splitAt (String.length pre) str
+  in if before == pre then Just after else Nothing
+
 endsWith :: String -> String -> Boolean
 endsWith str post =
   post == String.drop (String.length str - String.length post) str

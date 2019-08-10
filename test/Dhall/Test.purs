@@ -15,7 +15,7 @@ import Data.Newtype (unwrap)
 import Data.Traversable (class Traversable, traverse)
 import Data.Tuple (Tuple(..), fst)
 import Dhall.Context as Dhall.Context
-import Dhall.Core (Expr, Import)
+import Dhall.Core (Expr, Import, unordered)
 import Dhall.Core as Dhall.Core
 import Dhall.Core.CBOR (encode)
 import Dhall.Core.Imports.Hash as Hash
@@ -112,7 +112,7 @@ mkActions' resolver text =
       , unsafeNormalized: defer \_ -> normalize parsed
       , encoded: defer \_ ->
           let
-            json = encode parsed
+            json = encode $ unordered parsed
             cbor = CBOR.encode json
           in { json, cbor }
       , imports:
@@ -124,7 +124,7 @@ mkActions' resolver text =
           , unsafeNormalized: defer \_ -> normalize resolved
           , encoded: defer \_ ->
               let
-                json = encode parsed
+                json = encode $ unordered parsed
                 cbor = CBOR.encode json
               in { json, cbor }
           , typechecked: Compose $ defer \_ ->

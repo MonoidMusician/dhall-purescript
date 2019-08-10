@@ -26,7 +26,6 @@ hoistExpr nat = over Expr $ hoistFree \a ->
     , "Record": ($) nat
     , "RecordLit": ($) nat
     , "Union": ($) over Compose nat
-    , "UnionLit": (bihoistProduct identity nat $ _)
     } identity a
 
 conv :: forall m m'. MapLike String m => MapLike String m' => Expr m ~> Expr m'

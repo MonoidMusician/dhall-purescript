@@ -9,6 +9,7 @@ import Data.Array (foldr)
 import Data.Array as Array
 import Data.Const (Const)
 import Data.Either (Either(..))
+import Data.Enum (toEnum)
 import Data.Function (on)
 import Data.Functor.App as AppF
 import Data.Functor.Product (Product(..), product)
@@ -17,6 +18,7 @@ import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Int (even, toNumber)
+import Data.Int as Int
 import Data.Lazy (Lazy, defer)
 import Data.Lens as Lens
 import Data.Map (Map)
@@ -26,13 +28,14 @@ import Data.Monoid.Conj (Conj(..))
 import Data.Monoid.Disj (Disj(..))
 import Data.Natural (Natural, intToNat, natToInt, (+-))
 import Data.Newtype (class Newtype, un, unwrap, wrap)
+import Data.String as String
 import Data.Symbol (class IsSymbol)
 import Data.These (These(..))
 import Data.Traversable (class Traversable, sequence, traverse)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Core.AST (CONST, Expr, TextLitF(..), UNIT)
+import Dhall.Core.AST (CONST, Expr, TextLitF(..), UNIT, ExprLayerRow)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, ConsNodeOpsM, OverCasesM(..), runAlgebraExprM)
 import Dhall.Core.AST.Types.Basics (S_, _S)
@@ -358,9 +361,11 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
               do \tl2 -> instead \_ -> (AST.TextLit s <> tl2) <> (extractW (trav tl))
               do \_ -> lift2 (AST.TextInterp s) (v <$ v) (trav tl)
             )
-          finalize tl = case extractW (trav tl) of
-            AST.TextInterp "" v' (AST.TextLit "") -> simpler v'
-            _ -> reconstruct (_S::S_ "TextLit") tl
+          finalize tl =
+            let tl' = trav tl in
+            case extractW tl' of
+              AST.TextInterp "" v' (AST.TextLit "") -> simpler v'
+              _ -> reconstruct (_S::S_ "TextLit") =<< tl'
         in finalize
       )
     >>> expose (_S::S_ "TextAppend")
@@ -368,7 +373,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
         Just a, Just b -> anew (_S::S_ "TextLit") (a <> b)
         Just (AST.TextLit ""), _ -> simpler r
         _, Just (AST.TextLit "") -> simpler l
-        _, _ -> reconstruct (_S::S_ "TextAppend") (AST.Pair l r)
+        _, _ -> anewAnd (_S::S_ "TextLit") (TextInterp "" l (TextInterp "" r (TextLit "")))
       )
     >>> expose (_S::S_ "ListLit")
       (\(Product (Tuple mty vs)) ->
@@ -399,6 +404,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
               Dhall.Map.unionWith (pure $ pure <<< decideThese) a b
           Just a, _ | Dhall.Map.isEmpty a -> simpler r
           _, Just b | Dhall.Map.isEmpty b -> simpler l
+          _, _ | judgEq l r -> simpler r
           _, _ -> reconstruct (_S::S_ "Combine") (AST.Pair l r)
       in decide)
     >>> expose (_S::S_ "CombineTypes")
@@ -412,6 +418,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
               Dhall.Map.unionWith (pure $ pure <<< decideThese) a b
           Just a, _ | Dhall.Map.isEmpty a -> simpler r
           _, Just b | Dhall.Map.isEmpty b -> simpler l
+          _, _ | judgEq l r -> simpler r
           _, _ -> reconstruct (_S::S_ "CombineTypes") (AST.Pair l r)
       in decide)
     >>> expose (_S::S_ "Prefer")
@@ -419,12 +426,13 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
         preference = case _ of
           This a -> a
           That b -> b
-          Both a _ -> a
+          Both _ a -> a -- Prefer the right operand!
         decide = binOpWith (previewF (_S::S_ "RecordLit")) \l r -> case _, _ of
           Just a, Just b -> anew (_S::S_ "RecordLit") $
               Dhall.Map.unionWith (pure $ pure <<< preference) a b
           Just a, _ | Dhall.Map.isEmpty a -> simpler r
           _, Just b | Dhall.Map.isEmpty b -> simpler l
+          _, _ | judgEq l r -> simpler r
           _, _ -> reconstruct (_S::S_ "Prefer") (AST.Pair l r)
       in decide)
     >>> expose (_S::S_ "Merge")
@@ -434,12 +442,21 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           in x # exposeW (_S::S_ "RecordLit")
             do \kvsX ->
                 -- TODO: union field
-                y # exposeW (_S::S_ "UnionLit")
-                  do \(Product (Tuple (Tuple kY vY) _)) ->
-                      case Dhall.Map.get kY kvsX of
-                        Just vX -> anewAnd (_S::S_ "App") (AST.Pair vX vY)
-                        _ -> default unit
-                  do \_ -> default unit
+                y # exposeW (_S::S_ "App")
+                  do \(AST.Pair field vY) ->
+                      field # exposeW (_S::S_ "Field")
+                        do \(Tuple kY _) ->
+                            case Dhall.Map.get kY kvsX of
+                              Just vX -> anewAnd (_S::S_ "App") (AST.Pair vX vY)
+                              _ -> default unit
+                        do \_ -> default unit
+                  do \_ ->
+                      y # exposeW (_S::S_ "Field")
+                        do \(Tuple kY _) ->
+                            case Dhall.Map.get kY kvsX of
+                              Just vX -> simpler vX
+                              _ -> default unit
+                        do \_ -> default unit
             do \_ -> default unit
       )
     >>> expose (_S::S_ "ToMap")
@@ -450,7 +467,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
             do \kvs ->
                 anew (_S::S_ "ListLit") $ Product $
                   Tuple (if Dhall.Map.isEmpty kvs then mty else Nothing) $
-                    Dhall.Map.toUnfoldable kvs <#> \(Tuple k v) ->
+                    Dhall.Map.toUnfoldableSorted kvs <#> \(Tuple k v) ->
                       anew (_S::S_ "RecordLit") $ Dhall.Map.fromFoldable
                         [ Tuple "mapKey" (anew (_S::S_ "TextLit") (TextLit k))
                         , Tuple "mapValue" v
@@ -467,7 +484,62 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
               case Dhall.Map.get k kvs of
                 Just v -> simpler v
                 _ -> default unit
-          do \_ -> default unit
+          do \_ -> r # exposeW (_S::S_ "Project")
+              do \(Product (Tuple (Identity r') _)) ->
+                  anewAnd (_S::S_ "Field") (Tuple k r')
+              do \_ -> r # exposeW (_S::S_ "Prefer")
+                  do \(AST.Pair r1 r2) ->
+                      r1 # exposeW (_S::S_ "RecordLit")
+                        do \kvs ->
+                            case Dhall.Map.get k kvs of
+                              -- Ensure this is strictly better
+                              Just v | Dhall.Map.size kvs == 1 ->
+                                default unit
+                              Just v ->
+                                let single = Dhall.Map.singleton k v in
+                                anewAnd (_S::S_ "Field") $ Tuple k $
+                                anewAnd (_S::S_ "Prefer")
+                                  (AST.Pair (anew (_S::S_ "RecordLit") single) r2)
+                              Nothing ->
+                                anewAnd (_S::S_ "Field") $ Tuple k r2
+                        do \_ -> r2 # exposeW (_S::S_ "RecordLit")
+                            do \kvs ->
+                                case Dhall.Map.get k kvs of
+                                  Just v ->
+                                    simpler v
+                                  Nothing ->
+                                    anewAnd (_S::S_ "Field") $ Tuple k r1
+                            do \_ -> default unit
+                  do \_ -> r # exposeW (_S::S_ "Combine")
+                      do \(AST.Pair r1 r2) ->
+                          r1 # exposeW (_S::S_ "RecordLit")
+                            do \kvs ->
+                                case Dhall.Map.get k kvs of
+                                  -- Ensure this is strictly better
+                                  Just v | Dhall.Map.size kvs == 1 ->
+                                    default unit
+                                  Just v ->
+                                    let single = Dhall.Map.singleton k v in
+                                    anewAnd (_S::S_ "Field") $ Tuple k $
+                                    anewAnd (_S::S_ "Combine")
+                                      (AST.Pair (anew (_S::S_ "RecordLit") single) r2)
+                                  Nothing ->
+                                    anewAnd (_S::S_ "Field") $ Tuple k r2
+                            do \_ -> r2 # exposeW (_S::S_ "RecordLit")
+                                do \kvs ->
+                                    case Dhall.Map.get k kvs of
+                                      -- Ensure this is strictly better
+                                      Just v | Dhall.Map.size kvs == 1 ->
+                                        default unit
+                                      Just v ->
+                                        let single = Dhall.Map.singleton k v in
+                                        anewAnd (_S::S_ "Field") $ Tuple k $
+                                        anewAnd (_S::S_ "Combine")
+                                          (AST.Pair r1 (anew (_S::S_ "RecordLit") single))
+                                      Nothing ->
+                                        anewAnd (_S::S_ "Field") $ Tuple k r1
+                                do \_ -> default unit
+                      do \_ -> default unit
       )
     >>> expose (_S::S_ "Project")
       (\(Product (Tuple (Identity r) proj)) ->
@@ -475,7 +547,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           default _ = reconstruct (_S::S_ "Project") (Product (Tuple (Identity r) proj))
           mks = case proj of
             Left (AppF.App ks) -> Just ks
-            Right t -> t # exposeW (_S::S_ "RecordLit") (Just <<< (unit <$ _)) \_ -> Nothing
+            Right t -> t # exposeW (_S::S_ "Record") (Just <<< (unit <$ _)) \_ -> Nothing
         in case mks of
           Nothing -> default unit
           Just ks
@@ -487,11 +559,14 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                       adapt = case _ of
                         Both (_ :: Unit) v -> Just v
                         _ -> Nothing
-                    in case sequence $ Dhall.Map.unionWith (pure (pure <<< adapt)) ks kvs of
-                      -- TODO: recurse necessary?
-                      Just vs' -> anewAnd (_S::S_ "RecordLit") vs'
-                      _ -> default unit
-                do \_ -> default unit
+                    in
+                      anewAnd (_S::S_ "RecordLit") $
+                        Dhall.Map.unionWith (pure adapt) ks kvs
+                do \_ ->
+                    case proj of
+                      Left _ -> default unit
+                      Right _ -> anew (_S::S_ "Project")
+                        (Product (Tuple (Identity r) (Left (AppF.App ks))))
       )
     -- NOTE: eta-normalization, added
     >>> expose (_S::S_ "Lam")
@@ -505,8 +580,10 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           \(AST.Pair fn arg) ->
             let var0 = AST.V var 0 in
             if unlayers (extractW arg) == AST.mkVar var0 && not (un Disj (freeIn var0 (extractW fn)))
-              -- FIXME: shift
-              then instead \_ -> extractW fn
+              then instead \_ ->
+                extractW $
+                  node.recurse (Variant.inj (_S::S_ "shift") { variable: var0, delta: (-1) }) $
+                    extractW fn
               else default unit
       )
     -- composing with <<< gives this case priority
@@ -608,6 +685,7 @@ conversionsG :: forall all' node v ops.
     , "IntegerLit" :: CONST Int
     , "TextLit" :: FProxy AST.TextLitF
     , "DoubleLit" :: CONST Number
+    , "TextShow" :: UNIT
     | all'
     )
     (Variant (ShiftSubstAlg node v)) node ops
@@ -633,7 +711,35 @@ conversionsG again = GNormalizer \node -> case _ of
     | noappG node (_S::S_ "DoubleShow") doubleshow
     , Just n <- noapplitG node (_S::S_ "DoubleLit") doublelit ->
       pure \_ -> mk node (_S::S_ "TextLit") $ AST.TextLit $ show n
+  textshow~textlit
+    | noappG node (_S::S_ "TextShow") textshow
+    , Just (TextLit n) <- noapplitG' node (_S::S_ "TextLit") textlit ->
+      pure \_ -> mk node (_S::S_ "TextLit") $ AST.TextLit $ textShow n
   _ -> Nothing
+
+textShow :: String -> String
+textShow s = "\"" <> replaced <> "\"" where
+  replaced = Array.foldl (flip (uncurry String.replaceAll)) s replacements
+  replacements =
+    [ Tuple (String.Pattern "\\") (String.Replacement "\\\\")
+    , Tuple (String.Pattern "\"") (String.Replacement "\\\"")
+    , Tuple (String.Pattern "\x08") (String.Replacement "\\b")
+    , Tuple (String.Pattern "\x0c") (String.Replacement "\\f")
+    , Tuple (String.Pattern "\n") (String.Replacement "\\n")
+    , Tuple (String.Pattern "\r") (String.Replacement "\\r")
+    , Tuple (String.Pattern "\t") (String.Replacement "\\t")
+    , Tuple (String.Pattern "$") (String.Replacement "\\u0024")
+    ] <> nonprintable
+  nonprintable = Array.range 0x00 0x1F # Array.mapMaybe \c ->
+    toEnum c <#> \lit ->
+    Tuple (String.Pattern (String.fromCodePointArray [lit]))
+      (String.Replacement ("\\u00" <> (if c < 0x10 then "0" else "") <> Int.toStringAs Int.hexadecimal c))
+
+unlayersG :: forall node m a all unused r.
+  Row.Union all unused (ExprLayerRow m a) =>
+  { unlayer :: node -> VariantF all node | r } ->
+  node -> Expr m a
+unlayersG node e = AST.embedW (VariantF.expand (node.unlayer e <#> unlayersG node))
 
 naturalfnsG :: forall all' node v ops.
   (node -> node) ->
@@ -646,6 +752,7 @@ naturalfnsG :: forall all' node v ops.
     , "NaturalEven" :: UNIT
     , "NaturalOdd" :: UNIT
     , "NaturalLit" :: CONST Natural
+    , "NaturalSubtract" :: UNIT
     , "BoolLit" :: CONST Boolean
     , "Var" :: CONST AST.Var
     , "Lam" :: FProxy AST.BindingBody
@@ -698,6 +805,22 @@ naturalfnsG again = GNormalizer \node -> case _ of
     | noappG node (_S::S_ "NaturalOdd") naturalodd
     , Just n <- noapplitG node (_S::S_ "NaturalLit") naturallit ->
       pure \_ -> mk node (_S::S_ "BoolLit") $ wrap $ not even $ natToInt n
+  naturalsubtract~naturallit0~naturallit1
+    | noappG node (_S::S_ "NaturalSubtract") naturalsubtract
+    , a <- noapplitG node (_S::S_ "NaturalLit") naturallit0
+    , b <- noapplitG node (_S::S_ "NaturalLit") naturallit1 ->
+      case a, b of
+        Just n, Just m ->
+          pure \_ -> mk node (_S::S_ "NaturalLit") $ wrap $ m +- n
+        Just n, _ | n == zero ->
+          pure \_ -> Lens.review (appsG node) naturallit1
+        _, Just m | m == zero ->
+          pure \_ -> Lens.review (appsG node) naturallit1
+        {- FIXME
+        _, _ | (judgmentallyEqual `on` ((unlayersG node :: node -> Expr (Map String) Void) <<< Lens.review (appsG node))) naturallit0 naturallit1 ->
+          pure \_ -> mk node (_S::S_ "NaturalLit") (wrap zero)
+        -}
+        _, _ -> Nothing
   _ -> Nothing
 
 optionalfnsG :: forall all' node v ops.
@@ -821,11 +944,12 @@ listfnsG again = GNormalizer \node -> case _ of
     , Just (Product (Tuple _ xs)) <- noapplitG' node (_S::S_ "ListLit") listlit ->
       pure \_ -> again $
         let
-          mty' = if Array.null xs then Nothing else
-            Just $ mk node (_S::S_ "Record") $ Dhall.Map.fromFoldable
-              [ Tuple "index" $ mk node (_S::S_ "Natural") mempty
-              , Tuple "value" (Lens.review (appsG node) t)
-              ]
+          mty' = if not Array.null xs then Nothing else
+            Just $ mk node (_S::S_ "App") $ AST.Pair (mk node (_S::S_ "List") mempty) $
+              mk node (_S::S_ "Record") $ Dhall.Map.fromFoldable
+                [ Tuple "index" $ mk node (_S::S_ "Natural") mempty
+                , Tuple "value" (Lens.review (appsG node) t)
+                ]
           adapt i x = mk node (_S::S_ "RecordLit") $ Dhall.Map.fromFoldable
             [ Tuple "index" $ mk node (_S::S_ "NaturalLit") $ wrap $ intToNat i
             , Tuple "value" x

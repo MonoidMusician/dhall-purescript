@@ -41,6 +41,85 @@ function collapse(items) {
   return flat;
 }
 
+function remove_common_prefix(items) {
+  // Function to iterate through each character (or interpolation) in a string
+  function iterate(iterator) {
+    items.forEach(function(str) {
+      if (typeof str === "string") {
+        // Array.from respects CodePoints
+        Array.from(str).forEach(iterator);
+      } else {
+        iterator(str);
+      }
+    });
+  }
+  // First we gather a list of all of the prefixes
+  var prefixes = [];
+  // current_prefix:
+  //   - null means we have stopped scanning for this line
+  //   - string means we are actively scanning this line, indicates what
+  //     spaces and tabs have been found thus far
+  var current_prefix = "";
+  function gather_prefixes(char) {
+    // Reset the current_prefix indicator, but do not add to prefixes
+    // (if line was non-empty, that would have happened already)
+    if (char === "\n") {
+      current_prefix = "";
+    // If still scanning...
+    } else if (current_prefix !== null) {
+      // A tab or space gets added to the current prefix
+      if (char === "\t" || char === " ") {
+        current_prefix += char;
+      // Anything else (including interpolation) stops scanning this line,
+      // flushing the current prefix to the list.
+      } else {
+        prefixes.push(current_prefix);
+        current_prefix = null;
+      }
+    }
+  }
+  iterate(gather_prefixes);
+  // Flush out any remaining prefix (right before the close quotes)
+  gather_prefixes(null);
+  // Now we calculate the common prefix
+  var common_prefix = prefixes.reduce(function(a, b) {
+    var common = "";
+    while (a.length && b.length) {
+      if (a[0] === b[0]) {
+        common += a[0];
+        a = a.substring(1);
+        b = b.substring(1);
+      } else break;
+    }
+    return common;
+  });
+  // Now we remove the common prefixes, building the new result
+  var result = [];
+  // prefix_removal indicates the next chars to remove, if possible
+  var prefix_removal = common_prefix;
+  function remove_prefixes(char) {
+    var keep = true;
+    // Reset the prefix on the new line
+    if (char === "\n") {
+      prefix_removal = common_prefix;
+    // If we can still remove a prefix character
+    } else if (prefix_removal !== "") {
+      // Drop this element if it matches, and advance to the next char in the
+      // common prefix
+      if (char === prefix_removal[0]) {
+        keep = false;
+        prefix_removal = prefix_removal.substring(1);
+      // Otherwise keep it but cancel removing any more (probably unreachable)
+      } else {
+        prefix_removal = "";
+      }
+    }
+    if (keep) result.push(char);
+  }
+  iterate(remove_prefixes);
+  return result;
+}
+
 const keyword =
   [ "if"
   , "then"
@@ -75,6 +154,7 @@ const builtin =
   , "Natural/odd"
   , "Natural/toInteger"
   , "Natural/show"
+  , "Natural/subtract"
   , "Integer"
   , "Integer/show"
   , "Integer/toDouble"
@@ -100,13 +180,25 @@ const builtin =
 # This just adds surrounding whitespace for the top-level of the program
 complete_expression -> whsp expression whsp {% pass1 %}
 
-end_of_line -> [\n] {% pass0 %} | [\r] [\n] {% pass0 %}
-tab -> [\t]
+end_of_line -> [\n] {% pass0 %} | [\r] [\n] {% () => "\n" %}
+tab -> [\t] {% pass0 %}
+
+ascii -> [\x20-\x7F] {% pass0 %}
+
+# This rule matches all characters that are not:
+#
+# * not ASCII
+# * not part of a surrogate pair
+# * not a "non-character"
+valid_non_ascii ->
+    [\x80-\uD7FF\uE000-\uFFFD] {% collapse %}
+  | [\uD800-\uD83E\uD840-\uD87E\uD880-\uD8BE\uD8C0-\uD8FE\uD900-\uD93E\uD940-\uD97E\uD980-\uD9BE\uD9C0-\uD9FE\uDA00-\uDA3E\uDA40-\uDA7E\uDA80-\uDABE\uDAC0-\uDAFE\uDB00-\uDB3E\uDB40-\uDB7E\uDB80-\uDBBE\uDBC0-\uDBFE] [\uDC00-\uDFFF] {% collapse %}
+  | [\uD83F\uD87F\uD8BF\uD8FF\uD93F\uD97F\uD9BF\uD9FF\uDA3F\uDA7F\uDABF\uDAFF\uDB3F\uDB7F\uDBBF\uDBFF] [\uDC00-\uDFFD] {% collapse %}
 
 # Note: block comments can be nested
 block_comment -> "{-" block_comment_continue
 
-block_comment_char -> . | end_of_line
+block_comment_char -> [\x20-\x7A\x7C-\x7F] | ( [\x7B] ( [\x20-\x2c\x2e-\x7F] | valid_non_ascii | tab | end_of_line ) ) | valid_non_ascii | tab | end_of_line
 
 # FIXME
 block_comment_continue ->
@@ -114,7 +206,7 @@ block_comment_continue ->
   | block_comment block_comment_continue
   | block_comment_char block_comment_continue
 
-not_end_of_line -> [^\n]
+not_end_of_line -> ascii | valid_non_ascii | tab
 
 # NOTE: Slightly different from Haskell-style single-line comments because this
 # does not require a space after the dashes
@@ -162,7 +254,7 @@ simple_label ->
     return keyword.includes(r) ? reject : r;
   } %}
 
-quoted_label_char -> [\x20-\x5F\x61-x7E]
+quoted_label_char -> [\x20-\x5F\x61-\x7E]
 quoted_label -> quoted_label_char:+ {% collapse %}
 
 # NOTE: Dhall does not support Unicode labels, mainly to minimize the potential
@@ -201,19 +293,24 @@ double_quote_chunk ->
     | double_quote_char {% pass0 %}
 
 double_quote_escaped ->
-  ( [\x22\x24\x5C\x2F\x62\x66\x6E\x72\x74] {% pass0 %}
+  ( [\x22\x24\x5C\x2F] {% pass0 %}
+  | [\x62] {% () => "\x08" %}
+  | [\x66] {% () => "\x0C" %}
+  | [\x6E] {% () => "\x0A" %}
+  | [\x72] {% () => "\x0D" %}
+  | [\x74] {% () => "\x09" %}
   | "u" unicode_escape {% pass1 %}
   ) {% pass0 %}
 
 unicode_escape ->
     HEXDIG HEXDIG HEXDIG HEXDIG
-    {% d => String.fromCharCode(parseInt(d[1]+d[2]+d[3]+d[4], 16)) %}
+    {% d => String.fromCharCode(parseInt(d[0]+d[1]+d[2]+d[3], 16)) %}
   | "{" HEXDIG:+ "}"
     {% d => String.fromCodePoint(parseInt(d[1].join(""), 16)) %}
 
 # Printable characters except double quote and backslash
 # FIXME
-double_quote_char -> [\x20-\x21\x23\x25-\x5B\x5D-\xFFFF] {% pass0 %}
+double_quote_char -> [\x20-\x21\x23\x25-\x5B\x5D-\x7F] {% pass0 %} | valid_non_ascii {% pass0 %}
 
 double_quote_literal -> [\x22] double_quote_chunk:* [\x22] {% pass1 %}
 
@@ -233,7 +330,7 @@ single_quote_continue ->
     | escaped_quote_pair single_quote_continue {% d => [d[0]].concat(d[1]) %}
     | escaped_interpolation single_quote_continue {% d => [d[0]].concat(d[1]) %}
     | single_quote_char single_quote_continue {% d => [d[0]].concat(d[1]) %}
-    | "''" {% () => "" %}
+    | "''" {% () => [] %}
 
 # Escape two single quotes (i.e. replace this sequence with "''")
 escaped_quote_pair -> "'''" {% () => "''" %}
@@ -242,9 +339,13 @@ escaped_quote_pair -> "'''" {% () => "''" %}
 escaped_interpolation -> "''${" {% () => "${" %}
 
 # FIXME
-single_quote_char -> [^$] {% pass0 %} # including end_of_line
+single_quote_char -> [\x20-\x23\x25-\x26\x28-\x7F] {% pass0 %} | valid_non_ascii {% pass0 %} | tab {% pass0 %} | end_of_line {% pass0 %}
+  # single quote cannot be followed by single quote
+  | [\x27] ( [\x20-\x26\x28-\x7F] {% pass0 %} | valid_non_ascii {% pass0 %} | tab {% pass0 %} | end_of_line {% pass0 %} ) {% collapse %}
+  # $ cannot be followed by {
+  | [\x24] ( [\x20-\x7A\x7C-\x7F] {% pass0 %} | valid_non_ascii {% pass0 %} | tab {% pass0 %} | end_of_line {% pass0 %} ) {% collapse %}
 
-single_quote_literal -> "''" end_of_line single_quote_continue {% pass(2) %}
+single_quote_literal -> "''" end_of_line single_quote_continue {% d => remove_common_prefix(d[2]) %}
 
 interpolation -> "${" complete_expression "}" {% pass1 %}
 
@@ -283,6 +384,7 @@ builtin ->
   | Natural_odd {% pass0 %}
   | Natural_toInteger {% pass0 %}
   | Natural_show {% pass0 %}
+  | Natural_subtract {% pass0 %}
   | Integer_toDouble {% pass0 %}
   | Integer_show {% pass0 %}
   | Double_show {% pass0 %}
@@ -334,6 +436,7 @@ Natural_even      -> "Natural/even" {% pass0 %}
 Natural_odd       -> "Natural/odd" {% pass0 %}
 Natural_toInteger -> "Natural/toInteger" {% pass0 %}
 Natural_show      -> "Natural/show" {% pass0 %}
+Natural_subtract  -> "Natural/subtract" {% pass0 %}
 Integer_toDouble  -> "Integer/toDouble" {% pass0 %}
 Integer_show      -> "Integer/show" {% pass0 %}
 Double_show       -> "Double/show" {% pass0 %}
@@ -365,7 +468,7 @@ plus_infinity_literal -> Infinity {% () => Infinity %}
 
 double_literal ->
   # "2.0"
-    numeric_double_literal {% pass0 %}
+    numeric_double_literal {% (d,_,reject) => isFinite(d[0]) ? d[0] : reject %}
   # "-Infinity"
   | minus_infinity_literal {% pass0 %}
   # "Infinity"
@@ -392,7 +495,7 @@ variable -> nonreserved_label ( whsp "@" natural_literal ):? {% d => ({ type: "V
 # whitespace most of the time
 path_character -> [\x21-\x22\x24-\x27\x2A-\x2B\x2D-\x2E\x30-\x3B\x3D\x40-\x5A\x5E-\x7A\x7C\x7E] {% pass0 %}
 
-quoted_path_character -> [\x20-\x21\x23-\x2E\x30-\xFFFF] {% pass0 %}
+quoted_path_character -> [\x20-\x21\x23-\x2E\x30-\x7F] {% pass0 %} | valid_non_ascii {% pass0 %}
 
 unquoted_path_component -> path_character:+ {% collapse %}
 quoted_path_component -> quoted_path_character:+ {% collapse %}
@@ -626,8 +729,6 @@ equivalent_expression    -> application_expression   (whsp equivalent whsp appli
 # would be ambiguity: `./ab` could be interpreted as "import the file `./ab`",
 # or "apply the import `./a` to label `b`"
 application_expression ->
-    #first_application_expression (whsp1 ( hash {% tag("Hashed") %} | import_expression {% tag("App") %} ) ):*
-    #{% d => d[1].reduce((a, b) => ({ type: b[1].type, value: [a].concat(b[1].value) }), d[0]) %}
     first_application_expression (whsp1 import_expression):* {% binop("App") %}
 first_application_expression ->
   # "merge e1 e2"
@@ -655,9 +756,9 @@ import_expression ->
 # can't tell from parsing just the period whether "foo." will become "foo.bar"
 # (i.e. accessing field `bar` of the record `foo`) or `foo./bar` (i.e. applying
 # the function `foo` to the relative path `./bar`)
-selector_expression -> primitive_expression ("." selector):*
+selector_expression -> primitive_expression (whsp "." whsp selector):*
 {% d =>
-  d[1].reduce((r, v) => ({ type: v[1].type, value: [r, v[1].value[0]] }), d[0])
+  d[1].reduce((r, v) => ({ type: v[3].type, value: [r, v[3].value[0]] }), d[0])
 %}
 
 
@@ -666,8 +767,8 @@ selector ->
   | labels {% tag("Project") %}
   | type_selector {% tag("ProjectType") %}
 
-labels -> "{" whsp ( any_label whsp ("," whsp any_label whsp):* | null ) "}"
-{% d => d[2].length ? [d[2][0]].concat(d[2][2].map(v => v[1])) : [] %}
+labels -> "{" whsp ( any_label whsp ("," whsp any_label whsp):* ):? "}"
+{% d => d[2] != null ? [d[2][0]].concat(d[2][2].map(v => v[2])) : [] %}
 
 type_selector -> "(" whsp expression whsp ")" {% pass(2) %}
 
@@ -683,10 +784,13 @@ primitive_expression ->
     | text_literal {% d => ({ type: "TextLit", value: d[0] }) %}
     # "{ foo = 1      , bar = True }"
     # "{ foo : Integer, bar : Bool }"
-    | "{" whsp record_type_or_literal whsp "}" {% pass(2) %}
+    | "{" whsp non_empty_record_type_or_literal whsp "}" {% pass(2) %}
+    | "{" whsp empty_record_literal whsp "}" {% pass(2) %}
+    | "{" whsp empty_record_type "}" {% pass(2) %}
     # "< Foo : Integer | Bar : Bool >"
     # "< Foo : Integer | Bar = True >"
-    | "<" whsp union_type_or_literal whsp ">" {% pass(2) %}
+    | "<" whsp non_empty_union_type whsp ">" {% pass(2) %}
+    | "<" whsp empty_union_type ">" {% pass(2) %}
     # "[1, 2, 3]"
     | non_empty_list_literal {% pass0 %}
     # "x"
@@ -716,48 +820,20 @@ non_empty_record_literal -> "=" whsp expression (whsp "," whsp record_literal_en
   %}
 record_literal_entry -> any_label whsp "=" whsp expression {% d => [d[0],d[4]] %}
 
-union_type_or_literal ->
-      non_empty_union_type_or_literal {% pass0 %}
+union_type ->
+      non_empty_union_type {% pass0 %}
     | empty_union_type {% pass0 %}
 
 empty_union_type -> null {% () => ({ type: "Union", value: [] }) %}
 
-non_empty_union_type_or_literal ->
-    any_label
-    ( whsp
-      ( union_literal_variant_value {% pass0 %}
-      | union_type_or_literal_variant_type {% pass0 %}
-      )
-      {% pass1 %}
-    | null {% d => lbl => ({ type: "Union", value: [[lbl,null]] }) %}
-    ) {% d => d[1](d[0]) %}
+non_empty_union_type ->
+    union_type_entry ( whsp "|" whsp union_type_entry {% pass(3) %} ):*
+    {% d => ({ type: "Union", value: [d[0]].concat(d[1]) }) %}
 
-union_literal_variant_value ->
-    "=" whsp expression ( whsp "|" whsp union_type_entry ):*
-    {%
-    d => lbl => ({ type: "UnionLit", value: [[lbl,d[2]]].concat(d[3].map(v => v[3])) })
-    %}
+# x : Natural
+# x
 union_type_entry -> any_label ( whsp ":" whsp1 expression ):?
     {% d => [d[0],pass(3)(d[1])] %}
-
-union_type_or_literal_variant_type ->
-  # FIXME
-  ":" whsp1 expression whsp "|" whsp non_empty_union_type_or_literal
-    {% d => lbl =>
-      d[6].type === "Union"
-      ? { type: "Union", value: [[lbl,d[2]]].concat(d[6].value) }
-      // Shuffle the label to the front
-      : { type: "UnionLit", value: [d[6].value[0]].concat([[lbl,d[2]]].concat(d[6].value.slice(1)))}
-    %}
-  | "|" whsp non_empty_union_type_or_literal
-    {% d => lbl =>
-      d[2].type === "Union"
-      ? { type: "Union", value: [[lbl,null]].concat(d[2].value) }
-      // Shuffle the label to the front
-      : { type: "UnionLit", value: [d[2].value[0]].concat([[lbl,null]].concat(d[2].value.slice(1))) }
-    %}
-  | ":" whsp1 expression
-    {% d => lbl => ({ type: "Union", value: [[lbl,d[2]]] }) %}
 
 non_empty_list_literal -> "[" whsp expression whsp ("," whsp expression whsp):* "]"
   {% d => ({ type: "ListLit", value: [[d[2]].concat(d[4].map(v => v[2])),null] }) %}

@@ -190,9 +190,11 @@ variant :: forall rl r. RowToList r rl => InterpretRL rl r =>
 variant opts = Type
   { expected: AST.mkUnion $ pure <$> expectedV rl opts
   , extract: \e ->
-    Lens.preview (AST._E (AST._ExprFPrism (_S::S_ "UnionLit"))) e >>=
-      \(Product (Tuple (Tuple key val) tys)) ->
-        extractV rl opts key val
+    Lens.preview (AST._E (AST._ExprFPrism (_S::S_ "App"))) e >>=
+      \(Pair field val) ->
+        Lens.preview (AST._E (AST._ExprFPrism (_S::S_ "Field"))) field >>=
+          \(Tuple key _) ->
+            extractV rl opts key val
   } where rl = RLProxy :: RLProxy rl
 
 instance interpretRecord ::
@@ -265,7 +267,7 @@ instance injectVariant ::
       { declared: AST.mkUnion $ pure <$> declaredV rl opts
       , embed: embedV rl opts >>>
           \(Product (Tuple (Tuple key val) tys)) ->
-            AST.mkUnionLit key val tys
+            AST.mkApp (AST.mkField (AST.mkUnion $ pure <$> declaredV rl opts) key) val
       } where rl = RLProxy :: RLProxy rl
 
 instance injectRecord ::

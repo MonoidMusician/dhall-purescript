@@ -3,8 +3,10 @@ module Dhall.Core.Imports.Resolve where
 import Prelude
 
 import Control.Alt ((<|>))
+import Control.Apply (lift2)
 import Control.Monad.Reader (ReaderT(..))
 import Control.Monad.Writer (WriterT(..))
+import Control.Parallel (parallel, sequential)
 import Control.Plus (empty)
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Bifunctor (lmap)
@@ -22,6 +24,7 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un, unwrap)
 import Data.Set (Set)
 import Data.Set as Set
+import Data.String as String
 import Data.Traversable (sequence, traverse, traverse_)
 import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
@@ -121,15 +124,19 @@ newtype M w r a = M
 type N w r = Compose Aff (Feedback w r)
 derive instance newtypeM :: Newtype (M w r a) _
 derive newtype instance functorM :: Functor (M w r)
-derive newtype instance applyM :: Apply (M w r)
-derive newtype instance applicativeM :: Applicative (M w r)
+instance applyM :: Apply (M w r) where
+  apply (M (ReaderT rf1)) (M (ReaderT rf2)) = M $ ReaderT \rs -> Compose $
+    sequential $
+      lift2 (<*>) (parallel $ unwrap $ rf1 rs) (parallel $ unwrap $ rf2 rs)
+instance applicativeM :: Applicative (M w r) where
+  pure = M <<< pure
 instance bindM :: Bind (M w r) where
-  bind (M (ReaderT rf)) f = M $ ReaderT \(Tuple r s) -> Compose $ map WriterT do
-    fa <- map (un WriterT) $ un Compose $ rf (Tuple r s)
+  bind (M (ReaderT rf)) f = M $ ReaderT \rs -> Compose $ map WriterT do
+    fa <- map (un WriterT) $ un Compose $ rf rs
     let
       run a = case f a of
         M (ReaderT rf') -> do
-          map (un WriterT) $ un Compose $ rf' (Tuple r s)
+          map (un WriterT) $ un Compose $ rf' rs
     case fa of
       V.Success (Tuple a w) ->
         run a <#> case _ of
@@ -273,7 +280,7 @@ resolveAlternativesAndCheckHashes = rewriteBottomUpA' $ identity
     checkHash = \(Tuple hash expr) -> do
       let exprn = Hash.neutralize expr
       let hash' = Hash.hash (absurd <$> exprn :: ImportExpr)
-      when (hash /= hash') do
+      when (String.toLower hash /= String.toLower hash') do
         throw (Variant.inj (_S::S_ "Hash mismatch") { expected: hash, actual: hash' })
       -- Recurse on the original but return the *normalized* node
       -- See: https://github.com/dhall-lang/dhall-lang/issues/690#issuecomment-518442494
