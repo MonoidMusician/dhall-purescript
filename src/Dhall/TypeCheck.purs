@@ -440,31 +440,29 @@ substContextOxpr ctx e = alsoOriginateFromO (Loc.stepF (_S::S_ "substitute") <$>
     go ctx' e' = Cofree.deferCofree \_ ->
       case go1 ctx' (Cofree.head e') of
         Left (In (Compose e'')) -> (Tuple <$> Cofree.head <*> Cofree.tail) e''
-        Right layer' -> Tuple layer' $
-          bitransProduct (map (go ctx)) (map (go ctx)) (Cofree.tail e')
+        Right layer' -> Tuple layer' $ go ctx' <$> Cofree.tail e'
     go1 ctx' (EnvT (Tuple loc (ERVF layer))) =
       case substContext1 shiftInOxpr0 (mapR <<< over Compose <<< go) ctx' layer of
         Left e' -> Left $ e'
         Right layer' -> Right $ EnvT $ Tuple loc $ ERVF layer'
 
 -- Substitute context all the way down an Expr.
--- FIXME: make sure entries in context are substitute in their own context too?
 substContextExpr :: forall m a.
   SubstContext (Expr m a) ->
   Expr m a -> Expr m a
-substContextExpr ctx = (#) (reconstituteCtx (map <<< substContextExpr) ctx) $
-  flip $ cata \(ERVF layer) ctx' ->
+substContextExpr ctx e =
+  (#) (reconstituteCtx (map <<< substContextExpr) ctx) $ (((e))) # cata \(ERVF layer) ctx' ->
     case substContext1 (\name -> shift 1 (AST.V name 0)) (#) ctx' layer of
-      Left e -> e
+      Left e' -> e'
       Right layer' -> embed $ ERVF layer'
 
 substContextExpr0 :: forall m a.
   SubstContext (Expr m a) ->
   Expr m a -> Expr m a
-substContextExpr0 ctx = (#) (reconstituteCtx (map <<< substContextExpr0) ctx) $
-  flip $ cata \(ERVF layer) ctx' ->
+substContextExpr0 ctx e =
+  (#) (reconstituteCtx (map <<< substContextExpr0) ctx) $ (((e))) # cata \(ERVF layer) ctx' ->
     case substContext10 (\name -> shift 1 (AST.V name 0)) (#) ctx' layer of
-      Left e -> e
+      Left e' -> e'
       Right layer' -> embed $ ERVF layer'
 
 -- Originate from ... itself. Profound.

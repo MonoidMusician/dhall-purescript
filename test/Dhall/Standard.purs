@@ -11,6 +11,7 @@ import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
 import Data.FoldableWithIndex (forWithIndex_)
+import Data.Functor.Variant as VariantF
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
@@ -19,7 +20,8 @@ import Data.String (Pattern(..), stripSuffix)
 import Data.String as String
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
-import Dhall.Core (Directory(..), File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), alphaNormalize, conv, unordered)
+import Dhall.Context as Dhall.Context
+import Dhall.Core (Directory(..), Expr(..), ExprRowVF(..), File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), S_, _S, alphaNormalize, conv, embedW, normalize, unordered)
 import Dhall.Core as AST
 import Dhall.Core.CBOR (decode)
 import Dhall.Core.Imports.Resolve as Resolve
@@ -30,6 +32,7 @@ import Dhall.Test (Actions)
 import Dhall.Test as Test
 import Dhall.Test.Util (eqArrayBuffer)
 import Dhall.Test.Util as Util
+import Dhall.TypeCheck (substContextExpr)
 import Dhall.TypeCheck as TC
 import Effect (Effect)
 import Effect.Aff (Aff, catchError, error, launchAff_, makeAff, message, throwError)
@@ -38,6 +41,7 @@ import Effect.Class (liftEffect)
 import Effect.Class.Console (log, logShow)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
+import Matryoshka (cata)
 import Node.Buffer as Buffer
 import Node.ChildProcess as ChildProcess
 import Node.Encoding (Encoding(..))
@@ -197,10 +201,24 @@ test = do
         let actA = mkActions "semantic-hash" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse"
+        when verb do log "Parsed: " *> logShow parsedA.parsed
         importedA <- parsedA.imports # unwrap # extract # unwrap >>=
           noteFb "Failed to resolve A"
+        when verb do log "Resolved: " *> logShow importedA.resolved
+        let
+          removeLets :: Expr _ _ -> Expr _ _
+          removeLets = cata \(ERVF e) -> e # VariantF.on (_S::S_ "Let")
+            (\(AST.LetF _ _ _ a) -> a)
+            (\_ -> embedW e)
+          semnorm = removeLets $ substContextExpr Dhall.Context.empty importedA.resolved
+        when verb do log "Semnorm: " *> logShow semnorm
+        when verb do log "Norm: " *> logShow importedA.unsafeNormalized
+        typecheckedA <- Test.tc' semnorm #
+          noteFb "Failed to typecheck A"
+        when verb do log "Typechecked: " *> logShow typecheckedA
         typecheckedA <- importedA.typechecked # unwrap # extract #
           noteFb "Failed to typecheck A"
+        when verb do log "Typechecked: " *> logShow typecheckedA.inferredType
         hashB <- (fromMaybe <*> stripSuffix (Pattern "\n")) <$> nodeRetrieveFile (success <> "B.hash")
         let hashA = "sha256:" <> (extract typecheckedA.encoded).hash
         when (hashA /= hashB) do
