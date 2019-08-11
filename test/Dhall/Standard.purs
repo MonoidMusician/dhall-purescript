@@ -161,15 +161,19 @@ test = do
         let actA = mkActions "normalization" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
+        importedA <- parsedA.imports # unwrap # extract # unwrap >>=
+          noteFb "Failed to resolve A"
         textB <- nodeRetrieveFile (success <> "B.dhall")
         let actB = mkActions "normalization" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
-        let norm = (conv <<< unordered) (extract parsedA.unsafeNormalized)
-        when (norm /= parsedB.parsed) do
+        importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
+          note "Failed to resolve B"
+        let norm = (conv <<< unordered) (extract importedA.unsafeNormalized)
+        when (norm /= importedB.resolved) do
           when verb do
             logShow $ norm
-            logShow $ parsedB.parsed
+            logShow $ importedB.resolved
           throwError (error "Normalization did not match")
     do \verb failure ->
         throwError (error "Why is there a normalization failure?")
