@@ -239,7 +239,10 @@ typecheckSketch alg = recursor2D
           -- FIXME: is context empty after normalization? idk
           do WithBiCtx (ctx <#> join bimap head2D) $ -- FIXME: memoization lost
               defer \_ ->
-                let ctx' = ctx <#> theseLeft >>> map head2D in
+                -- Normalize (and substitute!) the context before substitution
+                let ctx' = ctx <#> theseLeft >>> map (normalizeStep >>> head2D)
+                    --unused = unsafePerformEffect $ log $ unsafeCoerce $ Array.fromFoldable $ map fst $ unwrap $ ctx
+                in
                 normalizeLxpr $
                 substContextLxpr ctx' $
                 embed $ EnvT $ Tuple loc $ head2D <$> e
@@ -427,10 +430,17 @@ substContextLxpr :: forall m a. FunctorWithIndex String m =>
   SubstContext (Lxpr m a) ->
   Lxpr m a -> Lxpr m a
 substContextLxpr ctx e = alsoOriginateFrom (Loc.stepF (_S::S_ "substitute") <$> extract e) $
-  (#) (reconstituteCtx (map <<< substContextLxpr) ctx) $ (((e))) # cata \(EnvT (Tuple loc (ERVF layer))) ctx' ->
+  (#) ctx $ (((e))) # cata \(EnvT (Tuple loc (ERVF layer))) ctx' ->
     case substContext1 shiftInLxpr0 (#) ctx' layer of
       Left e' -> e'
       Right layer' -> embed $ EnvT $ Tuple loc $ ERVF layer'
+
+-- Also make sure the context has its items substituted
+substContextLxprCtx :: forall m a. FunctorWithIndex String m =>
+  SubstContext (Lxpr m a) ->
+  Lxpr m a -> Lxpr m a
+substContextLxprCtx ctx = substContextLxpr
+  (reconstituteCtx (map <<< substContextLxpr) ctx)
 
 substContextOxpr :: forall w r m a. FunctorWithIndex String m =>
   SubstContext (Oxpr w r m a) ->
@@ -446,24 +456,41 @@ substContextOxpr ctx e = alsoOriginateFromO (Loc.stepF (_S::S_ "substitute") <$>
         Left e' -> Left $ e'
         Right layer' -> Right $ EnvT $ Tuple loc $ ERVF layer'
 
+
+substContextOxprCtx :: forall w r m a. FunctorWithIndex String m =>
+  SubstContext (Oxpr w r m a) ->
+  Oxpr w r m a -> Oxpr w r m a
+substContextOxprCtx ctx = substContextOxpr
+  (reconstituteCtx (map <<< substContextOxpr) ctx)
+
 -- Substitute context all the way down an Expr.
 substContextExpr :: forall m a.
   SubstContext (Expr m a) ->
   Expr m a -> Expr m a
-substContextExpr ctx e =
-  (#) (reconstituteCtx (map <<< substContextExpr) ctx) $ (((e))) # cata \(ERVF layer) ctx' ->
-    case substContext1 (\name -> shift 1 (AST.V name 0)) (#) ctx' layer of
-      Left e' -> e'
-      Right layer' -> embed $ ERVF layer'
+substContextExpr = flip $ cata \(ERVF layer) ctx' ->
+  case substContext1 (\name -> shift 1 (AST.V name 0)) (#) ctx' layer of
+    Left e' -> e'
+    Right layer' -> embed $ ERVF layer'
 
 substContextExpr0 :: forall m a.
   SubstContext (Expr m a) ->
   Expr m a -> Expr m a
-substContextExpr0 ctx e =
-  (#) (reconstituteCtx (map <<< substContextExpr0) ctx) $ (((e))) # cata \(ERVF layer) ctx' ->
-    case substContext10 (\name -> shift 1 (AST.V name 0)) (#) ctx' layer of
-      Left e' -> e'
-      Right layer' -> embed $ ERVF layer'
+substContextExpr0 = flip $ cata \(ERVF layer) ctx' ->
+  case substContext10 (\name -> shift 1 (AST.V name 0)) (#) ctx' layer of
+    Left e' -> e'
+    Right layer' -> embed $ ERVF layer'
+
+substContextExprCtx :: forall m a.
+  SubstContext (Expr m a) ->
+  Expr m a -> Expr m a
+substContextExprCtx ctx = substContextExpr
+  (reconstituteCtx (map <<< substContextExpr) ctx)
+
+substContextExpr0Ctx :: forall m a.
+  SubstContext (Expr m a) ->
+  Expr m a -> Expr m a
+substContextExpr0Ctx ctx = substContextExpr0
+  (reconstituteCtx (map <<< substContextExpr0) ctx)
 
 -- Originate from ... itself. Profound.
 newborn :: forall m a. FunctorWithIndex String m =>
@@ -620,7 +647,7 @@ locateO' :: forall w r m a. Eq a => MapLike String m =>
     (OxprE w ( "Not found" :: ExprRowVFI | r ) m a)
 locateO' foc0 = Variant.match
   { substitute: \{} -> pure $
-      substContextOxpr (theseLeft <$> contextStep foc0) foc0
+      substContextOxprCtx (theseLeft <$> contextStep foc0) foc0
   , shift: \{ delta, variable } -> pure $
       shiftOxpr delta variable foc0
   , alphaNormalize: \{} -> pure $ alphaNormalizeStep foc0
@@ -658,7 +685,7 @@ locateE' tpa = Variant.match
       Tuple ctx <$> typeWithA tpa ctx' e
   in
   { substitute: \{} -> \(Tuple ctx e) ->
-      pure (Tuple ctx (substContextExpr (theseLeft <$> ctx) e))
+      pure (Tuple ctx (substContextExprCtx (theseLeft <$> ctx) e))
   , alphaNormalize: \{} -> \(Tuple ctx e) ->
       pure $ Tuple ctx $ alphaNormalize e
   , normalize: \{} -> substCtx >>> \(Tuple ctx e) -> do
