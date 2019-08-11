@@ -3,6 +3,7 @@ module Dhall.TypeCheck where
 import Prelude
 
 import Control.Alternative (class Alternative, (<|>))
+import Control.Apply (lift2)
 import Control.Comonad (class Comonad, extend, extract)
 import Control.Comonad.Cofree (Cofree, buildCofree, hoistCofree)
 import Control.Comonad.Cofree as Cofree
@@ -19,7 +20,6 @@ import Data.Const as Const
 import Data.Either (Either(..))
 import Data.Foldable (class Foldable, foldMap, foldl, foldlDefault, foldr, foldrDefault, null, oneOfMap, traverse_)
 import Data.FoldableWithIndex (class FoldableWithIndex, anyWithIndex, foldMapWithIndex, forWithIndex_)
-import Data.Function (on)
 import Data.Functor.App (App(..))
 import Data.Functor.Compose (Compose(..))
 import Data.Functor.Mu (Mu(..))
@@ -46,6 +46,7 @@ import Data.Natural (Natural)
 import Data.Newtype (class Newtype, over, un, unwrap, wrap)
 import Data.Newtype as N
 import Data.NonEmpty (NonEmpty, (:|))
+import Data.Ord.Max (Max(..))
 import Data.Profunctor.Strong ((&&&))
 import Data.Semigroup.Foldable (class Foldable1)
 import Data.Set (Set)
@@ -86,6 +87,9 @@ axiom Sort = empty
 rule :: forall f. Applicative f => Const -> Const -> f Const
 rule _ Type = pure Type
 rule a b = pure $ max a b
+
+maxConst :: forall f. Foldable f => f Const -> Const
+maxConst = maybe Type (un Max) <<< foldMap (Just <<< Max)
 
 {-| Function that converts the value inside an `Embed` constructor into a new
     expression
@@ -366,6 +370,8 @@ substcontextualizeWithin1 shiftIn_node' go ctx = trackIntro case _ of
       map (shiftIn_node' name) <$> ctx
 
 -- Insert an empty entry instead
+-- Conservative substitution: let bindings within the selection are not
+-- substituted, but bindings from outside are brought in
 substcontextualizeWithin10 :: forall m a node node'.
   (String -> node' -> node') -> -- shift in a name
   (SubstContext node' -> node -> node') ->
@@ -417,22 +423,20 @@ subst1 ctx =
 
 -- Substitute a context all the way down an Lxpr, snowballing as it goes
 -- (i.e., `Let` bindings introduced in it are also substitute).
--- FIXME: make sure entries in context are substitute in their own context too?
 substContextLxpr :: forall m a. FunctorWithIndex String m =>
   SubstContext (Lxpr m a) ->
   Lxpr m a -> Lxpr m a
 substContextLxpr ctx e = alsoOriginateFrom (Loc.stepF (_S::S_ "substitute") <$> extract e) $
-  (#) ctx $ (((e))) # cata \(EnvT (Tuple loc (ERVF layer))) ctx' ->
+  (#) (reconstituteCtx (map <<< substContextLxpr) ctx) $ (((e))) # cata \(EnvT (Tuple loc (ERVF layer))) ctx' ->
     case substContext1 shiftInLxpr0 (#) ctx' layer of
       Left e' -> e'
       Right layer' -> embed $ EnvT $ Tuple loc $ ERVF layer'
 
--- FIXME: make sure entries in context are substitute in their own context too?
 substContextOxpr :: forall w r m a. FunctorWithIndex String m =>
   SubstContext (Oxpr w r m a) ->
   Oxpr w r m a -> Oxpr w r m a
 substContextOxpr ctx e = alsoOriginateFromO (Loc.stepF (_S::S_ "substitute") <$> topLoc e) $
-  (mapR $ over Compose $ go ctx) e where
+  (mapR $ over Compose $ go $ reconstituteCtx (map <<< substContextOxpr) ctx) e where
     go ctx' e' = Cofree.deferCofree \_ ->
       case go1 ctx' (Cofree.head e') of
         Left (In (Compose e'')) -> (Tuple <$> Cofree.head <*> Cofree.tail) e''
@@ -448,18 +452,20 @@ substContextOxpr ctx e = alsoOriginateFromO (Loc.stepF (_S::S_ "substitute") <$>
 substContextExpr :: forall m a.
   SubstContext (Expr m a) ->
   Expr m a -> Expr m a
-substContextExpr = flip $ cata \(ERVF layer) ctx ->
-  case substContext1 (\name -> shift 1 (AST.V name 0)) (#) ctx layer of
-    Left e -> e
-    Right layer' -> embed $ ERVF layer'
+substContextExpr ctx = (#) (reconstituteCtx (map <<< substContextExpr) ctx) $
+  flip $ cata \(ERVF layer) ctx' ->
+    case substContext1 (\name -> shift 1 (AST.V name 0)) (#) ctx' layer of
+      Left e -> e
+      Right layer' -> embed $ ERVF layer'
 
 substContextExpr0 :: forall m a.
   SubstContext (Expr m a) ->
   Expr m a -> Expr m a
-substContextExpr0 = flip $ cata \(ERVF layer) ctx ->
-  case substContext10 (\name -> shift 1 (AST.V name 0)) (#) ctx layer of
-    Left e -> e
-    Right layer' -> embed $ ERVF layer'
+substContextExpr0 ctx = (#) (reconstituteCtx (map <<< substContextExpr0) ctx) $
+  flip $ cata \(ERVF layer) ctx' ->
+    case substContext10 (\name -> shift 1 (AST.V name 0)) (#) ctx' layer of
+      Left e -> e
+      Right layer' -> embed $ ERVF layer'
 
 -- Originate from ... itself. Profound.
 newborn :: forall m a. FunctorWithIndex String m =>
@@ -647,7 +653,7 @@ locateE' tpa = Variant.match
   let
     substCtx = extend \(Tuple ctx e) -> substContextExpr0 (theseLeft <$> ctx) e
     typecheck (Tuple ctx e) = do
-      ctx' <- ctx # reconstituteCtx \ctx' -> case _ of
+      ctx' <- ctx # reconstituteCtxM \ctx' -> case _ of
         This val -> typeWithA tpa ctx' val
         That ty -> pure ty
         Both _ ty -> pure ty
@@ -703,7 +709,7 @@ tabulateGroupings :: forall k v.
   List { key :: k, value :: v } -> List (NonEmptyList { key :: k, value :: v })
 tabulateGroupings egal = go empty where
   go accum = case _ of
-    List.Nil -> empty
+    List.Nil -> accum
     List.Cons v0 rest -> go (insertGrouping v0 accum) rest
   insertGrouping v0 = case _ of
     List.Nil -> pure (pure v0)
@@ -792,11 +798,10 @@ type Errors r =
   , "Invalid `Some`" :: Maybe Const
   , "Duplicate record fields" :: NonEmptyList String
   , "Invalid field type" :: String
-  , "Inconsistent field types" :: Inconsistency (NonEmptyList String)
   , "Duplicate union alternatives" :: NonEmptyList String
   , "Invalid alternative type" :: String
+  , "Inconsistent alternative types" :: Inconsistency (NonEmptyList String)
   , "Must combine a record" :: Tuple (List String) Boolean
-  , "Record kind mismatch" :: List String
   , "Must merge a record" :: Unit
   , "Must merge a union" :: Unit
   , "Missing merge type" :: Unit
@@ -834,15 +839,20 @@ type FeedbackE w r m a = Feedback w (Errors r) m a
 type OxprE w r m a = Oxpr w (Errors r) m a
 type TypeCheckErrorE r a = TypeCheckError (Errors r) a
 
-reconstituteCtx :: forall a b m. Bind m => Applicative m =>
+reconstituteCtx :: forall a b.
+  (Context b -> a -> b) -> Context a -> Context b
+reconstituteCtx f = (<<<) extract $ reconstituteCtxM $
+  ((<<<) <<< (<<<)) Identity f
+
+reconstituteCtxM :: forall a b m. Bind m => Applicative m =>
   (Context b -> a -> m b) -> Context a -> m (Context b)
-reconstituteCtx = reconstituteCtxFrom Dhall.Context.empty
+reconstituteCtxM = reconstituteCtxFromM Dhall.Context.empty
 
 -- TODO: MonadRec?
 -- TODO: convince myself that no shifting needs to occur here
-reconstituteCtxFrom :: forall a b m. Bind m => Applicative m =>
+reconstituteCtxFromM :: forall a b m. Bind m => Applicative m =>
   Context b -> (Context b -> a -> m b) -> Context a -> m (Context b)
-reconstituteCtxFrom ctx0 f = foldr f' (pure ctx0) <<< un Context <<< unshift where
+reconstituteCtxFromM ctx0 f = foldr f' (pure ctx0) <<< un Context <<< unshift where
   -- TODO: shift?
   unshift = identity
   f' (Tuple name a) mctx = do
@@ -879,7 +889,7 @@ typingWithA tpa ctx0 e0 = do
         e' = tcingFrom (pure (Tuple empty (Just e))) e # bicontextualizeWithin ctx
       in e' <$ typecheckStep e'
   -- convert ctx0 and e0 to Oxprs
-  ctxO <- reconstituteCtx (\ctx ty -> That <$> tcingIn ctx ty) ctx0
+  ctxO <- reconstituteCtxM (\ctx ty -> That <$> tcingIn ctx ty) ctx0
   let eO = tcingFrom (pure (Tuple empty Nothing)) e0
   -- and run typechecking on eO
   pure $ bicontextualizeWithin ctxO eO
@@ -1022,8 +1032,8 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
     optionalEnc a =
       AST.mkForall "optional" $
         let optional = AST.mkVar (AST.V "optional" 0) in
-        AST.mkPi "some" (AST.mkArrow a optional) $
-          AST.mkPi "none" optional $
+        AST.mkPi "just" (AST.mkArrow a optional) $
+          AST.mkPi "nothing" optional $
             optional
 
     ensure :: forall sym f r'.
@@ -1121,7 +1131,10 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         <$> typecheckStep expr
         <@> ty
         <@> errorHere (_S::S_ "Annotation mismatch")
-        <* typecheckStep ty
+        <* do
+          ty # unlayerO # VariantF.on (_S::S_ "Const")
+            (\_ -> pure unit)
+            (\_ -> void $ typecheckStep ty)
   , "Equivalent": \p -> do
       Pair lty rty <- p # traverseWithIndex \i t ->
         ensureTerm t
@@ -1250,47 +1263,28 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         (errorHere (_S::S_ "Duplicate record fields")) kts
       *> do
         kts' <- forWithIndex kts \field ty -> do
-          c <- unwrap <$> ensure (_S::S_ "Const") ty
+          unwrap <$> ensure (_S::S_ "Const") ty
             (errorHere (_S::S_ "Invalid field type") <<< const field)
-          case c of
-            Kind ->
-              let error _ = errorHere (_S::S_ "Invalid field type") field in
-              unlayerO ty # VariantF.on (_S::S_ "Const")
-                (unwrap >>> \c' -> when (c /= Type) (error unit))
-                (\_ -> error unit)
-            _ -> pure unit
-          pure { kind: c }
-        ensureConsistency (eq `on` _.kind)
-          (errorHere (_S::S_ "Inconsistent field types") <<< (map <<< map) _.key) kts'
-        pure $ newborn $ AST.mkConst $ maybe Type _.kind $ un First $ foldMap pure kts'
+        pure $ newborn $ AST.mkConst $ maxConst kts'
   , "RecordLit": \kvs ->
       ensureNodupes
         (errorHere (_S::S_ "Duplicate record fields")) kvs
       *> do
         kts <- traverse typecheckStep kvs
         confirm (mk(_S::S_"Record") (head2D <$> kts)) do
-          kts' <- forWithIndex kts \field ty -> do
-            c <- unwrap <$> ensure (_S::S_ "Const") ty
+          forWithIndex_ kts \field ty -> do
+            ensure (_S::S_ "Const") ty
               (errorHere (_S::S_ "Invalid field type") <<< const field)
-            case c of
-              Kind ->
-                let error _ = errorHere (_S::S_ "Invalid field type") field in
-                unlayerO ty # VariantF.on (_S::S_ "Const")
-                  (unwrap >>> \c' -> when (c /= Type) (error unit))
-                  (\_ -> error unit)
-              _ -> pure unit
-            pure { kind: c }
-          ensureConsistency (eq `on` _.kind)
-            (errorHere (_S::S_ "Inconsistent field types") <<< (map <<< map) _.key) kts'
   , "Union": \kts ->
       ensureNodupes
         (errorHere (_S::S_ "Duplicate union alternatives") <<< map fst) kts
       *> do
-        -- FIXME: should this be the largest of `Type` or `Sort` returned?
-        confirm (newborn AST.mkType) $
-          forWithIndex_ kts \(Tuple field _) ty -> do
-            void $ ensure (_S::S_ "Const") ty
-              (errorHere (_S::S_ "Invalid alternative type") <<< const field)
+        kts' <- forWithIndex kts \(Tuple field (_ :: Unit)) ty -> do
+          unwrap <$> ensure (_S::S_ "Const") ty
+            (errorHere (_S::S_ "Invalid field type") <<< const field)
+        ensureConsistency (((<<<)<<<(<<<)) (fromMaybe true) $ lift2 eq)
+          (errorHere (_S::S_ "Inconsistent alternative types") <<< (map <<< map) _.key) (unwrap kts')
+        pure $ newborn $ AST.mkConst $ maxConst kts'
   , "Combine":
       let
         combineTypes here (p :: Pair (OxprE w r m a)) = do
@@ -1298,11 +1292,9 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
             forWithIndex p \side ty -> do
               kts <- ensure' (_S::S_ "Record") ty
                 (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
-              kind <- typecheckStep ty
-              const <- ensureConst kind
+              const <- ensure (_S::S_ "Const") ty
                 (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
               pure { kts, const }
-          when (constL /= constR) $ errorHere (_S::S_ "Record kind mismatch") $ here
           let combined = Dhall.Map.unionWith (pure pure) ktsL ktsR
           mk(_S::S_"Record") <$> forWithIndex combined \k ->
             case _ of
@@ -1318,19 +1310,18 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
             forWithIndex p \side ty -> do
               kts <- ensure' (_S::S_ "Record") ty
                 (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
-              kind <- typecheckStep ty
-              const <- ensureConst kind
+              const <- ensureConst ty
                 (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
               pure { kts, const }
-          when (constL /= constR) $ errorHere (_S::S_ "Record kind mismatch") $ here
           let combined = Dhall.Map.unionWith (pure pure) ktsL ktsR
-          mk(_S::S_"Record") <$> forWithIndex combined \k ->
+          kts <- forWithIndex combined \k ->
             case _ of
               Both ktsL' ktsR' ->
-                combineTypes (k : here) (AST.Pair ktsL' ktsR')
+                _.rec <$> combineTypes (k : here) (AST.Pair ktsL' ktsR')
               This t -> pure (head2D t)
               That t -> pure (head2D t)
-      in combineTypes Nil
+          pure { const: max constL constR, rec: mk(_S::S_"Record") kts }
+      in map (newborn <<< AST.mkConst <<< _.const) <<< combineTypes Nil
   , "Prefer": \p -> do
       AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
         forWithIndex p \side kvs -> do
@@ -1341,7 +1332,6 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           const <- unwrap <$> ensure (_S::S_ "Const") ty
             (errorHere (_S::S_ "Must combine a record") <<< const (Tuple Nil side))
           pure { kts, const }
-      when (constL /= constR) $ errorHere (_S::S_ "Record kind mismatch") $ Nil
       let
         preference = Just <<< case _ of
           This a -> a
@@ -1446,10 +1436,8 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         casing = (\_ -> error unit)
           # VariantF.on (_S::S_ "Record") handleRecord
           # VariantF.on (_S::S_ "Const") \(Const.Const c) ->
-              case c of
-                Type -> expr # normalizeStep # unlayerO #
-                  VariantF.on (_S::S_ "Union") (unwrap >>> handleType) (\_ -> error unit)
-                _ -> error unit
+              expr # normalizeStep # unlayerO #
+                VariantF.on (_S::S_ "Union") (unwrap >>> handleType) (\_ -> error unit)
       tyR # normalizeStep # unlayerO # casing
   , "Project": \(Product (Tuple (Identity expr) projs)) -> do
       kts <- ensure (_S::S_ "Record") expr
@@ -1746,14 +1734,11 @@ explain ctx nodeType =
       , reference $ typechecked <> focus
       ]
   -- TODO
-  , "Inconsistent field types": \keys ->
+  , "Inconsistent alternative types": \keys ->
       let
-        focus name = nodeType # VariantF.on (_S::S_ "RecordLit")
-          do \_ -> typechecked <> within (_S::S_ "RecordLit") name
-          -- NOTE: assume it is a Record type, if it's not a RecordLit
-          do \_ -> within (_S::S_ "Record") name
+        focus name = within (_S::S_ "Union") (Tuple name unit)
       in
-      [ Text $ "Record field types must all live in the same universe, but these did not "
+      [ Text $ "Union alternative types must all live in the same universe, but these did not "
       , List $ Text <<< show <$> Array.fromFoldable keys
       ]
   , "Duplicate union alternatives": \(keys :: NonEmptyList String) ->
@@ -1772,12 +1757,6 @@ explain ctx nodeType =
       ]
   -- TODO
   , "Must combine a record": \(Tuple path side) ->
-      let
-        focus name = within (_S::S_ "Union") (Tuple name unit)
-      in
-      [
-      ]
-  , "Record kind mismatch": \path ->
       let
         focus name = within (_S::S_ "Union") (Tuple name unit)
       in

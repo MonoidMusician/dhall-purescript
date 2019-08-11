@@ -247,6 +247,9 @@ test = do
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
           note "Failed to resolve B"
         when (extract typecheckedA.normalizedType /= importedB.resolved) do
+          when true do
+            logShow $ extract typecheckedA.normalizedType
+            logShow importedB.resolved
           throwError (error "Type inference did not match")
     do \verb failure ->
         throwError (error "Why is there a type-inference failure?")
