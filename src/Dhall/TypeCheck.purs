@@ -135,6 +135,11 @@ recursor2D f = go where
   go = ana $ (<<<) Compose $ buildCofree $ (>>>) project $ do
     identity &&& \ft -> ft <#> go # f
 
+deshare :: forall m t f. Corecursive t f => Functor m => Functor f => HalfTwoD m f -> t
+deshare = cata $ unwrap >>> case _ of
+  Left r -> head2D r
+  Right ft -> embed ft
+
 shared :: forall m f. Functor f => TwoD m f -> HalfTwoD m f
 shared r = embed (Compose (Left r))
 
@@ -265,7 +270,7 @@ typecheckSketch alg = unshared >>> recursor2DSharingCtx
               alphaNormalizeLxpr $
               embed $ EnvT $ Tuple loc $ head2D <$> (e <@> ctx)
           -- FIXME: is context empty after normalization? idk
-          do WithBiCtx (ctx <#> join bimap shared) $ -- FIXME: memoization lost
+          do WithBiCtx (ctx <#> join bimap shared) $
               defer \_ ->
                 unshared $
                 -- Normalize (and substitute!) the context before substitution
@@ -347,7 +352,10 @@ alsoOriginateFrom = flip <<< cata <<< flip $ go where
 
 alsoOriginateFromHalf :: forall w r m a. FunctorWithIndex String m =>
   L m a -> OxprS w r m a -> OxprS w r m a
-alsoOriginateFromHalf _ = identity -- FIXME
+alsoOriginateFromHalf = mapR <<< over Compose <<< go where
+  go loc = bimap (alsoOriginateFromO loc)
+    \(EnvT (Tuple f e)) -> EnvT $ Tuple (loc <> f) $ (((e)))
+      # mapWithIndex \i' -> mapR $ over Compose $ go $ Loc.moveF (_S::S_ "within") i' <$> loc
 
 topLoc :: forall w r m a. Oxpr w r m a -> L m a
 topLoc = project >>> un Compose >>> extract >>> env
@@ -524,6 +532,14 @@ newmother e0 =
   let e_ = AST.embedW $ e0 <#> denote
   in embed $ EnvT $ Tuple (pure (Tuple empty (Just e_))) $ wrap e0
     # mapWithIndex \i -> alsoOriginateFrom (pure (Loc.moveF (_S::S_ "within") i (Tuple empty (Just e_))))
+
+newshared :: forall w r m a. FunctorWithIndex String m =>
+  AST.ExprLayerF m a (OxprS w r m a) ->
+  OxprS w r m a
+newshared e0 =
+  let e_ = AST.embedW $ e0 <#> deshare >>> denote
+  in embedShared $ EnvT $ Tuple (pure (Tuple empty (Just e_))) $ wrap e0
+    # mapWithIndex \i -> alsoOriginateFromHalf (pure (Loc.moveF (_S::S_ "within") i (Tuple empty (Just e_))))
 
 denote :: forall m a s.
   Ann m a s -> Expr m a
@@ -959,7 +975,7 @@ rehydrate = map absurd <<< hoistExpr (absurd <<< unwrap <<< unwrap)
 typecheckAlgebra :: forall w r m a. Eq a => MapLike String m =>
   (a -> FeedbackE w r m a (Expr m a)) ->
   WithBiCtx (LxprF m a) (OxprE w r m a) -> FeedbackE w r m a (OxprSE w r m a)
-typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ unwrap layer # VariantF.match
+typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # VariantF.match
   let
     errorHere ::
       forall sym t r' b.
@@ -986,24 +1002,18 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
       , tag: Variant.inj sym v
       }
 
-    mkFunctor f a = mk (_S::S_ "App") $
-      Pair (newborn f) a
-    mk :: forall sym f r'.
-      Functor f =>
-      IsSymbol sym =>
-      R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
-      SProxy sym ->
-      f (Lxpr m a) ->
-      Lxpr m a
-    mk sym = newmother <<< VariantF.inj sym
+    newb = unshared <<< newborn
+    mkFunctor :: Expr m a -> OxprSE w r m a -> OxprSE w r m a
+    mkFunctor f a = mkShared (_S::S_ "App") $
+      Pair (newb f) a
     mkShared :: forall sym f r'.
       Functor f =>
       IsSymbol sym =>
       R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
       SProxy sym ->
-      f (OxprE w r m a) ->
-      OxprS w r m a
-    mkShared sym = unshared <<< mk sym <<< map head2D
+      f (OxprSE w r m a) ->
+      OxprSE w r m a
+    mkShared sym = newshared <<< VariantF.inj sym
     ensure' :: forall sym f r'.
       IsSymbol sym =>
       R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
@@ -1041,16 +1051,11 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
       FeedbackE w r m a (OxprE w r m a)
     checkEqR ty0 ty1 error = confirm ty1 $ checkEq ty0 ty1 error
 
-    onConst :: forall x.
-      (x -> FeedbackE w r m a (Expr m a)) ->
-      Const.Const x (OxprE w r m a) ->
-      FeedbackE w r m a (Lxpr m a)
-    onConst f (Const.Const c) = f c <#> newborn
-    always :: forall y. Expr m a -> y -> FeedbackE w r m a (Lxpr m a)
-    always b _ = pure $ newborn $ b
-    aType :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (Lxpr m a)
+    always :: forall y. Expr m a -> y -> FeedbackE w r m a (OxprSE w r m a)
+    always b _ = pure $ newb $ b
+    aType :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (OxprSE w r m a)
     aType = always $ AST.mkType
-    aFunctor :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (Lxpr m a)
+    aFunctor :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (OxprSE w r m a)
     aFunctor = always $ AST.mkArrow AST.mkType AST.mkType
     a0 = AST.mkVar (AST.V "a" 0)
 
@@ -1060,8 +1065,8 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
     checkBinOp ::
       SimpleExpr ->
       Pair (OxprE w r m a) ->
-      FeedbackE w r m a (Lxpr m a)
-    checkBinOp t p = confirm (newborn (rehydrate t)) $ forWithIndex_ p $
+      FeedbackE w r m a (OxprSE w r m a)
+    checkBinOp t p = confirm (newb (rehydrate t)) $ forWithIndex_ p $
       -- t should be simple enough that alphaNormalize is unnecessary
       \side operand -> typecheckStep operand >>= normalizeStep >>> case _ of
         ty_operand | rehydrate t == plain ty_operand -> pure unit
@@ -1122,15 +1127,15 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
         Const.Const c -> absurd <$> error (Just c)
   in
   { "Const": unwrap >>> \c ->
-      axiom c <#> newborn <<< AST.mkConst #
+      axiom c <#> newb <<< AST.mkConst #
         noteHere (_S::S_ "`Sort` has no type") unit
   , "Var": unwrap >>> \v@(AST.V name idx) ->
       case Dhall.Context.lookup name idx ctx of
         -- NOTE: this should always succeed, since the body is checked only
         -- after the `Let` value succeeds.
-        Just (This value) -> head2D <$> typecheckStep value
-        Just (That ty) -> pure $ head2D ty
-        Just (Both _ ty) -> pure $ head2D ty
+        Just (This value) -> shared <$> typecheckStep value
+        Just (That ty) -> pure $ shared ty
+        Just (Both _ ty) -> pure $ shared ty
         Nothing ->
           errorHere (_S::S_ "Unbound variable") v
   , "Lam": \(AST.BindingBody name ty body) -> do
@@ -1139,13 +1144,13 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
       ty_body <- typecheckStep body
       kO <- ensureConst ty_body
         (errorHere (_S::S_ "Invalid output type"))
-      pure $ mk(_S::S_"Pi") (AST.BindingBody name (head2D ty) (head2D ty_body))
+      pure $ mkShared(_S::S_"Pi") (AST.BindingBody name (shared ty) (shared ty_body))
   , "Pi": \(AST.BindingBody name ty ty_body) -> do
       kI <- ensureConst ty
         (errorHere (_S::S_ "Invalid input type"))
       kO <- ensureConst ty_body
         (errorHere (_S::S_ "Invalid output type"))
-      map (newborn <<< AST.mkConst) $ rule kI kO
+      map (newb <<< AST.mkConst) $ rule kI kO
   , "Let": \(AST.LetF name mty value expr) -> do
       ty0 <- typecheckStep value
       ty <- fromMaybe ty0 <$> for mty \ty' -> do
@@ -1153,22 +1158,22 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
         checkEqR ty0 ty'
           (errorHere (_S::S_ "Annotation mismatch"))
       ty_expr <- typecheckStep expr
-      let shifted = tryShiftOut0Lxpr name (head2D ty_expr)
+      let shifted = tryShiftOut0Oxpr name ty_expr
       pure case shifted of
-        Nothing -> mk(_S::S_"Let") (head2D <$> AST.LetF name mty value ty_expr)
-        Just ty_expr' -> ty_expr'
+        Nothing -> mkShared(_S::S_"Let") (shared <$> AST.LetF name mty value ty_expr)
+        Just ty_expr' -> shared ty_expr'
   , "App": \(AST.Pair f a) ->
       let
         checkFn = ensure (_S::S_ "Pi") f
           (errorHere (_S::S_ "Not a function"))
         checkArg (AST.BindingBody name aty0 rty) aty1 =
-          let shifted = tryShiftOut0Lxpr name (head2D rty) in
+          let shifted = tryShiftOut0Oxpr name rty in
           if areEq aty0 aty1
             then pure case shifted of
-              Nothing -> mk(_S::S_"App") $ Pair
-                do mk(_S::S_"Lam") (head2D <$> AST.BindingBody name aty0 rty)
-                do head2D a
-              Just rty' -> rty'
+              Nothing -> mkShared(_S::S_"App") $ Pair
+                do mkShared(_S::S_"Lam") (shared <$> AST.BindingBody name aty0 rty)
+                do shared a
+              Just rty' -> shared rty'
             else do
               -- SPECIAL!
               -- Recovery case: if the variable is unused in the return type
@@ -1177,10 +1182,10 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
               -- even if its argument does not have the right type
               errorHere (_S::S_ "Type mismatch") unit # case shifted of
                 Nothing -> identity
-                Just rty' -> confirm rty'
+                Just rty' -> confirm (shared rty')
       in join $ checkArg <$> checkFn <*> typecheckStep a
   , "Annot": \(AST.Pair expr ty) ->
-      map head2D $ join $ checkEqR
+      map shared $ join $ checkEqR
         <$> typecheckStep expr
         <@> ty
         <@> errorHere (_S::S_ "Annotation mismatch")
@@ -1194,13 +1199,13 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
           (errorHere (_S::S_ "Incomparable expression") <<< const i)
       _ <- checkEqR lty rty
         (errorHere (_S::S_ "Equivalent type mismatch"))
-      pure $ newborn AST.mkType
+      pure $ newb AST.mkType
   , "Assert": \(Identity equiv) -> do
       Pair l r <- ensure' (_S::S_ "Equivalent") equiv
         (errorHere (_S::S_ "Not an equivalence"))
       _ <- checkEqR l r
         (errorHere (_S::S_ "Assertion failed"))
-      pure $ head2D equiv
+      pure $ shared equiv
   , "Bool": identity aType
   , "BoolLit": always $ AST.mkBool
   , "BoolAnd": checkBinOp AST.mkBool
@@ -1210,7 +1215,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
   , "BoolIf": \(AST.Triplet c t f) ->
       ensure (_S::S_ "Bool") c
         (errorHere (_S::S_ "Invalid predicate")) *> do
-      map head2D $ join $ checkEqL
+      map shared $ join $ checkEqL
           <$> ensureTerm t
             (errorHere (_S::S_ "If branch must be term") <<< Tuple false)
           <*> ensureTerm f
@@ -1236,13 +1241,13 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
   , "DoubleLit": always $ AST.mkDouble
   , "DoubleShow": always $ AST.mkArrow AST.mkDouble AST.mkText
   , "Text": identity aType
-  , "TextLit": \things -> confirm (newborn AST.mkText) $
+  , "TextLit": \things -> confirm (newb AST.mkText) $
       forWithIndex_ things \i expr -> ensure (_S::S_ "Text") expr
         (errorHere (_S::S_ "Cannot interpolate") <<< const i)
   , "TextAppend": checkBinOp AST.mkText
   , "TextShow": always $ AST.mkArrow AST.mkText AST.mkText
   , "List": identity aFunctor
-  , "ListLit": \(Product (Tuple mty lit)) -> mconfirm (head2D <$> mty) do
+  , "ListLit": \(Product (Tuple mty lit)) -> mconfirm (shared <$> mty) do
       -- get the assumed type of the list
       (ty :: OxprE w r m a) <- case mty of
         -- either from annotation
@@ -1260,7 +1265,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
           Just item -> do
             ensureTerm item
               (errorHere (_S::S_ "Invalid list type"))
-      confirm (mkFunctor AST.mkList (head2D ty)) $ forWithIndex_ lit \i item -> do
+      confirm (mkFunctor AST.mkList (shared ty)) $ forWithIndex_ lit \i item -> do
         ty' <- typecheckStep item
         checkEq ty ty' \_ ->
           case mty of
@@ -1268,7 +1273,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
               errorHere (_S::S_ "Invalid list element") $ i
             Just _ ->
               errorHere (_S::S_ "Mismatched list elements") $ i
-  , "ListAppend": \p -> mkFunctor AST.mkList <<< head2D <$> do
+  , "ListAppend": \p -> mkFunctor AST.mkList <<< shared <$> do
       AST.Pair ty_l ty_r <- forWithIndex p \side expr -> do
         let error = errorHere (_S::S_ "Cannot append non-list") <<< const side
         expr_ty <- typecheckStep expr
@@ -1305,7 +1310,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
       AST.mkPi "A" AST.mkType $
         AST.mkApp AST.mkOptional (AST.mkVar (AST.V "A" 0))
   , "Some": unwrap >>> \a ->
-      mkFunctor AST.mkOptional <<< head2D <$> ensureTerm a
+      mkFunctor AST.mkOptional <<< shared <$> ensureTerm a
         (errorHere (_S::S_ "Invalid `Some`"))
   , "OptionalFold": always $ AST.mkForall "a" $
       AST.mkArrow (AST.mkApp AST.mkOptional a0) (optionalEnc a0)
@@ -1318,13 +1323,13 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
         kts' <- forWithIndex kts \field ty -> do
           unwrap <$> ensure (_S::S_ "Const") ty
             (errorHere (_S::S_ "Invalid field type") <<< const field)
-        pure $ newborn $ AST.mkConst $ maxConst kts'
+        pure $ newb $ AST.mkConst $ maxConst kts'
   , "RecordLit": \kvs ->
       ensureNodupes
         (errorHere (_S::S_ "Duplicate record fields")) kvs
       *> do
         kts <- traverse typecheckStep kvs
-        confirm (mk(_S::S_"Record") (head2D <$> kts)) do
+        confirm (mkShared(_S::S_"Record") (shared <$> kts)) do
           forWithIndex_ kts \field ty -> do
             ensure (_S::S_ "Const") ty
               (errorHere (_S::S_ "Invalid field type") <<< const field)
@@ -1337,7 +1342,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
             (errorHere (_S::S_ "Invalid field type") <<< const field)
         ensureConsistency (((<<<)<<<(<<<)) (fromMaybe true) $ lift2 eq)
           (errorHere (_S::S_ "Inconsistent alternative types") <<< (map <<< map) _.key) (unwrap kts')
-        pure $ newborn $ AST.mkConst $ maxConst kts'
+        pure $ newb $ AST.mkConst $ maxConst kts'
   , "Combine":
       let
         combineTypes here (p :: Pair (OxprE w r m a)) = do
@@ -1349,12 +1354,12 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
                 (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
               pure { kts, const }
           let combined = Dhall.Map.unionWith (pure pure) ktsL ktsR
-          mk(_S::S_"Record") <$> forWithIndex combined \k ->
+          mkShared(_S::S_"Record") <$> forWithIndex combined \k ->
             case _ of
               Both ktsL' ktsR' ->
                 combineTypes (k : here) (AST.Pair ktsL' ktsR')
-              This t -> pure (head2D t)
-              That t -> pure (head2D t)
+              This t -> pure (shared t)
+              That t -> pure (shared t)
       in (=<<) (combineTypes Nil) <<< traverse typecheckStep
   , "CombineTypes":
       let
@@ -1371,10 +1376,10 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
             case _ of
               Both ktsL' ktsR' ->
                 _.rec <$> combineTypes (k : here) (AST.Pair ktsL' ktsR')
-              This t -> pure (head2D t)
-              That t -> pure (head2D t)
-          pure { const: max constL constR, rec: mk(_S::S_"Record") kts }
-      in map (newborn <<< AST.mkConst <<< _.const) <<< combineTypes Nil
+              This t -> pure (shared t)
+              That t -> pure (shared t)
+          pure { const: max constL constR, rec: mkShared(_S::S_"Record") kts }
+      in map (newb <<< AST.mkConst <<< _.const) <<< combineTypes Nil
   , "Prefer": \p -> do
       AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
         forWithIndex p \side kvs -> do
@@ -1390,7 +1395,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
           This a -> a
           That b -> b
           Both a _ -> a
-      pure $ mk(_S::S_"Record") $ map head2D $ Dhall.Map.unionWith (pure preference) ktsR ktsL
+      pure $ mkShared(_S::S_"Record") $ map shared $ Dhall.Map.unionWith (pure preference) ktsR ktsL
   , "Merge": \(AST.MergeF handlers cases mty) -> do
       Tuple ktsX (Compose ktsY) <- Tuple
         <$> ensure (_S::S_ "Record") handlers
@@ -1421,7 +1426,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
                 pure $ Tuple (Just { key: k, fn: true }) output'
               Nothing -> do
                 pure $ Tuple (Just { key: k, fn: false }) item
-      confirm (head2D ty) ado
+      confirm (shared ty) ado
         when (not Set.isEmpty diffX)
           (errorHere (_S::S_ "Unused handlers") diffX)
         forWithIndex_ ktsY \k mtY -> do
@@ -1444,13 +1449,13 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
               checkEq ty tX
                 (errorHere (_S::S_ "Handler type mismatch") <<< const (Tuple whence k))
         in unit
-  , "ToMap": \(Product (Tuple (Identity expr) mty)) -> mconfirm (head2D <$> mty) do
+  , "ToMap": \(Product (Tuple (Identity expr) mty)) -> mconfirm (shared <$> mty) do
       kts <- ensure (_S::S_ "Record") expr
         (errorHere (_S::S_ "toMap takes a record"))
       let
         mapType ty =
-          mkFunctor AST.mkList $ mk(_S::S_ "Record") $ Dhall.Map.fromFoldable
-            [ Tuple "mapKey" $ mk(_S::S_ "Text") (wrap unit)
+          mkFunctor AST.mkList $ mkShared(_S::S_ "Record") $ Dhall.Map.fromFoldable
+            [ Tuple "mapKey" $ mkShared(_S::S_ "Text") (wrap unit)
             , Tuple "mapValue" ty
             ]
       tyA <- mty # traverse \listty -> do
@@ -1472,19 +1477,19 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
         (errorHere (_S::S_ "Missing toMap type"))
         (errorHere (_S::S_ "Inconsistent toMap types") <<< (map <<< map) _.key)
         (WithHint tyA kts)
-      pure $ mapType $ head2D ty
+      pure $ mapType $ shared ty
   , "Field": \(Tuple field expr) -> do
       tyR <- typecheckStep expr
       let
         error _ = errorHere (_S::S_ "Cannot access") unit
         handleRecord kts = do
           case Dhall.Map.get field kts of
-            Just ty -> pure (head2D ty)
+            Just ty -> pure (shared ty)
             Nothing -> errorHere (_S::S_ "Missing field") $ field
         handleType kts = do
           case Dhall.Map.get field kts of
-            Just (Just ty) -> pure $ mk(_S::S_"Pi") $ map head2D $ (AST.BindingBody field ty expr)
-            Just Nothing -> pure $ head2D expr
+            Just (Just ty) -> pure $ mkShared(_S::S_"Pi") $ map shared $ (AST.BindingBody field ty expr)
+            Just Nothing -> pure $ shared expr
             Nothing -> errorHere (_S::S_ "Missing field") $ field
         casing = (\_ -> error unit)
           # VariantF.on (_S::S_ "Record") handleRecord
@@ -1502,14 +1507,14 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
           -- TODO: right error?
           ks <- ensure' (_S::S_ "Record") fields (errorHere (_S::S_ "Cannot project by expression"))
           ks # traverse \ty -> Just ty <$ typecheckStep ty
-      mk(_S::S_"Record") <<< map head2D <$> forWithIndex ks \k mty -> do
+      mkShared(_S::S_"Record") <<< map shared <$> forWithIndex ks \k mty -> do
         ty0 <- Dhall.Map.get k kts #
           (noteHere (_S::S_ "Missing field") k)
         mty # maybe (pure ty0) \ty1 ->
           checkEqR ty0 ty1 (errorHere (_S::S_ "Projection type mismatch") <<< const k)
-  , "Hashed": \(Tuple _ e) -> head2D <$> typecheckStep e
+  , "Hashed": \(Tuple _ e) -> shared <$> typecheckStep e
   , "UsingHeaders": \(Pair l r) ->
-      head2D <$> typecheckStep l <* do
+      shared <$> typecheckStep l <* do
         let error = errorHere (_S::S_ "Wrong header type")
         (ty :: OxprE w r m a) <- typecheckStep r
         AST.Pair list (ty' :: OxprE w r m a) <- ensure' (_S::S_ "App") ty error
@@ -1523,13 +1528,13 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ u
         pure unit
   , "ImportAlt": \(Pair l r) ->
       -- FIXME???
-      case unwrap $ head2D <$> typecheckStep l of
+      case unwrap $ shared <$> typecheckStep l of
         succ@(V.Success _) -> wrap succ
         V.Error es ml ->
-          case unwrap $ head2D <$> typecheckStep r of
+          case unwrap $ shared <$> typecheckStep r of
             succ@(V.Success _) -> wrap succ
             V.Error es' mr -> wrap $ V.Error (es <> es') (ml <|> mr)
-  , "Embed": map newborn <<< tpa <<< unwrap
+  , "Embed": map newb <<< tpa <<< unwrap
   }
 
 data Reference a
