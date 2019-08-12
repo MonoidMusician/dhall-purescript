@@ -5,10 +5,9 @@ import Prelude
 import Control.Alternative (class Alternative, (<|>))
 import Control.Apply (lift2)
 import Control.Comonad (class Comonad, extend, extract)
-import Control.Comonad.Cofree (Cofree, buildCofree, hoistCofree)
+import Control.Comonad.Cofree (Cofree, buildCofree, deferCofree)
 import Control.Comonad.Cofree as Cofree
 import Control.Comonad.Env (EnvT(..), mapEnvT, runEnvT)
-import Control.Monad.Reader (ReaderT(..), runReaderT)
 import Control.Monad.Writer (WriterT(..))
 import Control.Plus (empty)
 import Data.Array as Array
@@ -122,6 +121,7 @@ type Feedback w r m a = WR w (TypeCheckError r (L m a))
 
 -- I don't know how to explain this. I think it makes sense.
 type TwoD m f = Mu (Compose (Cofree m) f)
+type HalfTwoD m f = Mu (Compose (Either (TwoD m f)) f)
 
 recursor2D ::
   forall t f m r.
@@ -134,6 +134,36 @@ recursor2D f = go where
   go :: t -> r
   go = ana $ (<<<) Compose $ buildCofree $ (>>>) project $ do
     identity &&& \ft -> ft <#> go # f
+
+shared :: forall m f. Functor f => TwoD m f -> HalfTwoD m f
+shared r = embed (Compose (Left r))
+
+unshared :: forall m t f. Recursive t f => Functor f => t -> HalfTwoD m f
+unshared = cata embedShared
+
+embedShared :: forall m f. Functor f => f (HalfTwoD m f) -> HalfTwoD m f
+embedShared ft = embed (Compose (Right ft))
+
+recursor2DSharingCtx ::
+  forall t f m r ctx.
+    Recursive t (Compose (Either r) f) =>
+    Recursive r (Compose (Cofree m) f) =>
+    Corecursive r (Compose (Cofree m) f) =>
+    Functor f =>
+    Functor m =>
+  (ctx -> f (ctx -> r) -> m t) -> t -> ctx -> r
+recursor2DSharingCtx f = go where
+  go :: t -> ctx -> r
+  go t ctx = case unwrap (project t) of
+    Left r -> r
+    Right ft -> embed (Compose (goCf ft ctx))
+  goCf :: f t -> ctx -> Cofree m (f r)
+  goCf ft ctx = deferCofree \_ ->
+    let fr = go <$> ft in
+    Tuple (fr <@> ctx) $ f ctx fr <#> \t ->
+      case unwrap (project t) of
+        Left r -> unwrap (project r)
+        Right ft' -> goCf ft' ctx
 
 head2D ::
   forall t f w r. Comonad w =>
@@ -215,44 +245,43 @@ instance traversableWithBiCtx :: Traversable f => Traversable (WithBiCtx f) wher
 --   Right (Lazy Feedback): typechecking
 -- TODO: more operations? extensibility? connect to GenericExprAlgebra?
 type Operations w r m a = Product (Product Lazy (WithBiCtx Lazy)) (Compose Lazy (Feedback w r m a))
--- Operations, but requiring a context
--- NOTE: the expression type is fixed to Oxpr here. It seems to work.
-type Operacions w r m a = ReaderT (BiContext (Oxpr w r m a)) (Operations w r m a)
 -- Expr with Location, along the dual axes of Operations and the AST
 type Oxpr w r m a = TwoD (Operations w r m a) (LxprF m a)
--- Oxpr, but where the operations still need the context
-type Ocpr w r m a = TwoD (Operacions w r m a) (LxprF m a)
+-- Oxpr where nodes may be elaborated or unelaborated
+type OxprS w r m a = HalfTwoD (Operations w r m a) (LxprF m a)
 
 -- Transforms the simple "typecheck one thing" algorithm to the full-blown
--- Lxpr -> Ocpr transformation (which includes typechecking and normalizing
--- each node).
+-- Lxpr -> Oxpr transformation (which includes typechecking and normalizing
+-- each node, inside the given context).
 typecheckSketch :: forall w r m a. Eq a => MapLike String m =>
-  (WithBiCtx (LxprF m a) (Oxpr w r m a) -> Feedback w r m a (Lxpr m a)) ->
-  Lxpr m a -> Ocpr w r m a
-typecheckSketch alg = recursor2D
-  \layer@(EnvT (Tuple loc e)) -> ReaderT \ctx -> Product $ Tuple
+  (WithBiCtx (LxprF m a) (Oxpr w r m a) -> Feedback w r m a (OxprS w r m a)) ->
+  Lxpr m a -> BiContext (Oxpr w r m a) -> Oxpr w r m a
+typecheckSketch alg = unshared >>> recursor2DSharingCtx
+  \ctx layer@(EnvT (Tuple loc e)) -> Product $ Tuple
       do Product $ Tuple
           do
             defer \_ ->
+              unshared $
               alphaNormalizeLxpr $
-              embed $ EnvT $ Tuple loc $ head2D <$> e
+              embed $ EnvT $ Tuple loc $ head2D <$> (e <@> ctx)
           -- FIXME: is context empty after normalization? idk
-          do WithBiCtx (ctx <#> join bimap head2D) $ -- FIXME: memoization lost
+          do WithBiCtx (ctx <#> join bimap shared) $ -- FIXME: memoization lost
               defer \_ ->
+                unshared $
                 -- Normalize (and substitute!) the context before substitution
                 let ctx' = ctx <#> theseLeft >>> map (normalizeStep >>> head2D)
                     --unused = unsafePerformEffect $ log $ unsafeCoerce $ Array.fromFoldable $ map fst $ unwrap $ ctx
                 in
                 normalizeLxpr $
                 substContextLxpr ctx' $
-                embed $ EnvT $ Tuple loc $ head2D <$> e
+                embed $ EnvT $ Tuple loc $ head2D <$> (e <@> ctx)
       do Compose $ defer \_ ->
-          map (alsoOriginateFrom (Loc.stepF (_S::S_ "typecheck") <$> loc)) $
+          map (alsoOriginateFromHalf (Loc.stepF (_S::S_ "typecheck") <$> loc)) $
           alg $ WithBiCtx ctx $ (((layer))) #
             -- contextualize each child of `layer` in the proper context,
             -- adapted for its place in the AST
             -- (in particular, if `layer` is `Let`/`Pi`/`Lam`)
-            do mapEnvT $ _Newtype $ bicontextualizeWithin1 shiftInOxpr0 bicontextualizeWithin ctx
+            do mapEnvT $ _Newtype $ bicontextualizeWithin1 shiftInOxpr0 (#) ctx
 
 -- Run the alpha-normalization operation.
 alphaNormalizeOp :: forall w r m a b. Operations w r m a b -> b
@@ -316,6 +345,10 @@ alsoOriginateFrom = flip <<< cata <<< flip $ go where
   go loc (EnvT (Tuple f e)) = embed $ EnvT $ Tuple (loc <> f) $ (((e)))
     # mapWithIndex \i' -> (#) $ Loc.moveF (_S::S_ "within") i' <$> loc
 
+alsoOriginateFromHalf :: forall w r m a. FunctorWithIndex String m =>
+  L m a -> OxprS w r m a -> OxprS w r m a
+alsoOriginateFromHalf _ = identity -- FIXME
+
 topLoc :: forall w r m a. Oxpr w r m a -> L m a
 topLoc = project >>> un Compose >>> extract >>> env
 
@@ -327,20 +360,6 @@ alsoOriginateFromO = mapR <<< over Compose <<< go where
     # bimap
       do mapEnv (loc <> _) >>> mapEnvT (mapWithIndex \i' -> mapR $ over Compose $ go $ Loc.moveF (_S::S_ "within") i' <$> loc)
       do bitransProduct (map (go (Loc.stepF (_S::S_ "normalize") <$> loc))) (map (go (Loc.stepF (_S::S_ "typecheck") <$> loc)))
-
--- Typecheck an Ocpr by giving it a context. Returns an Oxpr.
-typecheckStepCtx :: forall w r m a. FunctorWithIndex String m =>
-  BiContext (Oxpr w r m a) -> Ocpr w r m a -> Feedback w r m a (Oxpr w r m a)
-typecheckStepCtx ctx = typecheckOp <<< step2D <<< bicontextualizeWithin ctx
-
--- Turn an Ocpr into an Oxpr by giving it a context at the top-level
--- (which gets adapted as necessary through the layers).
-bicontextualizeWithin :: forall w r m a. FunctorWithIndex String m =>
-  BiContext (Oxpr w r m a) ->
-  Ocpr w r m a -> Oxpr w r m a
-bicontextualizeWithin = flip <<< cata <<< flip $ \ctx -> (<<<) In $
-  over Compose $ hoistCofree (runReaderT <@> ctx) >>> do
-    map $ mapEnvT $ _Newtype $ bicontextualizeWithin1 shiftInOxpr0 (#) ctx
 
 -- Adapt the context for how it should go through one layer.
 bicontextualizeWithin1 :: forall m a node node'.
@@ -862,6 +881,7 @@ type Errors r =
   )
 type FeedbackE w r m a = Feedback w (Errors r) m a
 type OxprE w r m a = Oxpr w (Errors r) m a
+type OxprSE w r m a = OxprS w (Errors r) m a
 type TypeCheckErrorE r a = TypeCheckError (Errors r) a
 
 reconstituteCtx :: forall a b.
@@ -911,13 +931,13 @@ typingWithA tpa ctx0 e0 = do
     tcingIn :: BiContext (OxprE w r m a) -> Expr m a -> FeedbackE w r m a (OxprE w r m a)
     tcingIn ctx e =
       let
-        e' = tcingFrom (pure (Tuple empty (Just e))) e # bicontextualizeWithin ctx
+        e' = tcingFrom (pure (Tuple empty (Just e))) e ctx
       in e' <$ typecheckStep e'
   -- convert ctx0 and e0 to Oxprs
   ctxO <- reconstituteCtxM (\ctx ty -> That <$> tcingIn ctx ty) ctx0
   let eO = tcingFrom (pure (Tuple empty Nothing)) e0
   -- and run typechecking on eO
-  pure $ bicontextualizeWithin ctxO eO
+  pure $ eO ctxO
 
 newtype NoStrMap a = NoStrMap (Const.Const Void a)
 derive instance newtypeNoStrMap :: Newtype (NoStrMap a) _
@@ -938,8 +958,8 @@ rehydrate = map absurd <<< hoistExpr (absurd <<< unwrap <<< unwrap)
 
 typecheckAlgebra :: forall w r m a. Eq a => MapLike String m =>
   (a -> FeedbackE w r m a (Expr m a)) ->
-  WithBiCtx (LxprF m a) (OxprE w r m a) -> FeedbackE w r m a (Lxpr m a)
-typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # VariantF.match
+  WithBiCtx (LxprF m a) (OxprE w r m a) -> FeedbackE w r m a (OxprSE w r m a)
+typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = map unshared $ unwrap layer # VariantF.match
   let
     errorHere ::
       forall sym t r' b.
@@ -976,6 +996,14 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       f (Lxpr m a) ->
       Lxpr m a
     mk sym = newmother <<< VariantF.inj sym
+    mkShared :: forall sym f r'.
+      Functor f =>
+      IsSymbol sym =>
+      R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
+      SProxy sym ->
+      f (OxprE w r m a) ->
+      OxprS w r m a
+    mkShared sym = unshared <<< mk sym <<< map head2D
     ensure' :: forall sym f r'.
       IsSymbol sym =>
       R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
@@ -1529,7 +1557,7 @@ oneStopShop ::
   }
 oneStopShop tpa e0 = { oxpr, locate, explain: explainHere } where
   oxprFrom loc ei =
-    bicontextualizeWithin Dhall.Context.empty $
+    (#) Dhall.Context.empty $
       typecheckSketch (typecheckAlgebra tpa) $
         originateFrom (pure (Tuple empty loc)) $
           ei
