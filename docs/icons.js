@@ -54423,6 +54423,7 @@ var Dhall_Interactive_Halogen_Icons = require("../Dhall.Interactive.Halogen.Icon
 var Dhall_Interactive_Halogen_Inputs = require("../Dhall.Interactive.Halogen.Inputs/index.js");
 var Dhall_Lib_Timeline = require("../Dhall.Lib.Timeline/index.js");
 var Dhall_Map = require("../Dhall.Map/index.js");
+var Dhall_Normalize = require("../Dhall.Normalize/index.js");
 var Dhall_Parser = require("../Dhall.Parser/index.js");
 var Dhall_TypeCheck = require("../Dhall.TypeCheck/index.js");
 var Halogen_Component = require("../Halogen.Component/index.js");
@@ -54886,7 +54887,7 @@ var renderErrorRef = function (v) {
                 editable: false
             })(Data_Monoid.mempty(Dhall_Interactive_Halogen_AST_Tree.monoidCustomize))(Dhall_Core_AST_Noted.innote(Data_Monoid.mempty(Data_Monoid.monoidRecord()(Data_Monoid.monoidRecordCons(new Data_Symbol.IsSymbol(function () {
                 return "collapsed";
-            }))(Data_Monoid_Disj.monoidDisj(Data_HeytingAlgebra.heytingAlgebraBoolean))()(Data_Monoid.monoidRecordNil))))(Dhall_TypeCheck.plain(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(Dhall_TypeCheck.functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(Dhall_TypeCheck.functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(v.value0))))((function () {
+            }))(Data_Monoid_Disj.monoidDisj(Data_HeytingAlgebra.heytingAlgebraBoolean))()(Data_Monoid.monoidRecordNil))))(Dhall_TypeCheck.plain(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(Dhall_TypeCheck.functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(Dhall_TypeCheck.functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(v.value0))))((function () {
                 var $183 = ViewAction.create(Data_Unit.unit);
                 var $184 = Data_Bifoldable.bifoldMap(Data_These.bifoldableThese)(Data_Monoid.monoidArray)(Control_Applicative.pure(Control_Applicative.applicativeArray))((function () {
                     var $186 = Control_Applicative.pure(Control_Applicative.applicativeArray);
@@ -54905,7 +54906,7 @@ var renderErrorRef = function (v) {
                 editable: false
             })(Data_Monoid.mempty(Dhall_Interactive_Halogen_AST_Tree.monoidCustomize))(Dhall_Core_AST_Noted.innote(Data_Monoid.mempty(Data_Monoid.monoidRecord()(Data_Monoid.monoidRecordCons(new Data_Symbol.IsSymbol(function () {
                 return "collapsed";
-            }))(Data_Monoid_Disj.monoidDisj(Data_HeytingAlgebra.heytingAlgebraBoolean))()(Data_Monoid.monoidRecordNil))))(Dhall_TypeCheck.plain(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(Dhall_TypeCheck.functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(Dhall_TypeCheck.functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(v.value0))))((function () {
+            }))(Data_Monoid_Disj.monoidDisj(Data_HeytingAlgebra.heytingAlgebraBoolean))()(Data_Monoid.monoidRecordNil))))(Dhall_TypeCheck.plain(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(Dhall_TypeCheck.functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(Dhall_TypeCheck.functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(v.value0))))((function () {
                 var $188 = ViewAction.create(Data_Unit.unit);
                 var $189 = Data_Bifoldable.bifoldMap(Data_These.bifoldableThese)(Data_Monoid.monoidArray)(Control_Applicative.pure(Control_Applicative.applicativeArray))((function () {
                     var $191 = Control_Applicative.pure(Control_Applicative.applicativeArray);
@@ -54998,7 +54999,7 @@ var viewer = (function () {
             var $209 = Dhall_Core_AST_Noted.innote(Data_Monoid.mempty(Data_Monoid.monoidRecord()(Data_Monoid.monoidRecordCons(new Data_Symbol.IsSymbol(function () {
                 return "collapsed";
             }))(Data_Monoid_Disj.monoidDisj(Data_HeytingAlgebra.heytingAlgebraBoolean))()(Data_Monoid.monoidRecordNil))));
-            var $210 = Dhall_TypeCheck.plain(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(Dhall_TypeCheck.functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(Dhall_TypeCheck.functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+            var $210 = Dhall_TypeCheck.plain(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(Dhall_TypeCheck.functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(Dhall_TypeCheck.functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
             return function ($211) {
                 return $209($210($211));
             };
@@ -55406,7 +55407,7 @@ module.exports = {
     tagERVFI: tagERVFI
 };
 
-},{"../Control.Alt/index.js":14,"../Control.Applicative/index.js":17,"../Control.Apply/index.js":19,"../Control.Bind/index.js":23,"../Control.Category/index.js":24,"../Control.Comonad.Cofree/index.js":25,"../Control.Comonad.Env.Trans/index.js":26,"../Control.Comonad/index.js":30,"../Control.Monad.State.Class/index.js":53,"../Control.Monad.Writer.Trans/index.js":58,"../Control.Plus/index.js":65,"../Data.Array.NonEmpty/index.js":86,"../Data.Array/index.js":91,"../Data.Bifoldable/index.js":92,"../Data.Either/index.js":119,"../Data.Eq/index.js":123,"../Data.Foldable/index.js":128,"../Data.Function/index.js":132,"../Data.Functor.Compose/index.js":134,"../Data.Functor.Product/index.js":140,"../Data.Functor/index.js":143,"../Data.FunctorWithIndex/index.js":145,"../Data.HeytingAlgebra/index.js":149,"../Data.Lazy/index.js":156,"../Data.Lens.Fold/index.js":157,"../Data.Lens.Internal.Forget/index.js":162,"../Data.Lens.Internal.Wander/index.js":168,"../Data.Lens.Iso.Newtype/index.js":169,"../Data.Lens.Lens.Tuple/index.js":172,"../Data.Lens.Record/index.js":176,"../Data.Lens.Setter/index.js":177,"../Data.List.Types/index.js":182,"../Data.List/index.js":183,"../Data.Maybe/index.js":187,"../Data.Monoid.Disj/index.js":191,"../Data.Monoid/index.js":195,"../Data.Natural/index.js":196,"../Data.Newtype/index.js":197,"../Data.Ord/index.js":205,"../Data.Profunctor.Strong/index.js":212,"../Data.Semigroup/index.js":221,"../Data.Semiring/index.js":223,"../Data.Show/index.js":226,"../Data.Symbol/index.js":240,"../Data.These/index.js":242,"../Data.Tuple/index.js":251,"../Data.Unit/index.js":257,"../Data.Variant.Internal/index.js":258,"../Data.Variant/index.js":259,"../Data.Void/index.js":260,"../Dhall.Core.AST.Noted/index.js":263,"../Dhall.Core.AST.Operations.Location/index.js":264,"../Dhall.Core.AST.Types.Basics/index.js":267,"../Dhall.Core.AST.Types/index.js":268,"../Dhall.Core.Imports.Types/index.js":271,"../Dhall.Core.Zippers.Recursive/index.js":273,"../Dhall.Core.Zippers/index.js":274,"../Dhall.Interactive.Halogen.AST.Tree/index.js":276,"../Dhall.Interactive.Halogen.AST/index.js":277,"../Dhall.Interactive.Halogen.Icons/index.js":278,"../Dhall.Interactive.Halogen.Inputs/index.js":279,"../Dhall.Lib.Timeline/index.js":283,"../Dhall.Map/index.js":284,"../Dhall.Parser/index.js":289,"../Dhall.TypeCheck/index.js":290,"../Halogen.Component/index.js":326,"../Halogen.HTML.Core/index.js":332,"../Halogen.HTML.Elements/index.js":334,"../Halogen.HTML.Events/index.js":335,"../Halogen.HTML.Properties/index.js":336,"../Halogen.HTML/index.js":337,"../Halogen.Query.HalogenM/index.js":340,"../Matryoshka.Class.Recursive/index.js":356,"../Type.Equality/index.js":388,"../Validation.These/index.js":394}],276:[function(require,module,exports){
+},{"../Control.Alt/index.js":14,"../Control.Applicative/index.js":17,"../Control.Apply/index.js":19,"../Control.Bind/index.js":23,"../Control.Category/index.js":24,"../Control.Comonad.Cofree/index.js":25,"../Control.Comonad.Env.Trans/index.js":26,"../Control.Comonad/index.js":30,"../Control.Monad.State.Class/index.js":53,"../Control.Monad.Writer.Trans/index.js":58,"../Control.Plus/index.js":65,"../Data.Array.NonEmpty/index.js":86,"../Data.Array/index.js":91,"../Data.Bifoldable/index.js":92,"../Data.Either/index.js":119,"../Data.Eq/index.js":123,"../Data.Foldable/index.js":128,"../Data.Function/index.js":132,"../Data.Functor.Compose/index.js":134,"../Data.Functor.Product/index.js":140,"../Data.Functor/index.js":143,"../Data.FunctorWithIndex/index.js":145,"../Data.HeytingAlgebra/index.js":149,"../Data.Lazy/index.js":156,"../Data.Lens.Fold/index.js":157,"../Data.Lens.Internal.Forget/index.js":162,"../Data.Lens.Internal.Wander/index.js":168,"../Data.Lens.Iso.Newtype/index.js":169,"../Data.Lens.Lens.Tuple/index.js":172,"../Data.Lens.Record/index.js":176,"../Data.Lens.Setter/index.js":177,"../Data.List.Types/index.js":182,"../Data.List/index.js":183,"../Data.Maybe/index.js":187,"../Data.Monoid.Disj/index.js":191,"../Data.Monoid/index.js":195,"../Data.Natural/index.js":196,"../Data.Newtype/index.js":197,"../Data.Ord/index.js":205,"../Data.Profunctor.Strong/index.js":212,"../Data.Semigroup/index.js":221,"../Data.Semiring/index.js":223,"../Data.Show/index.js":226,"../Data.Symbol/index.js":240,"../Data.These/index.js":242,"../Data.Tuple/index.js":251,"../Data.Unit/index.js":257,"../Data.Variant.Internal/index.js":258,"../Data.Variant/index.js":259,"../Data.Void/index.js":260,"../Dhall.Core.AST.Noted/index.js":263,"../Dhall.Core.AST.Operations.Location/index.js":264,"../Dhall.Core.AST.Types.Basics/index.js":267,"../Dhall.Core.AST.Types/index.js":268,"../Dhall.Core.Imports.Types/index.js":271,"../Dhall.Core.Zippers.Recursive/index.js":273,"../Dhall.Core.Zippers/index.js":274,"../Dhall.Interactive.Halogen.AST.Tree/index.js":276,"../Dhall.Interactive.Halogen.AST/index.js":277,"../Dhall.Interactive.Halogen.Icons/index.js":278,"../Dhall.Interactive.Halogen.Inputs/index.js":279,"../Dhall.Lib.Timeline/index.js":283,"../Dhall.Map/index.js":284,"../Dhall.Normalize/index.js":286,"../Dhall.Parser/index.js":289,"../Dhall.TypeCheck/index.js":290,"../Halogen.Component/index.js":326,"../Halogen.HTML.Core/index.js":332,"../Halogen.HTML.Elements/index.js":334,"../Halogen.HTML.Events/index.js":335,"../Halogen.HTML.Properties/index.js":336,"../Halogen.HTML/index.js":337,"../Halogen.Query.HalogenM/index.js":340,"../Matryoshka.Class.Recursive/index.js":356,"../Type.Equality/index.js":388,"../Validation.These/index.js":394}],276:[function(require,module,exports){
 // Generated by purs version 0.13.0
 "use strict";
 var Control_Applicative = require("../Control.Applicative/index.js");
@@ -62287,7 +62288,6 @@ module.exports = {
 };
 
 },{"../Control.Applicative/index.js":17,"../Control.Bind/index.js":23,"../Control.Category/index.js":24,"../Control.Monad.Except/index.js":39,"../Control.MonadZero/index.js":62,"../Control.Semigroupoid/index.js":68,"../Data.Array/index.js":91,"../Data.Const/index.js":108,"../Data.Either/index.js":119,"../Data.Eq/index.js":123,"../Data.Foldable/index.js":128,"../Data.Function/index.js":132,"../Data.Functor.Compose/index.js":134,"../Data.Functor.Product/index.js":140,"../Data.Functor.Variant/index.js":141,"../Data.Functor/index.js":143,"../Data.HeytingAlgebra/index.js":149,"../Data.Identity/index.js":150,"../Data.Lens.Fold/index.js":157,"../Data.Lens.Internal.Forget/index.js":162,"../Data.List.Types/index.js":182,"../Data.Maybe.First/index.js":185,"../Data.Maybe/index.js":187,"../Data.Monoid.Disj/index.js":191,"../Data.Monoid/index.js":195,"../Data.Newtype/index.js":197,"../Data.Nullable/index.js":200,"../Data.Ord/index.js":205,"../Data.Semigroup/index.js":221,"../Data.Symbol/index.js":240,"../Data.Tuple/index.js":251,"../Data.Unit/index.js":257,"../Dhall.Core.AST.Constructors/index.js":262,"../Dhall.Core.AST.Types.Basics/index.js":267,"../Dhall.Core.AST.Types/index.js":268,"../Dhall.Core.Imports.Types/index.js":271,"../Dhall.Core.Zippers.Merge/index.js":272,"../Dhall.Map/index.js":284,"../Dhall.Parser.Prioritize/index.js":287,"../Foreign/index.js":317,"../Partial.Unsafe/index.js":378,"../Unsafe.Coerce/index.js":391,"./foreign.js":288}],290:[function(require,module,exports){
-// Generated by purs version 0.13.0
 "use strict";
 var Control_Alt = require("../Control.Alt/index.js");
 var Control_Applicative = require("../Control.Applicative/index.js");
@@ -62298,7 +62298,6 @@ var Control_Comonad = require("../Control.Comonad/index.js");
 var Control_Comonad_Cofree = require("../Control.Comonad.Cofree/index.js");
 var Control_Comonad_Env_Trans = require("../Control.Comonad.Env.Trans/index.js");
 var Control_Extend = require("../Control.Extend/index.js");
-var Control_Monad_Reader_Trans = require("../Control.Monad.Reader.Trans/index.js");
 var Control_Monad_Writer_Trans = require("../Control.Monad.Writer.Trans/index.js");
 var Control_Plus = require("../Control.Plus/index.js");
 var Control_Semigroupoid = require("../Control.Semigroupoid/index.js");
@@ -62317,7 +62316,6 @@ var Data_FoldableWithIndex = require("../Data.FoldableWithIndex/index.js");
 var Data_Function = require("../Data.Function/index.js");
 var Data_Functor = require("../Data.Functor/index.js");
 var Data_Functor_Compose = require("../Data.Functor.Compose/index.js");
-var Data_Functor_Mu = require("../Data.Functor.Mu/index.js");
 var Data_Functor_Product = require("../Data.Functor.Product/index.js");
 var Data_Functor_Variant = require("../Data.Functor.Variant/index.js");
 var Data_FunctorWithIndex = require("../Data.FunctorWithIndex/index.js");
@@ -62342,6 +62340,7 @@ var Data_Monoid_Endo = require("../Data.Monoid.Endo/index.js");
 var Data_Newtype = require("../Data.Newtype/index.js");
 var Data_NonEmpty = require("../Data.NonEmpty/index.js");
 var Data_Ord = require("../Data.Ord/index.js");
+var Data_Ord_Max = require("../Data.Ord.Max/index.js");
 var Data_Profunctor = require("../Data.Profunctor/index.js");
 var Data_Profunctor_Strong = require("../Data.Profunctor.Strong/index.js");
 var Data_Semigroup = require("../Data.Semigroup/index.js");
@@ -62376,7 +62375,11 @@ var Matryoshka_Fold = require("../Matryoshka.Fold/index.js");
 var Matryoshka_Unfold = require("../Matryoshka.Unfold/index.js");
 var Matryoshka_Util = require("../Matryoshka.Util/index.js");
 var Type_Equality = require("../Type.Equality/index.js");
+var Unsafe_Reference = require("../Unsafe.Reference/index.js");
 var Validation_These = require("../Validation.These/index.js");
+
+// A helper for consistency checks: add an extra "hint" or first element to an
+// existing foldable container.
 var WithHint = (function () {
     function WithHint(value0, value1) {
         this.value0 = value0;
@@ -62459,9 +62462,15 @@ var Href = (function () {
 var NoStrMap = function (x) {
     return x;
 };
+
+// A record of conflict, when a list is supposed to agree but there are two
+// or more distinct elements or groupings.
 var Inconsistency = function (x) {
     return x;
 };
+
+// Product (Compose Context (Join These)) f, but without the newtypes
+// (I love newtypes, but even that was a little excessive for me ...)
 var WithBiCtx = (function () {
     function WithBiCtx(value0, value1) {
         this.value0 = value0;
@@ -62474,14 +62483,27 @@ var WithBiCtx = (function () {
     };
     return WithBiCtx;
 })();
+
+// Try to recover sharing at the top node.
+var wasShared = function (v) {
+    if (v instanceof Data_Either.Left) {
+        return new Data_Maybe.Just(v.value0);
+    };
+    return Data_Maybe.Nothing.value;
+};
 var unEnvT = function (v) {
     return v.value1;
 };
+
+// Run the typechecking operation.
 var typecheckOp = function (v) {
     return Control_Comonad.extract(Data_Lazy.comonadLazy)(v.value1);
 };
 var traversableNoStrMap = Data_Const.traversableConst;
 var traversableInconsistency = Data_NonEmpty.traversableNonEmpty(Data_NonEmpty.traversableNonEmpty(Data_List_Types.traversableList));
+
+// derive newtype instance traversable1Inconsistency :: Traversable1 Inconsistency
+// Compute groupings according to an equivalence relation
 var tabulateGroupings = function (egal) {
     var insertGrouping = function (v0) {
         return function (v) {
@@ -62496,7 +62518,7 @@ var tabulateGroupings = function (egal) {
                     return new Data_List_Types.Cons(v.value0, insertGrouping(v0)(v.value1));
                 };
             };
-            throw new Error("Failed pattern match at Dhall.TypeCheck (line 708, column 23 - line 713, column 60): " + [ v.constructor.name ]);
+            throw new Error("Failed pattern match at Dhall.TypeCheck (line 992, column 23 - line 997, column 60): " + [ v.constructor.name ]);
         };
     };
     var go = function ($copy_accum) {
@@ -62507,14 +62529,14 @@ var tabulateGroupings = function (egal) {
             function $tco_loop(accum, v) {
                 if (v instanceof Data_List_Types.Nil) {
                     $tco_done = true;
-                    return Control_Plus.empty(Data_List_Types.plusList);
+                    return accum;
                 };
                 if (v instanceof Data_List_Types.Cons) {
                     $tco_var_accum = insertGrouping(v.value0)(accum);
                     $copy_v = v.value1;
                     return;
                 };
-                throw new Error("Failed pattern match at Dhall.TypeCheck (line 705, column 14 - line 707, column 59): " + [ v.constructor.name ]);
+                throw new Error("Failed pattern match at Dhall.TypeCheck (line 989, column 14 - line 991, column 59): " + [ v.constructor.name ]);
             };
             while (!$tco_done) {
                 $tco_result = $tco_loop($tco_var_accum, $copy_v);
@@ -62524,6 +62546,10 @@ var tabulateGroupings = function (egal) {
     };
     return go(Control_Plus.empty(Data_List_Types.plusList));
 };
+
+// Insert an empty entry instead
+// Conservative substitution: let bindings within the selection are not
+// substituted, but bindings from outside are brought in
 var substcontextualizeWithin10 = function (shiftIn_node$prime) {
     return function (go) {
         return function (ctx) {
@@ -62537,7 +62563,7 @@ var substcontextualizeWithin10 = function (shiftIn_node$prime) {
                 if (v instanceof Dhall_Variables.Intro) {
                     return go(Dhall_Context.insert(v.value0.value0)(Control_Plus.empty(Data_Maybe.plusMaybe))(Data_Functor.map(Dhall_Context.functorContext)(Data_Functor.map(Data_Maybe.functorMaybe)(shiftIn_node$prime(v.value0.value0)))(ctx)));
                 };
-                throw new Error("Failed pattern match at Dhall.TypeCheck (line 375, column 62 - line 380, column 39): " + [ v.constructor.name ]);
+                throw new Error("Failed pattern match at Dhall.TypeCheck (line 467, column 62 - line 472, column 39): " + [ v.constructor.name ]);
             });
         };
     };
@@ -62554,14 +62580,14 @@ var substcontextualizeWithin1 = function (shiftIn_node$prime) {
                 };
                 if (v instanceof Dhall_Variables.Intro) {
                     return go(Dhall_Context.insert(v.value0.value0)(Data_Functor.map(Data_Maybe.functorMaybe)((function () {
-                        var $1000 = shiftIn_node$prime(v.value0.value0);
-                        var $1001 = go(ctx);
-                        return function ($1002) {
-                            return $1000($1001($1002));
+                        var $1115 = shiftIn_node$prime(v.value0.value0);
+                        var $1116 = go(ctx);
+                        return function ($1117) {
+                            return $1115($1116($1117));
                         };
                     })())(Data_These.theseLeft(v.value0.value1)))(Data_Functor.map(Dhall_Context.functorContext)(Data_Functor.map(Data_Maybe.functorMaybe)(shiftIn_node$prime(v.value0.value0)))(ctx)));
                 };
-                throw new Error("Failed pattern match at Dhall.TypeCheck (line 361, column 61 - line 366, column 39): " + [ v.constructor.name ]);
+                throw new Error("Failed pattern match at Dhall.TypeCheck (line 451, column 61 - line 456, column 39): " + [ v.constructor.name ]);
             });
         };
     };
@@ -62573,9 +62599,9 @@ var subst1 = function (ctx) {
     var obtain = Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
         return "Var";
     }))(Dhall_Core_AST_Types_Basics["_S"])((function () {
-        var $1003 = Data_Newtype.unwrap(Data_Const.newtypeConst);
-        return function ($1004) {
-            return lookup($1003($1004));
+        var $1118 = Data_Newtype.unwrap(Data_Const.newtypeConst);
+        return function ($1119) {
+            return lookup($1118($1119));
         };
     })())(Control_Applicative.pure(Control_Applicative.applicativeFn)(Data_Maybe.Nothing.value));
     return Control_Bind.bind(Control_Bind.bindFn)(obtain)(function (v) {
@@ -62589,69 +62615,83 @@ var subst1 = function (ctx) {
         };
     });
 };
+
+// Substitute any variables available in the context (via `let` bindings),
+// return `Left` when there is a substitution, or recursing with the provided
+// function (adapting context).
 var substContext1 = function (shiftIn_node$prime) {
     return function (go) {
         return function (ctx) {
-            var $1005 = subst1(ctx);
-            var $1006 = substcontextualizeWithin1(shiftIn_node$prime)(go)(ctx);
-            return function ($1007) {
-                return $1005($1006($1007));
+            var $1120 = subst1(ctx);
+            var $1121 = substcontextualizeWithin1(shiftIn_node$prime)(go)(ctx);
+            return function ($1122) {
+                return $1120($1121($1122));
             };
         };
     };
 };
+
+// Substitute a context all the way down an Expr, snowballing as it goes
+// (i.e., `Let` bindings introduced in it are also substituted).
 var substContextExpr = Data_Function.flip(Matryoshka_Fold.cata(Dhall_Core_AST_Types.recursiveExpr)(function (v) {
-    return function (ctx) {
+    return function (ctx$prime) {
         var v1 = substContext1(function (name) {
             return Dhall_Variables.shift(1)(new Dhall_Core_AST_Types.V(name, 0));
-        })(Data_Function.applyFlipped)(ctx)(v);
+        })(Data_Function.applyFlipped)(ctx$prime)(v);
         if (v1 instanceof Data_Either.Left) {
             return v1.value0;
         };
         if (v1 instanceof Data_Either.Right) {
             return Matryoshka_Class_Corecursive.embed(Dhall_Core_AST_Types.corecursiveExpr)(v1.value0);
         };
-        throw new Error("Failed pattern match at Dhall.TypeCheck (line 452, column 3 - line 454, column 40): " + [ v1.constructor.name ]);
+        throw new Error("Failed pattern match at Dhall.TypeCheck (line 516, column 3 - line 518, column 40): " + [ v1.constructor.name ]);
     };
 }));
+
+// Substitute a fixed context, not adding entries from `let` bindings
 var substContext10 = function (shiftIn_node$prime) {
     return function (go) {
         return function (ctx) {
-            var $1008 = subst1(ctx);
-            var $1009 = substcontextualizeWithin10(shiftIn_node$prime)(go)(ctx);
-            return function ($1010) {
-                return $1008($1009($1010));
+            var $1123 = subst1(ctx);
+            var $1124 = substcontextualizeWithin10(shiftIn_node$prime)(go)(ctx);
+            return function ($1125) {
+                return $1123($1124($1125));
             };
         };
     };
 };
+
+// Substitute an outer context everywhere inside an Expr, but do not substitute
+// inner `Let` bindnigs (i.e. no snowballing).
 var substContextExpr0 = Data_Function.flip(Matryoshka_Fold.cata(Dhall_Core_AST_Types.recursiveExpr)(function (v) {
-    return function (ctx) {
+    return function (ctx$prime) {
         var v1 = substContext10(function (name) {
             return Dhall_Variables.shift(1)(new Dhall_Core_AST_Types.V(name, 0));
-        })(Data_Function.applyFlipped)(ctx)(v);
+        })(Data_Function.applyFlipped)(ctx$prime)(v);
         if (v1 instanceof Data_Either.Left) {
             return v1.value0;
         };
         if (v1 instanceof Data_Either.Right) {
             return Matryoshka_Class_Corecursive.embed(Dhall_Core_AST_Types.corecursiveExpr)(v1.value0);
         };
-        throw new Error("Failed pattern match at Dhall.TypeCheck (line 460, column 3 - line 462, column 40): " + [ v1.constructor.name ]);
+        throw new Error("Failed pattern match at Dhall.TypeCheck (line 526, column 3 - line 528, column 40): " + [ v1.constructor.name ]);
     };
 }));
+
+// Get the functor of operations at the head.
 var step2D = function (dictFunctor) {
     return function (dictRecursive) {
         return function (dictCorecursive) {
-            var $1011 = Data_Functor.map(dictFunctor)((function () {
-                var $1015 = Matryoshka_Class_Corecursive.embed(dictCorecursive);
-                return function ($1016) {
-                    return $1015(Data_Functor_Compose.Compose($1016));
+            var $1126 = Data_Functor.map(dictFunctor)((function () {
+                var $1130 = Matryoshka_Class_Corecursive.embed(dictCorecursive);
+                return function ($1131) {
+                    return $1130(Data_Functor_Compose.Compose($1131));
                 };
             })());
-            var $1012 = Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
-            var $1013 = Matryoshka_Class_Recursive.project(dictRecursive);
-            return function ($1014) {
-                return $1011(Control_Comonad_Cofree.tail($1012($1013($1014))));
+            var $1127 = Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+            var $1128 = Matryoshka_Class_Recursive.project(dictRecursive);
+            return function ($1129) {
+                return $1126(Control_Comonad_Cofree.tail($1127($1128($1129))));
             };
         };
     };
@@ -62668,6 +62708,11 @@ var showTypeCheckError = function (dictShow) {
 var showInconsistency = function (dictShow) {
     return Data_NonEmpty.showNonEmpty(dictShow)(Data_NonEmpty.showNonEmpty(dictShow)(Data_List_Types.showList(dictShow)));
 };
+
+// Construct a shared value (cheap).
+var shared = function (r) {
+    return new Data_Either.Left(r);
+};
 var rule = function (dictApplicative) {
     return function (v) {
         return function (v1) {
@@ -62678,23 +62723,73 @@ var rule = function (dictApplicative) {
         };
     };
 };
+
+// This is a fancy algorithm that generates `TwoD m f` from `HalfTwoD m f` while
+// threading context through. Certain assumptions are made about how context
+// works, namely that it stays constant through the operations `m`, while
+// the algorithm can control how it varies through the `f` dimension.
+var recursor2DSharingCtx = function (dictRecursive) {
+    return function (dictRecursive1) {
+        return function (dictCorecursive) {
+            return function (dictFunctor) {
+                return function (dictFunctor1) {
+                    return function (f) {
+                        var goCf = function (ft) {
+                            return function (ctx) {
+                                return Control_Comonad_Cofree.deferCofree(function (v) {
+                                    var fr = Data_Functor.map(dictFunctor)(go)(ft);
+                                    return Data_Tuple.Tuple.create(Data_Functor.flap(dictFunctor)(fr)(ctx))(Data_Functor.mapFlipped(dictFunctor1)(f(ctx)(fr))(function (t) {
+                                        var v1 = Data_Newtype.unwrap(Data_Functor_Compose.newtypeCompose)(Matryoshka_Class_Recursive.project(dictRecursive)(t));
+                                        if (v1 instanceof Data_Either.Left) {
+                                            return Data_Newtype.unwrap(Data_Functor_Compose.newtypeCompose)(Matryoshka_Class_Recursive.project(dictRecursive1)(v1.value0));
+                                        };
+                                        if (v1 instanceof Data_Either.Right) {
+                                            return goCf(v1.value0)(ctx);
+                                        };
+                                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 203, column 7 - line 209, column 34): " + [ v1.constructor.name ]);
+                                    }));
+                                });
+                            };
+                        };
+                        var go = function (t) {
+                            return function (ctx) {
+                                var v = Data_Newtype.unwrap(Data_Functor_Compose.newtypeCompose)(Matryoshka_Class_Recursive.project(dictRecursive)(t));
+                                if (v instanceof Data_Either.Left) {
+                                    return v.value0;
+                                };
+                                if (v instanceof Data_Either.Right) {
+                                    return Matryoshka_Class_Corecursive.embed(dictCorecursive)(goCf(v.value0)(ctx));
+                                };
+                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 194, column 14 - line 196, column 46): " + [ v.constructor.name ]);
+                            };
+                        };
+                        return go;
+                    };
+                };
+            };
+        };
+    };
+};
+
+// Elaborate a tree like `Mu f` into `TwoD m f` using an algorithm like
+// `f (TwoD m f) -> m (Mu f)`. Operations are built lazily in the `Cofree`.
 var recursor2D = function (dictRecursive) {
     return function (dictCorecursive) {
         return function (dictFunctor) {
             return function (dictFunctor1) {
                 return function (f) {
                     var go = Matryoshka_Unfold.ana(dictCorecursive)((function () {
-                        var $1017 = Control_Comonad_Cofree.buildCofree(dictFunctor1)((function () {
-                            var $1019 = Data_Profunctor_Strong.fanout(Control_Category.categoryFn)(Data_Profunctor_Strong.strongFn)(Control_Category.identity(Control_Category.categoryFn))(function (ft) {
+                        var $1132 = Control_Comonad_Cofree.buildCofree(dictFunctor1)((function () {
+                            var $1134 = Data_Profunctor_Strong.fanout(Control_Category.categoryFn)(Data_Profunctor_Strong.strongFn)(Control_Category.identity(Control_Category.categoryFn))(function (ft) {
                                 return f(Data_Functor.mapFlipped(dictFunctor)(ft)(go));
                             });
-                            var $1020 = Matryoshka_Class_Recursive.project(dictRecursive);
-                            return function ($1021) {
-                                return $1019($1020($1021));
+                            var $1135 = Matryoshka_Class_Recursive.project(dictRecursive);
+                            return function ($1136) {
+                                return $1134($1135($1136));
                             };
                         })());
-                        return function ($1018) {
-                            return Data_Functor_Compose.Compose($1017($1018));
+                        return function ($1133) {
+                            return Data_Functor_Compose.Compose($1132($1133));
                         };
                     })());
                     return go;
@@ -62703,7 +62798,9 @@ var recursor2D = function (dictRecursive) {
         };
     };
 };
-var reconstituteCtxFrom = function (dictBind) {
+
+// TODO: MonadRec?
+var reconstituteCtxFromM = function (dictBind) {
     return function (dictApplicative) {
         return function (ctx0) {
             return function (f) {
@@ -62716,26 +62813,65 @@ var reconstituteCtxFrom = function (dictBind) {
                         });
                     };
                 };
-                var $1022 = Data_Foldable.foldr(Data_List_Types.foldableList)(f$prime)(Control_Applicative.pure(dictApplicative)(ctx0));
-                var $1023 = Data_Newtype.un(Dhall_Context.newtypeContext)(Dhall_Context.Context);
-                var $1024 = Control_Category.identity(Control_Category.categoryFn);
-                return function ($1025) {
-                    return $1022($1023($1024($1025)));
+                var $1137 = Data_Foldable.foldr(Data_List_Types.foldableList)(f$prime)(Control_Applicative.pure(dictApplicative)(ctx0));
+                var $1138 = Data_Newtype.un(Dhall_Context.newtypeContext)(Dhall_Context.Context);
+                return function ($1139) {
+                    return $1137($1138($1139));
                 };
             };
         };
     };
 };
-var reconstituteCtx = function (dictBind) {
+var reconstituteCtxM = function (dictBind) {
     return function (dictApplicative) {
-        return reconstituteCtxFrom(dictBind)(dictApplicative)(Dhall_Context.empty);
+        return reconstituteCtxFromM(dictBind)(dictApplicative)(Dhall_Context.empty);
     };
+};
+
+// A helper: when applying an operation in a context, the context needs to be
+// initialized, step-by-step, just like the final result will be initialized
+// with that context.
+var reconstituteCtx = function (f) {
+    var $1140 = Control_Comonad.extract(Data_Identity.comonadIdentity);
+    var $1141 = reconstituteCtxM(Data_Identity.bindIdentity)(Data_Identity.applicativeIdentity)((function () {
+        var $1143 = Control_Semigroupoid.compose(Control_Semigroupoid.semigroupoidFn)(Data_Identity.Identity);
+        return function ($1144) {
+            return $1143(f($1144));
+        };
+    })());
+    return function ($1142) {
+        return $1140($1141($1142));
+    };
+};
+
+// Substitute expression and context, no snowballing.
+var substContextExpr0Ctx = function (ctx) {
+    return substContextExpr0(reconstituteCtx((function () {
+        var $1145 = Data_Functor.map(Data_Maybe.functorMaybe);
+        return function ($1146) {
+            return $1145(substContextExpr0($1146));
+        };
+    })())(ctx));
+};
+
+// Substitute, first making sure each item in context has been substituted,
+// with snowballing.
+var substContextExprCtx = function (ctx) {
+    return substContextExpr(reconstituteCtx((function () {
+        var $1147 = Data_Functor.map(Data_Maybe.functorMaybe);
+        return function ($1148) {
+            return $1147(substContextExpr($1148));
+        };
+    })())(ctx));
 };
 var overBiCtx = function (fg) {
     return function (v) {
         return new WithBiCtx(v.value0, fg(v.value1));
     };
 };
+
+// Add the locations to an expression with locations, starting with the given
+// one at top, and adapting the locations to the tree (i.e. adding LocationWithin).
 var originateFrom = function (dictFunctorWithIndex) {
     var go = function (loc) {
         return function (e) {
@@ -62748,31 +62884,52 @@ var originateFrom = function (dictFunctorWithIndex) {
     };
     return Data_Function.flip(Matryoshka_Fold.cata(Dhall_Core_AST_Types.recursiveExpr)(Data_Function.flip(go)));
 };
-var normalizeOp = function (v) {
-    return Control_Comonad.extract(Data_Lazy.comonadLazy)(v.value0.value1.value1);
+var normalizeOpW = function (v) {
+    return Control_Comonad.extract(Data_Lazy.comonadLazy)(Data_Newtype.unwrap(Data_Functor_Compose.newtypeCompose)(v.value0.value1.value1));
 };
+
+// Run the normalization operation.
+var normalizeOp = (function () {
+    var $1149 = Control_Comonad.extract(Data_Lazy.comonadLazy);
+    var $1150 = Control_Comonad.extract(Data_Tuple.comonadTuple);
+    var $1151 = Data_Newtype.unwrap(Dhall_Normalize.newtypeW);
+    return function ($1152) {
+        return $1149($1150($1151(normalizeOpW($1152))));
+    };
+})();
 var newtypeNoStrMap = new Data_Newtype.Newtype(function (n) {
     return n;
 }, NoStrMap);
 var rehydrate = function (dictFunctor) {
-    var $1026 = Data_Functor.map(Dhall_Core_AST_Types.functorExpr)(Data_Void.absurd);
-    var $1027 = Dhall_Core_AST_Operations.hoistExpr(dictFunctor)((function () {
-        var $1029 = Data_Newtype.unwrap(Data_Const.newtypeConst);
-        var $1030 = Data_Newtype.unwrap(newtypeNoStrMap);
-        return function ($1031) {
-            return Data_Void.absurd($1029($1030($1031)));
+    var $1153 = Data_Functor.map(Dhall_Core_AST_Types.functorExpr)(Data_Void.absurd);
+    var $1154 = Dhall_Core_AST_Operations.hoistExpr(dictFunctor)((function () {
+        var $1156 = Data_Newtype.unwrap(Data_Const.newtypeConst);
+        var $1157 = Data_Newtype.unwrap(newtypeNoStrMap);
+        return function ($1158) {
+            return Data_Void.absurd($1156($1157($1158)));
         };
     })());
-    return function ($1028) {
-        return $1026($1027($1028));
+    return function ($1155) {
+        return $1153($1154($1155));
     };
 };
 var newtypeInconsistency = new Data_Newtype.Newtype(function (n) {
     return n;
 }, Inconsistency);
+
+// Originate from ... itself. Profound.
 var newborn = function (dictFunctorWithIndex) {
     return function (e0) {
         return originateFrom(dictFunctorWithIndex)(Control_Applicative.pure(Data_List_Types.applicativeNonEmptyList)(new Data_Tuple.Tuple(Control_Plus.empty(Data_List_Types.plusList), new Data_Maybe.Just(e0))))(e0);
+    };
+};
+var maxConst = function (dictFoldable) {
+    var $1159 = Data_Maybe.maybe(Dhall_Core_AST_Types.Type.value)(Data_Newtype.un(Data_Ord_Max.newtypeMax)(Data_Ord_Max.Max));
+    var $1160 = Data_Foldable.foldMap(dictFoldable)(Data_Maybe.monoidMaybe(Data_Ord_Max.semigroupMax(Dhall_Core_AST_Types.ordConst)))(function ($1162) {
+        return Data_Maybe.Just.create(Data_Ord_Max.Max($1162));
+    });
+    return function ($1161) {
+        return $1159($1160($1161));
     };
 };
 var mapEnv = function (f) {
@@ -62782,20 +62939,22 @@ var mapEnv = function (f) {
 };
 var headAndSpine = function (dictCorecursive) {
     return Data_Profunctor_Strong.fanout(Control_Category.categoryFn)(Data_Profunctor_Strong.strongFn)(Control_Comonad_Cofree.head)(Matryoshka_Fold.transCata(Matryoshka_Class_Recursive.recursiveCofree(dictCorecursive.Functor0()))(dictCorecursive)((function () {
-        var $1032 = Control_Comonad.extract(Data_Tuple.comonadTuple);
-        return function ($1033) {
-            return $1032(Control_Comonad_Env_Trans.runEnvT($1033));
+        var $1163 = Control_Comonad.extract(Data_Tuple.comonadTuple);
+        return function ($1164) {
+            return $1163(Control_Comonad_Env_Trans.runEnvT($1164));
         };
     })()));
 };
+
+// Return the syntax tree at the head, running no operations.
 var head2D = function (dictComonad) {
     return function (dictRecursive) {
         return function (dictCorecursive) {
             return Matryoshka_Fold.transCata(dictRecursive)(dictCorecursive)((function () {
-                var $1034 = Control_Comonad.extract(dictComonad);
-                var $1035 = Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
-                return function ($1036) {
-                    return $1034($1035($1036));
+                var $1165 = Control_Comonad.extract(dictComonad);
+                var $1166 = Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+                return function ($1167) {
+                    return $1165($1166($1167));
                 };
             })());
         };
@@ -62816,8 +62975,8 @@ var functorWithIndexWithHint = function (dictFunctorWithIndex) {
         return functorWithHint(dictFunctorWithIndex.Functor0());
     }, function (f) {
         return function (v) {
-            return new WithHint(Data_Functor.map(Data_Maybe.functorMaybe)(f(Data_Maybe.Nothing.value))(v.value0), Data_FunctorWithIndex.mapWithIndex(dictFunctorWithIndex)(function ($1037) {
-                return f(Data_Maybe.Just.create($1037));
+            return new WithHint(Data_Functor.map(Data_Maybe.functorMaybe)(f(Data_Maybe.Nothing.value))(v.value0), Data_FunctorWithIndex.mapWithIndex(dictFunctorWithIndex)(function ($1168) {
+                return f(Data_Maybe.Just.create($1168));
             })(v.value1));
         };
     });
@@ -62829,34 +62988,48 @@ var functorWithBiCtx = function (dictFunctor) {
         };
     });
 };
+
+// Normalize an Oxpr (once).
 var normalizeStep = (function () {
-    var $1038 = step2D(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
-    return function ($1039) {
-        return normalizeOp($1038($1039));
+    var $1169 = step2D(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    return function ($1170) {
+        return normalizeOp($1169($1170));
     };
 })();
+var normalizeStepW = (function () {
+    var $1171 = step2D(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    return function ($1172) {
+        return normalizeOpW($1171($1172));
+    };
+})();
+
+// Modify the Expr layer at the top of an Oxpr.
 var overlayerO = (function () {
-    var $1040 = Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
-    var $1041 = Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
-    var $1042 = Data_Functor.map(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))));
-    var $1043 = Data_Newtype.over(Dhall_Core_AST_Types.newtypeERVF)(Dhall_Core_AST_Types.newtypeERVF)(Dhall_Core_AST_Types.ERVF);
-    return function ($1044) {
-        return $1040($1041($1042(Control_Comonad_Env_Trans.mapEnvT($1043($1044)))));
+    var $1173 = Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    var $1174 = Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+    var $1175 = Data_Functor.map(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))));
+    var $1176 = Data_Newtype.over(Dhall_Core_AST_Types.newtypeERVF)(Dhall_Core_AST_Types.newtypeERVF)(Dhall_Core_AST_Types.ERVF);
+    return function ($1177) {
+        return $1173($1174($1175(Control_Comonad_Env_Trans.mapEnvT($1176($1177)))));
     };
 })();
+
+// Typecheck an Oxpr (once).
 var typecheckStep = (function () {
-    var $1045 = step2D(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
-    return function ($1046) {
-        return typecheckOp($1045($1046));
+    var $1178 = step2D(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    return function ($1179) {
+        return typecheckOp($1178($1179));
     };
 })();
+
+// Unwrap the Expr layer at the top of an Oxpr.
 var unlayerO = (function () {
-    var $1047 = Data_Newtype.unwrap(Dhall_Core_AST_Types.newtypeERVF);
-    var $1048 = Control_Comonad.extract(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))));
-    var $1049 = Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
-    var $1050 = Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
-    return function ($1051) {
-        return $1047(unEnvT($1048($1049($1050($1051)))));
+    var $1180 = Data_Newtype.unwrap(Dhall_Core_AST_Types.newtypeERVF);
+    var $1181 = Control_Comonad.extract(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))));
+    var $1182 = Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+    var $1183 = Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    return function ($1184) {
+        return $1180(unEnvT($1181($1182($1183($1184)))));
     };
 })();
 var runOxprAlg = function (alg) {
@@ -62865,16 +63038,16 @@ var runOxprAlg = function (alg) {
             return Data_Newtype.un(Data_Identity.newtypeIdentity)(Data_Identity.Identity)(alg(i)({
                 unlayer: unlayerO,
                 overlayer: (function () {
-                    var $1052 = Data_Functor.map(Data_Functor.functorFn)(Control_Applicative.pure(Data_Identity.applicativeIdentity));
-                    var $1053 = Data_Functor.map(Data_Functor.functorFn)(Control_Comonad.extract(Data_Identity.comonadIdentity));
-                    return function ($1054) {
-                        return $1052(overlayerO($1053($1054)));
+                    var $1185 = Data_Functor.map(Data_Functor.functorFn)(Control_Applicative.pure(Data_Identity.applicativeIdentity));
+                    var $1186 = Data_Functor.map(Data_Functor.functorFn)(Control_Comonad.extract(Data_Identity.comonadIdentity));
+                    return function ($1187) {
+                        return $1185(overlayerO($1186($1187)));
                     };
                 })(),
                 recurse: (function () {
-                    var $1055 = Data_Functor.map(Data_Functor.functorFn)(Data_Identity.Identity);
-                    return function ($1056) {
-                        return $1055(go($1056));
+                    var $1188 = Data_Functor.map(Data_Functor.functorFn)(Data_Identity.Identity);
+                    return function ($1189) {
+                        return $1188(go($1189));
                     };
                 })()
             })(e));
@@ -62897,6 +63070,21 @@ var shiftInOxpr0 = function (v) {
     return shiftInOxpr(new Dhall_Core_AST_Types.V(v, 0));
 };
 var shiftOutOxpr = shiftOxpr(-1 | 0);
+var unlayerOS = (function () {
+    var $1190 = Data_Newtype.unwrap(Data_Functor_Compose.newtypeCompose);
+    var $1191 = Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    return function ($1192) {
+        return (function (v) {
+            if (v instanceof Data_Either.Left) {
+                return Data_Functor.map(Data_Functor_Variant.functorVariantF)(shared)(unlayerO(v.value0));
+            };
+            if (v instanceof Data_Either.Right) {
+                return Data_Newtype.unwrap(Dhall_Core_AST_Types.newtypeERVF)(unEnvT(v.value0));
+            };
+            throw new Error("Failed pattern match at Dhall.TypeCheck (line 760, column 36 - line 762, column 39): " + [ v.constructor.name ]);
+        })($1190($1191($1192)));
+    };
+})();
 var functorTypeCheckError = new Data_Functor.Functor(function (f) {
     return function (m) {
         return {
@@ -62905,6 +63093,8 @@ var functorTypeCheckError = new Data_Functor.Functor(function (f) {
         };
     };
 });
+
+// | NodeType String
 var functorReference = new Data_Functor.Functor(function (f) {
     return function (m) {
         if (m instanceof Text) {
@@ -62925,7 +63115,7 @@ var functorReference = new Data_Functor.Functor(function (f) {
         if (m instanceof Href) {
             return new Href(m.value0, m.value1);
         };
-        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1502, column 1 - line 1502, column 54): " + [ m.constructor.name ]);
+        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1792, column 1 - line 1792, column 54): " + [ m.constructor.name ]);
     };
 });
 var functorNoStrMap = Data_Const.functorConst;
@@ -62938,8 +63128,8 @@ var functorWithIndexNoStrMap = new Data_FunctorWithIndex.FunctorWithIndex(functi
 });
 var functorInconsistency = Data_NonEmpty.functorNonEmpty(Data_NonEmpty.functorNonEmpty(Data_List_Types.functorList));
 var freeInOxpr = function (dictFoldable) {
-    return Data_Function.flip(Matryoshka_Fold.cata(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))((function () {
-        var $1057 = Dhall_Variables.freeInAlg()(Data_Functor_Variant.foldableCons(new Data_Symbol.IsSymbol(function () {
+    return Data_Function.flip(Matryoshka_Fold.cata(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))((function () {
+        var $1193 = Dhall_Variables.freeInAlg()(Data_Functor_Variant.foldableCons(new Data_Symbol.IsSymbol(function () {
             return "Annot";
         }))(Dhall_Core_AST_Types_Basics.foldablePair)(Data_Functor_Variant.foldableCons(new Data_Symbol.IsSymbol(function () {
             return "App";
@@ -63076,11 +63266,11 @@ var freeInOxpr = function (dictFoldable) {
         }))(Dhall_Core_AST_Types_Basics.foldablePair)(Data_Functor_Variant.foldableCons(new Data_Symbol.IsSymbol(function () {
             return "Var";
         }))(Data_Const.foldableConst)(Data_Functor_Variant.foldableNil)())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())());
-        var $1058 = Data_Newtype.unwrap(Dhall_Core_AST_Types.newtypeERVF);
-        var $1059 = Control_Comonad.extract(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))));
-        var $1060 = Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
-        return function ($1061) {
-            return $1057($1058(unEnvT($1059($1060($1061)))));
+        var $1194 = Data_Newtype.unwrap(Dhall_Core_AST_Types.newtypeERVF);
+        var $1195 = Control_Comonad.extract(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))));
+        var $1196 = Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+        return function ($1197) {
+            return $1193($1194(unEnvT($1195($1196($1197)))));
         };
     })()));
 };
@@ -63101,7 +63291,7 @@ var tryShiftOut0Oxpr = function (dictFoldable) {
 };
 var freeInLxpr = function (dictFoldable) {
     return Data_Function.flip(Matryoshka_Fold.cata(Matryoshka_Class_Recursive.recursiveCofree(Dhall_Core_AST_Types.functorERVF))((function () {
-        var $1062 = Dhall_Variables.freeInAlg()(Data_Functor_Variant.foldableCons(new Data_Symbol.IsSymbol(function () {
+        var $1198 = Dhall_Variables.freeInAlg()(Data_Functor_Variant.foldableCons(new Data_Symbol.IsSymbol(function () {
             return "Annot";
         }))(Dhall_Core_AST_Types_Basics.foldablePair)(Data_Functor_Variant.foldableCons(new Data_Symbol.IsSymbol(function () {
             return "App";
@@ -63238,9 +63428,9 @@ var freeInLxpr = function (dictFoldable) {
         }))(Dhall_Core_AST_Types_Basics.foldablePair)(Data_Functor_Variant.foldableCons(new Data_Symbol.IsSymbol(function () {
             return "Var";
         }))(Data_Const.foldableConst)(Data_Functor_Variant.foldableNil)())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())())());
-        var $1063 = Data_Newtype.unwrap(Dhall_Core_AST_Types.newtypeERVF);
-        return function ($1064) {
-            return $1062($1063(unEnvT($1064)));
+        var $1199 = Data_Newtype.unwrap(Dhall_Core_AST_Types.newtypeERVF);
+        return function ($1200) {
+            return $1198($1199(unEnvT($1200)));
         };
     })()));
 };
@@ -63334,32 +63524,35 @@ var foldableInconsistency = Data_NonEmpty.foldableNonEmpty(Data_NonEmpty.foldabl
 var foldable1Inconsistency = Data_NonEmpty.foldable1NonEmpty(Data_NonEmpty.foldableNonEmpty(Data_List_Types.foldableList));
 var findDupes = function (dictOrd) {
     return function (dictFoldableWithIndex) {
-        var $1065 = Data_Foldable.foldMap(Data_Foldable.foldableArray)(Data_Maybe.monoidMaybe(Data_List_Types.semigroupNonEmptyList))((function () {
-            var $1071 = Control_Applicative.pure(Data_Maybe.applicativeMaybe);
-            var $1072 = Control_Applicative.pure(Data_List_Types.applicativeNonEmptyList);
-            return function ($1073) {
-                return $1071($1072($1073));
+        var $1201 = Data_Foldable.foldMap(Data_Foldable.foldableArray)(Data_Maybe.monoidMaybe(Data_List_Types.semigroupNonEmptyList))((function () {
+            var $1207 = Control_Applicative.pure(Data_Maybe.applicativeMaybe);
+            var $1208 = Control_Applicative.pure(Data_List_Types.applicativeNonEmptyList);
+            return function ($1209) {
+                return $1207($1208($1209));
             };
         })());
-        var $1066 = Data_Array.mapMaybe(function (a) {
-            var $539 = Data_Array_NonEmpty.length(a) > 1;
-            if ($539) {
+        var $1202 = Data_Array.mapMaybe(function (a) {
+            var $596 = Data_Array_NonEmpty.length(a) > 1;
+            if ($596) {
                 return new Data_Maybe.Just(Data_Array_NonEmpty.head(a));
             };
             return Data_Maybe.Nothing.value;
         });
-        var $1067 = Data_Array.group(dictOrd.Eq0());
-        var $1068 = Data_Array.sort(dictOrd);
-        var $1069 = Data_FoldableWithIndex.foldMapWithIndex(dictFoldableWithIndex)(Data_Monoid.monoidArray)(function (i) {
+        var $1203 = Data_Array.group(dictOrd.Eq0());
+        var $1204 = Data_Array.sort(dictOrd);
+        var $1205 = Data_FoldableWithIndex.foldMapWithIndex(dictFoldableWithIndex)(Data_Monoid.monoidArray)(function (i) {
             return function (v) {
                 return [ i ];
             };
         });
-        return function ($1070) {
-            return $1065($1066($1067($1068($1069($1070)))));
+        return function ($1206) {
+            return $1201($1202($1203($1204($1205($1206)))));
         };
     };
 };
+
+// The explanation, given as text interspersed with specific places to look at
+// (for the user to read)
 var explain = function (dictMapLike) {
     return function (ctx) {
         return function (nodeType) {
@@ -63389,22 +63582,22 @@ var explain = function (dictMapLike) {
             var referenceExpr = function (e) {
                 return new Reference(expr(e));
             };
-            var referenceConst = function ($1074) {
-                return referenceExpr(Dhall_Core_AST_Constructors.mkConst($1074));
+            var referenceConst = function ($1210) {
+                return referenceExpr(Dhall_Core_AST_Constructors.mkConst($1210));
             };
             var errorUnknownError = [ new Text("Unexplained error") ];
             var dereference = function (v) {
                 return v(new Data_Tuple.Tuple(Control_Plus.empty(Data_List_Types.plusList), Data_Maybe.Nothing.value));
             };
-            var reference = function ($1075) {
-                return Reference.create(dereference($1075));
+            var reference = function ($1211) {
+                return Reference.create(dereference($1211));
             };
             var here = reference(Data_Monoid.mempty(Data_Monoid_Endo.monoidEndo(Control_Category.categoryFn)));
             var notAType = function (desc) {
                 return function (loc) {
                     return [ Text.create("The " + ((function () {
-                        var $541 = Data_String_Common["null"](desc);
-                        if ($541) {
+                        var $598 = Data_String_Common["null"](desc);
+                        if ($598) {
                             return "";
                         };
                         return desc + " ";
@@ -63420,7 +63613,7 @@ var explain = function (dictMapLike) {
                     };
                 };
             };
-            return Data_Variant.onMatch()(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchNil)()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()({
+            return Data_Variant.onMatch()(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchNil)()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()({
                 "`Sort` has no type": function (v) {
                     return [ new Text("Sort is the top universe of types and therefore it has no type itself") ];
                 },
@@ -63466,7 +63659,7 @@ var explain = function (dictMapLike) {
                         if (v.value1 instanceof Data_Maybe.Just) {
                             return [ new Compare(" which was in universe ", expr(Dhall_Core_AST_Constructors.mkConst(v.value1.value0)), " instead of ", expr(Dhall_Core_AST_Constructors.mkConst(Dhall_Core_AST_Types.Type.value))) ];
                         };
-                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1640, column 12 - line 1651, column 12): " + [ v.value1.constructor.name ]);
+                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1930, column 12 - line 1941, column 12): " + [ v.value1.constructor.name ]);
                     })());
                 },
                 "Invalid list type": function (v) {
@@ -63474,8 +63667,8 @@ var explain = function (dictMapLike) {
                         return "ListLit";
                     }))(Dhall_Core_AST_Types_Basics["_S"])(new Data_Either.Left(Data_Unit.unit));
                     var focus = (function () {
-                        var $549 = Data_Lens_Fold.has(Data_HeytingAlgebra.heytingAlgebraBoolean)(Dhall_Core_Zippers["_ix"](Dhall_Core_AST_Types.traversableWithIndexERVF(dictMapLike.TraversableWithIndex2()))(Dhall_Core_AST_Types.eqERVFI)(annot)(Data_Lens_Internal_Forget.wanderForget(Data_Monoid_Disj.monoidDisj(Data_HeytingAlgebra.heytingAlgebraBoolean))))(nodeType);
-                        if ($549) {
+                        var $606 = Data_Lens_Fold.has(Data_HeytingAlgebra.heytingAlgebraBoolean)(Dhall_Core_Zippers["_ix"](Dhall_Core_AST_Types.traversableWithIndexERVF(dictMapLike.TraversableWithIndex2()))(Dhall_Core_AST_Types.eqERVFI)(annot)(Data_Lens_Internal_Forget.wanderForget(Data_Monoid_Disj.monoidDisj(Data_HeytingAlgebra.heytingAlgebraBoolean))))(nodeType);
+                        if ($606) {
                             return within$prime(annot);
                         };
                         return Data_Semigroup.append(Data_Monoid_Endo.semigroupEndo(Control_Semigroupoid.semigroupoidFn))(typechecked)(within(new Data_Symbol.IsSymbol(function () {
@@ -63544,7 +63737,7 @@ var explain = function (dictMapLike) {
                         if (v instanceof Data_Maybe.Just) {
                             return [ new Compare(" which was in universe ", expr(Dhall_Core_AST_Constructors.mkConst(v.value0)), " instead of ", expr(Dhall_Core_AST_Constructors.mkConst(Dhall_Core_AST_Types.Type.value))) ];
                         };
-                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1719, column 12 - line 1730, column 12): " + [ v.constructor.name ]);
+                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 2009, column 12 - line 2020, column 12): " + [ v.constructor.name ]);
                     })());
                 },
                 "Duplicate record fields": function (v) {
@@ -63564,24 +63757,16 @@ var explain = function (dictMapLike) {
                     })(nodeType);
                     return [ Text.create("Record field types must live in a universe, but "), Text.create("`" + (name + "` ")), reference(focus), Text.create(" instead had type "), reference(Data_Semigroup.append(Data_Monoid_Endo.semigroupEndo(Control_Semigroupoid.semigroupoidFn))(typechecked)(focus)) ];
                 },
-                "Inconsistent field types": function (keys) {
+                "Inconsistent alternative types": function (keys) {
                     var focus = function (name) {
-                        return Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
-                            return "RecordLit";
-                        }))(Dhall_Core_AST_Types_Basics["_S"])(function (v) {
-                            return Data_Semigroup.append(Data_Monoid_Endo.semigroupEndo(Control_Semigroupoid.semigroupoidFn))(typechecked)(within(new Data_Symbol.IsSymbol(function () {
-                                return "RecordLit";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])(name));
-                        })(function (v) {
-                            return within(new Data_Symbol.IsSymbol(function () {
-                                return "Record";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])(name);
-                        })(nodeType);
+                        return within(new Data_Symbol.IsSymbol(function () {
+                            return "Union";
+                        }))()(Dhall_Core_AST_Types_Basics["_S"])(new Data_Tuple.Tuple(name, Data_Unit.unit));
                     };
-                    return [ Text.create("Record field types must all live in the same universe, but these did not "), List.create(Data_Functor.map(Data_Functor.functorArray)((function () {
-                        var $1076 = Data_Show.show(Data_List_Types.showNonEmptyList(Data_Show.showString));
-                        return function ($1077) {
-                            return Text.create($1076($1077));
+                    return [ Text.create("Union alternative types must all live in the same universe, but these did not "), List.create(Data_Functor.map(Data_Functor.functorArray)((function () {
+                        var $1212 = Data_Show.show(Data_List_Types.showNonEmptyList(Data_Show.showString));
+                        return function ($1213) {
+                            return Text.create($1212($1213));
                         };
                     })())(Data_Array.fromFoldable(foldableInconsistency)(keys))) ];
                 },
@@ -63595,14 +63780,6 @@ var explain = function (dictMapLike) {
                     return [ Text.create("Union alternative types must live in a universe, but "), Text.create("`" + (name + "` ")), reference(focus), Text.create(" instead had type "), reference(Data_Semigroup.append(Data_Monoid_Endo.semigroupEndo(Control_Semigroupoid.semigroupoidFn))(typechecked)(focus)) ];
                 },
                 "Must combine a record": function (v) {
-                    var focus = function (name) {
-                        return within(new Data_Symbol.IsSymbol(function () {
-                            return "Union";
-                        }))()(Dhall_Core_AST_Types_Basics["_S"])(new Data_Tuple.Tuple(name, Data_Unit.unit));
-                    };
-                    return [  ];
-                },
-                "Record kind mismatch": function (path) {
                     var focus = function (name) {
                         return within(new Data_Symbol.IsSymbol(function () {
                             return "Union";
@@ -63656,7 +63833,7 @@ var explain = function (dictMapLike) {
                                 return "Merge";
                             }))()(Dhall_Core_AST_Types_Basics["_S"])(Dhall_Core_AST_Types_Basics.Three1.value)))));
                         };
-                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1817, column 19 - line 1822, column 76): " + [ v.value0.constructor.name ]);
+                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 2098, column 19 - line 2103, column 76): " + [ v.value0.constructor.name ]);
                     })();
                     return [ Text.create("The handler for the `merge` operator "), Text.create("`" + (v.value1 + "` ")), compare(" was expected to have type ")(assumed)(" but instead had type ")(Data_Semigroup.append(Data_Monoid_Endo.semigroupEndo(Control_Semigroupoid.semigroupoidFn))(within(new Data_Symbol.IsSymbol(function () {
                         return "Pi";
@@ -63687,7 +63864,7 @@ var explain = function (dictMapLike) {
                                 return "Merge";
                             }))()(Dhall_Core_AST_Types_Basics["_S"])(Dhall_Core_AST_Types_Basics.Three1.value)))));
                         };
-                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1835, column 19 - line 1840, column 76): " + [ v.value0.constructor.name ]);
+                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 2116, column 19 - line 2121, column 76): " + [ v.value0.constructor.name ]);
                     })();
                     return [ Text.create("The handler for the `merge` operator case "), Text.create("`" + (v.value1 + "` ")), compare(" was expected to have type ")(assumed)(" but instead had type ")(Data_Semigroup.append(Data_Monoid_Endo.semigroupEndo(Control_Semigroupoid.semigroupoidFn))(within(new Data_Symbol.IsSymbol(function () {
                         return "Record";
@@ -63755,7 +63932,7 @@ var explain = function (dictMapLike) {
                         if (mc instanceof Data_Maybe.Just) {
                             return [ new Compare(" which was in universe ", expr(Dhall_Core_AST_Constructors.mkConst(mc.value0)), " instead of ", expr(Dhall_Core_AST_Constructors.mkConst(Dhall_Core_AST_Types.Type.value))) ];
                         };
-                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1901, column 12 - line 1913, column 12): " + [ mc.constructor.name ]);
+                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 2182, column 12 - line 2194, column 12): " + [ mc.constructor.name ]);
                     })());
                 },
                 "Missing toMap type": function (v) {
@@ -63763,9 +63940,9 @@ var explain = function (dictMapLike) {
                 },
                 "Inconsistent toMap types": function (keys) {
                     return [ Text.create("The `toMap` operation must have fields all of one type "), List.create(Data_Functor.map(Data_Functor.functorArray)((function () {
-                        var $1078 = Data_Show.show(Data_List_Types.showNonEmptyList(Data_Maybe.showMaybe(Data_Show.showString)));
-                        return function ($1079) {
-                            return Text.create($1078($1079));
+                        var $1214 = Data_Show.show(Data_List_Types.showNonEmptyList(Data_Maybe.showMaybe(Data_Show.showString)));
+                        return function ($1215) {
+                            return Text.create($1214($1215));
                         };
                     })())(Data_Array.fromFoldable(foldableInconsistency)(keys))) ];
                 },
@@ -63799,8 +63976,8 @@ var explain = function (dictMapLike) {
                 },
                 "Unbound variable": function (v) {
                     var scope = (function () {
-                        var $580 = Data_Foldable["null"](Dhall_Context.foldableContext)(ctx);
-                        if ($580) {
+                        var $637 = Data_Foldable["null"](Dhall_Context.foldableContext)(ctx);
+                        if ($637) {
                             return [ new Text("The context was empty.") ];
                         };
                         return [ Text.create("The variables in scope, from most local to most global, are: "), List.create(Data_FoldableWithIndex.foldMapWithIndex(Dhall_Context.foldableWithIndexContext)(Data_Monoid.monoidArray)(function (v$prime) {
@@ -63812,12 +63989,12 @@ var explain = function (dictMapLike) {
                     return (function (v1) {
                         return Data_Semigroup.append(Data_Semigroup.semigroupArray)(v1)(scope);
                     })((function () {
-                        var $584 = Data_HeytingAlgebra.not(Data_HeytingAlgebra.heytingAlgebraFunction(Data_HeytingAlgebra.heytingAlgebraFunction(Data_HeytingAlgebra.heytingAlgebraBoolean)))(Data_FoldableWithIndex.anyWithIndex(Dhall_Context.foldableWithIndexContext)(Data_HeytingAlgebra.heytingAlgebraBoolean))(function (v1) {
+                        var $641 = Data_HeytingAlgebra.not(Data_HeytingAlgebra.heytingAlgebraFunction(Data_HeytingAlgebra.heytingAlgebraFunction(Data_HeytingAlgebra.heytingAlgebraBoolean)))(Data_FoldableWithIndex.anyWithIndex(Dhall_Context.foldableWithIndexContext)(Data_HeytingAlgebra.heytingAlgebraBoolean))(function (v1) {
                             return function (v2) {
                                 return v.value0 === v1.value0;
                             };
                         })(ctx);
-                        if ($584) {
+                        if ($641) {
                             return [ Text.create("There were no variables with name "), Text.create(Data_Show.show(Data_Show.showString)(v.value0)), Text.create(" bound in scope. ") ];
                         };
                         return [ Text.create("The scope does not contain the variable "), Text.create(Data_Show.show(Data_Show.showString)(v.value0)), Text.create(" at index "), Text.create(Data_Show.show(Data_Show.showInt)(v.value1)), Text.create(". ") ];
@@ -63875,24 +64052,100 @@ var env = function (v) {
     return v.value0;
 };
 var topLoc = (function () {
-    var $1080 = Control_Comonad.extract(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))));
-    var $1081 = Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
-    var $1082 = Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
-    return function ($1083) {
-        return env($1080($1081($1082($1083))));
+    var $1216 = Control_Comonad.extract(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))));
+    var $1217 = Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+    var $1218 = Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    return function ($1219) {
+        return env($1216($1217($1218($1219))));
+    };
+})();
+var topLocS = (function () {
+    var $1220 = Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+    var $1221 = Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    return function ($1222) {
+        return (function (v) {
+            if (v instanceof Data_Either.Left) {
+                return topLoc(v.value0);
+            };
+            if (v instanceof Data_Either.Right) {
+                return env(v.value0);
+            };
+            throw new Error("Failed pattern match at Dhall.TypeCheck (line 424, column 38 - line 426, column 19): " + [ v.constructor.name ]);
+        })($1220($1221($1222)));
     };
 })();
 var ensureNodupes = function (dictApplicative) {
     return function (dictFoldableWithIndex) {
         return function (dictOrd) {
             return function (error) {
-                var $1084 = Data_Foldable.traverse_(dictApplicative)(Data_Foldable.foldableMaybe)(error);
-                var $1085 = findDupes(dictOrd)(dictFoldableWithIndex);
-                return function ($1086) {
-                    return $1084($1085($1086));
+                var $1223 = Data_Foldable.traverse_(dictApplicative)(Data_Foldable.foldableMaybe)(error);
+                var $1224 = findDupes(dictOrd)(dictFoldableWithIndex);
+                return function ($1225) {
+                    return $1223($1224($1225));
                 };
             };
         };
+    };
+};
+
+// Construct an unshared layer with (potentially) shared children.
+var embedShared = function (ft) {
+    return new Data_Either.Right(ft);
+};
+var overlayerOS = function (f) {
+    var $1226 = Data_Newtype.unwrap(Data_Functor_Compose.newtypeCompose);
+    var $1227 = Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    return function ($1228) {
+        return (function (v) {
+            if (v instanceof Data_Either.Left) {
+                var v1 = Control_Comonad.extract(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(v.value0)));
+                return embedShared(Control_Comonad_Env_Trans.EnvT(Data_Tuple.Tuple.create(v1.value0)(Dhall_Core_AST_Types.ERVF(f(Data_Functor.map(Data_Functor_Variant.functorVariantF)(shared)(v1.value1))))));
+            };
+            if (v instanceof Data_Either.Right) {
+                return embedShared(Control_Comonad_Env_Trans.mapEnvT(Data_Newtype.over(Dhall_Core_AST_Types.newtypeERVF)(Dhall_Core_AST_Types.newtypeERVF)(Dhall_Core_AST_Types.ERVF)(f))(v.value0));
+            };
+            throw new Error("Failed pattern match at Dhall.TypeCheck (line 767, column 40 - line 772, column 59): " + [ v.constructor.name ]);
+        })($1226($1227($1228)));
+    };
+};
+var overlayerOSM = function (dictFunctor) {
+    return function (f) {
+        var travEnvT = function (f$prime) {
+            return function (v) {
+                return Data_Functor.map(dictFunctor)((function () {
+                    var $1229 = Data_Tuple.Tuple.create(v.value0);
+                    return function ($1230) {
+                        return Control_Comonad_Env_Trans.EnvT($1229($1230));
+                    };
+                })())(f$prime(v.value1));
+            };
+        };
+        var $1231 = Data_Newtype.unwrap(Data_Functor_Compose.newtypeCompose);
+        var $1232 = Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+        return function ($1233) {
+            return (function (v) {
+                if (v instanceof Data_Either.Left) {
+                    var v1 = Control_Comonad.extract(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(v.value0)));
+                    return Data_Functor.map(dictFunctor)((function () {
+                        var $1234 = Data_Tuple.Tuple.create(v1.value0);
+                        return function ($1235) {
+                            return embedShared(Control_Comonad_Env_Trans.EnvT($1234(Dhall_Core_AST_Types.ERVF($1235))));
+                        };
+                    })())(f(Data_Functor.map(Data_Functor_Variant.functorVariantF)(shared)(v1.value1)));
+                };
+                if (v instanceof Data_Either.Right) {
+                    return Data_Functor.map(dictFunctor)(embedShared)(travEnvT(Data_Newtype.traverse(dictFunctor)(Dhall_Core_AST_Types.newtypeERVF)(Dhall_Core_AST_Types.ERVF)(f))(v.value0));
+                };
+                throw new Error("Failed pattern match at Dhall.TypeCheck (line 777, column 41 - line 782, column 68): " + [ v.constructor.name ]);
+            })($1231($1232($1233)));
+        };
+    };
+};
+
+// Construct an unshared value (expensive).
+var unshared = function (dictRecursive) {
+    return function (dictFunctor) {
+        return Matryoshka_Fold.cata(dictRecursive)(embedShared);
     };
 };
 var dubstep2D = function (dictBind) {
@@ -63905,22 +64158,50 @@ var dubstep2D = function (dictBind) {
 var dropBiCtx = function (v) {
     return v.value1;
 };
-var denote = Matryoshka_Fold.transCata(Matryoshka_Class_Recursive.recursiveCofree(Dhall_Core_AST_Types.functorERVF))(Dhall_Core_AST_Types.corecursiveExpr)(unEnvT);
-var plain = function (dictComonad) {
-    return function (dictRecursive) {
-        var $1087 = head2D(dictComonad)(dictRecursive)(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF));
-        return function ($1088) {
-            return denote($1087($1088));
+
+// Turn a `HalfTwoD m f` into `Mu f`, losing all sharing.
+var deshare = function (dictCorecursive) {
+    return function (dictFunctor) {
+        return function (dictFunctor1) {
+            return Matryoshka_Fold.cata(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(dictCorecursive.Functor0())))((function () {
+                var $1236 = Data_Newtype.unwrap(Data_Functor_Compose.newtypeCompose);
+                return function ($1237) {
+                    return (function (v) {
+                        if (v instanceof Data_Either.Left) {
+                            return head2D(Control_Comonad_Cofree.comonadCofree(dictFunctor))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(dictFunctor))(dictCorecursive.Functor0())))(dictCorecursive)(v.value0);
+                        };
+                        if (v instanceof Data_Either.Right) {
+                            return Matryoshka_Class_Corecursive.embed(dictCorecursive)(v.value0);
+                        };
+                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 157, column 29 - line 159, column 23): " + [ v.constructor.name ]);
+                    })($1236($1237));
+                };
+            })());
         };
     };
 };
+var denote = Matryoshka_Fold.transCata(Matryoshka_Class_Recursive.recursiveCofree(Dhall_Core_AST_Types.functorERVF))(Dhall_Core_AST_Types.corecursiveExpr)(unEnvT);
+
+// e.g. Oxpr -> Expr
+var plain = function (dictComonad) {
+    return function (dictRecursive) {
+        var $1238 = head2D(dictComonad)(dictRecursive)(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF));
+        return function ($1239) {
+            return denote($1238($1239));
+        };
+    };
+};
+
+// Get the context
 var contextOp = function (v) {
     return v.value0.value1.value0;
 };
+
+// Get the context associated with the Oxpr node
 var contextStep = (function () {
-    var $1089 = step2D(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
-    return function ($1090) {
-        return contextOp($1089($1090));
+    var $1240 = step2D(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    return function ($1241) {
+        return contextOp($1240($1241));
     };
 })();
 var consistency = function (v) {
@@ -63933,9 +64214,9 @@ var ensureConsistency = function (dictApplicative) {
     return function (dictMapLike) {
         return function (egal) {
             return function (error) {
-                var $1091 = Data_Foldable.traverse_(dictApplicative)(Data_Foldable.foldableMaybe)(error);
-                var $1092 = tabulateGroupings(egal);
-                var $1093 = Data_Functor.map(Data_List_Types.functorList)(Data_Tuple.uncurry(function (v) {
+                var $1242 = Data_Foldable.traverse_(dictApplicative)(Data_Foldable.foldableMaybe)(error);
+                var $1243 = tabulateGroupings(egal);
+                var $1244 = Data_Functor.map(Data_List_Types.functorList)(Data_Tuple.uncurry(function (v) {
                     return function (v1) {
                         return {
                             key: v,
@@ -63943,27 +64224,27 @@ var ensureConsistency = function (dictApplicative) {
                         };
                     };
                 }));
-                var $1094 = Dhall_Map.toUnfoldable(dictMapLike)(Data_List_Types.unfoldableList);
-                return function ($1095) {
-                    return $1091(consistency($1092($1093($1094($1095)))));
+                var $1245 = Dhall_Map.toUnfoldable(dictMapLike)(Data_List_Types.unfoldableList);
+                return function ($1246) {
+                    return $1242(consistency($1243($1244($1245($1246)))));
                 };
             };
         };
     };
 };
 var confirm = function (a) {
-    var $1096 = Data_Newtype.wrap(Control_Monad_Writer_Trans.newtypeWriterT);
-    var $1097 = Data_Newtype.unwrap(Control_Monad_Writer_Trans.newtypeWriterT);
-    return function ($1098) {
-        return $1096((function (v) {
+    var $1247 = Data_Newtype.wrap(Control_Monad_Writer_Trans.newtypeWriterT);
+    var $1248 = Data_Newtype.unwrap(Control_Monad_Writer_Trans.newtypeWriterT);
+    return function ($1249) {
+        return $1247((function (v) {
             if (v instanceof Validation_These.Success) {
                 return new Validation_These.Success(new Data_Tuple.Tuple(a, v.value0.value1));
             };
             if (v instanceof Validation_These["Error"]) {
                 return Validation_These["Error"].create(v.value0)(Control_Applicative.pure(Data_Maybe.applicativeMaybe)(Data_Tuple.Tuple.create(a)(Data_Foldable.foldMap(Data_Foldable.foldableMaybe)(Data_Monoid.monoidArray)(Control_Comonad.extract(Data_Tuple.comonadTuple))(v.value1))));
             };
-            throw new Error("Failed pattern match at Dhall.TypeCheck (line 96, column 37 - line 100, column 58): " + [ v.constructor.name ]);
-        })($1097($1098)));
+            throw new Error("Failed pattern match at Dhall.TypeCheck (line 100, column 37 - line 104, column 58): " + [ v.constructor.name ]);
+        })($1248($1249)));
     };
 };
 var mconfirm = function (v) {
@@ -63973,7 +64254,7 @@ var mconfirm = function (v) {
     if (v instanceof Data_Maybe.Just) {
         return confirm(v.value0);
     };
-    throw new Error("Failed pattern match at Dhall.TypeCheck (line 103, column 12 - line 105, column 22): " + [ v.constructor.name ]);
+    throw new Error("Failed pattern match at Dhall.TypeCheck (line 107, column 12 - line 109, column 22): " + [ v.constructor.name ]);
 };
 var bitransProduct = function (natF) {
     return function (natG) {
@@ -63982,6 +64263,8 @@ var bitransProduct = function (natF) {
         };
     };
 };
+
+// Adapt the context for how it should go through one layer.
 var bicontextualizeWithin1 = function (shiftIn_node$prime) {
     return function (go) {
         return function (ctx) {
@@ -63994,38 +64277,15 @@ var bicontextualizeWithin1 = function (shiftIn_node$prime) {
                 };
                 if (v instanceof Dhall_Variables.Intro) {
                     return go(Dhall_Context.insert(v.value0.value0)(Control_Bind.join(Control_Bind.bindFn)(Data_Bifunctor.bimap(Data_These.bifunctorThese))((function () {
-                        var $1099 = shiftIn_node$prime(v.value0.value0);
-                        var $1100 = go(ctx);
-                        return function ($1101) {
-                            return $1099($1100($1101));
+                        var $1250 = shiftIn_node$prime(v.value0.value0);
+                        var $1251 = go(ctx);
+                        return function ($1252) {
+                            return $1250($1251($1252));
                         };
                     })())(v.value0.value1))(Data_Functor.map(Dhall_Context.functorContext)(Control_Bind.join(Control_Bind.bindFn)(Data_Bifunctor.bimap(Data_These.bifunctorThese))(shiftIn_node$prime(v.value0.value0)))(ctx)));
                 };
-                throw new Error("Failed pattern match at Dhall.TypeCheck (line 345, column 58 - line 353, column 46): " + [ v.constructor.name ]);
+                throw new Error("Failed pattern match at Dhall.TypeCheck (line 435, column 58 - line 443, column 46): " + [ v.constructor.name ]);
             });
-        };
-    };
-};
-var bicontextualizeWithin = function (dictFunctorWithIndex) {
-    return Data_Function.flip(Matryoshka_Fold.cata(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Control_Monad_Reader_Trans.functorReaderT(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Data_Function.flip(function (ctx) {
-        var $1102 = Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)((function () {
-            var $1104 = Data_Functor.map(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.mapEnvT(Data_Lens_Iso_Newtype["_Newtype"](Dhall_Core_AST_Types.newtypeERVF)(Dhall_Core_AST_Types.newtypeERVF)(Data_Profunctor.profunctorFn)(bicontextualizeWithin1(shiftInOxpr0)(Data_Function.applyFlipped)(ctx))));
-            var $1105 = Control_Comonad_Cofree.hoistCofree(Control_Monad_Reader_Trans.functorReaderT(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Data_Functor.flap(Data_Functor.functorFn)(Control_Monad_Reader_Trans.runReaderT)(ctx));
-            return function ($1106) {
-                return $1104($1105($1106));
-            };
-        })());
-        return function ($1103) {
-            return Data_Functor_Mu.In($1102($1103));
-        };
-    })));
-};
-var typecheckStepCtx = function (dictFunctorWithIndex) {
-    return function (ctx) {
-        var $1107 = step2D(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
-        var $1108 = bicontextualizeWithin(dictFunctorWithIndex)(ctx);
-        return function ($1109) {
-            return typecheckOp($1107($1108($1109)));
         };
     };
 };
@@ -64040,18 +64300,21 @@ var axiom = function (dictAlternative) {
         if (v instanceof Dhall_Core_AST_Types.Sort) {
             return Control_Plus.empty(dictAlternative.Plus1());
         };
-        throw new Error("Failed pattern match at Dhall.TypeCheck (line 81, column 1 - line 81, column 53): " + [ v.constructor.name ]);
+        throw new Error("Failed pattern match at Dhall.TypeCheck (line 82, column 1 - line 82, column 53): " + [ v.constructor.name ]);
     };
 };
 var areEq = function (dictEq) {
     return function (dictMapLike) {
         return function (ty0) {
             return function (ty1) {
+                if (Unsafe_Reference.unsafeRefEq(ty0)(ty1)) {
+                    return true;
+                };
                 var v = Data_Functor.mapFlipped(Dhall_Core_AST_Types_Basics.functorPair)(new Dhall_Core_AST_Types_Basics.Pair(ty0, ty1))((function () {
-                    var $1110 = Dhall_Core_AST_Operations.unordered(dictMapLike);
-                    var $1111 = plain(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
-                    return function ($1112) {
-                        return Dhall_Variables.alphaNormalize($1110($1111(normalizeStep($1112))));
+                    var $1253 = Dhall_Core_AST_Operations.unordered(dictMapLike);
+                    var $1254 = plain(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+                    return function ($1255) {
+                        return Dhall_Variables.alphaNormalize($1253($1254(normalizeStep($1255))));
                     };
                 })());
                 return Data_Eq.eq(Dhall_Core_AST_Types.eqExpr(Data_Map_Internal.eq1Map(Data_Eq.eqString))(dictEq))(v.value0)(v.value1);
@@ -64064,31 +64327,192 @@ var alsoOriginateFromO = function (dictFunctorWithIndex) {
         return function (e) {
             return Control_Comonad_Cofree.deferCofree(function (v) {
                 return Data_Bifunctor.bimap(Data_Tuple.bifunctorTuple)((function () {
-                    var $1113 = Control_Comonad_Env_Trans.mapEnvT(Data_FunctorWithIndex.mapWithIndex(Dhall_Core_AST_Types.functorWithIndexERVF(dictFunctorWithIndex))(function (i$prime) {
-                        return Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(go(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.moveF(new Data_Symbol.IsSymbol(function () {
+                    var $1256 = Control_Comonad_Env_Trans.mapEnvT(Data_FunctorWithIndex.mapWithIndex(Dhall_Core_AST_Types.functorWithIndexERVF(dictFunctorWithIndex))(function (i$prime) {
+                        return Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(go(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.moveF(new Data_Symbol.IsSymbol(function () {
                             return "within";
                         }))()(Dhall_Core_AST_Types_Basics["_S"])(i$prime))(loc))));
                     }));
-                    var $1114 = mapEnv(function (v1) {
+                    var $1257 = mapEnv(function (v1) {
                         return Data_Semigroup.append(Data_List_Types.semigroupNonEmptyList)(loc)(v1);
                     });
-                    return function ($1115) {
-                        return $1113($1114($1115));
+                    return function ($1258) {
+                        return $1256($1257($1258));
                     };
-                })())(bitransProduct(Data_Functor.map(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(go(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
+                })())(bitransProduct(bitransProduct(Data_Functor.map(Data_Lazy.functorLazy)(go(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
+                    return "alphaNormalize";
+                }))()(Dhall_Core_AST_Types_Basics["_S"]))(loc))))(overBiCtx(Data_Functor.map(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))(go(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
                     return "normalize";
-                }))()(Dhall_Core_AST_Types_Basics["_S"]))(loc))))(Data_Functor.map(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))(go(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
+                }))()(Dhall_Core_AST_Types_Basics["_S"]))(loc))))))(Data_Functor.map(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))(go(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
                     return "typecheck";
                 }))()(Dhall_Core_AST_Types_Basics["_S"]))(loc)))))(new Data_Tuple.Tuple(Control_Comonad_Cofree.head(e), Control_Comonad_Cofree.tail(e)));
             });
         };
     };
-    var $1116 = Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
-    var $1117 = Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
-    return function ($1118) {
-        return $1116($1117(go($1118)));
+    var $1259 = Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    var $1260 = Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+    return function ($1261) {
+        return $1259($1260(go($1261)));
     };
 };
+var alsoOriginateFromS = function (dictFunctorWithIndex) {
+    var go = function (loc) {
+        return Data_Bifunctor.bimap(Data_Either.bifunctorEither)(alsoOriginateFromO(dictFunctorWithIndex)(loc))(function (v) {
+            return Control_Comonad_Env_Trans.EnvT(Data_Tuple.Tuple.create(Data_Semigroup.append(Data_List_Types.semigroupNonEmptyList)(loc)(v.value0))(Data_FunctorWithIndex.mapWithIndex(Dhall_Core_AST_Types.functorWithIndexERVF(dictFunctorWithIndex))(function (i$prime) {
+                return Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(go(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.moveF(new Data_Symbol.IsSymbol(function () {
+                    return "within";
+                }))()(Dhall_Core_AST_Types_Basics["_S"])(i$prime))(loc))));
+            })(v.value1)));
+        });
+    };
+    var $1262 = Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    var $1263 = Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+    return function ($1264) {
+        return $1262($1263(go($1264)));
+    };
+};
+
+// Wrap an Ospr layer, preserving and augmenting the existing locations
+// from the new root.
+var newshared = function (dictFunctorWithIndex) {
+    return function (e0) {
+        var e_ = Dhall_Core_AST_Types.embedW(Data_Functor.mapFlipped(Data_Functor_Variant.functorVariantF)(e0)((function () {
+            var $1265 = deshare(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF));
+            return function ($1266) {
+                return denote($1265($1266));
+            };
+        })()));
+        return embedShared(Control_Comonad_Env_Trans.EnvT(Data_Tuple.Tuple.create(Control_Applicative.pure(Data_List_Types.applicativeNonEmptyList)(new Data_Tuple.Tuple(Control_Plus.empty(Data_List_Types.plusList), new Data_Maybe.Just(e_))))(Data_FunctorWithIndex.mapWithIndex(Dhall_Core_AST_Types.functorWithIndexERVF(dictFunctorWithIndex))(function (i) {
+            return alsoOriginateFromS(dictFunctorWithIndex)(Control_Applicative.pure(Data_List_Types.applicativeNonEmptyList)(Dhall_Core_AST_Operations_Location.moveF(new Data_Symbol.IsSymbol(function () {
+                return "within";
+            }))()(Dhall_Core_AST_Types_Basics["_S"])(i)(new Data_Tuple.Tuple(Control_Plus.empty(Data_List_Types.plusList), new Data_Maybe.Just(e_)))));
+        })(Data_Newtype.wrap(Dhall_Core_AST_Types.newtypeERVF)(e0)))));
+    };
+};
+var runOsprAlg = function (dictFunctorWithIndex) {
+    return function (alg) {
+        var go = function (i) {
+            return function (e) {
+                return Data_Newtype.un(Data_Identity.newtypeIdentity)(Data_Identity.Identity)(alg(i)({
+                    unlayer: unlayerOS,
+                    overlayer: (function () {
+                        var $1267 = Data_Functor.map(Data_Functor.functorFn)(Control_Applicative.pure(Data_Identity.applicativeIdentity));
+                        var $1268 = Data_Functor.map(Data_Functor.functorFn)(Control_Comonad.extract(Data_Identity.comonadIdentity));
+                        return function ($1269) {
+                            return $1267(overlayerOS($1268($1269)));
+                        };
+                    })(),
+                    recurse: (function () {
+                        var $1270 = Data_Functor.map(Data_Functor.functorFn)(Data_Identity.Identity);
+                        return function ($1271) {
+                            return $1270(go($1271));
+                        };
+                    })(),
+                    layer: newshared(dictFunctorWithIndex)
+                })(e));
+            };
+        };
+        return go;
+    };
+};
+var shiftOspr = function (dictFunctorWithIndex) {
+    return function (delta) {
+        return function (variable) {
+            return runOsprAlg(dictFunctorWithIndex)(Dhall_Variables.shiftAlgG(Data_Variant.case_))(Data_Variant.inj()(new Data_Symbol.IsSymbol(function () {
+                return "shift";
+            }))(Dhall_Core_AST_Types_Basics["_S"])({
+                delta: delta,
+                variable: variable
+            }));
+        };
+    };
+};
+var shiftInOspr = function (dictFunctorWithIndex) {
+    return shiftOspr(dictFunctorWithIndex)(1);
+};
+var shiftInOspr0 = function (dictFunctorWithIndex) {
+    return function (v) {
+        return shiftInOspr(dictFunctorWithIndex)(new Dhall_Core_AST_Types.V(v, 0));
+    };
+};
+var shiftOutOspr = function (dictFunctorWithIndex) {
+    return shiftOspr(dictFunctorWithIndex)(-1 | 0);
+};
+var runOsprAlgM = function (dictFunctorWithIndex) {
+    return function (dictFunctor) {
+        return function (alg) {
+            var go = function (i) {
+                return function (e) {
+                    return alg(i)({
+                        unlayer: unlayerOS,
+                        overlayer: overlayerOSM(dictFunctor),
+                        recurse: go,
+                        layer: newshared(dictFunctorWithIndex)
+                    })(e);
+                };
+            };
+            return go;
+        };
+    };
+};
+var normalizeOsprW = function (dictMapLike) {
+    return function (dictEq) {
+        return function (e) {
+            return Data_Functor.map(Dhall_Normalize.functorW)(alsoOriginateFromS((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
+                return "normalize";
+            }))()(Dhall_Core_AST_Types_Basics["_S"]))(topLocS(e))))((function () {
+                var alg = Dhall_Normalize.normalizeWithAlgGW(dictMapLike)(dictEq)(Data_Monoid.mempty(Dhall_Normalize.monoidNormalizer))(Data_Variant.case_);
+                var ops = {
+                    unlayer: unlayerOS,
+                    overlayer: overlayerOSM(Dhall_Normalize.functorW),
+                    recurse: function (i) {
+                        return go(i);
+                    },
+                    layer: newshared((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())
+                };
+                var go = Data_Variant.match()(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchNil)()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()({
+                    normalize: function (v) {
+                        return function (e$prime) {
+                            var v1 = Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(e$prime));
+                            if (v1 instanceof Data_Either.Left) {
+                                return Data_Functor.map(Dhall_Normalize.functorW)(shared)(normalizeStepW(v1.value0));
+                            };
+                            return alg(Data_Variant.inj()(new Data_Symbol.IsSymbol(function () {
+                                return "normalize";
+                            }))(Dhall_Core_AST_Types_Basics["_S"])(Data_Monoid.mempty(Data_Monoid.monoidRecord()(Data_Monoid.monoidRecordNil))))(ops)(e$prime);
+                        };
+                    },
+                    shift: function (v) {
+                        var $1272 = Control_Applicative.pure(Dhall_Normalize.applicativeW);
+                        var $1273 = shiftOspr((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(v.delta)(v.variable);
+                        return function ($1274) {
+                            return $1272($1273($1274));
+                        };
+                    },
+                    subst: function (i) {
+                        return alg(Data_Variant.inj()(new Data_Symbol.IsSymbol(function () {
+                            return "subst";
+                        }))(Dhall_Core_AST_Types_Basics["_S"])(i))(ops);
+                    }
+                });
+                return go(Data_Variant.inj()(new Data_Symbol.IsSymbol(function () {
+                    return "normalize";
+                }))(Dhall_Core_AST_Types_Basics["_S"])(Data_Monoid.mempty(Data_Monoid.monoidRecord()(Data_Monoid.monoidRecordNil))))(e);
+            })());
+        };
+    };
+};
+var normalizeOspr = function (dictMapLike) {
+    return function (dictEq) {
+        var $1275 = Control_Comonad.extract(Dhall_Normalize.comonadW);
+        var $1276 = normalizeOsprW(dictMapLike)(dictEq);
+        return function ($1277) {
+            return $1275($1276($1277));
+        };
+    };
+};
+
+// Ensure that a list of Oxprs match up, returning a common representative if so
+// (with locations conglomerated).
 var ensureConsistentOxpr = function (dictApplicative) {
     return function (dictMapLike) {
         return function (dictFunctorWithIndex) {
@@ -64104,10 +64528,10 @@ var ensureConsistentOxpr = function (dictApplicative) {
                                     return Control_Applicative.pure(dictApplicative)(v.value0.value0.value);
                                 };
                                 if (v instanceof Data_List_Types.Cons && (v.value0.value1 instanceof Data_List_Types.Cons && v.value1 instanceof Data_List_Types.Nil)) {
-                                    var ixs = Data_Semigroup_Foldable.foldMap1(Data_List_Types.foldable1NonEmptyList)(Data_List_Types.semigroupNonEmptyList)(function ($1119) {
+                                    var ixs = Data_Semigroup_Foldable.foldMap1(Data_List_Types.foldable1NonEmptyList)(Data_List_Types.semigroupNonEmptyList)(function ($1278) {
                                         return topLoc((function (v1) {
                                             return v1.value;
-                                        })($1119));
+                                        })($1278));
                                     })(new Data_NonEmpty.NonEmpty(v.value0.value1.value0, v.value0.value1.value1));
                                     return Control_Applicative.pure(dictApplicative)(alsoOriginateFromO((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(ixs)(v.value0.value0.value));
                                 };
@@ -64116,11 +64540,11 @@ var ensureConsistentOxpr = function (dictApplicative) {
                                         return "value";
                                     }))()()(Dhall_Core_AST_Types_Basics["_S"])(Data_Profunctor_Strong.strongFn)(topLoc)))(Inconsistency(new Data_NonEmpty.NonEmpty(v.value0, new Data_NonEmpty.NonEmpty(v.value1.value0, v.value1.value1))))));
                                 };
-                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 750, column 5 - line 750, column 92): " + [ v.constructor.name ]);
+                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1038, column 5 - line 1038, column 92): " + [ v.constructor.name ]);
                             };
-                            var $1120 = tabulateGroupings(areEq(dictEq)(dictMapLike));
-                            var $1121 = Data_List.fromFoldable(dictFoldable);
-                            var $1122 = Data_FunctorWithIndex.mapWithIndex(dictFunctorWithIndex)(function (v) {
+                            var $1279 = tabulateGroupings(areEq(dictEq)(dictMapLike));
+                            var $1280 = Data_List.fromFoldable(dictFoldable);
+                            var $1281 = Data_FunctorWithIndex.mapWithIndex(dictFunctorWithIndex)(function (v) {
                                 return function (v1) {
                                     return {
                                         key: v,
@@ -64128,12 +64552,1234 @@ var ensureConsistentOxpr = function (dictApplicative) {
                                     };
                                 };
                             });
-                            return function ($1123) {
-                                return finalize($1120($1121($1122($1123))));
+                            return function ($1282) {
+                                return finalize($1279($1280($1281($1282))));
                             };
                         };
                     };
                 };
+            };
+        };
+    };
+};
+var typecheckAlgebra = function (dictEq) {
+    return function (dictMapLike) {
+        return function (tpa) {
+            return function (v) {
+                return Data_Functor_Variant.match()(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchNil)()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()((function () {
+                    var optionalEnc = function (a) {
+                        return Dhall_Core_AST_Constructors.mkForall("optional")((function () {
+                            var optional = Dhall_Core_AST_Constructors.mkVar(new Dhall_Core_AST_Types.V("optional", 0));
+                            return Dhall_Core_AST_Constructors.mkPi("just")(Dhall_Core_AST_Constructors.mkArrow(a)(optional))(Dhall_Core_AST_Constructors.mkPi("nothing")(optional)(optional));
+                        })());
+                    };
+                    var noteHere = function (dictIsSymbol) {
+                        return function (dictCons) {
+                            return function (sym) {
+                                return function (v1) {
+                                    var $1283 = Validation_These.liftW(Validation_These.functorErroring)(Data_Monoid.monoidArray);
+                                    var $1284 = Validation_These.note({
+                                        location: v.value1.value0,
+                                        tag: Data_Variant.inj(dictCons)(dictIsSymbol)(sym)(v1)
+                                    });
+                                    return function ($1285) {
+                                        return $1283($1284($1285));
+                                    };
+                                };
+                            };
+                        };
+                    };
+                    var newb = (function () {
+                        var $1286 = unshared(Matryoshka_Class_Recursive.recursiveCofree(Dhall_Core_AST_Types.functorERVF))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF));
+                        var $1287 = newborn((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0());
+                        return function ($1288) {
+                            return $1286($1287($1288));
+                        };
+                    })();
+                    var naturalEnc = Dhall_Core_AST_Constructors.mkForall("natural")((function () {
+                        var natural = Dhall_Core_AST_Constructors.mkVar(new Dhall_Core_AST_Types.V("natural", 0));
+                        return Dhall_Core_AST_Constructors.mkPi("succ")(Dhall_Core_AST_Constructors.mkArrow(natural)(natural))(Dhall_Core_AST_Constructors.mkPi("zero")(natural)(natural));
+                    })());
+                    var mkShared = function (dictFunctor) {
+                        return function (dictIsSymbol) {
+                            return function (dictCons) {
+                                return function (sym) {
+                                    var $1289 = newshared((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0());
+                                    var $1290 = Data_Functor_Variant.inj(dictCons)(dictIsSymbol)(dictFunctor)(sym);
+                                    return function ($1291) {
+                                        return $1289($1290($1291));
+                                    };
+                                };
+                            };
+                        };
+                    };
+                    var mkFunctor = function (f) {
+                        return function (a) {
+                            return mkShared(Dhall_Core_AST_Types_Basics.functorPair)(new Data_Symbol.IsSymbol(function () {
+                                return "App";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])(new Dhall_Core_AST_Types_Basics.Pair(newb(f), a));
+                        };
+                    };
+                    var listEnc = function (a) {
+                        return Dhall_Core_AST_Constructors.mkForall("list")((function () {
+                            var list = Dhall_Core_AST_Constructors.mkVar(new Dhall_Core_AST_Types.V("list", 0));
+                            return Dhall_Core_AST_Constructors.mkPi("cons")(Dhall_Core_AST_Constructors.mkArrow(a)(Dhall_Core_AST_Constructors.mkArrow(list)(list)))(Dhall_Core_AST_Constructors.mkPi("nil")(list)(list));
+                        })());
+                    };
+                    var errorHere = function (dictIsSymbol) {
+                        return function (dictCons) {
+                            return function (sym) {
+                                return function (v1) {
+                                    return Validation_These.liftW(Validation_These.functorErroring)(Data_Monoid.monoidArray)(Validation_These.erroring({
+                                        location: v.value1.value0,
+                                        tag: Data_Variant.inj(dictCons)(dictIsSymbol)(sym)(v1)
+                                    }));
+                                };
+                            };
+                        };
+                    };
+                    var ensure$prime = function (dictIsSymbol) {
+                        return function (dictCons) {
+                            return function (s) {
+                                return function (ty) {
+                                    return function (error) {
+                                        var nf_ty = normalizeStep(ty);
+                                        return Data_Functor_Variant.on(dictCons)(dictIsSymbol)(s)(Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring)))(function (v1) {
+                                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Void.absurd)(error(Data_Unit.unit));
+                                        })(unlayerO(nf_ty));
+                                    };
+                                };
+                            };
+                        };
+                    };
+                    var ensureConst = function (expr) {
+                        return function (error) {
+                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(expr))(function (v1) {
+                                return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Newtype.unwrap(Data_Const.newtypeConst))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                    return "Const";
+                                }))()(Dhall_Core_AST_Types_Basics["_S"])(v1)(error));
+                            });
+                        };
+                    };
+                    
+                    // Ensure that the passed `ty` is a type; i.e. its type is `Type`.
+var ensureType = function (ty) {
+                        return function (error) {
+                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(ty))(function (v1) {
+                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                    return "Const";
+                                }))()(Dhall_Core_AST_Types_Basics["_S"])(v1)(function (v2) {
+                                    return error(Data_Maybe.Nothing.value);
+                                }))(function (v2) {
+                                    if (v2 instanceof Dhall_Core_AST_Types.Type) {
+                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit);
+                                    };
+                                    return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Void.absurd)(error(new Data_Maybe.Just(v2)));
+                                });
+                            });
+                        };
+                    };
+                    
+                    // Ensure that the passed `expr` is a term; i.e. the type of its type
+                    // is `Type`. Returns the type of the `expr`.
+var ensureTerm = function (expr) {
+                        return function (error) {
+                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(expr))(function (v1) {
+                                return Data_Functor.voidRight(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(v1)(ensureType(v1)(error));
+                            });
+                        };
+                    };
+                    var ensure = function (dictIsSymbol) {
+                        return function (dictCons) {
+                            return function (s) {
+                                return function (expr) {
+                                    return function (error) {
+                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(expr))(function (v1) {
+                                            return ensure$prime(dictIsSymbol)(dictCons)(s)(v1)(error);
+                                        });
+                                    };
+                                };
+                            };
+                        };
+                    };
+                    var checkEq = function (ty0) {
+                        return function (ty1) {
+                            return function (error) {
+                                return Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_HeytingAlgebra.not(Data_HeytingAlgebra.heytingAlgebraFunction(Data_HeytingAlgebra.heytingAlgebraFunction(Data_HeytingAlgebra.heytingAlgebraBoolean)))(areEq(dictEq)(dictMapLike))(ty0)(ty1))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Void.absurd)(error(Data_Unit.unit)));
+                            };
+                        };
+                    };
+                    var checkEqL = function (ty0) {
+                        return function (ty1) {
+                            return function (error) {
+                                return confirm(ty0)(checkEq(ty0)(ty1)(error));
+                            };
+                        };
+                    };
+                    var checkEqR = function (ty0) {
+                        return function (ty1) {
+                            return function (error) {
+                                return confirm(ty1)(checkEq(ty0)(ty1)(error));
+                            };
+                        };
+                    };
+                    
+                    // TODO: This will need to become aware of AST holes
+                    // Check a binary operation (`Pair` functor) against a simple, static,
+                    // *normalize* type `t`.
+var checkBinOp = function (t) {
+                        return function (p) {
+                            return confirm(newb(rehydrate(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(t)))(Data_FoldableWithIndex.forWithIndex_(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Core_AST_Types_Basics.foldableWithIndexPair)(p)(function (side) {
+                                return function (operand) {
+                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(operand))(function ($1292) {
+                                        return (function (v1) {
+                                            if (Data_Eq.eq(Dhall_Core_AST_Types.eqExpr((dictMapLike.Ord11()).Eq10())(dictEq))(rehydrate(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(t))(plain(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(v1))) {
+                                                return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit);
+                                            };
+                                            if (Data_Boolean.otherwise) {
+                                                return errorHere(new Data_Symbol.IsSymbol(function () {
+                                                    return "Unexpected type";
+                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(new Data_Tuple.Tuple(side, t));
+                                            };
+                                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1315, column 68 - line 1318, column 54): " + [ v1.constructor.name ]);
+                                        })(normalizeStep($1292));
+                                    });
+                                };
+                            }));
+                        };
+                    };
+                    var always = function (b) {
+                        return function (v1) {
+                            return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(newb(b));
+                        };
+                    };
+                    var aType = always(Dhall_Core_AST_Constructors.mkType);
+                    var aFunctor = always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkType)(Dhall_Core_AST_Constructors.mkType));
+                    var a0 = Dhall_Core_AST_Constructors.mkVar(new Dhall_Core_AST_Types.V("a", 0));
+                    return {
+                        Const: (function () {
+                            var $1293 = Data_Newtype.unwrap(Data_Const.newtypeConst);
+                            return function ($1294) {
+                                return (function (c) {
+                                    return noteHere(new Data_Symbol.IsSymbol(function () {
+                                        return "`Sort` has no type";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit)(Data_Functor.mapFlipped(Data_Maybe.functorMaybe)(axiom(Data_Maybe.alternativeMaybe)(c))(function ($1295) {
+                                        return newb(Dhall_Core_AST_Constructors.mkConst($1295));
+                                    }));
+                                })($1293($1294));
+                            };
+                        })(),
+                        Var: (function () {
+                            var $1296 = Data_Newtype.unwrap(Data_Const.newtypeConst);
+                            return function ($1297) {
+                                return (function (v1) {
+                                    var v3 = Dhall_Context.lookup(v1.value0)(v1.value1)(v.value0);
+                                    if (v3 instanceof Data_Maybe.Just && v3.value0 instanceof Data_These.This) {
+                                        return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(shared)(typecheckStep(v3.value0.value0));
+                                    };
+                                    if (v3 instanceof Data_Maybe.Just && v3.value0 instanceof Data_These.That) {
+                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(shared(v3.value0.value0));
+                                    };
+                                    if (v3 instanceof Data_Maybe.Just && v3.value0 instanceof Data_These.Both) {
+                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(shared(v3.value0.value1));
+                                    };
+                                    if (v3 instanceof Data_Maybe.Nothing) {
+                                        return errorHere(new Data_Symbol.IsSymbol(function () {
+                                            return "Unbound variable";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v1);
+                                    };
+                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1377, column 7 - line 1384, column 50): " + [ v3.constructor.name ]);
+                                })($1296($1297));
+                            };
+                        })(),
+                        Lam: function (v1) {
+                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConst(v1.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "Invalid input type";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v2) {
+                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1.value2))(function (v3) {
+                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConst(v3)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                        return "Invalid output type";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v4) {
+                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(mkShared(Dhall_Core_AST_Types_Basics.functorBindingBody)(new Data_Symbol.IsSymbol(function () {
+                                            return "Pi";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(new Dhall_Core_AST_Types_Basics.BindingBody(v1.value0, shared(v1.value1), shared(v3))));
+                                    });
+                                });
+                            });
+                        },
+                        Pi: function (v1) {
+                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConst(v1.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "Invalid input type";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v2) {
+                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConst(v1.value2)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                    return "Invalid output type";
+                                }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v3) {
+                                    return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(function ($1298) {
+                                        return newb(Dhall_Core_AST_Constructors.mkConst($1298));
+                                    })(rule(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(v2)(v3));
+                                });
+                            });
+                        },
+                        Let: function (v1) {
+                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1.value2))(function (v2) {
+                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Maybe.fromMaybe(v2))(Data_Traversable["for"](Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Traversable.traversableMaybe)(v1.value1)(function (ty$prime) {
+                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(ty$prime))(function (v3) {
+                                        return checkEqR(v2)(ty$prime)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                            return "Annotation mismatch";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"]));
+                                    });
+                                })))(function (v3) {
+                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1.value3))(function (v4) {
+                                        var shifted = tryShiftOut0Oxpr(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(v1.value0)(v4);
+                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))((function () {
+                                            if (shifted instanceof Data_Maybe.Nothing) {
+                                                return mkShared(Dhall_Core_AST_Types_Basics.functorLetF)(new Data_Symbol.IsSymbol(function () {
+                                                    return "Let";
+                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Functor.map(Dhall_Core_AST_Types_Basics.functorLetF)(shared)(new Dhall_Core_AST_Types_Basics.LetF(v1.value0, v1.value1, v1.value2, v4)));
+                                            };
+                                            if (shifted instanceof Data_Maybe.Just) {
+                                                return shared(shifted.value0);
+                                            };
+                                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1406, column 12 - line 1408, column 41): " + [ shifted.constructor.name ]);
+                                        })());
+                                    });
+                                });
+                            });
+                        },
+                        App: function (v1) {
+                            var checkFn = ensure(new Data_Symbol.IsSymbol(function () {
+                                return "Pi";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "Not a function";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"]));
+                            var checkArg = function (v2) {
+                                return function (aty1) {
+                                    var shifted = tryShiftOut0Oxpr(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(v2.value0)(v2.value2);
+                                    var $781 = areEq(dictEq)(dictMapLike)(v2.value1)(aty1);
+                                    if ($781) {
+                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))((function () {
+                                            if (shifted instanceof Data_Maybe.Nothing) {
+                                                return mkShared(Dhall_Core_AST_Types_Basics.functorPair)(new Data_Symbol.IsSymbol(function () {
+                                                    return "App";
+                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(new Dhall_Core_AST_Types_Basics.Pair(mkShared(Dhall_Core_AST_Types_Basics.functorBindingBody)(new Data_Symbol.IsSymbol(function () {
+                                                    return "Lam";
+                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Functor.map(Dhall_Core_AST_Types_Basics.functorBindingBody)(shared)(new Dhall_Core_AST_Types_Basics.BindingBody(v2.value0, v2.value1, v2.value2))), shared(v1.value1)));
+                                            };
+                                            if (shifted instanceof Data_Maybe.Just) {
+                                                return shared(shifted.value0);
+                                            };
+                                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1416, column 23 - line 1420, column 39): " + [ shifted.constructor.name ]);
+                                        })());
+                                    };
+                                    return (function () {
+                                        if (shifted instanceof Data_Maybe.Nothing) {
+                                            return Control_Category.identity(Control_Category.categoryFn);
+                                        };
+                                        if (shifted instanceof Data_Maybe.Just) {
+                                            return confirm(shared(shifted.value0));
+                                        };
+                                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1427, column 57 - line 1429, column 51): " + [ shifted.constructor.name ]);
+                                    })()(errorHere(new Data_Symbol.IsSymbol(function () {
+                                        return "Type mismatch";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit));
+                                };
+                            };
+                            return Control_Bind.join(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Apply.apply(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(checkArg)(checkFn))(typecheckStep(v1.value1)));
+                        },
+                        Annot: function (v1) {
+                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(shared)(Control_Bind.join(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Apply.applyFirst(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.flap(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Functor.flap(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(checkEqR)(typecheckStep(v1.value0)))(v1.value1))(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "Annotation mismatch";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
+                                return "Const";
+                            }))(Dhall_Core_AST_Types_Basics["_S"])(function (v2) {
+                                return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit);
+                            })(function (v2) {
+                                return Data_Functor["void"](Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(typecheckStep(v1.value1));
+                            })(unlayerO(v1.value1)))));
+                        },
+                        Equivalent: function (p) {
+                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.traverseWithIndex(Dhall_Core_AST_Types_Basics.traversableWithIndexPair)(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(function (i) {
+                                return function (t) {
+                                    return ensureTerm(t)((function () {
+                                        var $1299 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                            return "Incomparable expression";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                        var $1300 = Data_Function["const"](i);
+                                        return function ($1301) {
+                                            return $1299($1300($1301));
+                                        };
+                                    })());
+                                };
+                            })(p))(function (v1) {
+                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(checkEqR(v1.value0)(v1.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                    return "Equivalent type mismatch";
+                                }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v2) {
+                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(newb(Dhall_Core_AST_Constructors.mkType));
+                                });
+                            });
+                        },
+                        Assert: function (v1) {
+                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                return "Equivalent";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "Not an equivalence";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v2) {
+                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(checkEqR(v2.value0)(v2.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                    return "Assertion failed";
+                                }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v3) {
+                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(shared(v1));
+                                });
+                            });
+                        },
+                        Bool: Control_Category.identity(Control_Category.categoryFn)(aType),
+                        BoolLit: always(Dhall_Core_AST_Constructors.mkBool),
+                        BoolAnd: checkBinOp(Dhall_Core_AST_Constructors.mkBool),
+                        BoolOr: checkBinOp(Dhall_Core_AST_Constructors.mkBool),
+                        BoolEQ: checkBinOp(Dhall_Core_AST_Constructors.mkBool),
+                        BoolNE: checkBinOp(Dhall_Core_AST_Constructors.mkBool),
+                        BoolIf: function (v1) {
+                            return Control_Apply.applySecond(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(ensure(new Data_Symbol.IsSymbol(function () {
+                                return "Bool";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "Invalid predicate";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(shared)(Control_Bind.join(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor.flap(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Control_Apply.apply(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(checkEqL)(ensureTerm(v1.value1)((function () {
+                                var $1302 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                    return "If branch must be term";
+                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                var $1303 = Data_Tuple.Tuple.create(false);
+                                return function ($1304) {
+                                    return $1302($1303($1304));
+                                };
+                            })())))(ensureTerm(v1.value2)((function () {
+                                var $1305 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                    return "If branch must be term";
+                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                var $1306 = Data_Tuple.Tuple.create(true);
+                                return function ($1307) {
+                                    return $1305($1306($1307));
+                                };
+                            })())))(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "If branch mismatch";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])))));
+                        },
+                        Natural: Control_Category.identity(Control_Category.categoryFn)(aType),
+                        NaturalLit: always(Dhall_Core_AST_Constructors.mkNatural),
+                        NaturalFold: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(naturalEnc)),
+                        NaturalBuild: always(Dhall_Core_AST_Constructors.mkArrow(naturalEnc)(Dhall_Core_AST_Constructors.mkNatural)),
+                        NaturalIsZero: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkBool)),
+                        NaturalEven: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkBool)),
+                        NaturalOdd: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkBool)),
+                        NaturalToInteger: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkInteger)),
+                        NaturalShow: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkText)),
+                        NaturalSubtract: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkNatural))),
+                        NaturalPlus: checkBinOp(Dhall_Core_AST_Constructors.mkNatural),
+                        NaturalTimes: checkBinOp(Dhall_Core_AST_Constructors.mkNatural),
+                        Integer: Control_Category.identity(Control_Category.categoryFn)(aType),
+                        IntegerLit: always(Dhall_Core_AST_Constructors.mkInteger),
+                        IntegerShow: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkInteger)(Dhall_Core_AST_Constructors.mkText)),
+                        IntegerToDouble: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkInteger)(Dhall_Core_AST_Constructors.mkDouble)),
+                        Double: Control_Category.identity(Control_Category.categoryFn)(aType),
+                        DoubleLit: always(Dhall_Core_AST_Constructors.mkDouble),
+                        DoubleShow: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkDouble)(Dhall_Core_AST_Constructors.mkText)),
+                        Text: Control_Category.identity(Control_Category.categoryFn)(aType),
+                        TextLit: function (things) {
+                            return confirm(newb(Dhall_Core_AST_Constructors.mkText))(Data_FoldableWithIndex.forWithIndex_(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Core_AST_Types_Basics.foldableWithIndexTextLitF)(things)(function (i) {
+                                return function (expr) {
+                                    return ensure(new Data_Symbol.IsSymbol(function () {
+                                        return "Text";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(expr)((function () {
+                                        var $1308 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                            return "Cannot interpolate";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                        var $1309 = Data_Function["const"](i);
+                                        return function ($1310) {
+                                            return $1308($1309($1310));
+                                        };
+                                    })());
+                                };
+                            }));
+                        },
+                        TextAppend: checkBinOp(Dhall_Core_AST_Constructors.mkText),
+                        TextShow: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkText)(Dhall_Core_AST_Constructors.mkText)),
+                        List: Control_Category.identity(Control_Category.categoryFn)(aFunctor),
+                        ListLit: function (v1) {
+                            return mconfirm(Data_Functor.map(Data_Maybe.functorMaybe)(shared)(v1.value0))(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))((function () {
+                                if (v1.value0 instanceof Data_Maybe.Just) {
+                                    var error = errorHere(new Data_Symbol.IsSymbol(function () {
+                                        return "List annotation must be list type";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                        return "App";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0.value0)(error))(function (v2) {
+                                        return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
+                                            return "List";
+                                        }))(Dhall_Core_AST_Types_Basics["_S"])(Data_Function["const"](Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit)))(function (v3) {
+                                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Void.absurd)(error(Data_Unit.unit));
+                                        })(unlayerO(normalizeStep(v2.value0))))(function () {
+                                            return confirm(v2.value1)(ensureType(v2.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                                return "Invalid list type";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"])));
+                                        });
+                                    });
+                                };
+                                if (v1.value0 instanceof Data_Maybe.Nothing) {
+                                    var v2 = Data_Array.head(v1.value1);
+                                    if (v2 instanceof Data_Maybe.Nothing) {
+                                        return errorHere(new Data_Symbol.IsSymbol(function () {
+                                            return "Missing list type";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit);
+                                    };
+                                    if (v2 instanceof Data_Maybe.Just) {
+                                        return ensureTerm(v2.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                            return "Invalid list type";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"]));
+                                    };
+                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1507, column 20 - line 1511, column 55): " + [ v2.constructor.name ]);
+                                };
+                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1496, column 32 - line 1511, column 55): " + [ v1.value0.constructor.name ]);
+                            })())(function (v2) {
+                                return confirm(mkFunctor(Dhall_Core_AST_Constructors.mkList)(shared(v2)))(Data_FoldableWithIndex.forWithIndex_(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_FoldableWithIndex.foldableWithIndexArray)(v1.value1)(function (i) {
+                                    return function (item) {
+                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(item))(function (v3) {
+                                            return checkEq(v2)(v3)(function (v4) {
+                                                if (v1.value0 instanceof Data_Maybe.Nothing) {
+                                                    return errorHere(new Data_Symbol.IsSymbol(function () {
+                                                        return "Invalid list element";
+                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(i);
+                                                };
+                                                if (v1.value0 instanceof Data_Maybe.Just) {
+                                                    return errorHere(new Data_Symbol.IsSymbol(function () {
+                                                        return "Mismatched list elements";
+                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(i);
+                                                };
+                                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1515, column 11 - line 1519, column 64): " + [ v1.value0.constructor.name ]);
+                                            });
+                                        });
+                                    };
+                                }));
+                            }));
+                        },
+                        ListAppend: function (p) {
+                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))((function () {
+                                var $1311 = mkFunctor(Dhall_Core_AST_Constructors.mkList);
+                                return function ($1312) {
+                                    return $1311(shared($1312));
+                                };
+                            })())(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Core_AST_Types_Basics.traversableWithIndexPair)(p)(function (side) {
+                                return function (expr) {
+                                    var error = (function () {
+                                        var $1313 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                            return "Cannot append non-list";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                        var $1314 = Data_Function["const"](side);
+                                        return function ($1315) {
+                                            return $1313($1314($1315));
+                                        };
+                                    })();
+                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(expr))(function (v1) {
+                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                            return "App";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v1)(error))(function (v2) {
+                                            return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
+                                                return "List";
+                                            }))(Dhall_Core_AST_Types_Basics["_S"])(Data_Function["const"](Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit)))(function (v3) {
+                                                return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Void.absurd)(error(Data_Unit.unit));
+                                            })(unlayerO(normalizeStep(v2.value0))))(function () {
+                                                return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(v2.value1);
+                                            });
+                                        });
+                                    });
+                                };
+                            }))(function (v1) {
+                                return checkEqL(v1.value0)(v1.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                    return "List append mismatch";
+                                }))()(Dhall_Core_AST_Types_Basics["_S"]));
+                            }));
+                        },
+                        ListBuild: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(listEnc(a0))(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0)))),
+                        ListFold: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0))(listEnc(a0)))),
+                        ListLength: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0))(Dhall_Core_AST_Constructors.mkNatural))),
+                        ListHead: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0))(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkOptional)(a0)))),
+                        ListLast: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0))(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkOptional)(a0)))),
+                        ListIndexed: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0))(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(Dhall_Core_AST_Constructors.mkRecord(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(Dhall_Map.fromFoldable(dictMapLike)(Data_Foldable.foldableArray)([ new Data_Tuple.Tuple("index", Dhall_Core_AST_Constructors.mkNatural), new Data_Tuple.Tuple("value", a0) ])))))),
+                        ListReverse: always(Dhall_Core_AST_Constructors.mkForall("a")(Control_Bind.join(Control_Bind.bindFn)(Dhall_Core_AST_Constructors.mkArrow)(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0)))),
+                        Optional: Control_Category.identity(Control_Category.categoryFn)(aFunctor),
+                        None: always(Dhall_Core_AST_Constructors.mkPi("A")(Dhall_Core_AST_Constructors.mkType)(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkOptional)(Dhall_Core_AST_Constructors.mkVar(new Dhall_Core_AST_Types.V("A", 0))))),
+                        Some: (function () {
+                            var $1316 = Data_Newtype.unwrap(Data_Identity.newtypeIdentity);
+                            return function ($1317) {
+                                return (function (a) {
+                                    return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))((function () {
+                                        var $1318 = mkFunctor(Dhall_Core_AST_Constructors.mkOptional);
+                                        return function ($1319) {
+                                            return $1318(shared($1319));
+                                        };
+                                    })())(ensureTerm(a)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                        return "Invalid `Some`";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])));
+                                })($1316($1317));
+                            };
+                        })(),
+                        OptionalFold: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkOptional)(a0))(optionalEnc(a0)))),
+                        OptionalBuild: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(optionalEnc(a0))(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkOptional)(a0)))),
+                        Record: function (kts) {
+                            return Control_Apply.applySecond(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(ensureNodupes(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))((dictMapLike.TraversableWithIndex2()).FoldableWithIndex1())(Data_Ord.ordString)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "Duplicate record fields";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"]))(kts))(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike.TraversableWithIndex2())(kts)(function (field) {
+                                return function (ty) {
+                                    return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Newtype.unwrap(Data_Const.newtypeConst))(ensure(new Data_Symbol.IsSymbol(function () {
+                                        return "Const";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(ty)((function () {
+                                        var $1320 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                            return "Invalid field type";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                        var $1321 = Data_Function["const"](field);
+                                        return function ($1322) {
+                                            return $1320($1321($1322));
+                                        };
+                                    })()));
+                                };
+                            }))(function (v1) {
+                                return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(newb(Dhall_Core_AST_Constructors.mkConst(maxConst(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(v1))));
+                            }));
+                        },
+                        RecordLit: function (kvs) {
+                            return Control_Apply.applySecond(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(ensureNodupes(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))((dictMapLike.TraversableWithIndex2()).FoldableWithIndex1())(Data_Ord.ordString)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "Duplicate record fields";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"]))(kvs))(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Traversable.traverse((dictMapLike.TraversableWithIndex2()).Traversable2())(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(typecheckStep)(kvs))(function (v1) {
+                                return confirm(mkShared(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(new Data_Symbol.IsSymbol(function () {
+                                    return "Record";
+                                }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Functor.map(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(shared)(v1)))(Data_FoldableWithIndex.forWithIndex_(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))((dictMapLike.TraversableWithIndex2()).FoldableWithIndex1())(v1)(function (field) {
+                                    return function (ty) {
+                                        return ensure(new Data_Symbol.IsSymbol(function () {
+                                            return "Const";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(ty)((function () {
+                                            var $1323 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                return "Invalid field type";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                            var $1324 = Data_Function["const"](field);
+                                            return function ($1325) {
+                                                return $1323($1324($1325));
+                                            };
+                                        })());
+                                    };
+                                }));
+                            }));
+                        },
+                        Union: function (kts) {
+                            return Control_Apply.applySecond(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(ensureNodupes(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Functor_Compose.foldableWithIndexCompose((dictMapLike.TraversableWithIndex2()).FoldableWithIndex1())(Data_FoldableWithIndex.foldableWithIndexMaybe))(Data_Tuple.ordTuple(Data_Ord.ordString)(Data_Ord.ordUnit))((function () {
+                                var $1326 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                    return "Duplicate union alternatives";
+                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                var $1327 = Data_Functor.map(Data_List_Types.functorNonEmptyList)(Data_Tuple.fst);
+                                return function ($1328) {
+                                    return $1326($1327($1328));
+                                };
+                            })())(kts))(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Functor_Compose.traversableWithIndexCompose(dictMapLike.TraversableWithIndex2())(Data_TraversableWithIndex.traversableWithIndexMaybe))(kts)(function (v1) {
+                                return function (ty) {
+                                    return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Newtype.unwrap(Data_Const.newtypeConst))(ensure(new Data_Symbol.IsSymbol(function () {
+                                        return "Const";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(ty)((function () {
+                                        var $1329 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                            return "Invalid field type";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                        var $1330 = Data_Function["const"](v1.value0);
+                                        return function ($1331) {
+                                            return $1329($1330($1331));
+                                        };
+                                    })()));
+                                };
+                            }))(function (v1) {
+                                return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConsistency(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike)((function () {
+                                    var $1390 = Control_Semigroupoid.compose(Control_Semigroupoid.semigroupoidFn)(Data_Maybe.fromMaybe(true));
+                                    var $1391 = Control_Apply.lift2(Data_Maybe.applyMaybe)(Data_Eq.eq(Dhall_Core_AST_Types.eqConst));
+                                    return function ($1392) {
+                                        return $1390($1391($1392));
+                                    };
+                                })())((function () {
+                                    var $1332 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                        return "Inconsistent alternative types";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                    var $1333 = Data_Functor.map(functorInconsistency)(Data_Functor.map(Data_List_Types.functorNonEmptyList)(function (v2) {
+                                        return v2.key;
+                                    }));
+                                    return function ($1334) {
+                                        return $1332($1333($1334));
+                                    };
+                                })())(Data_Newtype.unwrap(Data_Functor_Compose.newtypeCompose)(v1)))(function () {
+                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(newb(Dhall_Core_AST_Constructors.mkConst(maxConst(Data_Functor_Compose.foldableCompose(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(Data_Foldable.foldableMaybe))(v1))));
+                                });
+                            }));
+                        },
+                        Combine: (function () {
+                            var combineTypes = function (here) {
+                                return function (v1) {
+                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Core_AST_Types_Basics.traversableWithIndexPair)(v1)(function (side) {
+                                        return function (ty) {
+                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                                return "Record";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(ty)((function () {
+                                                var $1335 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                    return "Must combine a record";
+                                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                                var $1336 = Data_Function["const"](new Data_Tuple.Tuple(here, side));
+                                                return function ($1337) {
+                                                    return $1335($1336($1337));
+                                                };
+                                            })()))(function (v2) {
+                                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure(new Data_Symbol.IsSymbol(function () {
+                                                    return "Const";
+                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(ty)((function () {
+                                                    var $1338 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                        return "Must combine a record";
+                                                    }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                                    var $1339 = Data_Function["const"](new Data_Tuple.Tuple(here, side));
+                                                    return function ($1340) {
+                                                        return $1338($1339($1340));
+                                                    };
+                                                })()))(function (v3) {
+                                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))({
+                                                        kts: v2,
+                                                        "const": v3
+                                                    });
+                                                });
+                                            });
+                                        };
+                                    }))(function (v2) {
+                                        var combined = Dhall_Map.unionWith(dictMapLike)(Control_Applicative.pure(Control_Applicative.applicativeFn)(Control_Applicative.pure(Data_Maybe.applicativeMaybe)))(v2.value0.kts)(v2.value1.kts);
+                                        return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(mkShared(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(new Data_Symbol.IsSymbol(function () {
+                                            return "Record";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"]))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike.TraversableWithIndex2())(combined)(function (k) {
+                                            return function (v3) {
+                                                if (v3 instanceof Data_These.Both) {
+                                                    return combineTypes(new Data_List_Types.Cons(k, here))(new Dhall_Core_AST_Types_Basics.Pair(v3.value0, v3.value1));
+                                                };
+                                                if (v3 instanceof Data_These.This) {
+                                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(shared(v3.value0));
+                                                };
+                                                if (v3 instanceof Data_These.That) {
+                                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(shared(v3.value0));
+                                                };
+                                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1602, column 13 - line 1606, column 40): " + [ v3.constructor.name ]);
+                                            };
+                                        }));
+                                    });
+                                };
+                            };
+                            var $1341 = Control_Bind.bindFlipped(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(combineTypes(Data_List_Types.Nil.value));
+                            var $1342 = Data_Traversable.traverse(Dhall_Core_AST_Types_Basics.traversablePair)(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(typecheckStep);
+                            return function ($1343) {
+                                return $1341($1342($1343));
+                            };
+                        })(),
+                        CombineTypes: (function () {
+                            var combineTypes = function (here) {
+                                return function (v1) {
+                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Core_AST_Types_Basics.traversableWithIndexPair)(v1)(function (side) {
+                                        return function (ty) {
+                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                                return "Record";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(ty)((function () {
+                                                var $1344 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                    return "Must combine a record";
+                                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                                var $1345 = Data_Function["const"](new Data_Tuple.Tuple(here, side));
+                                                return function ($1346) {
+                                                    return $1344($1345($1346));
+                                                };
+                                            })()))(function (v2) {
+                                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConst(ty)((function () {
+                                                    var $1347 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                        return "Must combine a record";
+                                                    }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                                    var $1348 = Data_Function["const"](new Data_Tuple.Tuple(here, side));
+                                                    return function ($1349) {
+                                                        return $1347($1348($1349));
+                                                    };
+                                                })()))(function (v3) {
+                                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))({
+                                                        kts: v2,
+                                                        "const": v3
+                                                    });
+                                                });
+                                            });
+                                        };
+                                    }))(function (v2) {
+                                        var combined = Dhall_Map.unionWith(dictMapLike)(Control_Applicative.pure(Control_Applicative.applicativeFn)(Control_Applicative.pure(Data_Maybe.applicativeMaybe)))(v2.value0.kts)(v2.value1.kts);
+                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike.TraversableWithIndex2())(combined)(function (k) {
+                                            return function (v3) {
+                                                if (v3 instanceof Data_These.Both) {
+                                                    return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(function (v4) {
+                                                        return v4.rec;
+                                                    })(combineTypes(new Data_List_Types.Cons(k, here))(new Dhall_Core_AST_Types_Basics.Pair(v3.value0, v3.value1)));
+                                                };
+                                                if (v3 instanceof Data_These.This) {
+                                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(shared(v3.value0));
+                                                };
+                                                if (v3 instanceof Data_These.That) {
+                                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(shared(v3.value0));
+                                                };
+                                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1620, column 13 - line 1624, column 40): " + [ v3.constructor.name ]);
+                                            };
+                                        }))(function (v3) {
+                                            return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))({
+                                                "const": Data_Ord.max(Dhall_Core_AST_Types.ordConst)(v2["value0"]["const"])(v2["value1"]["const"]),
+                                                rec: mkShared(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(new Data_Symbol.IsSymbol(function () {
+                                                    return "Record";
+                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(v3)
+                                            });
+                                        });
+                                    });
+                                };
+                            };
+                            var $1350 = Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(function ($1353) {
+                                return newb(Dhall_Core_AST_Constructors.mkConst((function (v1) {
+                                    return v1["const"];
+                                })($1353)));
+                            });
+                            var $1351 = combineTypes(Data_List_Types.Nil.value);
+                            return function ($1352) {
+                                return $1350($1351($1352));
+                            };
+                        })(),
+                        Prefer: function (p) {
+                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Core_AST_Types_Basics.traversableWithIndexPair)(p)(function (side) {
+                                return function (kvs) {
+                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(kvs))(function (v1) {
+                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                            return "Record";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v1)((function () {
+                                            var $1354 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                return "Must combine a record";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                            var $1355 = Data_Function["const"](new Data_Tuple.Tuple(Data_List_Types.Nil.value, side));
+                                            return function ($1356) {
+                                                return $1354($1355($1356));
+                                            };
+                                        })()))(function (v2) {
+                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1))(function (v3) {
+                                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Newtype.unwrap(Data_Const.newtypeConst))(ensure(new Data_Symbol.IsSymbol(function () {
+                                                    return "Const";
+                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(v1)((function () {
+                                                    var $1357 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                        return "Must combine a record";
+                                                    }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                                    var $1358 = Data_Function["const"](new Data_Tuple.Tuple(Data_List_Types.Nil.value, side));
+                                                    return function ($1359) {
+                                                        return $1357($1358($1359));
+                                                    };
+                                                })())))(function (v4) {
+                                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))({
+                                                        kts: v2,
+                                                        "const": v4
+                                                    });
+                                                });
+                                            });
+                                        });
+                                    });
+                                };
+                            }))(function (v1) {
+                                var preference = function ($1360) {
+                                    return Data_Maybe.Just.create((function (v2) {
+                                        if (v2 instanceof Data_These.This) {
+                                            return v2.value0;
+                                        };
+                                        if (v2 instanceof Data_These.That) {
+                                            return v2.value0;
+                                        };
+                                        if (v2 instanceof Data_These.Both) {
+                                            return v2.value0;
+                                        };
+                                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1638, column 31 - line 1641, column 24): " + [ v2.constructor.name ]);
+                                    })($1360));
+                                };
+                                return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(mkShared(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(new Data_Symbol.IsSymbol(function () {
+                                    return "Record";
+                                }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Functor.map(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(shared)(Dhall_Map.unionWith(dictMapLike)(Control_Applicative.pure(Control_Applicative.applicativeFn)(preference))(v1.value1.kts)(v1.value0.kts))));
+                            });
+                        },
+                        Merge: function (v1) {
+                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Apply.apply(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Tuple.Tuple.create)(ensure(new Data_Symbol.IsSymbol(function () {
+                                return "Record";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "Must merge a record";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"]))))(ensure(new Data_Symbol.IsSymbol(function () {
+                                return "Union";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "Must merge a union";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"]))))(function (v2) {
+                                var ksY = Data_Set.fromFoldable(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(Data_Ord.ordUnit)(Data_Functor.voidLeft(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(v2.value1)(Data_Unit.unit));
+                                var ksX = Data_Set.fromFoldable(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(Data_Ord.ordUnit)(Data_Functor.voidLeft(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(v2.value0)(Data_Unit.unit));
+                                var diffY = Data_Set.difference(Data_Ord.ordUnit)(ksY)(ksX);
+                                var diffX = Data_Set.difference(Data_Ord.ordUnit)(ksX)(ksY);
+                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))((function () {
+                                    if (v1.value2 instanceof Data_Maybe.Just) {
+                                        return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Tuple.Tuple.create(Data_Maybe.Nothing.value))(Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(v1.value2.value0));
+                                    };
+                                    if (v1.value2 instanceof Data_Maybe.Nothing) {
+                                        var v3 = Data_Newtype.un(Data_Maybe_First.newtypeFirst)(Data_Maybe_First.First)(Data_FoldableWithIndex.foldMapWithIndex((dictMapLike.TraversableWithIndex2()).FoldableWithIndex1())(Data_Maybe_First.monoidFirst)(Data_Tuple.curry(Control_Applicative.pure(Data_Maybe_First.applicativeFirst)))(v2.value0));
+                                        if (v3 instanceof Data_Maybe.Nothing) {
+                                            return errorHere(new Data_Symbol.IsSymbol(function () {
+                                                return "Missing merge type";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit);
+                                        };
+                                        if (v3 instanceof Data_Maybe.Just) {
+                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
+                                                return "Unused handlers";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(diffX)(Dhall_Map.get(dictMapLike)(v3.value0.value0)(v2.value1)))(function (v4) {
+                                                if (v4 instanceof Data_Maybe.Just) {
+                                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                                        return "Pi";
+                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(v3.value0.value1)((function () {
+                                                        var $1361 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                            return "Handler not a function";
+                                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                                        var $1362 = Data_Function["const"](v3.value0.value0);
+                                                        return function ($1363) {
+                                                            return $1361($1362($1363));
+                                                        };
+                                                    })()))(function (v5) {
+                                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
+                                                            return "Dependent handler function";
+                                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Function["const"](v3.value0.value0)(Data_Unit.unit))(tryShiftOut0Oxpr(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(v5.value0)(v5.value2)))(function (v6) {
+                                                            return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(new Data_Tuple.Tuple(new Data_Maybe.Just({
+                                                                key: v3.value0.value0,
+                                                                fn: true
+                                                            }), v6));
+                                                        });
+                                                    });
+                                                };
+                                                if (v4 instanceof Data_Maybe.Nothing) {
+                                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(new Data_Tuple.Tuple(new Data_Maybe.Just({
+                                                        key: v3.value0.value0,
+                                                        fn: false
+                                                    }), v3.value0.value1));
+                                                };
+                                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1664, column 13 - line 1672, column 63): " + [ v4.constructor.name ]);
+                                            });
+                                        };
+                                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1659, column 20 - line 1672, column 63): " + [ v3.constructor.name ]);
+                                    };
+                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1655, column 26 - line 1672, column 63): " + [ v1.value2.constructor.name ]);
+                                })())(function (v3) {
+                                    return confirm(shared(v3.value1))(Control_Apply.apply(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(function (v4) {
+                                        return function (v5) {
+                                            return Data_Unit.unit;
+                                        };
+                                    })(Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_HeytingAlgebra.not(Data_HeytingAlgebra.heytingAlgebraFunction(Data_HeytingAlgebra.heytingAlgebraBoolean))(Data_Set.isEmpty)(diffX))(errorHere(new Data_Symbol.IsSymbol(function () {
+                                        return "Unused handlers";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(diffX))))(Data_FoldableWithIndex.forWithIndex_(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))((dictMapLike.TraversableWithIndex2()).FoldableWithIndex1())(v2.value1)(function (k) {
+                                        return function (mtY) {
+                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
+                                                return "Missing handler";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(diffY)(Dhall_Map.get(dictMapLike)(k)(v2.value0)))(function (v4) {
+                                                if (mtY instanceof Data_Maybe.Just) {
+                                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                                        return "Pi";
+                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(v4)((function () {
+                                                        var $1364 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                            return "Handler not a function";
+                                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                                        var $1365 = Data_Function["const"](k);
+                                                        return function ($1366) {
+                                                            return $1364($1365($1366));
+                                                        };
+                                                    })()))(function (v5) {
+                                                        return Control_Apply.apply(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(function (v6) {
+                                                            return function (v7) {
+                                                                return Data_Unit.unit;
+                                                            };
+                                                        })(checkEq(mtY.value0)(v5.value1)((function () {
+                                                            var $1367 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                                return "Handler input type mismatch";
+                                                            }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                                            var $1368 = Data_Function["const"](k);
+                                                            return function ($1369) {
+                                                                return $1367($1368($1369));
+                                                            };
+                                                        })())))(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
+                                                            return "Dependent handler function";
+                                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Function["const"](k)(Data_Unit.unit))(tryShiftOut0Oxpr(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(v5.value0)(v5.value2)))(function (v6) {
+                                                            return checkEq(v3.value1)(v6)((function () {
+                                                                var $1370 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                                    return "Handler output type mismatch";
+                                                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                                                var $1371 = Data_Function["const"](new Data_Tuple.Tuple(v3.value0, k));
+                                                                return function ($1372) {
+                                                                    return $1370($1371($1372));
+                                                                };
+                                                            })());
+                                                        }));
+                                                    });
+                                                };
+                                                if (mtY instanceof Data_Maybe.Nothing) {
+                                                    return checkEq(v3.value1)(v4)((function () {
+                                                        var $1373 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                            return "Handler type mismatch";
+                                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                                        var $1374 = Data_Function["const"](new Data_Tuple.Tuple(v3.value0, k));
+                                                        return function ($1375) {
+                                                            return $1373($1374($1375));
+                                                        };
+                                                    })());
+                                                };
+                                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1679, column 11 - line 1694, column 88): " + [ mtY.constructor.name ]);
+                                            });
+                                        };
+                                    })));
+                                });
+                            });
+                        },
+                        ToMap: function (v1) {
+                            return mconfirm(Data_Functor.map(Data_Maybe.functorMaybe)(shared)(v1.value1))(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure(new Data_Symbol.IsSymbol(function () {
+                                return "Record";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "toMap takes a record";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v2) {
+                                var mapType = function (ty) {
+                                    return mkFunctor(Dhall_Core_AST_Constructors.mkList)(mkShared(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(new Data_Symbol.IsSymbol(function () {
+                                        return "Record";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Dhall_Map.fromFoldable(dictMapLike)(Data_Foldable.foldableArray)([ Data_Tuple.Tuple.create("mapKey")(mkShared(Data_Const.functorConst)(new Data_Symbol.IsSymbol(function () {
+                                        return "Text";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Newtype.wrap(Data_Const.newtypeConst)(Data_Unit.unit))), new Data_Tuple.Tuple("mapValue", ty) ])));
+                                };
+                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Traversable.traverse(Data_Traversable.traversableMaybe)(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(function (listty) {
+                                    var error = errorHere(new Data_Symbol.IsSymbol(function () {
+                                        return "Invalid toMap type annotation";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                        return "App";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(listty)(error))(function (v3) {
+                                        return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
+                                            return "List";
+                                        }))(Dhall_Core_AST_Types_Basics["_S"])(Data_Function["const"](Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit)))(function (v4) {
+                                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Void.absurd)(error(Data_Unit.unit));
+                                        })(unlayerO(normalizeStep(v3.value0))))(function () {
+                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                                return "Record";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v3.value1)(error))(function (v4) {
+                                                return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Map.size(dictMapLike)(v4) !== 2)(Data_Functor["void"](Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(error(Data_Unit.unit))))(function () {
+                                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
+                                                        return "Invalid toMap type annotation";
+                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit)(Dhall_Map.get(dictMapLike)("mapKey")(v4)))(function (v5) {
+                                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                                            return "Text";
+                                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v5)(error))(function (v6) {
+                                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
+                                                                return "Invalid toMap type annotation";
+                                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit)(Dhall_Map.get(dictMapLike)("mapValue")(v4)))(function (v7) {
+                                                                return confirm(v7)(ensureType(v7)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                                                    return "Invalid toMap type";
+                                                                }))()(Dhall_Core_AST_Types_Basics["_S"])));
+                                                            });
+                                                        });
+                                                    });
+                                                });
+                                            });
+                                        });
+                                    });
+                                })(v1.value1))(function (v3) {
+                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConsistentOxpr(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike)(functorWithIndexWithHint((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0()))(foldableWithHint(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1()))(dictEq)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                        return "Missing toMap type";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"]))((function () {
+                                        var $1376 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                            return "Inconsistent toMap types";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                        var $1377 = Data_Functor.map(functorInconsistency)(Data_Functor.map(Data_List_Types.functorNonEmptyList)(function (v4) {
+                                            return v4.key;
+                                        }));
+                                        return function ($1378) {
+                                            return $1376($1377($1378));
+                                        };
+                                    })())(new WithHint(v3, v2)))(function (v4) {
+                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(mapType(shared(v4)));
+                                    });
+                                });
+                            }));
+                        },
+                        Field: function (v1) {
+                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1.value1))(function (v2) {
+                                var handleType = function (kts) {
+                                    var v3 = Dhall_Map.get(dictMapLike)(v1.value0)(kts);
+                                    if (v3 instanceof Data_Maybe.Just && v3.value0 instanceof Data_Maybe.Just) {
+                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(mkShared(Dhall_Core_AST_Types_Basics.functorBindingBody)(new Data_Symbol.IsSymbol(function () {
+                                            return "Pi";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Functor.map(Dhall_Core_AST_Types_Basics.functorBindingBody)(shared)(new Dhall_Core_AST_Types_Basics.BindingBody(v1.value0, v3.value0.value0, v1.value1))));
+                                    };
+                                    if (v3 instanceof Data_Maybe.Just && v3.value0 instanceof Data_Maybe.Nothing) {
+                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(shared(v1.value1));
+                                    };
+                                    if (v3 instanceof Data_Maybe.Nothing) {
+                                        return errorHere(new Data_Symbol.IsSymbol(function () {
+                                            return "Missing field";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0);
+                                    };
+                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1734, column 11 - line 1737, column 66): " + [ v3.constructor.name ]);
+                                };
+                                var handleRecord = function (kts) {
+                                    var v3 = Dhall_Map.get(dictMapLike)(v1.value0)(kts);
+                                    if (v3 instanceof Data_Maybe.Just) {
+                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(shared(v3.value0));
+                                    };
+                                    if (v3 instanceof Data_Maybe.Nothing) {
+                                        return errorHere(new Data_Symbol.IsSymbol(function () {
+                                            return "Missing field";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0);
+                                    };
+                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1730, column 11 - line 1732, column 66): " + [ v3.constructor.name ]);
+                                };
+                                var error = function (v3) {
+                                    return errorHere(new Data_Symbol.IsSymbol(function () {
+                                        return "Cannot access";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit);
+                                };
+                                var casing = Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
+                                    return "Const";
+                                }))(Dhall_Core_AST_Types_Basics["_S"])(function (v3) {
+                                    return Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
+                                        return "Union";
+                                    }))(Dhall_Core_AST_Types_Basics["_S"])((function () {
+                                        var $1379 = Data_Newtype.unwrap(Data_Functor_Compose.newtypeCompose);
+                                        return function ($1380) {
+                                            return handleType($1379($1380));
+                                        };
+                                    })())(function (v4) {
+                                        return error(Data_Unit.unit);
+                                    })(unlayerO(normalizeStep(v1.value1)));
+                                })(Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
+                                    return "Record";
+                                }))(Dhall_Core_AST_Types_Basics["_S"])(handleRecord)(function (v3) {
+                                    return error(Data_Unit.unit);
+                                }));
+                                return casing(unlayerO(normalizeStep(v2)));
+                            });
+                        },
+                        Project: function (v1) {
+                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure(new Data_Symbol.IsSymbol(function () {
+                                return "Record";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                return "Cannot project";
+                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v2) {
+                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))((function () {
+                                    if (v1.value1 instanceof Data_Either.Left) {
+                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Functor.mapFlipped(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(v1.value1.value0)(function (v3) {
+                                            return Data_Maybe.Nothing.value;
+                                        }));
+                                    };
+                                    if (v1.value1 instanceof Data_Either.Right) {
+                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1.value1.value0))(function (v3) {
+                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                                return "Record";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value1.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
+                                                return "Cannot project by expression";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v4) {
+                                                return Data_Traversable.traverse((dictMapLike.TraversableWithIndex2()).Traversable2())(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(function (ty) {
+                                                    return Data_Functor.voidRight(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(new Data_Maybe.Just(ty))(typecheckStep(ty));
+                                                })(v4);
+                                            });
+                                        });
+                                    };
+                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1747, column 13 - line 1753, column 59): " + [ v1.value1.constructor.name ]);
+                                })())(function (v3) {
+                                    return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))((function () {
+                                        var $1381 = mkShared(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(new Data_Symbol.IsSymbol(function () {
+                                            return "Record";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                        var $1382 = Data_Functor.map(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(shared);
+                                        return function ($1383) {
+                                            return $1381($1382($1383));
+                                        };
+                                    })())(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike.TraversableWithIndex2())(v3)(function (k) {
+                                        return function (mty) {
+                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
+                                                return "Missing field";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(k)(Dhall_Map.get(dictMapLike)(k)(v2)))(function (v4) {
+                                                return Data_Maybe.maybe(Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(v4))(function (ty1) {
+                                                    return checkEqR(v4)(ty1)((function () {
+                                                        var $1384 = errorHere(new Data_Symbol.IsSymbol(function () {
+                                                            return "Projection type mismatch";
+                                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                                        var $1385 = Data_Function["const"](k);
+                                                        return function ($1386) {
+                                                            return $1384($1385($1386));
+                                                        };
+                                                    })());
+                                                })(mty);
+                                            });
+                                        };
+                                    }));
+                                });
+                            });
+                        },
+                        Hashed: function (v1) {
+                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(shared)(typecheckStep(v1.value1));
+                        },
+                        UsingHeaders: function (v1) {
+                            return Control_Apply.applyFirst(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(shared)(typecheckStep(v1.value0)))((function () {
+                                var error = errorHere(new Data_Symbol.IsSymbol(function () {
+                                    return "Wrong header type";
+                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
+                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1.value1))(function (v2) {
+                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                        return "App";
+                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(v2)(error))(function (v3) {
+                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                            return "List";
+                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v3.value0)(error))(function (v4) {
+                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                                return "Record";
+                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v3.value1)(error))(function (v5) {
+                                                return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Map.size(dictMapLike)(v5) !== 2)(Data_Functor["void"](Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(error(Data_Unit.unit))))(function () {
+                                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
+                                                        return "Wrong header type";
+                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit)(Dhall_Map.get(dictMapLike)("mapKey")(v5)))(function (v6) {
+                                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
+                                                            return "Wrong header type";
+                                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit)(Dhall_Map.get(dictMapLike)("mapValue")(v5)))(function (v7) {
+                                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                                                return "Text";
+                                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v6)(error))(function (v8) {
+                                                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
+                                                                    return "Text";
+                                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(v7)(error))(function (v9) {
+                                                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit);
+                                                                });
+                                                            });
+                                                        });
+                                                    });
+                                                });
+                                            });
+                                        });
+                                    });
+                                });
+                            })());
+                        },
+                        ImportAlt: function (v1) {
+                            var v2 = Data_Newtype.unwrap(Control_Monad_Writer_Trans.newtypeWriterT)(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(shared)(typecheckStep(v1.value0)));
+                            if (v2 instanceof Validation_These.Success) {
+                                return Data_Newtype.wrap(Control_Monad_Writer_Trans.newtypeWriterT)(v2);
+                            };
+                            if (v2 instanceof Validation_These["Error"]) {
+                                var v3 = Data_Newtype.unwrap(Control_Monad_Writer_Trans.newtypeWriterT)(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(shared)(typecheckStep(v1.value1)));
+                                if (v3 instanceof Validation_These.Success) {
+                                    return Data_Newtype.wrap(Control_Monad_Writer_Trans.newtypeWriterT)(v3);
+                                };
+                                if (v3 instanceof Validation_These["Error"]) {
+                                    return Data_Newtype.wrap(Control_Monad_Writer_Trans.newtypeWriterT)(new Validation_These["Error"](Data_Semigroup.append(Data_Array_NonEmpty_Internal.semigroupNonEmptyArray)(v2.value0)(v3.value0), Control_Alt.alt(Data_Maybe.altMaybe)(v2.value1)(v3.value1)));
+                                };
+                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1778, column 11 - line 1780, column 69): " + [ v3.constructor.name ]);
+                            };
+                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1775, column 7 - line 1780, column 69): " + [ v2.constructor.name ]);
+                        },
+                        Embed: (function () {
+                            var $1387 = Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(newb);
+                            var $1388 = Data_Newtype.unwrap(Data_Const.newtypeConst);
+                            return function ($1389) {
+                                return $1387(tpa($1388($1389)));
+                            };
+                        })()
+                    };
+                })())(Data_Newtype.unwrap(Dhall_Core_AST_Types.newtypeERVF)(v.value1.value1));
             };
         };
     };
@@ -64144,19 +65790,19 @@ var substContextOxpr = function (dictFunctorWithIndex) {
             var go1 = function (ctx$prime) {
                 return function (v) {
                     var v1 = substContext1(shiftInOxpr0)((function () {
-                        var $1124 = Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
-                        var $1125 = Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
-                        return function ($1126) {
-                            return $1124($1125(go($1126)));
+                        var $1393 = Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+                        var $1394 = Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+                        return function ($1395) {
+                            return $1393($1394(go($1395)));
                         };
                     })())(ctx$prime)(v.value1);
                     if (v1 instanceof Data_Either.Left) {
-                        return Data_Either.Left.create(v1.value0);
+                        return new Data_Either.Left(v1.value0);
                     };
                     if (v1 instanceof Data_Either.Right) {
                         return Data_Either.Right.create(Control_Comonad_Env_Trans.EnvT(Data_Tuple.Tuple.create(v.value0)(v1.value0)));
                     };
-                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 442, column 7 - line 444, column 63): " + [ v1.constructor.name ]);
+                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 571, column 7 - line 573, column 63): " + [ v1.constructor.name ]);
                 };
             };
             var go = function (ctx$prime) {
@@ -64167,18 +65813,162 @@ var substContextOxpr = function (dictFunctorWithIndex) {
                             return Control_Apply.apply(Control_Apply.applyFn)(Data_Functor.map(Data_Functor.functorFn)(Data_Tuple.Tuple.create)(Control_Comonad_Cofree.head))(Control_Comonad_Cofree.tail)(v1.value0);
                         };
                         if (v1 instanceof Data_Either.Right) {
-                            return Data_Tuple.Tuple.create(v1.value0)(bitransProduct(Data_Functor.map(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(go(ctx)))(Data_Functor.map(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))(go(ctx)))(Control_Comonad_Cofree.tail(e$prime)));
+                            return Data_Tuple.Tuple.create(v1.value0)(Data_Functor.map(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(go(ctx$prime))(Control_Comonad_Cofree.tail(e$prime)));
                         };
-                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 437, column 7 - line 440, column 72): " + [ v1.constructor.name ]);
+                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 567, column 7 - line 569, column 66): " + [ v1.constructor.name ]);
                     });
                 };
             };
             return alsoOriginateFromO(dictFunctorWithIndex)(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
                 return "substitute";
-            }))()(Dhall_Core_AST_Types_Basics["_S"]))(topLoc(e)))(Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(go(ctx)))(e));
+            }))()(Dhall_Core_AST_Types_Basics["_S"]))(topLoc(e)))(Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(go(ctx)))(e));
         };
     };
 };
+var substContextOspr = function (dictFunctorWithIndex) {
+    return function (ctx) {
+        return function (e) {
+            var go1 = function (ctx$prime) {
+                return function (v) {
+                    var v1 = substContext1(shiftInOspr0(dictFunctorWithIndex))((function () {
+                        var $1396 = Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+                        var $1397 = Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+                        return function ($1398) {
+                            return $1396($1397(go($1398)));
+                        };
+                    })())(ctx$prime)(v.value1);
+                    if (v1 instanceof Data_Either.Left) {
+                        return Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(v1.value0));
+                    };
+                    if (v1 instanceof Data_Either.Right) {
+                        return Data_Either.Right.create(Control_Comonad_Env_Trans.EnvT(Data_Tuple.Tuple.create(v.value0)(v1.value0)));
+                    };
+                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 613, column 7 - line 615, column 63): " + [ v1.constructor.name ]);
+                };
+            };
+            var go = function (ctx$prime) {
+                return function (v) {
+                    if (v instanceof Data_Either.Left) {
+                        var v1 = Data_Traversable.traverse(Dhall_Context.traversableContext)(Data_Maybe.applicativeMaybe)(Data_Traversable.traverse(Data_Traversable.traversableMaybe)(Data_Maybe.applicativeMaybe)(wasShared))(ctx$prime);
+                        if (v1 instanceof Data_Maybe.Just) {
+                            return Data_Either.Left.create(substContextOxpr(dictFunctorWithIndex)(v1.value0)(v.value0));
+                        };
+                        if (v1 instanceof Data_Maybe.Nothing) {
+                            return go1(ctx$prime)(Data_Functor.map(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))(shared)(Control_Comonad_Cofree.head(Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(v.value0)))));
+                        };
+                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 605, column 17 - line 607, column 80): " + [ v1.constructor.name ]);
+                    };
+                    if (v instanceof Data_Either.Right) {
+                        return go1(ctx$prime)(v.value0);
+                    };
+                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 603, column 15 - line 608, column 36): " + [ v.constructor.name ]);
+                };
+            };
+            return alsoOriginateFromS(dictFunctorWithIndex)(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
+                return "substitute";
+            }))()(Dhall_Core_AST_Types_Basics["_S"]))(topLocS(e)))(Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(go(ctx)))(e));
+        };
+    };
+};
+var substContextOxprCtx = function (dictFunctorWithIndex) {
+    return function (ctx) {
+        return substContextOxpr(dictFunctorWithIndex)(reconstituteCtx((function () {
+            var $1399 = Data_Functor.map(Data_Maybe.functorMaybe);
+            var $1400 = substContextOxpr(dictFunctorWithIndex);
+            return function ($1401) {
+                return $1399($1400($1401));
+            };
+        })())(ctx));
+    };
+};
+var substContextOxpr0 = function (dictFunctorWithIndex) {
+    return function (ctx) {
+        return function (e) {
+            var go1 = function (ctx$prime) {
+                return function (v) {
+                    var v1 = substContext10(shiftInOxpr0)((function () {
+                        var $1402 = Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+                        var $1403 = Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+                        return function ($1404) {
+                            return $1402($1403(go($1404)));
+                        };
+                    })())(ctx$prime)(v.value1);
+                    if (v1 instanceof Data_Either.Left) {
+                        return new Data_Either.Left(v1.value0);
+                    };
+                    if (v1 instanceof Data_Either.Right) {
+                        return Data_Either.Right.create(Control_Comonad_Env_Trans.EnvT(Data_Tuple.Tuple.create(v.value0)(v1.value0)));
+                    };
+                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 585, column 7 - line 587, column 63): " + [ v1.constructor.name ]);
+                };
+            };
+            var go = function (ctx$prime) {
+                return function (e$prime) {
+                    return Control_Comonad_Cofree.deferCofree(function (v) {
+                        var v1 = go1(ctx$prime)(Control_Comonad_Cofree.head(e$prime));
+                        if (v1 instanceof Data_Either.Left) {
+                            return Control_Apply.apply(Control_Apply.applyFn)(Data_Functor.map(Data_Functor.functorFn)(Data_Tuple.Tuple.create)(Control_Comonad_Cofree.head))(Control_Comonad_Cofree.tail)(v1.value0);
+                        };
+                        if (v1 instanceof Data_Either.Right) {
+                            return Data_Tuple.Tuple.create(v1.value0)(Data_Functor.map(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(go(ctx$prime))(Control_Comonad_Cofree.tail(e$prime)));
+                        };
+                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 581, column 7 - line 583, column 66): " + [ v1.constructor.name ]);
+                    });
+                };
+            };
+            return alsoOriginateFromO(dictFunctorWithIndex)(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
+                return "substitute";
+            }))()(Dhall_Core_AST_Types_Basics["_S"]))(topLoc(e)))(Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(go(ctx)))(e));
+        };
+    };
+};
+var substContextOspr0 = function (dictFunctorWithIndex) {
+    return function (ctx) {
+        return function (e) {
+            var go1 = function (ctx$prime) {
+                return function (v) {
+                    var v1 = substContext10(shiftInOspr0(dictFunctorWithIndex))((function () {
+                        var $1405 = Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+                        var $1406 = Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose);
+                        return function ($1407) {
+                            return $1405($1406(go($1407)));
+                        };
+                    })())(ctx$prime)(v.value1);
+                    if (v1 instanceof Data_Either.Left) {
+                        return Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(v1.value0));
+                    };
+                    if (v1 instanceof Data_Either.Right) {
+                        return Data_Either.Right.create(Control_Comonad_Env_Trans.EnvT(Data_Tuple.Tuple.create(v.value0)(v1.value0)));
+                    };
+                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 635, column 7 - line 637, column 63): " + [ v1.constructor.name ]);
+                };
+            };
+            var go = function (ctx$prime) {
+                return function (v) {
+                    if (v instanceof Data_Either.Left) {
+                        var v1 = Data_Traversable.traverse(Dhall_Context.traversableContext)(Data_Maybe.applicativeMaybe)(Data_Traversable.traverse(Data_Traversable.traversableMaybe)(Data_Maybe.applicativeMaybe)(wasShared))(ctx$prime);
+                        if (v1 instanceof Data_Maybe.Just) {
+                            return Data_Either.Left.create(substContextOxpr0(dictFunctorWithIndex)(v1.value0)(v.value0));
+                        };
+                        if (v1 instanceof Data_Maybe.Nothing) {
+                            return go1(ctx$prime)(Data_Functor.map(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))(shared)(Control_Comonad_Cofree.head(Data_Newtype.un(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(v.value0)))));
+                        };
+                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 627, column 17 - line 629, column 80): " + [ v1.constructor.name ]);
+                    };
+                    if (v instanceof Data_Either.Right) {
+                        return go1(ctx$prime)(v.value0);
+                    };
+                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 625, column 15 - line 630, column 36): " + [ v.constructor.name ]);
+                };
+            };
+            return alsoOriginateFromS(dictFunctorWithIndex)(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
+                return "substitute";
+            }))()(Dhall_Core_AST_Types_Basics["_S"]))(topLocS(e)))(Matryoshka_Util.mapR(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Data_Newtype.over(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.newtypeCompose)(Data_Functor_Compose.Compose)(go(ctx)))(e));
+        };
+    };
+};
+
+// Same drill, but for a tree that already has locations.
 var alsoOriginateFrom = function (dictFunctorWithIndex) {
     var go = function (loc) {
         return function (v) {
@@ -64191,6 +65981,9 @@ var alsoOriginateFrom = function (dictFunctorWithIndex) {
     };
     return Data_Function.flip(Matryoshka_Fold.cata(Matryoshka_Class_Recursive.recursiveCofree(Dhall_Core_AST_Types.functorERVF))(Data_Function.flip(go)));
 };
+
+// Wrap an Lxpr layer, preserving and augmenting the existing locations
+// from the new root.
 var newmother = function (dictFunctorWithIndex) {
     return function (e0) {
         var e_ = Dhall_Core_AST_Types.embedW(Data_Functor.mapFlipped(Data_Functor_Variant.functorVariantF)(e0)(denote));
@@ -64207,9 +66000,9 @@ var runLxprAlgM = function (dictFunctorWithIndex) {
             var travEnvT = function (f) {
                 return function (v) {
                     return Data_Functor.map(dictFunctor)((function () {
-                        var $1127 = Data_Tuple.Tuple.create(v.value0);
-                        return function ($1128) {
-                            return Control_Comonad_Env_Trans.EnvT($1127($1128));
+                        var $1408 = Data_Tuple.Tuple.create(v.value0);
+                        return function ($1409) {
+                            return Control_Comonad_Env_Trans.EnvT($1408($1409));
                         };
                     })())(f(v.value1));
                 };
@@ -64218,17 +66011,17 @@ var runLxprAlgM = function (dictFunctorWithIndex) {
                 return function (e) {
                     return alg(i)({
                         unlayer: (function () {
-                            var $1129 = Data_Newtype.unwrap(Dhall_Core_AST_Types.newtypeERVF);
-                            var $1130 = Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveCofree(Dhall_Core_AST_Types.functorERVF));
-                            return function ($1131) {
-                                return $1129(unEnvT($1130($1131)));
+                            var $1410 = Data_Newtype.unwrap(Dhall_Core_AST_Types.newtypeERVF);
+                            var $1411 = Matryoshka_Class_Recursive.project(Matryoshka_Class_Recursive.recursiveCofree(Dhall_Core_AST_Types.functorERVF));
+                            return function ($1412) {
+                                return $1410(unEnvT($1411($1412)));
                             };
                         })(),
                         overlayer: Dhall_Core_AST_Operations_Transformations.OverCasesM((function () {
-                            var $1132 = Matryoshka_Util.traverseR(Matryoshka_Class_Recursive.recursiveCofree(Dhall_Core_AST_Types.functorERVF))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(dictFunctor);
-                            var $1133 = Data_Newtype.traverse(dictFunctor)(Dhall_Core_AST_Types.newtypeERVF)(Dhall_Core_AST_Types.ERVF);
-                            return function ($1134) {
-                                return $1132(travEnvT($1133($1134)));
+                            var $1413 = Matryoshka_Util.traverseR(Matryoshka_Class_Recursive.recursiveCofree(Dhall_Core_AST_Types.functorERVF))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(dictFunctor);
+                            var $1414 = Data_Newtype.traverse(dictFunctor)(Dhall_Core_AST_Types.newtypeERVF)(Dhall_Core_AST_Types.ERVF);
+                            return function ($1415) {
+                                return $1413(travEnvT($1414($1415)));
                             };
                         })()),
                         recurse: go,
@@ -64246,17 +66039,6 @@ var runLxprAlg = function (dictFunctorWithIndex) {
             return function (e) {
                 return Data_Newtype.un(Data_Identity.newtypeIdentity)(Data_Identity.Identity)(runLxprAlgM(dictFunctorWithIndex)(Data_Identity.functorIdentity)(alg)(i)(e));
             };
-        };
-    };
-};
-var normalizeLxpr = function (dictMapLike) {
-    return function (dictEq) {
-        return function (e) {
-            return alsoOriginateFrom((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
-                return "normalize";
-            }))()(Dhall_Core_AST_Types_Basics["_S"]))(Control_Comonad.extract(Control_Comonad_Cofree.comonadCofree(Dhall_Core_AST_Types.functorERVF))(e)))(Control_Comonad.extract(Data_Lazy.comonadLazy)(Control_Comonad.extract(Data_Tuple.comonadTuple)(Data_Newtype.unwrap(Dhall_Normalize.newtypeW)(runLxprAlgM((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Dhall_Normalize.functorW)(Dhall_Normalize.normalizeWithAlgGW(dictMapLike)(dictEq)(Data_Monoid.mempty(Dhall_Normalize.monoidNormalizer))(Data_Variant.case_))(Data_Variant.inj()(new Data_Symbol.IsSymbol(function () {
-                return "normalize";
-            }))(Dhall_Core_AST_Types_Basics["_S"])(Data_Monoid.mempty(Data_Monoid.monoidRecord()(Data_Monoid.monoidRecordNil))))(e)))));
         };
     };
 };
@@ -64305,1285 +66087,8 @@ var tryShiftOut0Lxpr = function (dictTraversableWithIndex) {
         return tryShiftOutLxpr(dictTraversableWithIndex)(new Dhall_Core_AST_Types.V(v, 0));
     };
 };
-var typecheckAlgebra = function (dictEq) {
-    return function (dictMapLike) {
-        return function (tpa) {
-            return function (v) {
-                return Data_Functor_Variant.match()(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchCons(Data_Variant_Internal.variantFMatchNil)()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()((function () {
-                    var optionalEnc = function (a) {
-                        return Dhall_Core_AST_Constructors.mkForall("optional")((function () {
-                            var optional = Dhall_Core_AST_Constructors.mkVar(new Dhall_Core_AST_Types.V("optional", 0));
-                            return Dhall_Core_AST_Constructors.mkPi("some")(Dhall_Core_AST_Constructors.mkArrow(a)(optional))(Dhall_Core_AST_Constructors.mkPi("none")(optional)(optional));
-                        })());
-                    };
-                    var onConst = function (f) {
-                        return function (v1) {
-                            return Data_Functor.mapFlipped(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(f(v1))(newborn((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0()));
-                        };
-                    };
-                    var noteHere = function (dictIsSymbol) {
-                        return function (dictCons) {
-                            return function (sym) {
-                                return function (v1) {
-                                    var $1135 = Validation_These.liftW(Validation_These.functorErroring)(Data_Monoid.monoidArray);
-                                    var $1136 = Validation_These.note({
-                                        location: v.value1.value0,
-                                        tag: Data_Variant.inj(dictCons)(dictIsSymbol)(sym)(v1)
-                                    });
-                                    return function ($1137) {
-                                        return $1135($1136($1137));
-                                    };
-                                };
-                            };
-                        };
-                    };
-                    var naturalEnc = Dhall_Core_AST_Constructors.mkForall("natural")((function () {
-                        var natural = Dhall_Core_AST_Constructors.mkVar(new Dhall_Core_AST_Types.V("natural", 0));
-                        return Dhall_Core_AST_Constructors.mkPi("succ")(Dhall_Core_AST_Constructors.mkArrow(natural)(natural))(Dhall_Core_AST_Constructors.mkPi("zero")(natural)(natural));
-                    })());
-                    var mk = function (dictFunctor) {
-                        return function (dictIsSymbol) {
-                            return function (dictCons) {
-                                return function (sym) {
-                                    var $1138 = newmother((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0());
-                                    var $1139 = Data_Functor_Variant.inj(dictCons)(dictIsSymbol)(dictFunctor)(sym);
-                                    return function ($1140) {
-                                        return $1138($1139($1140));
-                                    };
-                                };
-                            };
-                        };
-                    };
-                    var mkFunctor = function (f) {
-                        return function (a) {
-                            return mk(Dhall_Core_AST_Types_Basics.functorPair)(new Data_Symbol.IsSymbol(function () {
-                                return "App";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])(new Dhall_Core_AST_Types_Basics.Pair(newborn((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(f), a));
-                        };
-                    };
-                    var listEnc = function (a) {
-                        return Dhall_Core_AST_Constructors.mkForall("list")((function () {
-                            var list = Dhall_Core_AST_Constructors.mkVar(new Dhall_Core_AST_Types.V("list", 0));
-                            return Dhall_Core_AST_Constructors.mkPi("cons")(Dhall_Core_AST_Constructors.mkArrow(a)(Dhall_Core_AST_Constructors.mkArrow(list)(list)))(Dhall_Core_AST_Constructors.mkPi("nil")(list)(list));
-                        })());
-                    };
-                    var errorHere = function (dictIsSymbol) {
-                        return function (dictCons) {
-                            return function (sym) {
-                                return function (v1) {
-                                    return Validation_These.liftW(Validation_These.functorErroring)(Data_Monoid.monoidArray)(Validation_These.erroring({
-                                        location: v.value1.value0,
-                                        tag: Data_Variant.inj(dictCons)(dictIsSymbol)(sym)(v1)
-                                    }));
-                                };
-                            };
-                        };
-                    };
-                    var ensure$prime = function (dictIsSymbol) {
-                        return function (dictCons) {
-                            return function (s) {
-                                return function (ty) {
-                                    return function (error) {
-                                        var nf_ty = normalizeStep(ty);
-                                        return Data_Functor_Variant.on(dictCons)(dictIsSymbol)(s)(Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring)))(function (v1) {
-                                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Void.absurd)(error(Data_Unit.unit));
-                                        })(unlayerO(nf_ty));
-                                    };
-                                };
-                            };
-                        };
-                    };
-                    var ensureConst = function (expr) {
-                        return function (error) {
-                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(expr))(function (v1) {
-                                return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Newtype.unwrap(Data_Const.newtypeConst))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                    return "Const";
-                                }))()(Dhall_Core_AST_Types_Basics["_S"])(v1)(error));
-                            });
-                        };
-                    };
-                    var ensureType = function (ty) {
-                        return function (error) {
-                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(ty))(function (v1) {
-                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                    return "Const";
-                                }))()(Dhall_Core_AST_Types_Basics["_S"])(v1)(function (v2) {
-                                    return error(Data_Maybe.Nothing.value);
-                                }))(function (v2) {
-                                    if (v2 instanceof Dhall_Core_AST_Types.Type) {
-                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit);
-                                    };
-                                    return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Void.absurd)(error(new Data_Maybe.Just(v2)));
-                                });
-                            });
-                        };
-                    };
-                    var ensureTerm = function (expr) {
-                        return function (error) {
-                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(expr))(function (v1) {
-                                return Data_Functor.voidRight(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(v1)(ensureType(v1)(error));
-                            });
-                        };
-                    };
-                    var ensure = function (dictIsSymbol) {
-                        return function (dictCons) {
-                            return function (s) {
-                                return function (expr) {
-                                    return function (error) {
-                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(expr))(function (v1) {
-                                            return ensure$prime(dictIsSymbol)(dictCons)(s)(v1)(error);
-                                        });
-                                    };
-                                };
-                            };
-                        };
-                    };
-                    var checkEq = function (ty0) {
-                        return function (ty1) {
-                            return function (error) {
-                                return Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_HeytingAlgebra.not(Data_HeytingAlgebra.heytingAlgebraFunction(Data_HeytingAlgebra.heytingAlgebraFunction(Data_HeytingAlgebra.heytingAlgebraBoolean)))(areEq(dictEq)(dictMapLike))(ty0)(ty1))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Void.absurd)(error(Data_Unit.unit)));
-                            };
-                        };
-                    };
-                    var checkEqL = function (ty0) {
-                        return function (ty1) {
-                            return function (error) {
-                                return confirm(ty0)(checkEq(ty0)(ty1)(error));
-                            };
-                        };
-                    };
-                    var checkEqR = function (ty0) {
-                        return function (ty1) {
-                            return function (error) {
-                                return confirm(ty1)(checkEq(ty0)(ty1)(error));
-                            };
-                        };
-                    };
-                    var checkBinOp = function (t) {
-                        return function (p) {
-                            return confirm(newborn((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(rehydrate(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(t)))(Data_FoldableWithIndex.forWithIndex_(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Core_AST_Types_Basics.foldableWithIndexPair)(p)(function (side) {
-                                return function (operand) {
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(operand))(function ($1141) {
-                                        return (function (v1) {
-                                            if (Data_Eq.eq(Dhall_Core_AST_Types.eqExpr((dictMapLike.Ord11()).Eq10())(dictEq))(rehydrate(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(t))(plain(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(v1))) {
-                                                return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit);
-                                            };
-                                            if (Data_Boolean.otherwise) {
-                                                return errorHere(new Data_Symbol.IsSymbol(function () {
-                                                    return "Unexpected type";
-                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(new Data_Tuple.Tuple(side, t));
-                                            };
-                                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1003, column 68 - line 1006, column 54): " + [ v1.constructor.name ]);
-                                        })(normalizeStep($1141));
-                                    });
-                                };
-                            }));
-                        };
-                    };
-                    var always = function (b) {
-                        return function (v1) {
-                            return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(newborn((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(b));
-                        };
-                    };
-                    var aType = always(Dhall_Core_AST_Constructors.mkType);
-                    var aFunctor = always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkType)(Dhall_Core_AST_Constructors.mkType));
-                    var a0 = Dhall_Core_AST_Constructors.mkVar(new Dhall_Core_AST_Types.V("a", 0));
-                    return {
-                        Const: (function () {
-                            var $1142 = Data_Newtype.unwrap(Data_Const.newtypeConst);
-                            return function ($1143) {
-                                return (function (c) {
-                                    return noteHere(new Data_Symbol.IsSymbol(function () {
-                                        return "`Sort` has no type";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit)(Data_Functor.mapFlipped(Data_Maybe.functorMaybe)(axiom(Data_Maybe.alternativeMaybe)(c))((function () {
-                                        var $1144 = newborn((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0());
-                                        return function ($1145) {
-                                            return $1144(Dhall_Core_AST_Constructors.mkConst($1145));
-                                        };
-                                    })()));
-                                })($1142($1143));
-                            };
-                        })(),
-                        Var: (function () {
-                            var $1146 = Data_Newtype.unwrap(Data_Const.newtypeConst);
-                            return function ($1147) {
-                                return (function (v1) {
-                                    var v3 = Dhall_Context.lookup(v1.value0)(v1.value1)(v.value0);
-                                    if (v3 instanceof Data_Maybe.Just && v3.value0 instanceof Data_These.This) {
-                                        return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(typecheckStep(v3.value0.value0));
-                                    };
-                                    if (v3 instanceof Data_Maybe.Just && v3.value0 instanceof Data_These.That) {
-                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v3.value0.value0));
-                                    };
-                                    if (v3 instanceof Data_Maybe.Just && v3.value0 instanceof Data_These.Both) {
-                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v3.value0.value1));
-                                    };
-                                    if (v3 instanceof Data_Maybe.Nothing) {
-                                        return errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Unbound variable";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v1);
-                                    };
-                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1065, column 7 - line 1072, column 50): " + [ v3.constructor.name ]);
-                                })($1146($1147));
-                            };
-                        })(),
-                        Lam: function (v1) {
-                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConst(v1.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "Invalid input type";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v2) {
-                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1.value2))(function (v3) {
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConst(v3)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                        return "Invalid output type";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v4) {
-                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(mk(Dhall_Core_AST_Types_Basics.functorBindingBody)(new Data_Symbol.IsSymbol(function () {
-                                            return "Pi";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(new Dhall_Core_AST_Types_Basics.BindingBody(v1.value0, head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v1.value1), head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v3))));
-                                    });
-                                });
-                            });
-                        },
-                        Pi: function (v1) {
-                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConst(v1.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "Invalid input type";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v2) {
-                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConst(v1.value2)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                    return "Invalid output type";
-                                }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v3) {
-                                    return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))((function () {
-                                        var $1148 = newborn((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0());
-                                        return function ($1149) {
-                                            return $1148(Dhall_Core_AST_Constructors.mkConst($1149));
-                                        };
-                                    })())(rule(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(v2)(v3));
-                                });
-                            });
-                        },
-                        Let: function (v1) {
-                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1.value2))(function (v2) {
-                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Maybe.fromMaybe(v2))(Data_Traversable["for"](Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Traversable.traversableMaybe)(v1.value1)(function (ty$prime) {
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(ty$prime))(function (v3) {
-                                        return checkEqR(v2)(ty$prime)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Annotation mismatch";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"]));
-                                    });
-                                })))(function (v3) {
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1.value3))(function (v4) {
-                                        var shifted = tryShiftOut0Lxpr(dictMapLike.TraversableWithIndex2())(v1.value0)(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v4));
-                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))((function () {
-                                            if (shifted instanceof Data_Maybe.Nothing) {
-                                                return mk(Dhall_Core_AST_Types_Basics.functorLetF)(new Data_Symbol.IsSymbol(function () {
-                                                    return "Let";
-                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Functor.map(Dhall_Core_AST_Types_Basics.functorLetF)(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(new Dhall_Core_AST_Types_Basics.LetF(v1.value0, v1.value1, v1.value2, v4)));
-                                            };
-                                            if (shifted instanceof Data_Maybe.Just) {
-                                                return shifted.value0;
-                                            };
-                                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1094, column 12 - line 1096, column 34): " + [ shifted.constructor.name ]);
-                                        })());
-                                    });
-                                });
-                            });
-                        },
-                        App: function (v1) {
-                            var checkFn = ensure(new Data_Symbol.IsSymbol(function () {
-                                return "Pi";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "Not a function";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"]));
-                            var checkArg = function (v2) {
-                                return function (aty1) {
-                                    var shifted = tryShiftOut0Lxpr(dictMapLike.TraversableWithIndex2())(v2.value0)(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v2.value2));
-                                    var $714 = areEq(dictEq)(dictMapLike)(v2.value1)(aty1);
-                                    if ($714) {
-                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))((function () {
-                                            if (shifted instanceof Data_Maybe.Nothing) {
-                                                return mk(Dhall_Core_AST_Types_Basics.functorPair)(new Data_Symbol.IsSymbol(function () {
-                                                    return "App";
-                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(new Dhall_Core_AST_Types_Basics.Pair(mk(Dhall_Core_AST_Types_Basics.functorBindingBody)(new Data_Symbol.IsSymbol(function () {
-                                                    return "Lam";
-                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Functor.map(Dhall_Core_AST_Types_Basics.functorBindingBody)(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(new Dhall_Core_AST_Types_Basics.BindingBody(v2.value0, v2.value1, v2.value2))), head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v1.value1)));
-                                            };
-                                            if (shifted instanceof Data_Maybe.Just) {
-                                                return shifted.value0;
-                                            };
-                                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1104, column 23 - line 1108, column 32): " + [ shifted.constructor.name ]);
-                                        })());
-                                    };
-                                    return (function () {
-                                        if (shifted instanceof Data_Maybe.Nothing) {
-                                            return Control_Category.identity(Control_Category.categoryFn);
-                                        };
-                                        if (shifted instanceof Data_Maybe.Just) {
-                                            return confirm(shifted.value0);
-                                        };
-                                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1115, column 57 - line 1117, column 42): " + [ shifted.constructor.name ]);
-                                    })()(errorHere(new Data_Symbol.IsSymbol(function () {
-                                        return "Type mismatch";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit));
-                                };
-                            };
-                            return Control_Bind.join(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Apply.apply(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(checkArg)(checkFn))(typecheckStep(v1.value1)));
-                        },
-                        Annot: function (v1) {
-                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(Control_Bind.join(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Apply.applyFirst(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.flap(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Functor.flap(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(checkEqR)(typecheckStep(v1.value0)))(v1.value1))(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "Annotation mismatch";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(typecheckStep(v1.value1))));
-                        },
-                        Equivalent: function (p) {
-                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.traverseWithIndex(Dhall_Core_AST_Types_Basics.traversableWithIndexPair)(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(function (i) {
-                                return function (t) {
-                                    return ensureTerm(t)((function () {
-                                        var $1150 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Incomparable expression";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                        var $1151 = Data_Function["const"](i);
-                                        return function ($1152) {
-                                            return $1150($1151($1152));
-                                        };
-                                    })());
-                                };
-                            })(p))(function (v1) {
-                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(checkEqR(v1.value0)(v1.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                    return "Equivalent type mismatch";
-                                }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v2) {
-                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(newborn((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Dhall_Core_AST_Constructors.mkType));
-                                });
-                            });
-                        },
-                        Assert: function (v1) {
-                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                return "Equivalent";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "Not an equivalence";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v2) {
-                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(checkEqR(v2.value0)(v2.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                    return "Assertion failed";
-                                }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v3) {
-                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v1));
-                                });
-                            });
-                        },
-                        Bool: Control_Category.identity(Control_Category.categoryFn)(aType),
-                        BoolLit: always(Dhall_Core_AST_Constructors.mkBool),
-                        BoolAnd: checkBinOp(Dhall_Core_AST_Constructors.mkBool),
-                        BoolOr: checkBinOp(Dhall_Core_AST_Constructors.mkBool),
-                        BoolEQ: checkBinOp(Dhall_Core_AST_Constructors.mkBool),
-                        BoolNE: checkBinOp(Dhall_Core_AST_Constructors.mkBool),
-                        BoolIf: function (v1) {
-                            return Control_Apply.applySecond(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(ensure(new Data_Symbol.IsSymbol(function () {
-                                return "Bool";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "Invalid predicate";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(Control_Bind.join(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor.flap(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Control_Apply.apply(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(checkEqL)(ensureTerm(v1.value1)((function () {
-                                var $1153 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                    return "If branch must be term";
-                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                var $1154 = Data_Tuple.Tuple.create(false);
-                                return function ($1155) {
-                                    return $1153($1154($1155));
-                                };
-                            })())))(ensureTerm(v1.value2)((function () {
-                                var $1156 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                    return "If branch must be term";
-                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                var $1157 = Data_Tuple.Tuple.create(true);
-                                return function ($1158) {
-                                    return $1156($1157($1158));
-                                };
-                            })())))(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "If branch mismatch";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])))));
-                        },
-                        Natural: Control_Category.identity(Control_Category.categoryFn)(aType),
-                        NaturalLit: always(Dhall_Core_AST_Constructors.mkNatural),
-                        NaturalFold: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(naturalEnc)),
-                        NaturalBuild: always(Dhall_Core_AST_Constructors.mkArrow(naturalEnc)(Dhall_Core_AST_Constructors.mkNatural)),
-                        NaturalIsZero: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkBool)),
-                        NaturalEven: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkBool)),
-                        NaturalOdd: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkBool)),
-                        NaturalToInteger: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkInteger)),
-                        NaturalShow: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkText)),
-                        NaturalSubtract: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkNatural)(Dhall_Core_AST_Constructors.mkNatural))),
-                        NaturalPlus: checkBinOp(Dhall_Core_AST_Constructors.mkNatural),
-                        NaturalTimes: checkBinOp(Dhall_Core_AST_Constructors.mkNatural),
-                        Integer: Control_Category.identity(Control_Category.categoryFn)(aType),
-                        IntegerLit: always(Dhall_Core_AST_Constructors.mkInteger),
-                        IntegerShow: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkInteger)(Dhall_Core_AST_Constructors.mkText)),
-                        IntegerToDouble: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkInteger)(Dhall_Core_AST_Constructors.mkDouble)),
-                        Double: Control_Category.identity(Control_Category.categoryFn)(aType),
-                        DoubleLit: always(Dhall_Core_AST_Constructors.mkDouble),
-                        DoubleShow: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkDouble)(Dhall_Core_AST_Constructors.mkText)),
-                        Text: Control_Category.identity(Control_Category.categoryFn)(aType),
-                        TextLit: function (things) {
-                            return confirm(newborn((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Dhall_Core_AST_Constructors.mkText))(Data_FoldableWithIndex.forWithIndex_(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Core_AST_Types_Basics.foldableWithIndexTextLitF)(things)(function (i) {
-                                return function (expr) {
-                                    return ensure(new Data_Symbol.IsSymbol(function () {
-                                        return "Text";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(expr)((function () {
-                                        var $1159 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Cannot interpolate";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                        var $1160 = Data_Function["const"](i);
-                                        return function ($1161) {
-                                            return $1159($1160($1161));
-                                        };
-                                    })());
-                                };
-                            }));
-                        },
-                        TextAppend: checkBinOp(Dhall_Core_AST_Constructors.mkText),
-                        TextShow: always(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkText)(Dhall_Core_AST_Constructors.mkText)),
-                        List: Control_Category.identity(Control_Category.categoryFn)(aFunctor),
-                        ListLit: function (v1) {
-                            return mconfirm(Data_Functor.map(Data_Maybe.functorMaybe)(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(v1.value0))(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))((function () {
-                                if (v1.value0 instanceof Data_Maybe.Just) {
-                                    var error = errorHere(new Data_Symbol.IsSymbol(function () {
-                                        return "List annotation must be list type";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                        return "App";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0.value0)(error))(function (v2) {
-                                        return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
-                                            return "List";
-                                        }))(Dhall_Core_AST_Types_Basics["_S"])(Data_Function["const"](Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit)))(function (v3) {
-                                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Void.absurd)(error(Data_Unit.unit));
-                                        })(unlayerO(normalizeStep(v2.value0))))(function () {
-                                            return confirm(v2.value1)(ensureType(v2.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                                return "Invalid list type";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"])));
-                                        });
-                                    });
-                                };
-                                if (v1.value0 instanceof Data_Maybe.Nothing) {
-                                    var v2 = Data_Array.head(v1.value1);
-                                    if (v2 instanceof Data_Maybe.Nothing) {
-                                        return errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Missing list type";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit);
-                                    };
-                                    if (v2 instanceof Data_Maybe.Just) {
-                                        return ensureTerm(v2.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Invalid list type";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"]));
-                                    };
-                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1192, column 20 - line 1196, column 55): " + [ v2.constructor.name ]);
-                                };
-                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1181, column 32 - line 1196, column 55): " + [ v1.value0.constructor.name ]);
-                            })())(function (v2) {
-                                return confirm(mkFunctor(Dhall_Core_AST_Constructors.mkList)(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v2)))(Data_FoldableWithIndex.forWithIndex_(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_FoldableWithIndex.foldableWithIndexArray)(v1.value1)(function (i) {
-                                    return function (item) {
-                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(item))(function (v3) {
-                                            return checkEq(v2)(v3)(function (v4) {
-                                                if (v1.value0 instanceof Data_Maybe.Nothing) {
-                                                    return errorHere(new Data_Symbol.IsSymbol(function () {
-                                                        return "Invalid list element";
-                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(i);
-                                                };
-                                                if (v1.value0 instanceof Data_Maybe.Just) {
-                                                    return errorHere(new Data_Symbol.IsSymbol(function () {
-                                                        return "Mismatched list elements";
-                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(i);
-                                                };
-                                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1200, column 11 - line 1204, column 64): " + [ v1.value0.constructor.name ]);
-                                            });
-                                        });
-                                    };
-                                }));
-                            }));
-                        },
-                        ListAppend: function (p) {
-                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))((function () {
-                                var $1162 = mkFunctor(Dhall_Core_AST_Constructors.mkList);
-                                var $1163 = head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF));
-                                return function ($1164) {
-                                    return $1162($1163($1164));
-                                };
-                            })())(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Core_AST_Types_Basics.traversableWithIndexPair)(p)(function (side) {
-                                return function (expr) {
-                                    var error = (function () {
-                                        var $1165 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Cannot append non-list";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                        var $1166 = Data_Function["const"](side);
-                                        return function ($1167) {
-                                            return $1165($1166($1167));
-                                        };
-                                    })();
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(expr))(function (v1) {
-                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                            return "App";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v1)(error))(function (v2) {
-                                            return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
-                                                return "List";
-                                            }))(Dhall_Core_AST_Types_Basics["_S"])(Data_Function["const"](Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit)))(function (v3) {
-                                                return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Void.absurd)(error(Data_Unit.unit));
-                                            })(unlayerO(normalizeStep(v2.value0))))(function () {
-                                                return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(v2.value1);
-                                            });
-                                        });
-                                    });
-                                };
-                            }))(function (v1) {
-                                return checkEqL(v1.value0)(v1.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                    return "List append mismatch";
-                                }))()(Dhall_Core_AST_Types_Basics["_S"]));
-                            }));
-                        },
-                        ListBuild: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(listEnc(a0))(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0)))),
-                        ListFold: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0))(listEnc(a0)))),
-                        ListLength: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0))(Dhall_Core_AST_Constructors.mkNatural))),
-                        ListHead: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0))(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkOptional)(a0)))),
-                        ListLast: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0))(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkOptional)(a0)))),
-                        ListIndexed: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0))(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(Dhall_Core_AST_Constructors.mkRecord(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(Dhall_Map.fromFoldable(dictMapLike)(Data_Foldable.foldableArray)([ new Data_Tuple.Tuple("index", Dhall_Core_AST_Constructors.mkNatural), new Data_Tuple.Tuple("value", a0) ])))))),
-                        ListReverse: always(Dhall_Core_AST_Constructors.mkForall("a")(Control_Bind.join(Control_Bind.bindFn)(Dhall_Core_AST_Constructors.mkArrow)(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkList)(a0)))),
-                        Optional: Control_Category.identity(Control_Category.categoryFn)(aFunctor),
-                        None: always(Dhall_Core_AST_Constructors.mkPi("A")(Dhall_Core_AST_Constructors.mkType)(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkOptional)(Dhall_Core_AST_Constructors.mkVar(new Dhall_Core_AST_Types.V("A", 0))))),
-                        Some: (function () {
-                            var $1168 = Data_Newtype.unwrap(Data_Identity.newtypeIdentity);
-                            return function ($1169) {
-                                return (function (a) {
-                                    return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))((function () {
-                                        var $1170 = mkFunctor(Dhall_Core_AST_Constructors.mkOptional);
-                                        var $1171 = head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF));
-                                        return function ($1172) {
-                                            return $1170($1171($1172));
-                                        };
-                                    })())(ensureTerm(a)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                        return "Invalid `Some`";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])));
-                                })($1168($1169));
-                            };
-                        })(),
-                        OptionalFold: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkOptional)(a0))(optionalEnc(a0)))),
-                        OptionalBuild: always(Dhall_Core_AST_Constructors.mkForall("a")(Dhall_Core_AST_Constructors.mkArrow(optionalEnc(a0))(Dhall_Core_AST_Constructors.mkApp(Dhall_Core_AST_Constructors.mkOptional)(a0)))),
-                        Record: function (kts) {
-                            return Control_Apply.applySecond(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(ensureNodupes(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))((dictMapLike.TraversableWithIndex2()).FoldableWithIndex1())(Data_Ord.ordString)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "Duplicate record fields";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"]))(kts))(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike.TraversableWithIndex2())(kts)(function (field) {
-                                return function (ty) {
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Newtype.unwrap(Data_Const.newtypeConst))(ensure(new Data_Symbol.IsSymbol(function () {
-                                        return "Const";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(ty)((function () {
-                                        var $1173 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Invalid field type";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                        var $1174 = Data_Function["const"](field);
-                                        return function ($1175) {
-                                            return $1173($1174($1175));
-                                        };
-                                    })())))(function (v1) {
-                                        return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))((function () {
-                                            if (v1 instanceof Dhall_Core_AST_Types.Kind) {
-                                                var error = function (v2) {
-                                                    return errorHere(new Data_Symbol.IsSymbol(function () {
-                                                        return "Invalid field type";
-                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(field);
-                                                };
-                                                return Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
-                                                    return "Const";
-                                                }))(Dhall_Core_AST_Types_Basics["_S"])((function () {
-                                                    var $1176 = Data_Newtype.unwrap(Data_Const.newtypeConst);
-                                                    return function ($1177) {
-                                                        return (function (c$prime) {
-                                                            return Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Eq.notEq(Dhall_Core_AST_Types.eqConst)(v1)(Dhall_Core_AST_Types.Type.value))(error(Data_Unit.unit));
-                                                        })($1176($1177));
-                                                    };
-                                                })())(function (v2) {
-                                                    return error(Data_Unit.unit);
-                                                })(unlayerO(ty));
-                                            };
-                                            return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit);
-                                        })())(function () {
-                                            return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))({
-                                                kind: v1
-                                            });
-                                        });
-                                    });
-                                };
-                            }))(function (v1) {
-                                return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConsistency(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike)(Data_Function.on(Data_Eq.eq(Dhall_Core_AST_Types.eqConst))(function (v2) {
-                                    return v2.kind;
-                                }))((function () {
-                                    var $1178 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                        return "Inconsistent field types";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                    var $1179 = Data_Functor.map(functorInconsistency)(Data_Functor.map(Data_List_Types.functorNonEmptyList)(function (v2) {
-                                        return v2.key;
-                                    }));
-                                    return function ($1180) {
-                                        return $1178($1179($1180));
-                                    };
-                                })())(v1))(function () {
-                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(newborn((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Dhall_Core_AST_Constructors.mkConst(Data_Maybe.maybe(Dhall_Core_AST_Types.Type.value)(function (v2) {
-                                        return v2.kind;
-                                    })(Data_Newtype.un(Data_Maybe_First.newtypeFirst)(Data_Maybe_First.First)(Data_Foldable.foldMap(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(Data_Maybe_First.monoidFirst)(Control_Applicative.pure(Data_Maybe_First.applicativeFirst))(v1))))));
-                                });
-                            }));
-                        },
-                        RecordLit: function (kvs) {
-                            return Control_Apply.applySecond(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(ensureNodupes(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))((dictMapLike.TraversableWithIndex2()).FoldableWithIndex1())(Data_Ord.ordString)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "Duplicate record fields";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"]))(kvs))(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Traversable.traverse((dictMapLike.TraversableWithIndex2()).Traversable2())(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(typecheckStep)(kvs))(function (v1) {
-                                return confirm(mk(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(new Data_Symbol.IsSymbol(function () {
-                                    return "Record";
-                                }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Functor.map(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(v1)))(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike.TraversableWithIndex2())(v1)(function (field) {
-                                    return function (ty) {
-                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Newtype.unwrap(Data_Const.newtypeConst))(ensure(new Data_Symbol.IsSymbol(function () {
-                                            return "Const";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(ty)((function () {
-                                            var $1181 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                return "Invalid field type";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                            var $1182 = Data_Function["const"](field);
-                                            return function ($1183) {
-                                                return $1181($1182($1183));
-                                            };
-                                        })())))(function (v2) {
-                                            return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))((function () {
-                                                if (v2 instanceof Dhall_Core_AST_Types.Kind) {
-                                                    var error = function (v3) {
-                                                        return errorHere(new Data_Symbol.IsSymbol(function () {
-                                                            return "Invalid field type";
-                                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(field);
-                                                    };
-                                                    return Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
-                                                        return "Const";
-                                                    }))(Dhall_Core_AST_Types_Basics["_S"])((function () {
-                                                        var $1184 = Data_Newtype.unwrap(Data_Const.newtypeConst);
-                                                        return function ($1185) {
-                                                            return (function (c$prime) {
-                                                                return Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Eq.notEq(Dhall_Core_AST_Types.eqConst)(v2)(Dhall_Core_AST_Types.Type.value))(error(Data_Unit.unit));
-                                                            })($1184($1185));
-                                                        };
-                                                    })())(function (v3) {
-                                                        return error(Data_Unit.unit);
-                                                    })(unlayerO(ty));
-                                                };
-                                                return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit);
-                                            })())(function () {
-                                                return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))({
-                                                    kind: v2
-                                                });
-                                            });
-                                        });
-                                    };
-                                }))(function (v2) {
-                                    return ensureConsistency(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike)(Data_Function.on(Data_Eq.eq(Dhall_Core_AST_Types.eqConst))(function (v3) {
-                                        return v3.kind;
-                                    }))((function () {
-                                        var $1186 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Inconsistent field types";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                        var $1187 = Data_Functor.map(functorInconsistency)(Data_Functor.map(Data_List_Types.functorNonEmptyList)(function (v3) {
-                                            return v3.key;
-                                        }));
-                                        return function ($1188) {
-                                            return $1186($1187($1188));
-                                        };
-                                    })())(v2);
-                                }));
-                            }));
-                        },
-                        Union: function (kts) {
-                            return Control_Apply.applySecond(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(ensureNodupes(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Functor_Compose.foldableWithIndexCompose((dictMapLike.TraversableWithIndex2()).FoldableWithIndex1())(Data_FoldableWithIndex.foldableWithIndexMaybe))(Data_Tuple.ordTuple(Data_Ord.ordString)(Data_Ord.ordUnit))((function () {
-                                var $1189 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                    return "Duplicate union alternatives";
-                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                var $1190 = Data_Functor.map(Data_List_Types.functorNonEmptyList)(Data_Tuple.fst);
-                                return function ($1191) {
-                                    return $1189($1190($1191));
-                                };
-                            })())(kts))(confirm(newborn((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Dhall_Core_AST_Constructors.mkType))(Data_FoldableWithIndex.forWithIndex_(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Functor_Compose.foldableWithIndexCompose((dictMapLike.TraversableWithIndex2()).FoldableWithIndex1())(Data_FoldableWithIndex.foldableWithIndexMaybe))(kts)(function (v1) {
-                                return function (ty) {
-                                    return Data_Functor["void"](Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(ensure(new Data_Symbol.IsSymbol(function () {
-                                        return "Const";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(ty)((function () {
-                                        var $1192 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Invalid alternative type";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                        var $1193 = Data_Function["const"](v1.value0);
-                                        return function ($1194) {
-                                            return $1192($1193($1194));
-                                        };
-                                    })()));
-                                };
-                            })));
-                        },
-                        Combine: (function () {
-                            var combineTypes = function (here) {
-                                return function (v1) {
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Core_AST_Types_Basics.traversableWithIndexPair)(v1)(function (side) {
-                                        return function (ty) {
-                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                                return "Record";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(ty)((function () {
-                                                var $1195 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                    return "Must combine a record";
-                                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                                var $1196 = Data_Function["const"](new Data_Tuple.Tuple(here, side));
-                                                return function ($1197) {
-                                                    return $1195($1196($1197));
-                                                };
-                                            })()))(function (v2) {
-                                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(ty))(function (v3) {
-                                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConst(v3)((function () {
-                                                        var $1198 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                            return "Must combine a record";
-                                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                                        var $1199 = Data_Function["const"](new Data_Tuple.Tuple(here, side));
-                                                        return function ($1200) {
-                                                            return $1198($1199($1200));
-                                                        };
-                                                    })()))(function (v4) {
-                                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))({
-                                                            kts: v2,
-                                                            "const": v4
-                                                        });
-                                                    });
-                                                });
-                                            });
-                                        };
-                                    }))(function (v2) {
-                                        return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Eq.notEq(Dhall_Core_AST_Types.eqConst)(v2["value0"]["const"])(v2["value1"]["const"]))(errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Record kind mismatch";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(here)))(function () {
-                                            var combined = Dhall_Map.unionWith(dictMapLike)(Control_Applicative.pure(Control_Applicative.applicativeFn)(Control_Applicative.pure(Data_Maybe.applicativeMaybe)))(v2.value0.kts)(v2.value1.kts);
-                                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(mk(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(new Data_Symbol.IsSymbol(function () {
-                                                return "Record";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"]))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike.TraversableWithIndex2())(combined)(function (k) {
-                                                return function (v3) {
-                                                    if (v3 instanceof Data_These.Both) {
-                                                        return combineTypes(new Data_List_Types.Cons(k, here))(new Dhall_Core_AST_Types_Basics.Pair(v3.value0, v3.value1));
-                                                    };
-                                                    if (v3 instanceof Data_These.This) {
-                                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v3.value0));
-                                                    };
-                                                    if (v3 instanceof Data_These.That) {
-                                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v3.value0));
-                                                    };
-                                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1308, column 13 - line 1312, column 40): " + [ v3.constructor.name ]);
-                                                };
-                                            }));
-                                        });
-                                    });
-                                };
-                            };
-                            var $1201 = Control_Bind.bindFlipped(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(combineTypes(Data_List_Types.Nil.value));
-                            var $1202 = Data_Traversable.traverse(Dhall_Core_AST_Types_Basics.traversablePair)(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(typecheckStep);
-                            return function ($1203) {
-                                return $1201($1202($1203));
-                            };
-                        })(),
-                        CombineTypes: (function () {
-                            var combineTypes = function (here) {
-                                return function (v1) {
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Core_AST_Types_Basics.traversableWithIndexPair)(v1)(function (side) {
-                                        return function (ty) {
-                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                                return "Record";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(ty)((function () {
-                                                var $1204 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                    return "Must combine a record";
-                                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                                var $1205 = Data_Function["const"](new Data_Tuple.Tuple(here, side));
-                                                return function ($1206) {
-                                                    return $1204($1205($1206));
-                                                };
-                                            })()))(function (v2) {
-                                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(ty))(function (v3) {
-                                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConst(v3)((function () {
-                                                        var $1207 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                            return "Must combine a record";
-                                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                                        var $1208 = Data_Function["const"](new Data_Tuple.Tuple(here, side));
-                                                        return function ($1209) {
-                                                            return $1207($1208($1209));
-                                                        };
-                                                    })()))(function (v4) {
-                                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))({
-                                                            kts: v2,
-                                                            "const": v4
-                                                        });
-                                                    });
-                                                });
-                                            });
-                                        };
-                                    }))(function (v2) {
-                                        return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Eq.notEq(Dhall_Core_AST_Types.eqConst)(v2["value0"]["const"])(v2["value1"]["const"]))(errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Record kind mismatch";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(here)))(function () {
-                                            var combined = Dhall_Map.unionWith(dictMapLike)(Control_Applicative.pure(Control_Applicative.applicativeFn)(Control_Applicative.pure(Data_Maybe.applicativeMaybe)))(v2.value0.kts)(v2.value1.kts);
-                                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(mk(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(new Data_Symbol.IsSymbol(function () {
-                                                return "Record";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"]))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike.TraversableWithIndex2())(combined)(function (k) {
-                                                return function (v3) {
-                                                    if (v3 instanceof Data_These.Both) {
-                                                        return combineTypes(new Data_List_Types.Cons(k, here))(new Dhall_Core_AST_Types_Basics.Pair(v3.value0, v3.value1));
-                                                    };
-                                                    if (v3 instanceof Data_These.This) {
-                                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v3.value0));
-                                                    };
-                                                    if (v3 instanceof Data_These.That) {
-                                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v3.value0));
-                                                    };
-                                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1328, column 13 - line 1332, column 40): " + [ v3.constructor.name ]);
-                                                };
-                                            }));
-                                        });
-                                    });
-                                };
-                            };
-                            return combineTypes(Data_List_Types.Nil.value);
-                        })(),
-                        Prefer: function (p) {
-                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Core_AST_Types_Basics.traversableWithIndexPair)(p)(function (side) {
-                                return function (kvs) {
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(kvs))(function (v1) {
-                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                            return "Record";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v1)((function () {
-                                            var $1210 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                return "Must combine a record";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                            var $1211 = Data_Function["const"](new Data_Tuple.Tuple(Data_List_Types.Nil.value, side));
-                                            return function ($1212) {
-                                                return $1210($1211($1212));
-                                            };
-                                        })()))(function (v2) {
-                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1))(function (v3) {
-                                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Newtype.unwrap(Data_Const.newtypeConst))(ensure(new Data_Symbol.IsSymbol(function () {
-                                                    return "Const";
-                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(v1)((function () {
-                                                    var $1213 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                        return "Must combine a record";
-                                                    }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                                    var $1214 = Data_Function["const"](new Data_Tuple.Tuple(Data_List_Types.Nil.value, side));
-                                                    return function ($1215) {
-                                                        return $1213($1214($1215));
-                                                    };
-                                                })())))(function (v4) {
-                                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))({
-                                                        kts: v2,
-                                                        "const": v4
-                                                    });
-                                                });
-                                            });
-                                        });
-                                    });
-                                };
-                            }))(function (v1) {
-                                return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Eq.notEq(Dhall_Core_AST_Types.eqConst)(v1["value0"]["const"])(v1["value1"]["const"]))(errorHere(new Data_Symbol.IsSymbol(function () {
-                                    return "Record kind mismatch";
-                                }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_List_Types.Nil.value)))(function () {
-                                    var preference = function ($1216) {
-                                        return Data_Maybe.Just.create((function (v2) {
-                                            if (v2 instanceof Data_These.This) {
-                                                return v2.value0;
-                                            };
-                                            if (v2 instanceof Data_These.That) {
-                                                return v2.value0;
-                                            };
-                                            if (v2 instanceof Data_These.Both) {
-                                                return v2.value0;
-                                            };
-                                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1346, column 31 - line 1349, column 24): " + [ v2.constructor.name ]);
-                                        })($1216));
-                                    };
-                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(mk(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(new Data_Symbol.IsSymbol(function () {
-                                        return "Record";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Functor.map(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(Dhall_Map.unionWith(dictMapLike)(Control_Applicative.pure(Control_Applicative.applicativeFn)(preference))(v1.value1.kts)(v1.value0.kts))));
-                                });
-                            });
-                        },
-                        Merge: function (v1) {
-                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Apply.apply(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Tuple.Tuple.create)(ensure(new Data_Symbol.IsSymbol(function () {
-                                return "Record";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "Must merge a record";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"]))))(ensure(new Data_Symbol.IsSymbol(function () {
-                                return "Union";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value1)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "Must merge a union";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"]))))(function (v2) {
-                                var ksY = Data_Set.fromFoldable(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(Data_Ord.ordUnit)(Data_Functor.voidLeft(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(v2.value1)(Data_Unit.unit));
-                                var ksX = Data_Set.fromFoldable(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(Data_Ord.ordUnit)(Data_Functor.voidLeft(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(v2.value0)(Data_Unit.unit));
-                                var diffY = Data_Set.difference(Data_Ord.ordUnit)(ksY)(ksX);
-                                var diffX = Data_Set.difference(Data_Ord.ordUnit)(ksX)(ksY);
-                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))((function () {
-                                    if (v1.value2 instanceof Data_Maybe.Just) {
-                                        return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Tuple.Tuple.create(Data_Maybe.Nothing.value))(Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(v1.value2.value0));
-                                    };
-                                    if (v1.value2 instanceof Data_Maybe.Nothing) {
-                                        var v3 = Data_Newtype.un(Data_Maybe_First.newtypeFirst)(Data_Maybe_First.First)(Data_FoldableWithIndex.foldMapWithIndex((dictMapLike.TraversableWithIndex2()).FoldableWithIndex1())(Data_Maybe_First.monoidFirst)(Data_Tuple.curry(Control_Applicative.pure(Data_Maybe_First.applicativeFirst)))(v2.value0));
-                                        if (v3 instanceof Data_Maybe.Nothing) {
-                                            return errorHere(new Data_Symbol.IsSymbol(function () {
-                                                return "Missing merge type";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit);
-                                        };
-                                        if (v3 instanceof Data_Maybe.Just) {
-                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
-                                                return "Unused handlers";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(diffX)(Dhall_Map.get(dictMapLike)(v3.value0.value0)(v2.value1)))(function (v4) {
-                                                if (v4 instanceof Data_Maybe.Just) {
-                                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                                        return "Pi";
-                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(v3.value0.value1)((function () {
-                                                        var $1217 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                            return "Handler not a function";
-                                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                                        var $1218 = Data_Function["const"](v3.value0.value0);
-                                                        return function ($1219) {
-                                                            return $1217($1218($1219));
-                                                        };
-                                                    })()))(function (v5) {
-                                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
-                                                            return "Dependent handler function";
-                                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Function["const"](v3.value0.value0)(Data_Unit.unit))(tryShiftOut0Oxpr(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(v5.value0)(v5.value2)))(function (v6) {
-                                                            return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(new Data_Tuple.Tuple(new Data_Maybe.Just({
-                                                                key: v3.value0.value0,
-                                                                fn: true
-                                                            }), v6));
-                                                        });
-                                                    });
-                                                };
-                                                if (v4 instanceof Data_Maybe.Nothing) {
-                                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(new Data_Tuple.Tuple(new Data_Maybe.Just({
-                                                        key: v3.value0.value0,
-                                                        fn: false
-                                                    }), v3.value0.value1));
-                                                };
-                                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1372, column 13 - line 1380, column 63): " + [ v4.constructor.name ]);
-                                            });
-                                        };
-                                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1367, column 20 - line 1380, column 63): " + [ v3.constructor.name ]);
-                                    };
-                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1363, column 26 - line 1380, column 63): " + [ v1.value2.constructor.name ]);
-                                })())(function (v3) {
-                                    return confirm(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v3.value1))(Control_Apply.apply(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(function (v4) {
-                                        return function (v5) {
-                                            return Data_Unit.unit;
-                                        };
-                                    })(Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_HeytingAlgebra.not(Data_HeytingAlgebra.heytingAlgebraFunction(Data_HeytingAlgebra.heytingAlgebraBoolean))(Data_Set.isEmpty)(diffX))(errorHere(new Data_Symbol.IsSymbol(function () {
-                                        return "Unused handlers";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(diffX))))(Data_FoldableWithIndex.forWithIndex_(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))((dictMapLike.TraversableWithIndex2()).FoldableWithIndex1())(v2.value1)(function (k) {
-                                        return function (mtY) {
-                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
-                                                return "Missing handler";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(diffY)(Dhall_Map.get(dictMapLike)(k)(v2.value0)))(function (v4) {
-                                                if (mtY instanceof Data_Maybe.Just) {
-                                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                                        return "Pi";
-                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(v4)((function () {
-                                                        var $1220 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                            return "Handler not a function";
-                                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                                        var $1221 = Data_Function["const"](k);
-                                                        return function ($1222) {
-                                                            return $1220($1221($1222));
-                                                        };
-                                                    })()))(function (v5) {
-                                                        return Control_Apply.apply(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(function (v6) {
-                                                            return function (v7) {
-                                                                return Data_Unit.unit;
-                                                            };
-                                                        })(checkEq(mtY.value0)(v5.value1)((function () {
-                                                            var $1223 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                                return "Handler input type mismatch";
-                                                            }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                                            var $1224 = Data_Function["const"](k);
-                                                            return function ($1225) {
-                                                                return $1223($1224($1225));
-                                                            };
-                                                        })())))(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
-                                                            return "Dependent handler function";
-                                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Function["const"](k)(Data_Unit.unit))(tryShiftOut0Oxpr(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1())(v5.value0)(v5.value2)))(function (v6) {
-                                                            return checkEq(v3.value1)(v6)((function () {
-                                                                var $1226 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                                    return "Handler output type mismatch";
-                                                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                                                var $1227 = Data_Function["const"](new Data_Tuple.Tuple(v3.value0, k));
-                                                                return function ($1228) {
-                                                                    return $1226($1227($1228));
-                                                                };
-                                                            })());
-                                                        }));
-                                                    });
-                                                };
-                                                if (mtY instanceof Data_Maybe.Nothing) {
-                                                    return checkEq(v3.value1)(v4)((function () {
-                                                        var $1229 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                            return "Handler type mismatch";
-                                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                                        var $1230 = Data_Function["const"](new Data_Tuple.Tuple(v3.value0, k));
-                                                        return function ($1231) {
-                                                            return $1229($1230($1231));
-                                                        };
-                                                    })());
-                                                };
-                                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1387, column 11 - line 1402, column 88): " + [ mtY.constructor.name ]);
-                                            });
-                                        };
-                                    })));
-                                });
-                            });
-                        },
-                        ToMap: function (v1) {
-                            return mconfirm(Data_Functor.map(Data_Maybe.functorMaybe)(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(v1.value1))(Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure(new Data_Symbol.IsSymbol(function () {
-                                return "Record";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "toMap takes a record";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v2) {
-                                var mapType = function (ty) {
-                                    return mkFunctor(Dhall_Core_AST_Constructors.mkList)(mk(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(new Data_Symbol.IsSymbol(function () {
-                                        return "Record";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Dhall_Map.fromFoldable(dictMapLike)(Data_Foldable.foldableArray)([ Data_Tuple.Tuple.create("mapKey")(mk(Data_Const.functorConst)(new Data_Symbol.IsSymbol(function () {
-                                        return "Text";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Newtype.wrap(Data_Const.newtypeConst)(Data_Unit.unit))), new Data_Tuple.Tuple("mapValue", ty) ])));
-                                };
-                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Traversable.traverse(Data_Traversable.traversableMaybe)(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(function (listty) {
-                                    var error = errorHere(new Data_Symbol.IsSymbol(function () {
-                                        return "Invalid toMap type annotation";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                        return "App";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(listty)(error))(function (v3) {
-                                        return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
-                                            return "List";
-                                        }))(Dhall_Core_AST_Types_Basics["_S"])(Data_Function["const"](Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit)))(function (v4) {
-                                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Void.absurd)(error(Data_Unit.unit));
-                                        })(unlayerO(normalizeStep(v3.value0))))(function () {
-                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                                return "Record";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v3.value1)(error))(function (v4) {
-                                                return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Map.size(dictMapLike)(v4) !== 2)(Data_Functor["void"](Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(error(Data_Unit.unit))))(function () {
-                                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
-                                                        return "Invalid toMap type annotation";
-                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit)(Dhall_Map.get(dictMapLike)("mapKey")(v4)))(function (v5) {
-                                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                                            return "Text";
-                                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v5)(error))(function (v6) {
-                                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
-                                                                return "Invalid toMap type annotation";
-                                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit)(Dhall_Map.get(dictMapLike)("mapValue")(v4)))(function (v7) {
-                                                                return confirm(v7)(ensureType(v7)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                                                    return "Invalid toMap type";
-                                                                }))()(Dhall_Core_AST_Types_Basics["_S"])));
-                                                            });
-                                                        });
-                                                    });
-                                                });
-                                            });
-                                        });
-                                    });
-                                })(v1.value1))(function (v3) {
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensureConsistentOxpr(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike)(functorWithIndexWithHint((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0()))(foldableWithHint(((dictMapLike.TraversableWithIndex2()).Traversable2()).Foldable1()))(dictEq)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                        return "Missing toMap type";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"]))((function () {
-                                        var $1232 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Inconsistent toMap types";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                        var $1233 = Data_Functor.map(functorInconsistency)(Data_Functor.map(Data_List_Types.functorNonEmptyList)(function (v4) {
-                                            return v4.key;
-                                        }));
-                                        return function ($1234) {
-                                            return $1232($1233($1234));
-                                        };
-                                    })())(new WithHint(v3, v2)))(function (v4) {
-                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(mapType(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v4)));
-                                    });
-                                });
-                            }));
-                        },
-                        Field: function (v1) {
-                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1.value1))(function (v2) {
-                                var handleType = function (kts) {
-                                    var v3 = Dhall_Map.get(dictMapLike)(v1.value0)(kts);
-                                    if (v3 instanceof Data_Maybe.Just && v3.value0 instanceof Data_Maybe.Just) {
-                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(mk(Dhall_Core_AST_Types_Basics.functorBindingBody)(new Data_Symbol.IsSymbol(function () {
-                                            return "Pi";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Functor.map(Dhall_Core_AST_Types_Basics.functorBindingBody)(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(new Dhall_Core_AST_Types_Basics.BindingBody(v1.value0, v3.value0.value0, v1.value1))));
-                                    };
-                                    if (v3 instanceof Data_Maybe.Just && v3.value0 instanceof Data_Maybe.Nothing) {
-                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v1.value1));
-                                    };
-                                    if (v3 instanceof Data_Maybe.Nothing) {
-                                        return errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Missing field";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0);
-                                    };
-                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1442, column 11 - line 1445, column 66): " + [ v3.constructor.name ]);
-                                };
-                                var handleRecord = function (kts) {
-                                    var v3 = Dhall_Map.get(dictMapLike)(v1.value0)(kts);
-                                    if (v3 instanceof Data_Maybe.Just) {
-                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(v3.value0));
-                                    };
-                                    if (v3 instanceof Data_Maybe.Nothing) {
-                                        return errorHere(new Data_Symbol.IsSymbol(function () {
-                                            return "Missing field";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0);
-                                    };
-                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1438, column 11 - line 1440, column 66): " + [ v3.constructor.name ]);
-                                };
-                                var error = function (v3) {
-                                    return errorHere(new Data_Symbol.IsSymbol(function () {
-                                        return "Cannot access";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit);
-                                };
-                                var casing = Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
-                                    return "Const";
-                                }))(Dhall_Core_AST_Types_Basics["_S"])(function (v3) {
-                                    if (v3 instanceof Dhall_Core_AST_Types.Type) {
-                                        return Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
-                                            return "Union";
-                                        }))(Dhall_Core_AST_Types_Basics["_S"])((function () {
-                                            var $1235 = Data_Newtype.unwrap(Data_Functor_Compose.newtypeCompose);
-                                            return function ($1236) {
-                                                return handleType($1235($1236));
-                                            };
-                                        })())(function (v4) {
-                                            return error(Data_Unit.unit);
-                                        })(unlayerO(normalizeStep(v1.value1)));
-                                    };
-                                    return error(Data_Unit.unit);
-                                })(Data_Functor_Variant.on()(new Data_Symbol.IsSymbol(function () {
-                                    return "Record";
-                                }))(Dhall_Core_AST_Types_Basics["_S"])(handleRecord)(function (v3) {
-                                    return error(Data_Unit.unit);
-                                }));
-                                return casing(unlayerO(normalizeStep(v2)));
-                            });
-                        },
-                        Project: function (v1) {
-                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure(new Data_Symbol.IsSymbol(function () {
-                                return "Record";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                return "Cannot project";
-                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v2) {
-                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))((function () {
-                                    if (v1.value1 instanceof Data_Either.Left) {
-                                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Functor.mapFlipped(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(v1.value1.value0)(function (v3) {
-                                            return Data_Maybe.Nothing.value;
-                                        }));
-                                    };
-                                    if (v1.value1 instanceof Data_Either.Right) {
-                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1.value1.value0))(function (v3) {
-                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                                return "Record";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v1.value1.value0)(errorHere(new Data_Symbol.IsSymbol(function () {
-                                                return "Cannot project by expression";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"])))(function (v4) {
-                                                return Data_Traversable.traverse((dictMapLike.TraversableWithIndex2()).Traversable2())(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(function (ty) {
-                                                    return Data_Functor.voidRight(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(new Data_Maybe.Just(ty))(typecheckStep(ty));
-                                                })(v4);
-                                            });
-                                        });
-                                    };
-                                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 1457, column 13 - line 1463, column 59): " + [ v1.value1.constructor.name ]);
-                                })())(function (v3) {
-                                    return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))((function () {
-                                        var $1237 = mk(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(new Data_Symbol.IsSymbol(function () {
-                                            return "Record";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                        var $1238 = Data_Functor.map(((dictMapLike.TraversableWithIndex2()).Traversable2()).Functor0())(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)));
-                                        return function ($1239) {
-                                            return $1237($1238($1239));
-                                        };
-                                    })())(Data_TraversableWithIndex.forWithIndex(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(dictMapLike.TraversableWithIndex2())(v3)(function (k) {
-                                        return function (mty) {
-                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
-                                                return "Missing field";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(k)(Dhall_Map.get(dictMapLike)(k)(v2)))(function (v4) {
-                                                return Data_Maybe.maybe(Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(v4))(function (ty1) {
-                                                    return checkEqR(v4)(ty1)((function () {
-                                                        var $1240 = errorHere(new Data_Symbol.IsSymbol(function () {
-                                                            return "Projection type mismatch";
-                                                        }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                                        var $1241 = Data_Function["const"](k);
-                                                        return function ($1242) {
-                                                            return $1240($1241($1242));
-                                                        };
-                                                    })());
-                                                })(mty);
-                                            });
-                                        };
-                                    }));
-                                });
-                            });
-                        },
-                        Hashed: function (v1) {
-                            return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(typecheckStep(v1.value1));
-                        },
-                        UsingHeaders: function (v1) {
-                            return Control_Apply.applyFirst(Control_Monad_Writer_Trans.applyWriterT(Data_Semigroup.semigroupArray)(Validation_These.applyErroring))(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(typecheckStep(v1.value0)))((function () {
-                                var error = errorHere(new Data_Symbol.IsSymbol(function () {
-                                    return "Wrong header type";
-                                }))()(Dhall_Core_AST_Types_Basics["_S"]);
-                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(typecheckStep(v1.value1))(function (v2) {
-                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                        return "App";
-                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(v2)(error))(function (v3) {
-                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                            return "List";
-                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(v3.value0)(error))(function (v4) {
-                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                                return "Record";
-                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v3.value1)(error))(function (v5) {
-                                                return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Applicative.when(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Dhall_Map.size(dictMapLike)(v5) !== 2)(Data_Functor["void"](Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(error(Data_Unit.unit))))(function () {
-                                                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
-                                                        return "Wrong header type";
-                                                    }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit)(Dhall_Map.get(dictMapLike)("mapKey")(v5)))(function (v6) {
-                                                        return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(noteHere(new Data_Symbol.IsSymbol(function () {
-                                                            return "Wrong header type";
-                                                        }))()(Dhall_Core_AST_Types_Basics["_S"])(Data_Unit.unit)(Dhall_Map.get(dictMapLike)("mapValue")(v5)))(function (v7) {
-                                                            return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                                                return "Text";
-                                                            }))()(Dhall_Core_AST_Types_Basics["_S"])(v6)(error))(function (v8) {
-                                                                return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(ensure$prime(new Data_Symbol.IsSymbol(function () {
-                                                                    return "Text";
-                                                                }))()(Dhall_Core_AST_Types_Basics["_S"])(v7)(error))(function (v9) {
-                                                                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Unit.unit);
-                                                                });
-                                                            });
-                                                        });
-                                                    });
-                                                });
-                                            });
-                                        });
-                                    });
-                                });
-                            })());
-                        },
-                        ImportAlt: function (v1) {
-                            var v2 = Data_Newtype.unwrap(Control_Monad_Writer_Trans.newtypeWriterT)(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(typecheckStep(v1.value0)));
-                            if (v2 instanceof Validation_These.Success) {
-                                return Data_Newtype.wrap(Control_Monad_Writer_Trans.newtypeWriterT)(v2);
-                            };
-                            if (v2 instanceof Validation_These["Error"]) {
-                                var v3 = Data_Newtype.unwrap(Control_Monad_Writer_Trans.newtypeWriterT)(Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(typecheckStep(v1.value1)));
-                                if (v3 instanceof Validation_These.Success) {
-                                    return Data_Newtype.wrap(Control_Monad_Writer_Trans.newtypeWriterT)(v3);
-                                };
-                                if (v3 instanceof Validation_These["Error"]) {
-                                    return Data_Newtype.wrap(Control_Monad_Writer_Trans.newtypeWriterT)(new Validation_These["Error"](Data_Semigroup.append(Data_Array_NonEmpty_Internal.semigroupNonEmptyArray)(v2.value0)(v3.value0), Control_Alt.alt(Data_Maybe.altMaybe)(v2.value1)(v3.value1)));
-                                };
-                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1488, column 11 - line 1490, column 69): " + [ v3.constructor.name ]);
-                            };
-                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1485, column 7 - line 1490, column 69): " + [ v2.constructor.name ]);
-                        },
-                        Embed: (function () {
-                            var $1243 = Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(newborn((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0()));
-                            var $1244 = Data_Newtype.unwrap(Data_Const.newtypeConst);
-                            return function ($1245) {
-                                return $1243(tpa($1244($1245)));
-                            };
-                        })()
-                    };
-                })())(Data_Newtype.unwrap(Dhall_Core_AST_Types.newtypeERVF)(v.value1.value1));
-            };
-        };
-    };
-};
+
+// Substitute context all the way down an Lxpr.
 var substContextLxpr = function (dictFunctorWithIndex) {
     return function (ctx) {
         return function (e) {
@@ -65598,19 +66103,34 @@ var substContextLxpr = function (dictFunctorWithIndex) {
                     if (v1 instanceof Data_Either.Right) {
                         return Matryoshka_Class_Corecursive.embed(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(Control_Comonad_Env_Trans.EnvT(Data_Tuple.Tuple.create(v.value0)(v1.value0)));
                     };
-                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 426, column 5 - line 428, column 61): " + [ v1.constructor.name ]);
+                    throw new Error("Failed pattern match at Dhall.TypeCheck (line 551, column 5 - line 553, column 61): " + [ v1.constructor.name ]);
                 };
             })(e)(ctx));
         };
     };
 };
+var substContextLxprCtx = function (dictFunctorWithIndex) {
+    return function (ctx) {
+        return substContextLxpr(dictFunctorWithIndex)(reconstituteCtx((function () {
+            var $1416 = Data_Functor.map(Data_Maybe.functorMaybe);
+            var $1417 = substContextLxpr(dictFunctorWithIndex);
+            return function ($1418) {
+                return $1416($1417($1418));
+            };
+        })())(ctx));
+    };
+};
+
+// Run the alpha-normalization operation.
 var alphaNormalizeOp = function (v) {
     return Control_Comonad.extract(Data_Lazy.comonadLazy)(v.value0.value0);
 };
+
+// Alphanormalize an Oxpr (once).
 var alphaNormalizeStep = (function () {
-    var $1246 = step2D(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
-    return function ($1247) {
-        return alphaNormalizeOp($1246($1247));
+    var $1419 = step2D(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))));
+    return function ($1420) {
+        return alphaNormalizeOp($1419($1420));
     };
 })();
 var locateO$prime = function (dictEq) {
@@ -65618,7 +66138,7 @@ var locateO$prime = function (dictEq) {
         return function (foc0) {
             return Data_Variant.match()(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchNil)()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()({
                 substitute: function (v) {
-                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(substContextOxpr((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Data_Functor.map(Dhall_Context.functorContext)(Data_These.theseLeft)(contextStep(foc0)))(foc0));
+                    return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(substContextOxprCtx((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Data_Functor.map(Dhall_Context.functorContext)(Data_These.theseLeft)(contextStep(foc0)))(foc0));
                 },
                 shift: function (v) {
                     return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(shiftOxpr(v.delta)(v.variable)(foc0));
@@ -65670,28 +66190,36 @@ var alphaNormalizeLxpr = function (dictFunctorWithIndex) {
         }))(e));
     };
 };
+
+// Transforms the simple "typecheck one thing" algorithm to the full-blown
+// Lxpr -> Oxpr transformation (which includes typechecking and normalizing
+// each node inside the given context).
 var typecheckSketch = function (dictEq) {
     return function (dictMapLike) {
         return function (alg) {
-            return recursor2D(Matryoshka_Class_Recursive.recursiveCofree(Dhall_Core_AST_Types.functorERVF))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Control_Monad_Reader_Trans.functorReaderT(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))(Control_Monad_Reader_Trans.functorReaderT(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(function (v) {
-                return function (ctx) {
+            var $1421 = recursor2DSharingCtx(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Data_Either.functorEither)(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))(function (ctx) {
+                return function (v) {
                     return Data_Functor_Product.Product(new Data_Tuple.Tuple(Data_Functor_Product.Product(new Data_Tuple.Tuple(Data_Lazy.defer(function (v1) {
-                        return alphaNormalizeLxpr((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Matryoshka_Class_Corecursive.embed(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(Control_Comonad_Env_Trans.EnvT(Data_Tuple.Tuple.create(v.value0)(Data_Functor.map(Dhall_Core_AST_Types.functorERVF)(head2D(Control_Comonad_Cofree.comonadCofree(Control_Monad_Reader_Trans.functorReaderT(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Control_Monad_Reader_Trans.functorReaderT(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(v.value1)))));
-                    }), WithBiCtx.create(Data_Functor.mapFlipped(Dhall_Context.functorContext)(ctx)(Control_Bind.join(Control_Bind.bindFn)(Data_Bifunctor.bimap(Data_These.bifunctorThese))(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))))(Data_Lazy.defer(function (v1) {
+                        return unshared(Matryoshka_Class_Recursive.recursiveCofree(Dhall_Core_AST_Types.functorERVF))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))(alphaNormalizeLxpr((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Matryoshka_Class_Corecursive.embed(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(Control_Comonad_Env_Trans.EnvT(Data_Tuple.Tuple.create(v.value0)(Data_Functor.map(Dhall_Core_AST_Types.functorERVF)(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(Data_Functor.flap(Dhall_Core_AST_Types.functorERVF)(v.value1)(ctx)))))));
+                    }), WithBiCtx.create(Data_Functor.mapFlipped(Dhall_Context.functorContext)(ctx)(Control_Bind.join(Control_Bind.bindFn)(Data_Bifunctor.bimap(Data_These.bifunctorThese))(shared)))(Data_Functor_Compose.Compose(Data_Lazy.defer(function (v1) {
                         var ctx$prime = Data_Functor.mapFlipped(Dhall_Context.functorContext)(ctx)((function () {
-                            var $1248 = Data_Functor.map(Data_Maybe.functorMaybe)(head2D(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)));
-                            return function ($1249) {
-                                return $1248(Data_These.theseLeft($1249));
+                            var $1424 = Data_Functor.map(Data_Maybe.functorMaybe)(shared);
+                            return function ($1425) {
+                                return $1424(Data_These.theseLeft($1425));
                             };
                         })());
-                        return normalizeLxpr(dictMapLike)(dictEq)(substContextLxpr((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(ctx$prime)(Matryoshka_Class_Corecursive.embed(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF))(Control_Comonad_Env_Trans.EnvT(Data_Tuple.Tuple.create(v.value0)(Data_Functor.map(Dhall_Core_AST_Types.functorERVF)(head2D(Control_Comonad_Cofree.comonadCofree(Control_Monad_Reader_Trans.functorReaderT(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Control_Monad_Reader_Trans.functorReaderT(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF))))(Matryoshka_Class_Corecursive.corecursiveCofree(Dhall_Core_AST_Types.functorERVF)))(v.value1))))));
-                    })))), Data_Functor_Compose.Compose(Data_Lazy.defer(function (v1) {
-                        return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(alsoOriginateFrom((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
+                        return normalizeOsprW(dictMapLike)(dictEq)(substContextOspr0((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(ctx$prime)(embedShared(Control_Comonad_Env_Trans.EnvT(Data_Tuple.Tuple.create(v.value0)(Data_Functor.map(Dhall_Core_AST_Types.functorERVF)(shared)(Data_Functor.flap(Dhall_Core_AST_Types.functorERVF)(v.value1)(ctx)))))));
+                    }))))), Data_Functor_Compose.Compose(Data_Lazy.defer(function (v1) {
+                        return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(alsoOriginateFromS((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Data_Functor.map(Data_List_Types.functorNonEmptyList)(Dhall_Core_AST_Operations_Location.stepF(new Data_Symbol.IsSymbol(function () {
                             return "typecheck";
-                        }))()(Dhall_Core_AST_Types_Basics["_S"]))(v.value0)))(alg(WithBiCtx.create(ctx)(Control_Comonad_Env_Trans.mapEnvT(Data_Lens_Iso_Newtype["_Newtype"](Dhall_Core_AST_Types.newtypeERVF)(Dhall_Core_AST_Types.newtypeERVF)(Data_Profunctor.profunctorFn)(bicontextualizeWithin1(shiftInOxpr0)(bicontextualizeWithin((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0()))(ctx)))(v))));
+                        }))()(Dhall_Core_AST_Types_Basics["_S"]))(v.value0)))(alg(WithBiCtx.create(ctx)(Control_Comonad_Env_Trans.mapEnvT(Data_Lens_Iso_Newtype["_Newtype"](Dhall_Core_AST_Types.newtypeERVF)(Dhall_Core_AST_Types.newtypeERVF)(Data_Profunctor.profunctorFn)(bicontextualizeWithin1(shiftInOxpr0)(Data_Function.applyFlipped)(ctx)))(v))));
                     }))));
                 };
             });
+            var $1422 = unshared(Matryoshka_Class_Recursive.recursiveCofree(Dhall_Core_AST_Types.functorERVF))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF));
+            return function ($1423) {
+                return $1421($1422($1423));
+            };
         };
     };
 };
@@ -65702,7 +66230,7 @@ var oneStopShop = function (dictMapLike) {
                 return function (e0) {
                     var oxprFrom = function (loc) {
                         return function (ei) {
-                            return bicontextualizeWithin((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Dhall_Context.empty)(typecheckSketch(dictEq)(dictMapLike)(typecheckAlgebra(dictEq)(dictMapLike)(tpa))(originateFrom((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Control_Applicative.pure(Data_List_Types.applicativeNonEmptyList)(new Data_Tuple.Tuple(Control_Plus.empty(Data_List_Types.plusList), loc)))(ei)));
+                            return typecheckSketch(dictEq)(dictMapLike)(typecheckAlgebra(dictEq)(dictMapLike)(tpa))(originateFrom((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(Control_Applicative.pure(Data_List_Types.applicativeNonEmptyList)(new Data_Tuple.Tuple(Control_Plus.empty(Data_List_Types.plusList), loc)))(ei))(Dhall_Context.empty);
                         };
                     };
                     var oxpr = oxprFrom(Data_Maybe.Nothing.value)(e0);
@@ -65714,7 +66242,7 @@ var oneStopShop = function (dictMapLike) {
                             if (v.value1 instanceof Data_Maybe.Just) {
                                 return oxprFrom(new Data_Maybe.Just(v.value1.value0))(v.value1.value0);
                             };
-                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1524, column 43 - line 1526, column 37): " + [ v.value1.constructor.name ]);
+                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1814, column 43 - line 1816, column 37): " + [ v.value1.constructor.name ]);
                         })());
                     };
                     var locate = function (v) {
@@ -65723,8 +66251,8 @@ var oneStopShop = function (dictMapLike) {
                             return v1;
                         };
                         if (v1 instanceof Validation_These["Error"]) {
-                            var v2 = Data_Foldable.oneOfMap(Data_List_Types.foldableList)(Data_Maybe.plusMaybe)(function ($1250) {
-                                return Validation_These["hushW'"](get($1250));
+                            var v2 = Data_Foldable.oneOfMap(Data_List_Types.foldableList)(Data_Maybe.plusMaybe)(function ($1426) {
+                                return Validation_These["hushW'"](get($1426));
                             })(v.value1);
                             if (v2 instanceof Data_Maybe.Nothing) {
                                 return v1;
@@ -65732,9 +66260,9 @@ var oneStopShop = function (dictMapLike) {
                             if (v2 instanceof Data_Maybe.Just) {
                                 return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(v2.value0);
                             };
-                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1531, column 9 - line 1533, column 27): " + [ v2.constructor.name ]);
+                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1821, column 9 - line 1823, column 27): " + [ v2.constructor.name ]);
                         };
-                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1528, column 5 - line 1533, column 27): " + [ v1.constructor.name ]);
+                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 1818, column 5 - line 1823, column 27): " + [ v1.constructor.name ]);
                     };
                     var explainNotFound = function (i) {
                         return [ Text.create("Could not find location: " + i) ];
@@ -65743,9 +66271,9 @@ var oneStopShop = function (dictMapLike) {
                         return Data_Variant.on()(new Data_Symbol.IsSymbol(function () {
                             return "Not found";
                         }))(Dhall_Core_AST_Types_Basics["_S"])((function () {
-                            var $1251 = Data_Show.show(Dhall_Core_AST_Types.showERVFI);
-                            return function ($1252) {
-                                return explainNotFound($1251($1252));
+                            var $1427 = Data_Show.show(Dhall_Core_AST_Types.showERVFI);
+                            return function ($1428) {
+                                return explainNotFound($1427($1428));
                             };
                         })())(function (tag) {
                             var located = Validation_These["hushW'"](locate(v.location));
@@ -65758,13 +66286,13 @@ var oneStopShop = function (dictMapLike) {
                                         return Data_Semigroup.append(Data_List_Types.semigroupList)(v1.value0)(v2);
                                     })(Control_Category.identity(Control_Category.categoryFn)))(v.location);
                                 };
-                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1541, column 9 - line 1541, column 60): " + [ v1.constructor.name ]);
+                                throw new Error("Failed pattern match at Dhall.TypeCheck (line 1831, column 9 - line 1831, column 60): " + [ v1.constructor.name ]);
                             };
                             if (located instanceof Data_Maybe.Just) {
                                 var nodeType = Data_Functor.voidRight(Data_Functor_Variant.functorVariantF)(Data_Unit.unit)(unlayerO(located.value0));
                                 var ctx = Data_Functor.map(Dhall_Context.functorContext)(Control_Bind.join(Control_Bind.bindFn)(Data_Bifunctor.bimap(Data_These.bifunctorThese))(Data_Function["const"](Data_Unit.unit)))(contextStep(located.value0));
-                                return Data_Functor.mapFlipped(Data_Functor.functorArray)(explain(dictMapLike)(ctx)(nodeType)(tag))(Data_Functor.map(functorReference)(function ($1253) {
-                                    return Validation_These["hushW'"](locate(addLocation($1253)));
+                                return Data_Functor.mapFlipped(Data_Functor.functorArray)(explain(dictMapLike)(ctx)(nodeType)(tag))(Data_Functor.map(functorReference)(function ($1429) {
+                                    return Validation_These["hushW'"](locate(addLocation($1429)));
                                 }));
                             };
                             if (located instanceof Data_Maybe.Nothing) {
@@ -65786,7 +66314,7 @@ var oneStopShop = function (dictMapLike) {
                                     return "variable";
                                 }))(Data_Show.showRecordFieldsNil)(Dhall_Core_AST_Types.showVar))(Data_Show.showInt))))(Data_Show.showRecord()(Data_Show.showRecordFieldsNil)))(Data_Show.showRecord()(Data_Show.showRecordFieldsNil)))))(Data_Maybe.showMaybe(Dhall_Core_AST_Types.showExpr(dictMapLike.TraversableWithIndex2())(dictShow)))))(v.location));
                             };
-                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1544, column 10 - line 1550, column 51): " + [ located.constructor.name ]);
+                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 1834, column 10 - line 1840, column 51): " + [ located.constructor.name ]);
                         })(v.tag);
                     };
                     return {
@@ -65805,45 +66333,51 @@ var typingWithA = function (dictEq) {
             return function (ctx0) {
                 return function (e0) {
                     var tcingFrom = function (foc) {
-                        var $1254 = typecheckSketch(dictEq)(dictMapLike)(typecheckAlgebra(dictEq)(dictMapLike)((function () {
-                            var $1257 = Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring));
-                            return function ($1258) {
-                                return $1257(tpa($1258));
+                        var $1430 = typecheckSketch(dictEq)(dictMapLike)(typecheckAlgebra(dictEq)(dictMapLike)((function () {
+                            var $1433 = Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring));
+                            return function ($1434) {
+                                return $1433(tpa($1434));
                             };
                         })()));
-                        var $1255 = originateFrom((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(foc);
-                        return function ($1256) {
-                            return $1254($1255($1256));
+                        var $1431 = originateFrom((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(foc);
+                        return function ($1432) {
+                            return $1430($1431($1432));
                         };
                     };
-                    var tcingIn = function (ctx) {
+                    
+                    // Convert an Expr to an Oxpr and typecheck in the given context
+                    // (which must consist of Ospr)
+var tcingIn = function (ctx) {
                         return function (e) {
-                            var e$prime = bicontextualizeWithin((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(ctx)(tcingFrom(Control_Applicative.pure(Data_List_Types.applicativeNonEmptyList)(new Data_Tuple.Tuple(Control_Plus.empty(Data_List_Types.plusList), new Data_Maybe.Just(e))))(e));
+                            var e$prime = tcingFrom(Control_Applicative.pure(Data_List_Types.applicativeNonEmptyList)(new Data_Tuple.Tuple(Control_Plus.empty(Data_List_Types.plusList), new Data_Maybe.Just(e))))(e)(ctx);
                             return Data_Functor.voidRight(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(e$prime)(typecheckStep(e$prime));
                         };
                     };
-                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(reconstituteCtx(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(function (ctx) {
+                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(reconstituteCtxM(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(function (ctx) {
                         return function (ty) {
                             return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_These.That.create)(tcingIn(ctx)(ty));
                         };
                     })(ctx0))(function (v) {
                         var eO = tcingFrom(Control_Applicative.pure(Data_List_Types.applicativeNonEmptyList)(new Data_Tuple.Tuple(Control_Plus.empty(Data_List_Types.plusList), Data_Maybe.Nothing.value)))(e0);
-                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(bicontextualizeWithin((dictMapLike.TraversableWithIndex2()).FunctorWithIndex0())(v)(eO));
+                        return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(eO(v));
                     });
                 };
             };
         };
     };
 };
+
+// | Generalization of `typeWith` that allows type-checking the `Embed`
+// |  constructor with custom logic
 var typeWithA = function (dictEq) {
     return function (dictMapLike) {
         return function (tpa) {
             return function (ctx0) {
                 return function (e0) {
                     return Control_Bind.bindFlipped(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))((function () {
-                        var $1259 = Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(plain(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Lazy.functorLazy)))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF)))));
-                        return function ($1260) {
-                            return $1259(typecheckStep($1260));
+                        var $1435 = Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(plain(Control_Comonad_Cofree.comonadCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Matryoshka_Class_Recursive.recursiveMu(Data_Functor_Compose.functorCompose(Control_Comonad_Cofree.functorCofree(Data_Functor_Product.functorProduct(Data_Functor_Product.functorProduct(Data_Lazy.functorLazy)(functorWithBiCtx(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Dhall_Normalize.functorW))))(Data_Functor_Compose.functorCompose(Data_Lazy.functorLazy)(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring)))))(Control_Comonad_Env_Trans.functorEnvT(Dhall_Core_AST_Types.functorERVF)))));
+                        return function ($1436) {
+                            return $1435(typecheckStep($1436));
                         };
                     })())(typingWithA(dictEq)(dictMapLike)(tpa)(ctx0)(e0));
                 };
@@ -65856,7 +66390,7 @@ var locateE$prime = function (dictEq) {
         return function (tpa) {
             return Data_Variant.match()(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchCons(Data_Variant_Internal.variantMatchNil)()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()(Type_Equality.refl))()((function () {
                 var typecheck = function (v) {
-                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(reconstituteCtx(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(function (ctx$prime) {
+                    return Control_Bind.bind(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(reconstituteCtxM(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(function (ctx$prime) {
                         return function (v1) {
                             if (v1 instanceof Data_These.This) {
                                 return typeWithA(dictEq)(dictMapLike)(tpa)(ctx$prime)(v1.value0);
@@ -65867,7 +66401,7 @@ var locateE$prime = function (dictEq) {
                             if (v1 instanceof Data_These.Both) {
                                 return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(v1.value1);
                             };
-                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 650, column 46 - line 653, column 29): " + [ v1.constructor.name ]);
+                            throw new Error("Failed pattern match at Dhall.TypeCheck (line 930, column 47 - line 933, column 29): " + [ v1.constructor.name ]);
                         };
                     })(v.value0))(function (v1) {
                         return Data_Functor.map(Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(Data_Tuple.Tuple.create(v.value0))(typeWithA(dictEq)(dictMapLike)(tpa)(v1)(v.value1));
@@ -65879,7 +66413,7 @@ var locateE$prime = function (dictEq) {
                 return {
                     substitute: function (v) {
                         return function (v1) {
-                            return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(new Data_Tuple.Tuple(v1.value0, substContextExpr(Data_Functor.map(Dhall_Context.functorContext)(Data_These.theseLeft)(v1.value0))(v1.value1)));
+                            return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(new Data_Tuple.Tuple(v1.value0, substContextExprCtx(Data_Functor.map(Dhall_Context.functorContext)(Data_These.theseLeft)(v1.value0))(v1.value1)));
                         };
                     },
                     alphaNormalize: function (v) {
@@ -65888,30 +66422,30 @@ var locateE$prime = function (dictEq) {
                         };
                     },
                     normalize: function (v) {
-                        return function ($1261) {
+                        return function ($1437) {
                             return (function (v1) {
                                 return Control_Bind.discard(Control_Bind.discardUnit)(Control_Monad_Writer_Trans.bindWriterT(Data_Semigroup.semigroupArray)(Validation_These.bindErroring))(Data_Functor["void"](Control_Monad_Writer_Trans.functorWriterT(Validation_These.functorErroring))(typecheck(new Data_Tuple.Tuple(v1.value0, v1.value1))))(function () {
                                     return Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring))(Data_Tuple.Tuple.create(v1.value0)(Dhall_Normalize.normalize(dictMapLike)(dictEq)(v1.value1)));
                                 });
-                            })(substCtx($1261));
+                            })(substCtx($1437));
                         };
                     },
                     shift: function (i) {
-                        var $1262 = Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring));
-                        var $1263 = Data_Functor.map(Data_Tuple.functorTuple)(Dhall_Variables.shift(i.delta)(i.variable));
-                        return function ($1264) {
-                            return $1262($1263($1264));
+                        var $1438 = Control_Applicative.pure(Control_Monad_Writer_Trans.applicativeWriterT(Data_Monoid.monoidArray)(Validation_These.applicativeErroring));
+                        var $1439 = Data_Functor.map(Data_Tuple.functorTuple)(Dhall_Variables.shift(i.delta)(i.variable));
+                        return function ($1440) {
+                            return $1438($1439($1440));
                         };
                     },
                     typecheck: function (v) {
-                        return function ($1265) {
-                            return typecheck(substCtx($1265));
+                        return function ($1441) {
+                            return typecheck(substCtx($1441));
                         };
                     },
                     within: function (i) {
                         return function (v) {
                             return Validation_These.liftW(Validation_These.functorErroring)(Data_Monoid.monoidArray)((function () {
-                                var intro = function ($1266) {
+                                var intro = function ($1442) {
                                     return Data_Tuple.Tuple.create((function (v1) {
                                         if (v1 instanceof Dhall_Variables.DoNothing) {
                                             return v.value0;
@@ -65922,8 +66456,8 @@ var locateE$prime = function (dictEq) {
                                         if (v1 instanceof Dhall_Variables.Intro) {
                                             return Data_Functor.map(Dhall_Context.functorContext)(Control_Bind.join(Control_Bind.bindFn)(Data_Bifunctor.bimap(Data_These.bifunctorThese))(Dhall_Variables.shift(1)(new Dhall_Core_AST_Types.V(v1.value0.value0, 0))))(Dhall_Context.insert(v1.value0.value0)(v1.value0.value1)(v.value0));
                                         };
-                                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 671, column 27 - line 675, column 42): " + [ v1.constructor.name ]);
-                                    })($1266));
+                                        throw new Error("Failed pattern match at Dhall.TypeCheck (line 951, column 27 - line 955, column 42): " + [ v1.constructor.name ]);
+                                    })($1442));
                                 };
                                 return Validation_These.note({
                                     location: Control_Applicative.pure(Data_List_Types.applicativeNonEmptyList)(new Data_Tuple.Tuple(Control_Plus.empty(Data_List_Types.plusList), Control_Plus.empty(Data_Maybe.plusMaybe))),
@@ -65959,13 +66493,38 @@ var locateE = function (dictEq) {
         };
     };
 };
+
+// | Type-check an expression and return the expression's type if type-checking
+// | succeeds or an error if type-checking fails
+// | `typeWith` does not necessarily normalize the type since full normalization
+// | is not necessary for just type-checking.  If you actually care about the
+// | returned type then you may want to `Dhall.Core.normalize` it afterwards.
+// | The supplied `Context` records the types of the names in scope. If
+// | these are ill-typed, the return value may be ill-typed.
+var typeWith = function (dictMapLike) {
+    return typeWithA(Data_Eq.eqVoid)(dictMapLike)(Data_Void.absurd);
+};
+
+// | `typeOf` is the same as `typeWith` with an empty context, meaning that the
+// | expression must be closed (i.e. no free variables), otherwise type-checking
+// | will fail.
+var typeOf = function (dictMapLike) {
+    return typeWith(dictMapLike)(Dhall_Context.empty);
+};
 module.exports = {
     axiom: axiom,
     rule: rule,
+    maxConst: maxConst,
     confirm: confirm,
     mconfirm: mconfirm,
     TypeCheckError: TypeCheckError,
     recursor2D: recursor2D,
+    deshare: deshare,
+    wasShared: wasShared,
+    shared: shared,
+    unshared: unshared,
+    embedShared: embedShared,
+    recursor2DSharingCtx: recursor2DSharingCtx,
     head2D: head2D,
     step2D: step2D,
     dubstep2D: dubstep2D,
@@ -65982,10 +66541,12 @@ module.exports = {
     alphaNormalizeOp: alphaNormalizeOp,
     contextOp: contextOp,
     normalizeOp: normalizeOp,
+    normalizeOpW: normalizeOpW,
     typecheckOp: typecheckOp,
     alphaNormalizeStep: alphaNormalizeStep,
     contextStep: contextStep,
     normalizeStep: normalizeStep,
+    normalizeStepW: normalizeStepW,
     typecheckStep: typecheckStep,
     unlayerO: unlayerO,
     overlayerO: overlayerO,
@@ -65993,25 +66554,38 @@ module.exports = {
     alsoOriginateFrom: alsoOriginateFrom,
     topLoc: topLoc,
     alsoOriginateFromO: alsoOriginateFromO,
-    typecheckStepCtx: typecheckStepCtx,
-    bicontextualizeWithin: bicontextualizeWithin,
+    alsoOriginateFromS: alsoOriginateFromS,
+    topLocS: topLocS,
     bicontextualizeWithin1: bicontextualizeWithin1,
     substcontextualizeWithin1: substcontextualizeWithin1,
     substcontextualizeWithin10: substcontextualizeWithin10,
     substContext1: substContext1,
     substContext10: substContext10,
     subst1: subst1,
-    substContextLxpr: substContextLxpr,
-    substContextOxpr: substContextOxpr,
     substContextExpr: substContextExpr,
     substContextExpr0: substContextExpr0,
+    substContextExprCtx: substContextExprCtx,
+    substContextExpr0Ctx: substContextExpr0Ctx,
+    substContextLxpr: substContextLxpr,
+    substContextLxprCtx: substContextLxprCtx,
+    substContextOxpr: substContextOxpr,
+    substContextOxpr0: substContextOxpr0,
+    substContextOxprCtx: substContextOxprCtx,
+    substContextOspr: substContextOspr,
+    substContextOspr0: substContextOspr0,
     newborn: newborn,
     newmother: newmother,
+    newshared: newshared,
     denote: denote,
     plain: plain,
     runLxprAlg: runLxprAlg,
     runLxprAlgM: runLxprAlgM,
     runOxprAlg: runOxprAlg,
+    runOsprAlg: runOsprAlg,
+    runOsprAlgM: runOsprAlgM,
+    unlayerOS: unlayerOS,
+    overlayerOS: overlayerOS,
+    overlayerOSM: overlayerOSM,
     freeInOxpr: freeInOxpr,
     freeInLxpr: freeInLxpr,
     alphaNormalizeLxpr: alphaNormalizeLxpr,
@@ -66027,7 +66601,12 @@ module.exports = {
     shiftOutOxpr: shiftOutOxpr,
     tryShiftOutOxpr: tryShiftOutOxpr,
     tryShiftOut0Oxpr: tryShiftOut0Oxpr,
-    normalizeLxpr: normalizeLxpr,
+    shiftOspr: shiftOspr,
+    shiftInOspr: shiftInOspr,
+    shiftInOspr0: shiftInOspr0,
+    shiftOutOspr: shiftOutOspr,
+    normalizeOspr: normalizeOspr,
+    normalizeOsprW: normalizeOsprW,
     areEq: areEq,
     "locateO'": locateO$prime,
     locateO: locateO,
@@ -66042,7 +66621,10 @@ module.exports = {
     ensureNodupes: ensureNodupes,
     findDupes: findDupes,
     reconstituteCtx: reconstituteCtx,
-    reconstituteCtxFrom: reconstituteCtxFrom,
+    reconstituteCtxM: reconstituteCtxM,
+    reconstituteCtxFromM: reconstituteCtxFromM,
+    typeWith: typeWith,
+    typeOf: typeOf,
     typeWithA: typeWithA,
     typingWithA: typingWithA,
     NoStrMap: NoStrMap,
@@ -66080,7 +66662,7 @@ module.exports = {
     functorReference: functorReference
 };
 
-},{"../Control.Alt/index.js":14,"../Control.Applicative/index.js":17,"../Control.Apply/index.js":19,"../Control.Bind/index.js":23,"../Control.Category/index.js":24,"../Control.Comonad.Cofree/index.js":25,"../Control.Comonad.Env.Trans/index.js":26,"../Control.Comonad/index.js":30,"../Control.Extend/index.js":33,"../Control.Monad.Reader.Trans/index.js":49,"../Control.Monad.Writer.Trans/index.js":58,"../Control.Plus/index.js":65,"../Control.Semigroupoid/index.js":68,"../Data.Array.NonEmpty.Internal/index.js":85,"../Data.Array.NonEmpty/index.js":86,"../Data.Array/index.js":91,"../Data.Bifoldable/index.js":92,"../Data.Bifunctor/index.js":98,"../Data.Bitraversable/index.js":99,"../Data.Boolean/index.js":100,"../Data.Const/index.js":108,"../Data.Either/index.js":119,"../Data.Eq/index.js":123,"../Data.Foldable/index.js":128,"../Data.FoldableWithIndex/index.js":129,"../Data.Function/index.js":132,"../Data.Functor.Compose/index.js":134,"../Data.Functor.Mu/index.js":138,"../Data.Functor.Product/index.js":140,"../Data.Functor.Variant/index.js":141,"../Data.Functor/index.js":143,"../Data.FunctorWithIndex/index.js":145,"../Data.HeytingAlgebra/index.js":149,"../Data.Identity/index.js":150,"../Data.Lazy/index.js":156,"../Data.Lens.Fold/index.js":157,"../Data.Lens.Indexed/index.js":159,"../Data.Lens.Internal.Forget/index.js":162,"../Data.Lens.Iso.Newtype/index.js":169,"../Data.Lens.Record/index.js":176,"../Data.List.NonEmpty/index.js":181,"../Data.List.Types/index.js":182,"../Data.List/index.js":183,"../Data.Map.Internal/index.js":184,"../Data.Maybe.First/index.js":185,"../Data.Maybe.Last/index.js":186,"../Data.Maybe/index.js":187,"../Data.Monoid.Disj/index.js":191,"../Data.Monoid.Endo/index.js":193,"../Data.Monoid/index.js":195,"../Data.Newtype/index.js":197,"../Data.NonEmpty/index.js":198,"../Data.Ord/index.js":205,"../Data.Profunctor.Strong/index.js":212,"../Data.Profunctor/index.js":213,"../Data.Semigroup.Foldable/index.js":217,"../Data.Semigroup/index.js":221,"../Data.Set/index.js":224,"../Data.Show/index.js":226,"../Data.String.Common/index.js":232,"../Data.Symbol/index.js":240,"../Data.These/index.js":242,"../Data.Traversable/index.js":248,"../Data.TraversableWithIndex/index.js":249,"../Data.Tuple/index.js":251,"../Data.Unit/index.js":257,"../Data.Variant.Internal/index.js":258,"../Data.Variant/index.js":259,"../Data.Void/index.js":260,"../Dhall.Context/index.js":261,"../Dhall.Core.AST.Constructors/index.js":262,"../Dhall.Core.AST.Operations.Location/index.js":264,"../Dhall.Core.AST.Operations.Transformations/index.js":265,"../Dhall.Core.AST.Operations/index.js":266,"../Dhall.Core.AST.Types.Basics/index.js":267,"../Dhall.Core.AST.Types/index.js":268,"../Dhall.Core.Imports.Retrieve/index.js":270,"../Dhall.Core.Zippers/index.js":274,"../Dhall.Map/index.js":284,"../Dhall.Normalize/index.js":286,"../Dhall.Variables/index.js":291,"../Matryoshka.Class.Corecursive/index.js":355,"../Matryoshka.Class.Recursive/index.js":356,"../Matryoshka.Fold/index.js":358,"../Matryoshka.Unfold/index.js":360,"../Matryoshka.Util/index.js":361,"../Type.Equality/index.js":388,"../Validation.These/index.js":394}],291:[function(require,module,exports){
+},{"../Control.Alt/index.js":14,"../Control.Applicative/index.js":17,"../Control.Apply/index.js":19,"../Control.Bind/index.js":23,"../Control.Category/index.js":24,"../Control.Comonad.Cofree/index.js":25,"../Control.Comonad.Env.Trans/index.js":26,"../Control.Comonad/index.js":30,"../Control.Extend/index.js":33,"../Control.Monad.Writer.Trans/index.js":58,"../Control.Plus/index.js":65,"../Control.Semigroupoid/index.js":68,"../Data.Array.NonEmpty.Internal/index.js":85,"../Data.Array.NonEmpty/index.js":86,"../Data.Array/index.js":91,"../Data.Bifoldable/index.js":92,"../Data.Bifunctor/index.js":98,"../Data.Bitraversable/index.js":99,"../Data.Boolean/index.js":100,"../Data.Const/index.js":108,"../Data.Either/index.js":119,"../Data.Eq/index.js":123,"../Data.Foldable/index.js":128,"../Data.FoldableWithIndex/index.js":129,"../Data.Function/index.js":132,"../Data.Functor.Compose/index.js":134,"../Data.Functor.Product/index.js":140,"../Data.Functor.Variant/index.js":141,"../Data.Functor/index.js":143,"../Data.FunctorWithIndex/index.js":145,"../Data.HeytingAlgebra/index.js":149,"../Data.Identity/index.js":150,"../Data.Lazy/index.js":156,"../Data.Lens.Fold/index.js":157,"../Data.Lens.Indexed/index.js":159,"../Data.Lens.Internal.Forget/index.js":162,"../Data.Lens.Iso.Newtype/index.js":169,"../Data.Lens.Record/index.js":176,"../Data.List.NonEmpty/index.js":181,"../Data.List.Types/index.js":182,"../Data.List/index.js":183,"../Data.Map.Internal/index.js":184,"../Data.Maybe.First/index.js":185,"../Data.Maybe.Last/index.js":186,"../Data.Maybe/index.js":187,"../Data.Monoid.Disj/index.js":191,"../Data.Monoid.Endo/index.js":193,"../Data.Monoid/index.js":195,"../Data.Newtype/index.js":197,"../Data.NonEmpty/index.js":198,"../Data.Ord.Max/index.js":202,"../Data.Ord/index.js":205,"../Data.Profunctor.Strong/index.js":212,"../Data.Profunctor/index.js":213,"../Data.Semigroup.Foldable/index.js":217,"../Data.Semigroup/index.js":221,"../Data.Set/index.js":224,"../Data.Show/index.js":226,"../Data.String.Common/index.js":232,"../Data.Symbol/index.js":240,"../Data.These/index.js":242,"../Data.Traversable/index.js":248,"../Data.TraversableWithIndex/index.js":249,"../Data.Tuple/index.js":251,"../Data.Unit/index.js":257,"../Data.Variant.Internal/index.js":258,"../Data.Variant/index.js":259,"../Data.Void/index.js":260,"../Dhall.Context/index.js":261,"../Dhall.Core.AST.Constructors/index.js":262,"../Dhall.Core.AST.Operations.Location/index.js":264,"../Dhall.Core.AST.Operations.Transformations/index.js":265,"../Dhall.Core.AST.Operations/index.js":266,"../Dhall.Core.AST.Types.Basics/index.js":267,"../Dhall.Core.AST.Types/index.js":268,"../Dhall.Core.Imports.Retrieve/index.js":270,"../Dhall.Core.Zippers/index.js":274,"../Dhall.Map/index.js":284,"../Dhall.Normalize/index.js":286,"../Dhall.Variables/index.js":291,"../Matryoshka.Class.Corecursive/index.js":355,"../Matryoshka.Class.Recursive/index.js":356,"../Matryoshka.Fold/index.js":358,"../Matryoshka.Unfold/index.js":360,"../Matryoshka.Util/index.js":361,"../Type.Equality/index.js":388,"../Unsafe.Reference/index.js":393,"../Validation.These/index.js":394}],291:[function(require,module,exports){
 // Generated by purs version 0.13.0
 "use strict";
 var Control_Applicative = require("../Control.Applicative/index.js");
