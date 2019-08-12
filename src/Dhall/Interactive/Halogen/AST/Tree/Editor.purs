@@ -195,7 +195,7 @@ editor = H.mkComponent
 _ixes_Ann :: forall m s a. TraversableWithIndex String m =>
   ExprI -> Traversal' (Ann.Expr m s a) (Ann.Expr m s a)
 _ixes_Ann Nil = identity
-_ixes_Ann (i : is) = _recurse <<< _Newtype <<< _2 <<< _ix (extract i) <<< _ixes_Ann is
+_ixes_Ann (i : is) = _ixes_Ann is <<< _recurse <<< _Newtype <<< _2 <<< _ix (extract i)
 
 viewer :: H.Component HH.HTML ViewQuery Ixpr EditActions Aff
 viewer = H.mkComponent
