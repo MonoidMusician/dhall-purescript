@@ -140,14 +140,18 @@ deshare = cata $ unwrap >>> case _ of
   Left r -> head2D r
   Right ft -> embed ft
 
-shared :: forall m f. Functor f => TwoD m f -> HalfTwoD m f
-shared r = embed (Compose (Left r))
+wasShared :: forall m f. HalfTwoD m f -> Maybe (TwoD m f)
+wasShared (In (Compose (Left r))) = Just r
+wasShared _ = Nothing
+
+shared :: forall m f. TwoD m f -> HalfTwoD m f
+shared r = In (Compose (Left r))
 
 unshared :: forall m t f. Recursive t f => Functor f => t -> HalfTwoD m f
 unshared = cata embedShared
 
-embedShared :: forall m f. Functor f => f (HalfTwoD m f) -> HalfTwoD m f
-embedShared ft = embed (Compose (Right ft))
+embedShared :: forall m f. f (HalfTwoD m f) -> HalfTwoD m f
+embedShared ft = In (Compose (Right ft))
 
 recursor2DSharingCtx ::
   forall t f m r ctx.
@@ -249,7 +253,7 @@ instance traversableWithBiCtx :: Traversable f => Traversable (WithBiCtx f) wher
 --   Left right right (Lazy): substitution+normalization (idempotent, but this isn't enforced ...)
 --   Right (Lazy Feedback): typechecking
 -- TODO: more operations? extensibility? connect to GenericExprAlgebra?
-type Operations w r m a = Product (Product Lazy (WithBiCtx Lazy)) (Compose Lazy (Feedback w r m a))
+type Operations w r m a = Product (Product Lazy (WithBiCtx (Compose Lazy Dhall.Normalize.W))) (Compose Lazy (Feedback w r m a))
 -- Expr with Location, along the dual axes of Operations and the AST
 type Oxpr w r m a = TwoD (Operations w r m a) (LxprF m a)
 -- Oxpr where nodes may be elaborated or unelaborated
@@ -271,15 +275,13 @@ typecheckSketch alg = unshared >>> recursor2DSharingCtx
               embed $ EnvT $ Tuple loc $ head2D <$> (e <@> ctx)
           -- FIXME: is context empty after normalization? idk
           do WithBiCtx (ctx <#> join bimap shared) $
-              defer \_ ->
-                unshared $
-                -- Normalize (and substitute!) the context before substitution
-                let ctx' = ctx <#> theseLeft >>> map (normalizeStep >>> head2D)
+              Compose $ defer \_ ->
+                let ctx' = ctx <#> theseLeft >>> map shared
                     --unused = unsafePerformEffect $ log $ unsafeCoerce $ Array.fromFoldable $ map fst $ unwrap $ ctx
                 in
-                normalizeLxpr $
-                substContextLxpr ctx' $
-                embed $ EnvT $ Tuple loc $ head2D <$> (e <@> ctx)
+                normalizeOxprSW $
+                substContextOxprS0 ctx' $
+                embedShared $ EnvT $ Tuple loc $ shared <$> (e <@> ctx)
       do Compose $ defer \_ ->
           map (alsoOriginateFromHalf (Loc.stepF (_S::S_ "typecheck") <$> loc)) $
           alg $ WithBiCtx ctx $ (((layer))) #
@@ -298,7 +300,11 @@ contextOp (Product (Tuple (Product (Tuple _ (WithBiCtx ctx _))) _)) = ctx
 
 -- Run the normalization operation.
 normalizeOp :: forall w r m a b. Operations w r m a b -> b
-normalizeOp (Product (Tuple (Product (Tuple _ (WithBiCtx _ lz))) _)) = extract lz
+normalizeOp = extract <<< extract <<< unwrap <<< normalizeOpW
+
+normalizeOpW :: forall w r m a. Operations w r m a ~> Dhall.Normalize.W
+normalizeOpW (Product (Tuple (Product (Tuple _ (WithBiCtx _ lz))) _)) =
+  extract (unwrap lz)
 
 -- Run the typechecking operation.
 typecheckOp :: forall w r m a. Operations w r m a ~> Feedback w r m a
@@ -318,6 +324,10 @@ contextStep = step2D >>> contextOp
 normalizeStep :: forall w r m a.
   Oxpr w r m a -> Oxpr w r m a
 normalizeStep = step2D >>> normalizeOp
+
+normalizeStepW :: forall w r m a.
+  Oxpr w r m a -> Dhall.Normalize.W (Oxpr w r m a)
+normalizeStepW = step2D >>> normalizeOpW
 
 -- Typecheck an Oxpr (once).
 typecheckStep :: forall w r m a.
@@ -356,6 +366,11 @@ alsoOriginateFromHalf = mapR <<< over Compose <<< go where
   go loc = bimap (alsoOriginateFromO loc)
     \(EnvT (Tuple f e)) -> EnvT $ Tuple (loc <> f) $ (((e)))
       # mapWithIndex \i' -> mapR $ over Compose $ go $ Loc.moveF (_S::S_ "within") i' <$> loc
+
+topLocHalf :: forall w r m a. OxprS w r m a -> L m a
+topLocHalf = project >>> un Compose >>> case _ of
+  Left r -> topLoc r
+  Right l -> env l
 
 topLoc :: forall w r m a. Oxpr w r m a -> L m a
 topLoc = project >>> un Compose >>> extract >>> env
@@ -473,14 +488,28 @@ substContextOxpr :: forall w r m a. FunctorWithIndex String m =>
   SubstContext (Oxpr w r m a) ->
   Oxpr w r m a -> Oxpr w r m a
 substContextOxpr ctx e = alsoOriginateFromO (Loc.stepF (_S::S_ "substitute") <$> topLoc e) $
-  (mapR $ over Compose $ go $ reconstituteCtx (map <<< substContextOxpr) ctx) e where
+  (mapR $ over Compose $ go ctx) e where
     go ctx' e' = Cofree.deferCofree \_ ->
       case go1 ctx' (Cofree.head e') of
         Left (In (Compose e'')) -> (Tuple <$> Cofree.head <*> Cofree.tail) e''
         Right layer' -> Tuple layer' $ go ctx' <$> Cofree.tail e'
     go1 ctx' (EnvT (Tuple loc (ERVF layer))) =
       case substContext1 shiftInOxpr0 (mapR <<< over Compose <<< go) ctx' layer of
-        Left e' -> Left $ e'
+        Left e' -> Left e'
+        Right layer' -> Right $ EnvT $ Tuple loc $ ERVF layer'
+
+substContextOxpr0 :: forall w r m a. FunctorWithIndex String m =>
+  SubstContext (Oxpr w r m a) ->
+  Oxpr w r m a -> Oxpr w r m a
+substContextOxpr0 ctx e = alsoOriginateFromO (Loc.stepF (_S::S_ "substitute") <$> topLoc e) $
+  (mapR $ over Compose $ go ctx) e where
+    go ctx' e' = Cofree.deferCofree \_ ->
+      case go1 ctx' (Cofree.head e') of
+        Left (In (Compose e'')) -> (Tuple <$> Cofree.head <*> Cofree.tail) e''
+        Right layer' -> Tuple layer' $ go ctx' <$> Cofree.tail e'
+    go1 ctx' (EnvT (Tuple loc (ERVF layer))) =
+      case substContext10 shiftInOxpr0 (mapR <<< over Compose <<< go) ctx' layer of
+        Left e' -> Left e'
         Right layer' -> Right $ EnvT $ Tuple loc $ ERVF layer'
 
 
@@ -489,6 +518,50 @@ substContextOxprCtx :: forall w r m a. FunctorWithIndex String m =>
   Oxpr w r m a -> Oxpr w r m a
 substContextOxprCtx ctx = substContextOxpr
   (reconstituteCtx (map <<< substContextOxpr) ctx)
+
+substContextOxprS :: forall w r m a. FunctorWithIndex String m =>
+  SubstContext (OxprS w r m a) ->
+  OxprS w r m a -> OxprS w r m a
+substContextOxprS ctx e = alsoOriginateFromHalf (Loc.stepF (_S::S_ "substitute") <$> topLocHalf e) $
+  (mapR $ over Compose $ go ctx) e where
+    go :: SubstContext (OxprS w r m a) ->
+      Either (Oxpr w r m a) (LxprF m a (OxprS w r m a)) ->
+      Either (Oxpr w r m a) (LxprF m a (OxprS w r m a))
+    go ctx' = case _ of
+      -- Try to preserve sharing if all of ctx is shared
+      Left r -> case (traverse <<< traverse) wasShared ctx' of
+        Just ctx'' -> Left $ substContextOxpr ctx'' r
+        Nothing -> go1 ctx' $ map shared $ Cofree.head $ un Compose $ project r
+      Right layer -> go1 ctx' layer
+    go1 :: SubstContext (OxprS w r m a) ->
+      LxprF m a (OxprS w r m a) ->
+      Either (Oxpr w r m a) (LxprF m a (OxprS w r m a))
+    go1 ctx' (EnvT (Tuple loc (ERVF layer))) =
+      case substContext1 shiftInOxprS0 (mapR <<< over Compose <<< go) ctx' layer of
+        Left e' -> un Compose $ project e'
+        Right layer' -> Right $ EnvT $ Tuple loc $ ERVF layer'
+
+substContextOxprS0 :: forall w r m a. FunctorWithIndex String m =>
+  SubstContext (OxprS w r m a) ->
+  OxprS w r m a -> OxprS w r m a
+substContextOxprS0 ctx e = alsoOriginateFromHalf (Loc.stepF (_S::S_ "substitute") <$> topLocHalf e) $
+  (mapR $ over Compose $ go ctx) e where
+    go :: SubstContext (OxprS w r m a) ->
+      Either (Oxpr w r m a) (LxprF m a (OxprS w r m a)) ->
+      Either (Oxpr w r m a) (LxprF m a (OxprS w r m a))
+    go ctx' = case _ of
+      -- Try to preserve sharing if all of ctx is shared
+      Left r -> case (traverse <<< traverse) wasShared ctx' of
+        Just ctx'' -> Left $ substContextOxpr0 ctx'' r
+        Nothing -> go1 ctx' $ map shared $ Cofree.head $ un Compose $ project r
+      Right layer -> go1 ctx' layer
+    go1 :: SubstContext (OxprS w r m a) ->
+      LxprF m a (OxprS w r m a) ->
+      Either (Oxpr w r m a) (LxprF m a (OxprS w r m a))
+    go1 ctx' (EnvT (Tuple loc (ERVF layer))) =
+      case substContext10 shiftInOxprS0 (mapR <<< over Compose <<< go) ctx' layer of
+        Left e' -> un Compose $ project e'
+        Right layer' -> Right $ EnvT $ Tuple loc $ ERVF layer'
 
 -- Substitute context all the way down an Expr.
 substContextExpr :: forall m a.
@@ -600,6 +673,70 @@ runOxprAlg alg = go where
     , recurse: map Identity <<< go
     } e
 
+runOxprSAlg :: forall w r m a i. FunctorWithIndex String m =>
+  (
+    i ->
+    { unlayer :: OxprS w r m a -> AST.ExprLayerF m a (OxprS w r m a)
+    , overlayer :: OverCases (AST.ExprLayerRow m a) (OxprS w r m a)
+    , recurse :: i -> OxprS w r m a -> Identity (OxprS w r m a)
+    , layer :: AST.ExprLayerF m a (OxprS w r m a) -> OxprS w r m a
+    } -> OxprS w r m a -> Identity (OxprS w r m a)
+  ) ->
+  i -> OxprS w r m a -> OxprS w r m a
+runOxprSAlg alg = go where
+  go i e = un Identity $ alg i
+    { unlayer: unlayerOS
+    , overlayer: OverCasesM (map pure <<< overlayerOS <<< map extract)
+    , recurse: map Identity <<< go
+    , layer: newshared
+    } e
+
+runOxprSAlgM :: forall f w r m a i. FunctorWithIndex String m => Functor f =>
+  (
+    i ->
+    { unlayer :: OxprS w r m a -> AST.ExprLayerF m a (OxprS w r m a)
+    , overlayer :: OverCasesM f (AST.ExprLayerRow m a) (OxprS w r m a)
+    , recurse :: i -> OxprS w r m a -> f (OxprS w r m a)
+    , layer :: AST.ExprLayerF m a (OxprS w r m a) -> OxprS w r m a
+    } -> OxprS w r m a -> f (OxprS w r m a)
+  ) ->
+  i -> OxprS w r m a -> f (OxprS w r m a)
+runOxprSAlgM alg = go where
+  go i e = alg i
+    { unlayer: unlayerOS
+    , overlayer: OverCasesM overlayerOSM
+    , recurse: go
+    , layer: newshared
+    } e
+
+unlayerOS :: forall w r m a.
+  OxprS w r m a -> AST.ExprLayerF m a (OxprS w r m a)
+unlayerOS = project >>> unwrap >>> case _ of
+    Left r -> r # unlayerO >>> map shared
+    Right ft -> ft # unEnvT >>> unwrap
+
+overlayerOS :: forall w r m a.
+  (AST.ExprLayerF m a (OxprS w r m a) -> AST.ExprLayerF m a (OxprS w r m a)) ->
+  OxprS w r m a -> OxprS w r m a
+overlayerOS f = project >>> unwrap >>> case _ of
+    Left r -> case extract $ un Compose $ project $ r of
+      EnvT (Tuple e (ERVF x)) ->
+        embedShared $ EnvT $ Tuple e $ ERVF $
+          f (shared <$> x)
+    Right ft -> embedShared $ (mapEnvT <<< over ERVF) f ft
+
+overlayerOSM :: forall f w r m a. Functor f =>
+  (AST.ExprLayerF m a (OxprS w r m a) -> f (AST.ExprLayerF m a (OxprS w r m a))) ->
+  OxprS w r m a -> f (OxprS w r m a)
+overlayerOSM f = project >>> unwrap >>> case _ of
+    Left r -> case extract $ un Compose $ project $ r of
+      EnvT (Tuple e (ERVF x)) ->
+        embedShared <<< EnvT <<< Tuple e <<< ERVF <$>
+          f (shared <$> x)
+    Right ft -> embedShared <$> (travEnvT <<< N.traverse ERVF) f ft
+  where
+    travEnvT f' (EnvT (Tuple e x)) = EnvT <<< Tuple e <$> f' x
+
 freeInOxpr :: forall w r m a. Foldable m => Var -> Oxpr w r m a -> Disj Boolean
 freeInOxpr = flip $ cata $ un Compose >>> extract >>> unEnvT >>> unwrap >>> freeInAlg
 
@@ -660,12 +797,48 @@ tryShiftOutOxpr v e = Just (shiftOutOxpr v e)
 tryShiftOut0Oxpr :: forall w r m a. Foldable m => String -> Oxpr w r m a -> Maybe (Oxpr w r m a)
 tryShiftOut0Oxpr v = tryShiftOutOxpr (AST.V v 0)
 
+shiftOxprS :: forall w r m a. FunctorWithIndex String m => Int -> Var -> OxprS w r m a -> OxprS w r m a
+shiftOxprS delta variable = runOxprSAlg (Variant.case_ # shiftAlgG) $
+  Variant.inj (_S::S_ "shift") { delta, variable }
+
+shiftInOxprS :: forall w r m a. FunctorWithIndex String m => Var -> OxprS w r m a -> OxprS w r m a
+shiftInOxprS = shiftOxprS 1
+
+shiftInOxprS0 :: forall w r m a. FunctorWithIndex String m => String -> OxprS w r m a -> OxprS w r m a
+shiftInOxprS0 v = shiftInOxprS (AST.V v 0)
+
+shiftOutOxprS :: forall w r m a. FunctorWithIndex String m => Var -> OxprS w r m a -> OxprS w r m a
+shiftOutOxprS = shiftOxprS (-1)
+
 normalizeLxpr :: forall m a. MapLike String m => Eq a => Lxpr m a -> Lxpr m a
 normalizeLxpr e = alsoOriginateFrom (Loc.stepF (_S::S_ "normalize") <$> extract e) $
-  (extract <<< extract <<< unwrap) $
+  extract $
     -- TODO: use substLxpr and shiftLxpr here
     runLxprAlgM (Variant.case_ # Dhall.Normalize.normalizeWithAlgGW mempty)
       (Variant.inj (_S::S_ "normalize") mempty) e
+
+normalizeOxprS :: forall w r m a. MapLike String m => Eq a => OxprS w r m a -> OxprS w r m a
+normalizeOxprS = extract <<< normalizeOxprSW
+
+normalizeOxprSW :: forall w r m a. MapLike String m => Eq a => OxprS w r m a -> Dhall.Normalize.W (OxprS w r m a)
+normalizeOxprSW e = alsoOriginateFromHalf (Loc.stepF (_S::S_ "normalize") <$> topLocHalf e) <$>
+  let
+    ops =
+      { unlayer: unlayerOS
+      , overlayer: OverCasesM overlayerOSM
+      , recurse: \i -> go i
+      , layer: newshared
+      }
+    alg = Variant.case_ # Dhall.Normalize.normalizeWithAlgGW mempty
+    go = Variant.match
+      { normalize: \_ e' ->
+          case un Compose (project e') of
+            Left r -> shared <$> normalizeStepW r
+            _ -> alg (Variant.inj (_S::S_ "normalize") mempty) ops e'
+      , shift: \{ delta, variable } -> pure <<< shiftOxprS delta variable
+      , subst: \i -> alg (Variant.inj (_S::S_ "subst") i) ops
+      }
+  in go (Variant.inj (_S::S_ "normalize") mempty) e
 
 areEq :: forall w r m a. Eq a => MapLike String m => Oxpr w r m a -> Oxpr w r m a -> Boolean
 areEq ty0 ty1 =
