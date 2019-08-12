@@ -10,7 +10,7 @@ import Data.Array as Array
 import Data.Array.NonEmpty as NEA
 import Data.Bifoldable (bifoldMap)
 import Data.Either (Either(..), either)
-import Data.Foldable (for_)
+import Data.Foldable (for_, traverse_)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.HeytingAlgebra (tt)
 import Data.Lens (Traversal', _2, (%=), (.=), (.~))
@@ -35,7 +35,6 @@ import Dhall.Core.AST.Operations.Location (Location, Derivation)
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Types.Basics (Three(..))
 import Dhall.Core.Imports.Types as Core.Imports
-import Dhall.Map as Dhall.Map
 import Dhall.Core.Zippers (_ix)
 import Dhall.Core.Zippers.Recursive (_recurse)
 import Dhall.Interactive.Halogen.AST (SlottedHTML(..))
@@ -44,6 +43,7 @@ import Dhall.Interactive.Halogen.Icons as Icons
 import Dhall.Interactive.Halogen.Inputs (inline_feather_button_action)
 import Dhall.Lib.Timeline (Timeline)
 import Dhall.Lib.Timeline as Timeline
+import Dhall.Map as Dhall.Map
 import Dhall.Parser as Dhall.Parser
 import Dhall.TypeCheck (Errors, L, OxprE, Reference(..), TypeCheckError(..), Oxpr, oneStopShop, plain, topLoc, typecheckStep)
 import Effect.Aff (Aff)
@@ -54,6 +54,11 @@ import Halogen.HTML.Properties as HP
 import Type.Row (type (+))
 import Unsafe.Coerce (unsafeCoerce)
 import Validation.These (Erroring(..))
+import Web.Event.Event as Event
+import Web.File.File as File
+import Web.File.FileList as FileList
+import Web.File.FileReader.Aff as FileReaderAff
+import Web.HTML.HTMLInputElement as HTMLInputElement
 
 type Ixpr = AnnExpr (Maybe Core.Imports.Import)
 type EditState =
@@ -76,6 +81,7 @@ data EditQuery a
   | Output a -- output Ixpr to parent
   | Check (Ixpr -> a) -- check its current value
   | UserInput a String
+  | FileChosen a Event.Event
 
 type ERROR = Erroring (TypeCheckError (Errors + ( "Not found" :: ExprRowVFI )) (L Dhall.Map.InsOrdStrMap (Maybe Core.Imports.Import)))
 type ViewState =
@@ -129,6 +135,12 @@ editor = H.mkComponent
       Output a -> a <$ (H.gets _.value >>= extract >>> H.raise)
       Check a -> H.gets _.value <#> extract >>> a
       UserInput a userInput -> a <$ (prop (_S::S_ "userInput") .= userInput)
+      FileChosen a ev -> a <$ do
+        for_ (HTMLInputElement.fromEventTarget =<< Event.target ev) \input ->
+          H.liftEffect (HTMLInputElement.files input) >>= traverse_ \files ->
+            for_ (FileList.item 0 files) \file -> do
+              content <- H.liftAff $ FileReaderAff.readAsText (File.toBlob file)
+              eval (UserInput unit content)
       EditAction mviewId a act -> a <$ case act of
         Set value -> prop (_S::S_ "value") %= Timeline.happen value
         Undo -> prop (_S::S_ "value") %= (fromMaybe <*> Timeline.unhappen)
@@ -158,6 +170,13 @@ editor = H.mkComponent
           ]
         , HH.textarea [ HE.onValueInput (Just <<< UserInput unit), HP.value userInput ]
         , Icons.icon (if isJust parsed then "check" else "x") [ Icons.class_ "feather" ]
+        , HH.br_
+        , HH.text "Upload file (replaces text in the above textarea): "
+        , HH.input
+          [ HP.type_ HP.InputFile
+          , HP.multiple false
+          , HE.onChange (Just <<< FileChosen unit)
+          ]
         ]
 
 _ixes_Ann :: forall m s a. TraversableWithIndex String m =>
