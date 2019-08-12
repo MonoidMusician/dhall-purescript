@@ -19,6 +19,7 @@ import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Lens.Record (prop)
 import Data.List (List(..), (:))
 import Data.List as List
+import Data.Map (Map)
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Monoid (guard)
 import Data.Natural (Natural)
@@ -27,7 +28,7 @@ import Data.These (These(..))
 import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant as Variant
-import Dhall.Core (S_, _S)
+import Dhall.Core (Expr, Import, S_, _S)
 import Dhall.Core as AST
 import Dhall.Core.AST (ExprI, ExprRowVFI(..))
 import Dhall.Core.AST.Noted as Ann
@@ -43,6 +44,7 @@ import Dhall.Interactive.Halogen.Icons as Icons
 import Dhall.Interactive.Halogen.Inputs (inline_feather_button_action)
 import Dhall.Lib.Timeline (Timeline)
 import Dhall.Lib.Timeline as Timeline
+import Dhall.Map (InsOrdStrMap)
 import Dhall.Map as Dhall.Map
 import Dhall.Parser as Dhall.Parser
 import Dhall.TypeCheck (Errors, L, OxprE, Reference(..), TypeCheckError(..), Oxpr, oneStopShop, plain, topLoc, typecheckStep)
@@ -67,6 +69,10 @@ type EditState =
   , nextView :: ViewId
   , userInput :: String
   -- , highlights :: Array { variety :: HighlightVariety, pos :: Derivation }
+  , cache :: Map Import
+    { text :: Maybe String
+    , expr :: Maybe (Expr InsOrdStrMap Void)
+    }
   }
 type ViewId = Natural
 data GlobalActions = NoGlobalActions Void
@@ -76,6 +82,7 @@ data EditActions
   | Redo
   | NewView Location
   | DeleteView
+  | RequestParsed
 data EditQuery a
   = EditAction (Maybe ViewId) a EditActions
   | Output a -- output Ixpr to parent
@@ -85,8 +92,7 @@ data EditQuery a
 
 type ERROR = Erroring (TypeCheckError (Errors + ( "Not found" :: ExprRowVFI )) (L Dhall.Map.InsOrdStrMap (Maybe Core.Imports.Import)))
 type ViewState =
-  { parsed :: Maybe Ixpr
-  , value :: Ixpr
+  { value :: Ixpr
   , view :: Location
   , selection :: Maybe ExprI
   }
@@ -105,12 +111,14 @@ data ViewActions
   = Select (Maybe ExprI)
   | Un_Focus Int Location -- pop foci and move down to new location
   | SetSelection Ixpr -- set new Ixpr at selection
+  | SetSelectionParsed
   | SetView Ixpr
 data ViewQuery a
   = ViewInitialize a Location
   | ViewAction a (Array ViewActions)
   | Raise a EditActions
-  | Receive a { parsed :: Maybe Ixpr, value :: Ixpr }
+  | Receive a Ixpr
+  | ReceiveParsed a Ixpr
 
 hole :: AST.Expr Dhall.Map.InsOrdStrMap (Maybe Core.Imports.Import)
 hole = pure Nothing
@@ -123,7 +131,7 @@ unWriterT = runWriterT >>> map fst
 
 editor :: H.Component HH.HTML EditQuery Ixpr Ixpr Aff
 editor = H.mkComponent
-  { initialState: ({ userInput: "Type", nextView: one, views: [zero], value: _ } <<< pure) :: Ixpr -> EditState
+  { initialState: ({ userInput: "Type", nextView: one, views: [zero], cache: mempty, value: _ } <<< pure) :: Ixpr -> EditState
   , eval: H.mkEval $ H.defaultEval
       { handleAction = eval, handleQuery = map pure <<< eval
       , receive = Just <<< EditAction Nothing unit <<< Set
@@ -152,15 +160,20 @@ editor = H.mkComponent
           viewId <- H.gets _.nextView
           prop (_S::S_ "views") %= flip Array.snoc viewId
           void $ H.query (_S::S_ "view") viewId $ ViewInitialize unit view
+        RequestParsed -> for_ mviewId \viewId -> do
+          userInput <- H.gets _.userInput
+          let mparsed = Dhall.Parser.parse userInput <#> map Just >>> Ann.innote mempty
+          for_ mparsed \parsed ->
+            void $ H.query (_S::S_ "view") viewId $ ReceiveParsed unit parsed
     render :: EditState -> H.ComponentHTML (EditQuery Unit) ( view :: H.Slot ViewQuery EditActions Natural ) Aff
     render { views, value, userInput } =
       let
         renderedViews = views <#> \viewId ->
           HH.slot (_S::S_ "view") viewId viewer
-            { parsed, value: extract value }
+            (extract value)
             (Just <<< EditAction (Just viewId) unit)
         appendView = Just (EditAction Nothing unit (NewView empty))
-        parsed = Ann.innote mempty <<< map Just <$> Dhall.Parser.parse userInput
+        parsed = Dhall.Parser.parse userInput
       in HH.div [ HP.class_ (H.ClassName "expr-editor") ]
         [ HH.div_ renderedViews
         , HH.div_
@@ -184,10 +197,10 @@ _ixes_Ann :: forall m s a. TraversableWithIndex String m =>
 _ixes_Ann Nil = identity
 _ixes_Ann (i : is) = _recurse <<< _Newtype <<< _2 <<< _ix (extract i) <<< _ixes_Ann is
 
-viewer :: H.Component HH.HTML ViewQuery { parsed :: Maybe Ixpr, value :: Ixpr } EditActions Aff
+viewer :: H.Component HH.HTML ViewQuery Ixpr EditActions Aff
 viewer = H.mkComponent
-  { initialState: \{ parsed, value } ->
-    { parsed, value
+  { initialState: \value ->
+    { value
     , view: empty
     , selection: pure empty
     } :: ViewState
@@ -201,9 +214,10 @@ viewer = H.mkComponent
     eval = case _ of
       ViewInitialize a view -> a <$ do
         prop (_S::S_ "view") .= view
-      Receive a { parsed, value } -> a <$ do
-        prop (_S::S_ "parsed") .= parsed
+      Receive a value -> a <$ do
         prop (_S::S_ "value") .= value
+      ReceiveParsed a parsed ->
+        eval (ViewAction a [SetSelection parsed])
       Raise a edit -> a <$ H.raise edit
       ViewAction a acts -> a <$ for_ acts case _ of
         Select loc -> prop (_S::S_ "selection") .= loc
@@ -218,6 +232,8 @@ viewer = H.mkComponent
               let new = (_ixes_Ann loc .~ patch) old in
               when (new /= old) $ H.raise $ Set new
             _ -> pure unit
+        SetSelectionParsed -> do
+          H.raise RequestParsed
         SetSelection patch -> do
           { value: old, view, selection } <- H.get
           case Loc.allWithin view, selection of
@@ -292,7 +308,7 @@ viewer = H.mkComponent
       , HH.div [ HP.class_ (H.ClassName "edit-bar") ] $ guard (r.editable && isJust r.st.selection) $
         [ inline_feather_button_action (Just (ViewAction unit [SetSelection (Ann.innote mempty $ pure Nothing)])) "trash-2" "Delete this node"
         , HH.text " "
-        , inline_feather_button_action (r.st.parsed <#> ViewAction unit <<< pure <<< SetSelection) "edit-3" "Replace this node with parsed content"
+        , inline_feather_button_action (Just (ViewAction unit [SetSelectionParsed])) "edit-3" "Replace this node with parsed content"
         -- TODO: scroll to node?
         , inline_feather_button_action Nothing "at-sign" "editing at …"
         , renderLocation (Variant.inj (_S::S_ "within") <<< extract <$> fold r.st.selection) <#>
