@@ -60,6 +60,7 @@ import Dhall.Core.AST
   , MergeF(..)
   , Pair(..)
   , S_
+  , SimpleExpr
   , SimplePrism
   , SimpleThings
   , SimpleThings'
@@ -236,6 +237,7 @@ import Dhall.Core.AST
   , mkUsingHeaders
   , mkVar
   , projectW
+  , rehydrate
   , rewriteBottomUp
   , rewriteBottomUpA
   , rewriteTopDown
@@ -247,7 +249,7 @@ import Dhall.Core.AST
   , vfOrd1Case
   , vfOrdCase
   ) as Exports
-import Dhall.Core.Imports.Types
+import Dhall.Core.Imports
   ( Directory(..)
   , File(..)
   , FilePrefix(..)

@@ -2,6 +2,7 @@ module Validation.These where
 
 import Prelude
 
+import Control.Comonad (extract)
 import Control.Monad.Writer as W
 import Control.Plus (empty)
 import Data.Array.NonEmpty as NEA
@@ -61,9 +62,21 @@ instance bindErroring :: Bind (Erroring e) where
     Success a' -> Error es (Just a')
     Error es' ma' -> Error (es <> es') ma'
 
-suggest :: forall a b e. a -> Erroring e b -> Erroring e a
-suggest a (Success _) = Success a
-suggest a (Error es _) = Error es (Just a)
+confirm :: forall a b e. a -> Erroring e b -> Erroring e a
+confirm a (Success _) = Success a
+confirm a (Error es _) = Error es (Just a)
+
+confirmW :: forall w a b e. Monoid w => a -> W.WriterT w (Erroring e) b -> W.WriterT w (Erroring e) a
+confirmW a = case _ of
+  W.WriterT (Success (Tuple _ accum)) ->
+    W.WriterT (Success (Tuple a accum))
+  W.WriterT (Error es mtaccum) ->
+    W.WriterT (Error es $ pure $ Tuple a $ foldMap extract mtaccum)
+
+mconfirmW :: forall w a e. Monoid w => Maybe a -> W.WriterT w (Erroring e) a -> W.WriterT w (Erroring e) a
+mconfirmW = case _ of
+  Nothing -> identity
+  Just a -> confirmW a
 
 --------------------------------------------------------------------------------
 

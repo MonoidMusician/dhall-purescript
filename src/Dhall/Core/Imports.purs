@@ -1,4 +1,4 @@
-module Dhall.Core.Imports.Types where
+module Dhall.Core.Imports where
 
 import Prelude
 

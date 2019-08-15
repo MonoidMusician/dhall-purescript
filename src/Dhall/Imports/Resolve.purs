@@ -1,4 +1,4 @@
-module Dhall.Core.Imports.Resolve where
+module Dhall.Imports.Resolve where
 
 import Prelude
 
@@ -34,9 +34,9 @@ import Dhall.Core (Expr, Headers, Import(..), ImportMode(..), ImportType(..), Pa
 import Dhall.Core as AST
 import Dhall.Core.AST.Operations (rewriteBottomUpA')
 import Dhall.Core.CBOR (decode, encode)
-import Dhall.Core.Imports.Hash as Hash
-import Dhall.Core.Imports.Retrieve (fromLocation, toHeaders)
-import Dhall.Core.Imports.Types (addHeaders, canonicalizeImport, getHeader, isLocal)
+import Dhall.Imports.Hash as Hash
+import Dhall.Imports.Retrieve (fromLocation, toHeaders)
+import Dhall.Core.Imports (addHeaders, canonicalizeImport, getHeader, isLocal)
 import Dhall.Lib.CBOR as CBOR
 import Dhall.Map (InsOrdStrMap)
 import Dhall.Parser as Parser

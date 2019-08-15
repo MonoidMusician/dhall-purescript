@@ -989,3 +989,19 @@ derive newtype instance foldableExpr :: Foldable m => Foldable (Expr m)
 -- e.g. using an error monad to get rid of holes, or using Aff to fill in
 -- imports (especially via URL).
 derive newtype instance traversableExpr :: Traversable m => Traversable (Expr m)
+
+newtype NoStrMap a = NoStrMap (ConstF.Const Void a)
+derive instance newtypeNoStrMap :: Newtype (NoStrMap a) _
+derive newtype instance functorNoStrMap :: Functor NoStrMap
+derive newtype instance foldableNoStrMap :: Foldable NoStrMap
+derive newtype instance traversableNoStrMap :: Traversable NoStrMap
+instance functorWithIndexNoStrMap :: FunctorWithIndex i NoStrMap where
+  mapWithIndex _ (NoStrMap void) = absurd $ unwrap $ void
+instance foldableableWithIndexNoStrMap :: FoldableWithIndex i NoStrMap where
+  foldMapWithIndex _ (NoStrMap void) = absurd $ unwrap $ void
+  foldlWithIndex _ _ (NoStrMap void) = absurd $ unwrap $ void
+  foldrWithIndex _ _ (NoStrMap void) = absurd $ unwrap $ void
+instance traversableWithIndexNoStrMap :: TraversableWithIndex i NoStrMap where
+  traverseWithIndex _ (NoStrMap void) = absurd $ unwrap $ void
+
+type SimpleExpr = Expr NoStrMap Void

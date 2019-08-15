@@ -62,6 +62,7 @@ import Dhall.Core.AST.Types
   , Literals2'
   , Literals2I
   , LiteralsI
+  , SimpleExpr
   , SimpleThings
   , SimpleThings'
   , SimpleThingsI
@@ -81,7 +82,8 @@ import Dhall.Core.AST.Types
   , vfOrdCase
   ) as Exports
 import Dhall.Core.AST.Operations
-  ( rewriteBottomUp
+  ( rehydrate
+  , rewriteBottomUp
   , rewriteTopDown
   , rewriteBottomUpA
   , rewriteTopDownA

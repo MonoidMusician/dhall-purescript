@@ -1,4 +1,4 @@
-module Dhall.Core.Imports.Retrieve where
+module Dhall.Imports.Retrieve where
 
 import Prelude
 
@@ -17,7 +17,7 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Dhall.Core.AST (S_, _S)
 import Dhall.Core.AST as AST
-import Dhall.Core.Imports.Types (Directory(..), File(..), FilePrefix(..), Header, Headers, Import(..), ImportType(..), getHeaders, prettyFile, prettyFilePrefix, prettyURL)
+import Dhall.Core.Imports (Directory(..), File(..), FilePrefix(..), Header, Headers, Import(..), ImportType(..), getHeaders, prettyFile, prettyFilePrefix, prettyURL)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
 import Effect (Effect)

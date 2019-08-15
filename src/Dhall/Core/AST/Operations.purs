@@ -10,9 +10,9 @@ import Data.Functor.Product (bihoistProduct)
 import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Map (Map)
-import Data.Newtype (over)
+import Data.Newtype (over, unwrap)
 import Data.Traversable (class Traversable, sequence, traverse)
-import Dhall.Core.AST.Types (Expr(..), ExprLayerRow, embedW, projectW)
+import Dhall.Core.AST.Types (Expr(..), ExprLayerRow, SimpleExpr, embedW, projectW)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
 import Prim.Row as Row
@@ -108,3 +108,6 @@ rewriteBottomUpA' :: forall r r' m a b f. Applicative f => Traversable m =>
   Expr m a -> f (Expr m b)
 rewriteBottomUpA' rw1 = go where
   go expr = rw1 (sequence >>> map (VariantF.expand >>> embedW)) $ go <$> (projectW expr)
+
+rehydrate :: forall m a. Functor m => SimpleExpr -> Expr m a
+rehydrate = map absurd <<< hoistExpr (absurd <<< unwrap <<< unwrap)

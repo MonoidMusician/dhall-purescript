@@ -28,8 +28,8 @@ import Dhall.Core (Const(..), Expr, Import(..), ImportType(..), LetF(..), MergeF
 import Dhall.Core.AST (BindingBody(..), projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Types.Basics (pureTextLitF)
-import Dhall.Core.Imports.Retrieve (fromHeaders, headerType)
-import Dhall.Core.Imports.Types (Directory(..), File(..), FilePrefix(..), ImportMode(..), Scheme(..), URL(..), Headers)
+import Dhall.Imports.Retrieve (fromHeaders, headerType)
+import Dhall.Core.Imports (Directory(..), File(..), FilePrefix(..), ImportMode(..), Scheme(..), URL(..), Headers)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
 import Foreign.Object as Foreign.Object

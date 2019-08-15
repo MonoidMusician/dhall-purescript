@@ -35,7 +35,7 @@ import Dhall.Core.AST.Noted as Ann
 import Dhall.Core.AST.Operations.Location (Location, Derivation)
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Types.Basics (Three(..))
-import Dhall.Core.Imports.Types as Core.Imports
+import Dhall.Core.Imports as Core.Imports
 import Dhall.Core.Zippers (_ix)
 import Dhall.Core.Zippers.Recursive (_recurse)
 import Dhall.Interactive.Halogen.AST (SlottedHTML(..))
@@ -47,7 +47,9 @@ import Dhall.Lib.Timeline as Timeline
 import Dhall.Map (InsOrdStrMap)
 import Dhall.Map as Dhall.Map
 import Dhall.Parser as Dhall.Parser
-import Dhall.TypeCheck (Errors, L, OxprE, Reference(..), TypeCheckError(..), Oxpr, oneStopShop, plain, topLoc, typecheckStep)
+import Dhall.TypeCheck (Errors, L, OxprE, TypeCheckError(..), Oxpr, oneStopShop)
+import Dhall.TypeCheck.Operations (plain, topLoc, typecheckStep)
+import Dhall.TypeCheck.Errors (Reference(..))
 import Effect.Aff (Aff)
 import Halogen as H
 import Halogen.HTML as HH

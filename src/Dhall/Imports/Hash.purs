@@ -1,4 +1,4 @@
-module Dhall.Core.Imports.Hash where
+module Dhall.Imports.Hash where
 
 import Prelude
 
