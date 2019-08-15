@@ -22,8 +22,8 @@ import Data.Variant (Variant)
 import Dhall.Core (Directory(..), File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), alphaNormalize, conv, unordered)
 import Dhall.Core as AST
 import Dhall.Core.CBOR (decode)
-import Dhall.Core.Imports.Resolve as Resolve
-import Dhall.Core.Imports.Retrieve (nodeCacheIn, nodeReadBinary, nodeRetrieve, nodeRetrieveFile)
+import Dhall.Imports.Resolve as Resolve
+import Dhall.Imports.Retrieve (nodeCacheIn, nodeReadBinary, nodeRetrieve, nodeRetrieveFile)
 import Dhall.Lib.CBOR as CBOR
 import Dhall.Map (InsOrdStrMap)
 import Dhall.Test (Actions)

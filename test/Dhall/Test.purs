@@ -18,9 +18,9 @@ import Dhall.Context as Dhall.Context
 import Dhall.Core (Expr, Import, unordered)
 import Dhall.Core as Dhall.Core
 import Dhall.Core.CBOR (encode)
-import Dhall.Core.Imports.Hash as Hash
-import Dhall.Core.Imports.Resolve as Resolve
-import Dhall.Core.Imports.Retrieve as Retrieve
+import Dhall.Imports.Hash as Hash
+import Dhall.Imports.Resolve as Resolve
+import Dhall.Imports.Retrieve as Retrieve
 import Dhall.Lib.CBOR as CBOR
 import Dhall.Map (class MapLike, InsOrdMap)
 import Dhall.Map as IOSM
