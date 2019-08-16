@@ -111,6 +111,9 @@ erroringBut e a = Error (pure e) (pure a)
 liftW :: forall f a m. Functor f => Monoid m => f a -> W.WriterT m f a
 liftW m = W.WriterT (Tuple <$> m <@> mempty)
 
+unW :: forall f a m. Functor f => W.WriterT m f a -> f a
+unW (W.WriterT m) = m <#> \(Tuple a _) -> a
+
 hushW :: forall m e a. W.WriterT m (Erroring e) a -> Maybe a
 hushW (W.WriterT (Error _ ma)) = ma <#> \(Tuple a _) -> a
 hushW (W.WriterT (Success (Tuple a _))) = pure a

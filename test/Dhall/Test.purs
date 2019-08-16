@@ -14,7 +14,6 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
 import Data.Traversable (class Traversable, traverse)
 import Data.Tuple (Tuple(..), fst)
-import Dhall.Context as Dhall.Context
 import Dhall.Core (Expr, Import, unordered)
 import Dhall.Core as Dhall.Core
 import Dhall.Core.CBOR (encode)
@@ -51,9 +50,9 @@ resolve'' resolver e = Resolve.runM resolver mempty (Resolve.resolveImportsHere 
 resolve :: Expr (InsOrdMap String) Import -> Aff (Maybe (Expr (InsOrdMap String) Void))
 resolve e = resolve' e <#> \fb -> V.hushW' fb
 tc :: forall t14. MapLike String t14 => Expr t14 Void -> Maybe (Expr t14 Void)
-tc = tc' >>> V.hushW'
-tc' :: forall t14. MapLike String t14 => Expr t14 Void -> TC.FeedbackE () () t14 Void (Expr t14 Void)
-tc' = TC.typeWithA absurd Dhall.Context.empty
+tc = tc' >>> V.hush'
+tc' :: forall t14. MapLike String t14 => Expr t14 Void -> TC.ResultE () t14 Void (Expr t14 Void)
+tc' = TC.typeOf
 normalize :: forall m a. MapLike String m => Eq a => Expr m a -> Expr m a
 normalize = Dhall.Core.normalize
 
@@ -83,7 +82,7 @@ type Actions =
         , cbor :: ArrayBuffer
         }
       , unsafeNormalized :: Lazy Resolve.ResolvedExpr
-      , typechecked :: Compose Lazy (TC.FeedbackE () () IOSM.InsOrdStrMap Void)
+      , typechecked :: Compose Lazy (TC.ResultE () IOSM.InsOrdStrMap Void)
         { inferredType :: Resolve.ResolvedExpr
         , normalizedType :: Lazy Resolve.ResolvedExpr
         , safeNormalized :: Lazy Resolve.ResolvedExpr
@@ -156,7 +155,7 @@ execActions text = case extract $ unwrap $ _.parse $ mkActions text of
         feedback' r (\(TC.TypeCheckError { tag }) -> logShow tag)
           \{ resolved, typechecked } ->
             logShow resolved *>
-            feedback' (extract $ unwrap $ typechecked) (\(TC.TypeCheckError { tag }) -> logShow tag)
+            feedback (extract $ unwrap $ typechecked) (\(TC.TypeCheckError { tag }) -> logShow tag)
               \{ inferredType, safeNormalized } -> logShow
                 { norm: extract safeNormalized
                 , type: inferredType

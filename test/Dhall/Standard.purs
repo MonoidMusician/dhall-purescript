@@ -63,6 +63,17 @@ etonFb :: forall w e a b.
 etonFb _ (WriterT (V.Error es _)) = pure unit
 etonFb msg (WriterT (V.Success (Tuple a _))) = throwError (error msg)
 
+noteR :: forall e a. Show (Variant e) =>
+  String -> TC.Result e InsOrdStrMap a ~> Aff
+noteR msg (V.Error es _) =
+  throwError (error (msg <> foldMap (\(TC.TypeCheckError { tag }) -> "\n    " <> show tag) es))
+noteR _ (V.Success a) = pure a
+
+etonR :: forall e a b.
+  String -> TC.Result e InsOrdStrMap a b -> Aff Unit
+etonR _ (V.Error es _) = pure unit
+etonR msg (V.Success a) = throwError (error msg)
+
 type R =
   { filter :: String -> String -> Maybe Boolean
   , results :: Ref (Map String Int)
@@ -202,7 +213,7 @@ test = do
           noteFb "Failed to resolve A"
         when verb do log "Resolved: " *> logShow importedA.resolved
         typecheckedA <- importedA.typechecked # unwrap # extract #
-          noteFb "Failed to typecheck A"
+          noteR "Failed to typecheck A"
         when verb do log "Typechecked: " *> logShow typecheckedA.inferredType
         hashB <- (fromMaybe <*> stripSuffix (Pattern "\n")) <$> nodeRetrieveFile (success <> "B.hash")
         let hashA = "sha256:" <> (extract typecheckedA.encoded).hash
@@ -227,7 +238,7 @@ test = do
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
           note "Failed to resolve B"
         void $ Test.tc' (AST.mkAnnot importedA.resolved importedB.resolved) #
-          noteFb "Typechecking failed"
+          noteR "Typechecking failed"
     do \verb failure -> do
         text <- nodeRetrieveFile (failure <> ".dhall")
         let act = mkActions "typecheck" failure text
@@ -236,7 +247,7 @@ test = do
         imported <- parsed.imports # unwrap # extract # unwrap >>=
           noteFb "Failed to resolve"
         imported.typechecked # unwrap # extract #
-          etonFb "Was not supposed to typecheck"
+          etonR "Was not supposed to typecheck"
   testType "type-inference"
     do \verb success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
@@ -246,7 +257,7 @@ test = do
         importedA <- parsedA.imports # unwrap # extract # unwrap >>=
           noteFb "Failed to resolve A"
         typecheckedA <- importedA.typechecked # unwrap # extract #
-          noteFb "Failed to typecheck A"
+          noteR "Failed to typecheck A"
         textB <- nodeRetrieveFile (success <> "B.dhall")
         let actB = mkActions "type-inference" success textB
         parsedB <- actB.parse # unwrap # extract #

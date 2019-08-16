@@ -1,10 +1,16 @@
 {
   "name": "dhall-purescript",
+  "description": "Dhall implementation and structural editor in PureScript",
+  "authors": [
+    "Nicholas Scheel <monoidmusician@gmail.com>"
+  ],
+  "license": "BSD-2-Clause",
   "ignore": [
     "**/.*",
     "node_modules",
     "bower_components",
-    "output"
+    "output",
+    "dhall-lang"
   ],
   "dependencies": {
     "purescript-prelude": "^4.0.1",

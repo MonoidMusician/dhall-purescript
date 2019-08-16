@@ -26,16 +26,16 @@ import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.Zippers (_ix)
 import Dhall.Map (class MapLike)
 import Dhall.Normalize as Dhall.Normalize
+import Dhall.TypeCheck.Errors (Reference(..), explain)
+import Dhall.TypeCheck.Operations (alphaNormalizeStep, contextStep, normalizeStep, originateFrom, plain, reconstituteCtxM, shiftOxpr, substContextExpr0, substContextExprCtx, substContextOxprCtx, topLoc, typecheckSketch, typecheckStep, unlayerO)
+import Dhall.TypeCheck.Rules (typecheckAlgebra)
+import Dhall.TypeCheck.Types (Ann, BiContext, Errors, Feedback, FeedbackE, Inconsistency(..), L, Lxpr, LxprF, Operations, Ospr, OsprE, Oxpr, OxprE, SubstContext, TypeCheckError(..), TypeCheckErrorE, WR, WithBiCtx(..), Result, ResultE) as Exports
+import Dhall.TypeCheck.Types (BiContext, Errors, FeedbackE, L, OxprE, TypeCheckError(..), ResultE)
 import Dhall.Variables (MaybeIntro(..), trackIntro)
 import Matryoshka (project)
 import Type.Row (type (+))
+import Validation.These (unW)
 import Validation.These as V
-
-import Dhall.TypeCheck.Types (BiContext, Errors, FeedbackE, L, OxprE, TypeCheckError(..))
-import Dhall.TypeCheck.Types (Ann, BiContext, Errors, Feedback, FeedbackE, Inconsistency(..), L, Lxpr, LxprF, Operations, Ospr, OsprE, Oxpr, OxprE, SubstContext, TypeCheckError(..), TypeCheckErrorE, WR, WithBiCtx(..)) as Exports
-import Dhall.TypeCheck.Operations (alphaNormalizeStep, contextStep, normalizeStep, originateFrom, plain, reconstituteCtxM, shiftOxpr, substContextExpr0, substContextExprCtx, substContextOxprCtx, topLoc, typecheckSketch, typecheckStep, unlayerO)
-import Dhall.TypeCheck.Rules (typecheckAlgebra)
-import Dhall.TypeCheck.Errors (Reference(..), explain)
 
 -- | Function that converts the value inside an `Embed` constructor into a new
 -- | expression.
@@ -78,12 +78,13 @@ locateE' :: forall w r m a. Eq a => MapLike String m =>
 locateE' tpa = Variant.match
   let
     substCtx = extend \(Tuple ctx e) -> substContextExpr0 (theseLeft <$> ctx) e
+    tc ctx0 e0 = map plain <<< typecheckStep =<< typingWithA tpa ctx0 e0
     typecheck (Tuple ctx e) = do
       ctx' <- ctx # reconstituteCtxM \ctx' -> case _ of
-        This val -> typeWithA tpa ctx' val
+        This val -> tc ctx' val
         That ty -> pure ty
         Both _ ty -> pure ty
-      Tuple ctx <$> typeWithA tpa ctx' e
+      Tuple ctx <$> tc ctx' e
   in
   { substitute: \{} -> \(Tuple ctx e) ->
       pure (Tuple ctx (substContextExprCtx (theseLeft <$> ctx) e))
@@ -129,31 +130,31 @@ locateE tpa deriv { expr, ctx } =
 -- | returned type then you may want to `Dhall.Core.normalize` it afterwards.
 -- | The supplied `Context` records the types of the names in scope. If
 -- | these are ill-typed, the return value may be ill-typed.
-typeWith :: forall w r m.
+typeWith :: forall r m.
   MapLike String m =>
   Context (Expr m Void) ->
   Expr m Void ->
-  FeedbackE w r m Void (Expr m Void)
+  ResultE r m Void (Expr m Void)
 typeWith = typeWithA absurd
 
 -- | `typeOf` is the same as `typeWith` with an empty context, meaning that the
 -- | expression must be closed (i.e. no free variables), otherwise type-checking
 -- | will fail.
-typeOf :: forall w r m.
+typeOf :: forall r m.
   MapLike String m =>
   Expr m Void ->
-  FeedbackE w r m Void (Expr m Void)
+  ResultE r m Void (Expr m Void)
 typeOf = typeWith Dhall.Context.empty
 
 -- | Generalization of `typeWith` that allows type-checking the `Embed`
 -- |  constructor with custom logic
-typeWithA :: forall w r m a.
+typeWithA :: forall r m a.
   Eq a => MapLike String m =>
   Typer m a ->
   Context (Expr m a) ->
   Expr m a ->
-  FeedbackE w r m a (Expr m a)
-typeWithA tpa ctx0 e0 = map plain <<< typecheckStep =<< typingWithA tpa ctx0 e0
+  ResultE r m a (Expr m a)
+typeWithA tpa ctx0 e0 = unW $ map plain <<< typecheckStep =<< typingWithA tpa ctx0 e0
 
 typingWithA :: forall w r m a.
   Eq a => MapLike String m =>

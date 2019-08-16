@@ -91,6 +91,8 @@ derive newtype instance showTypeCheckError :: (Show a, Show (Variant r)) => Show
 type WR w e = WriterT (Array (Variant w)) (V.Erroring e)
 -- Writer-Error "monad" with type-checking errors specifically
 type Feedback w r m a = WR w (TypeCheckError r (L m a))
+-- Just the error "monad"
+type Result r m a = V.Erroring (TypeCheckError r (L m a))
 
 -- A record of conflict, when a list is supposed to agree but there are two
 -- or more distinct elements or groupings.
@@ -158,6 +160,7 @@ type Errors r =
   , "Unexpected type" :: Tuple Boolean SimpleExpr
   | r
   )
+type ResultE r m a = Result (Errors r) m a
 type FeedbackE w r m a = Feedback w (Errors r) m a
 type OxprE w r m a = Oxpr w (Errors r) m a
 type OsprE w r m a = Ospr w (Errors r) m a

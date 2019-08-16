@@ -29,18 +29,17 @@ import Data.Traversable (sequence, traverse, traverse_)
 import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Context as Dhall.Context
 import Dhall.Core (Expr, Headers, Import(..), ImportMode(..), ImportType(..), Pair(..), S_, URL(..), _S, normalize, rewriteTopDownA)
 import Dhall.Core as AST
 import Dhall.Core.AST.Operations (rewriteBottomUpA')
 import Dhall.Core.CBOR (decode, encode)
+import Dhall.Core.Imports (addHeaders, canonicalizeImport, getHeader, isLocal)
 import Dhall.Imports.Hash as Hash
 import Dhall.Imports.Retrieve (fromLocation, toHeaders)
-import Dhall.Core.Imports (addHeaders, canonicalizeImport, getHeader, isLocal)
 import Dhall.Lib.CBOR as CBOR
 import Dhall.Map (InsOrdStrMap)
 import Dhall.Parser as Parser
-import Dhall.TypeCheck (L, typeWithA)
+import Dhall.TypeCheck (L, typeOf)
 import Dhall.TypeCheck as TC
 import Effect.AVar (AVar)
 import Effect.Aff (Aff)
@@ -247,7 +246,6 @@ resolveImportsHere :: forall w r. ImportExpr -> M w r ResolvedExpr
 resolveImportsHere expr = traverse localize expr >>= resolveImports
 
 -- Resolve all imports in an expression
--- FIXME: ImportAlt
 resolveImports :: forall w r. LocalizedExpr -> M w r ResolvedExpr
 resolveImports = pure
   -- Caching stage 1: try to load hashed expressions from cache, and mark
@@ -368,8 +366,8 @@ parseImport = Parser.parse >>> note (Variant.inj (_S::S_ "Parse error") unit)
 -- Ensure the expr typechecks
 ensureWellTyped :: forall w r. ResolvedExpr -> M w r ResolvedExpr
 ensureWellTyped e = e <$ do
-  void $ liftFeedback $ rehydrateFeedback $
-    typeWithA absurd Dhall.Context.empty e
+  void $ liftFeedback $ rehydrateFeedback $ V.liftW $
+    typeOf e
 
 -- The main workhorse: turn a localized import into a resolved expression
 resolveImport :: forall w r. Localized -> M w r ResolvedExpr
