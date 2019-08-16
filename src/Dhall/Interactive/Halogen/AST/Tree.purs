@@ -6,6 +6,7 @@ import Control.Comonad (extract)
 import Control.Comonad.Cofree ((:<))
 import Control.Comonad.Cofree as Cofree
 import Control.Comonad.Env (EnvT(..), withEnvT)
+import Control.Plus (empty)
 import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.Const (Const)
@@ -24,23 +25,28 @@ import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Lens.Lens.Product as Product
 import Data.Lens.Record (prop)
 import Data.List (List(..))
-import Data.Maybe (Maybe(..), maybe, fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Monoid (guard)
 import Data.Monoid.Disj (Disj)
 import Data.Natural (Natural, intToNat, natToInt)
 import Data.Newtype (class Newtype, un, under, unwrap)
 import Data.Number as Number
 import Data.Ord (abs, signum)
+import Data.Profunctor (dimap)
 import Data.Profunctor.Star (Star(..))
+import Data.String as String
 import Data.Symbol (class IsSymbol, SProxy, reflectSymbol)
 import Data.These (These(..))
 import Data.Tuple (Tuple(..))
-import Dhall.Core (S_, _S)
+import Dhall.Core (Directory(..), File(..), FilePrefix(..), Headers, Import(..), ImportMode(..), ImportType(..), S_, Scheme(..), URL(..), _S, prettyFile)
+import Dhall.Core as Core
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Noted as Ann
-import Dhall.Map as Dhall.Map
+import Dhall.Core.Imports (mkDirectory)
 import Dhall.Interactive.Halogen.AST (SlottedHTML(..))
 import Dhall.Interactive.Halogen.Inputs (inline_feather_button_action)
+import Dhall.Map (mkIOSM, unIOSM)
+import Dhall.Map as Dhall.Map
 import Effect.Aff (Aff)
 import Halogen as H
 import Halogen.HTML as HH
@@ -48,6 +54,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Matryoshka (embed, project, transCata)
 import Prim.Row as Row
+import Record as Record
 import Unsafe.Coerce (unsafeCoerce)
 
 type Rendering r m a = Star (Compose (SlottedHTML r) (These m)) a a
@@ -235,6 +242,15 @@ renderNumber { editable: true } = renderingR \v -> HH.input
   ]
 renderNumber { editable: false } = rendering $ HH.text <<< show
 
+renderSelect :: forall r m a. Eq a =>
+  RenderingOptions -> (a -> String) -> Array a -> Rendering r m a
+renderSelect { editable: true } renderA vals = renderingR \v ->
+  HH.select
+    [ HE.onSelectedIndexChange (Array.(!!) vals) ] $
+      vals <#> \vi ->
+        HH.option [ HP.selected (v == vi) ] [ HH.text (renderA vi) ]
+renderSelect { editable: false } renderA _ = rendering $ HH.text <<< renderA
+
 renderBindingBody :: forall r m a.
   RenderingOptions ->
   Rendering r m a ->
@@ -263,7 +279,7 @@ renderLiterals opts = identity
   >>> renderVFLensed (_S::S_ "DoubleLit") (lensedConst "value" (renderNumber opts))
 
 renderBuiltinTypes :: forall r m a. RenderingOptions -> RenderChunk AST.BuiltinTypes r m a
-renderBuiltinTypes { editable } = identity
+renderBuiltinTypes opts = identity
   >>> renderVFLensed (_S::S_ "Bool") named
   >>> renderVFLensed (_S::S_ "Natural") named
   >>> renderVFLensed (_S::S_ "Integer") named
@@ -274,12 +290,8 @@ renderBuiltinTypes { editable } = identity
   >>> renderVFLensed (_S::S_ "Const") renderConst
   where
     named = []
-    renderConst = pure $ mkLensed "constant" _Newtype $ renderingR \v ->
-      let vals = if editable then [ AST.Type, AST.Kind, AST.Sort ] else [ v ] in
-      HH.select
-        [ HE.onSelectedIndexChange (Array.(!!) vals) ] $
-          vals <#> \vi ->
-            HH.option [ HP.selected (v == vi) ] [ HH.text (show vi) ]
+    renderConst = pure $ mkLensed "constant" _Newtype $
+      renderSelect opts show [ Core.Type, Core.Kind, Core.Sort ]
 
 renderBuiltinFuncs :: forall r m a. RenderingOptions -> RenderChunk AST.BuiltinFuncs r m a
 renderBuiltinFuncs _ = identity
@@ -510,12 +522,13 @@ unindex :: forall x. IdxAnnExpr x -> AnnExpr x
 unindex = transCata (withEnvT \(Tuple ann _) -> ann)
 
 -- TODO: add selection, add editing, add slots and zuruzuru &c.
-renderExprWith :: forall slots o a. Show a =>
+renderExprWith :: forall slots o a.
   RenderingOptions ->
+  Rendering slots o (Maybe a) ->
   Customize slots (IdxAnnExpr (Maybe a)) (These o (AnnExpr (Maybe a))) ->
   AnnExpr (Maybe a) ->
   SlottedHTML slots (These o (AnnExpr (Maybe a)))
-renderExprWith opts customize = indexFrom Nil >>> go where
+renderExprWith opts renderA customize = indexFrom Nil >>> go where
   cons ann e = embed (EnvT (Tuple ann (AST.ERVF (map unindex e))))
   go ::
     IdxAnnExpr (Maybe a) ->
@@ -532,15 +545,132 @@ renderExprWith opts customize = indexFrom Nil >>> go where
           map (cons ann) $ unwrap e # unwrap do
             renderAllTheThings opts { df, rndr: Star (map (indexFrom hereIx) {- necessary evil -} <<< Compose <<< go) } $ renderVFNone #
               renderVFLensed (_S::S_ "Embed")
-                [ mkLensed "value" _Newtype $ rendering $ HH.text <<< maybe "_" show ]
+                [ mkLensed "value" _Newtype $ renderA ]
       ]
 
-renderExprSelectable :: forall slots a. Show a =>
+renderImport :: forall slots o. RenderingOptions -> Rendering slots o (Maybe Import)
+renderImport opts = rendering
+  let
+    resetType importType = case _ of
+      name | name == renderType importType -> importType
+      "Remote" -> Just $ Remote $ URL $
+        { scheme: HTTPS
+        , authority: ""
+        , path: File { directory: Directory empty, file: "" }
+        , query: Nothing
+        , headers: Nothing
+        }
+      "Local" -> Just $ Local Here (File { directory: Directory empty, file: "" })
+      "Env" -> Just $ Env ""
+      "Missing" -> Just Missing
+      _ -> Nothing
+    renderType = case _ of
+      Just Missing -> "Missing"
+      Just (Env _) -> "Env"
+      Just (Local _ _) -> "Local"
+      Just (Remote _) -> "Remote"
+      Nothing -> "Hole"
+    renderedTypeWith f ty =
+      unrenderingWith
+        (f <<< resetType ty)
+        (renderSelect opts identity [ "Remote", "Local", "Env", "Missing", "Hole" ])
+        (renderType ty)
+  in case _ of
+  Nothing ->
+    HH.div [ HP.class_ $ H.ClassName "leaf" ] $ pure $
+      HH.div [ HP.class_ $ H.ClassName "leaf-name" ] $ pure $
+        renderedTypeWith (map $ Import <<< { importMode: Code, importType: _ })
+          Nothing
+  Just (Import { importType, importMode }) ->
+    let
+      mapMode = Just <<< Import <<< { importType, importMode: _ }
+      renderMode = case _ of
+        Code -> "Code"
+        RawText -> "Text"
+        Location -> "Location"
+      renderedMode =
+        unrenderingWith
+          mapMode
+          (renderSelect opts renderMode [ Code, RawText, Location ])
+          importMode
+      mapType = Just <<< Import <<< { importType: _, importMode }
+      renderFile = dimap (String.drop 1 <<< prettyFile) parseFile $ renderString opts
+      parseFile = String.split (String.Pattern "/") >>> Array.unsnoc >>>
+        case _ of
+          Nothing -> File { directory: Directory empty, file: "" }
+          Just { init, last } -> File { directory: mkDirectory init, file: last }
+      renderedInfo = case importType of
+        Missing -> []
+        Env name ->
+          [ Tuple "name" $ map (mapType <<< Env) $ un Star
+              (renderString opts)
+              name
+          ]
+        Local prefix file ->
+          let
+            renderPrefix = case _ of
+              Here -> "./"
+              Parent -> "../"
+              Home -> "~/"
+              Absolute -> "/"
+          in
+          [ Tuple "prefix" $ map (mapType <<< flip Local file) $ un Star
+              (renderSelect opts renderPrefix [ Here, Parent, Home, Absolute ])
+              prefix
+          , Tuple "path" $ map (mapType <<< Local prefix) $ un Star
+              renderFile
+              file
+          ]
+        Remote (URL url) ->
+          let
+            field :: forall s t r.
+              Row.Cons s t r
+                ( scheme    :: Scheme
+                , authority :: String
+                , path      :: File
+                , query     :: Maybe String
+                , headers   :: Maybe Headers
+                ) =>
+              IsSymbol s =>
+              SProxy s -> t -> Maybe Import
+            field s = mapType <<< Remote <<< URL <<< flip (Record.set s) url
+            unHeaders = maybe empty $ mkIOSM <<< map \{ header, value } -> (Tuple header value)
+            mkHeaders = unIOSM >>> nonNull >>> (map >>> map) \(Tuple header value) -> { header, value }
+            nonNull [] = Nothing
+            nonNull a = Just a
+          in
+          [ Tuple "scheme" $ map (field (_S::S_ "scheme")) $ un Star
+              (renderSelect opts show [ HTTP, HTTPS ])
+              url.scheme
+          , Tuple "authority" $ map (field (_S::S_ "authority")) $ un Star
+              (renderString opts)
+              url.authority
+          , Tuple "path" $ map (field (_S::S_ "path")) $ un Star
+              renderFile
+              url.path
+          , Tuple "query" $ map (field (_S::S_ "query")) $ un Star
+              (renderMaybe opts { df: "", rndr: renderString opts })
+              url.query
+          , Tuple "headers" $ map (field (_S::S_ "headers") <<< mkHeaders) $ un Star
+              (renderIOSM opts { df: "", rndr: renderString opts })
+              (unHeaders url.headers)
+          ]
+    in HH.div [ HP.class_ $ H.ClassName "leaf" ] $ join $
+      [ [ HH.div [ HP.class_ $ H.ClassName "leaf-name" ]
+          [ renderedTypeWith (mapType =<< _) (Just importType),  HH.text " as ", renderedMode ]
+        ]
+      , renderedInfo <#> \(Tuple childname (Compose (SlottedHTML child))) ->
+          HH.div [ HP.class_ $ H.ClassName "node-child" ]
+            [ HH.span_ [ HH.text childname, HH.text ": " ], child ]
+      ]
+
+
+renderExprSelectable :: forall slots.
   RenderingOptions ->
   Maybe AST.ExprI ->
-  AnnExpr (Maybe a) ->
-  SlottedHTML slots (These (Maybe AST.ExprI) (AnnExpr (Maybe a)))
-renderExprSelectable opts selectedIx = renderExprWith opts $
+  AnnExpr (Maybe Import) ->
+  SlottedHTML slots (These (Maybe AST.ExprI) (AnnExpr (Maybe Import)))
+renderExprSelectable opts selectedIx = (renderExprWith <*> renderImport) opts $
   selectable opts selectedIx identity <> collapsible opts
 
 _topAnn :: forall m s a. Lens' (Ann.Expr m s a) s

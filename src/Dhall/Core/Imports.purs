@@ -3,10 +3,12 @@ module Dhall.Core.Imports where
 import Prelude
 
 import Data.Array (mapMaybe)
-import Data.Foldable (foldMap, intercalate)
-import Data.List (List(..), (:), reverse)
+import Data.Foldable (class Foldable, foldMap, intercalate)
+import Data.List (List(..), (:))
+import Data.List as List
 import Data.Maybe (Maybe(..))
 import Data.String as String
+import Data.Unfoldable (class Unfoldable)
 
 -- Most of this is just copied from dhall-haskell without further thought so far
 
@@ -18,6 +20,12 @@ newtype Directory = Directory (List String)
 derive instance eqDirectory :: Eq Directory
 derive instance ordDirectory :: Ord Directory
 
+mkDirectory :: forall f. Foldable f => f String -> Directory
+mkDirectory d = Directory $ List.reverse $ List.fromFoldable d
+
+unDirectory :: forall f. Unfoldable f => Directory -> f String
+unDirectory (Directory d) = d # List.reverse # List.toUnfoldable
+
 instance semigroupDirectory :: Semigroup Directory where
   append (Directory components₀) (Directory components₁) =
     Directory (components₁ <> components₀)
@@ -25,7 +33,7 @@ instance monoidDirectory :: Monoid Directory where
   mempty = Directory mempty
 
 prettyDirectory :: Directory -> String
-prettyDirectory (Directory components) = foldMap ("/" <> _) (reverse components)
+prettyDirectory (Directory components) = foldMap ("/" <> _) (List.reverse components)
 
 canonicalizeDirectory :: Directory -> Directory
 canonicalizeDirectory (Directory l0) = Directory (rec l0) where

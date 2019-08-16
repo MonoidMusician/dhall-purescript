@@ -39,7 +39,7 @@ import Dhall.Core.Imports as Core.Imports
 import Dhall.Core.Zippers (_ix)
 import Dhall.Core.Zippers.Recursive (_recurse)
 import Dhall.Interactive.Halogen.AST (SlottedHTML(..))
-import Dhall.Interactive.Halogen.AST.Tree (AnnExpr, collapsible, mkActions, renderExprWith, selectable)
+import Dhall.Interactive.Halogen.AST.Tree (AnnExpr, collapsible, mkActions, renderExprWith, renderImport, selectable)
 import Dhall.Interactive.Halogen.Icons as Icons
 import Dhall.Interactive.Halogen.Inputs (inline_feather_button_action)
 import Dhall.Lib.Timeline (Timeline)
@@ -48,8 +48,8 @@ import Dhall.Map (InsOrdStrMap)
 import Dhall.Map as Dhall.Map
 import Dhall.Parser as Dhall.Parser
 import Dhall.TypeCheck (Errors, L, OxprE, TypeCheckError(..), Oxpr, oneStopShop)
-import Dhall.TypeCheck.Operations (plain, topLoc, typecheckStep)
 import Dhall.TypeCheck.Errors (Reference(..))
+import Dhall.TypeCheck.Operations (plain, topLoc, typecheckStep)
 import Effect.Aff (Aff)
 import Halogen as H
 import Halogen.HTML as HH
@@ -296,7 +296,7 @@ viewer = H.mkComponent
                   }
                 ]
             in
-            renderExprWith opts
+            (renderExprWith <*> renderImport) opts
             (selectable opts { interactive = true } r.st.selection Select <> selectHere <> collapsible opts { interactive = false })
             flowers <#> ViewAction unit <<< bifoldMap pure (pure <<< SetView)
           Error errors' _ | errors <- NEA.toArray errors' ->
@@ -354,13 +354,13 @@ renderErrorRef (Just oxpr) = case extract $ topLoc oxpr of
   Tuple path Nothing -> HH.div_
     [ renderLoc path
     , un SlottedHTML $
-      renderExprWith { interactive: false, editable: false } mempty (Ann.innote mempty $ plain oxpr)
+      (renderExprWith <*> renderImport) { interactive: false, editable: false } mempty (Ann.innote mempty $ plain oxpr)
       <#> ViewAction unit <<< bifoldMap pure (pure <<< SetView)
     ]
   -- the path is not helpful if the focus is made up
   Tuple _ (Just _) -> HH.div_
     [ un SlottedHTML $
-      renderExprWith { interactive: false, editable: false } mempty (Ann.innote mempty $plain oxpr)
+      (renderExprWith <*> renderImport) { interactive: false, editable: false } mempty (Ann.innote mempty $plain oxpr)
       <#> ViewAction unit <<< bifoldMap pure (pure <<< SetView)
     ]
 
