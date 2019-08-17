@@ -23,7 +23,7 @@ import Dhall.Context (Context)
 import Dhall.Context as Dhall.Context
 import Dhall.Core.AST (BindingBody(..), CONST, Expr, LetF(..), Pair(..), S_, Var(..), Variable, _S, mkVar)
 import Dhall.Core.AST as AST
-import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, GenericExprAlgebraVT, GenericExprAlgebraVTM, NodeOps, NodeOpsM, elim1, elim1M, runAlgebraExpr, runOverCases, runOverCasesM)
+import Dhall.Core.AST.Operations.Transformations (GenericExprAlgebraVT, GenericExprAlgebraVTM, NodeOps, NodeOpsM, elim1, elim1M, runAlgebraExpr, runOverCases, runOverCasesM)
 import Matryoshka (Algebra, cata)
 import Type.Row (type (+))
 import Type.RowList as RL
@@ -318,9 +318,9 @@ doRenameAlgG v0 v1 node = identity
 -- still references the same unbound variable when it is all said and done;
 -- additionally, if the unbound variable name is also `_`, then the length of
 -- the context (i.e., the number of variables about to be named `_`) is added.
-type AlphaNormalizeAlg node v = ShiftSubstAlg node + ( "alphaNormalize" :: { ctx :: Context Unit } | v )
-alphaNormalizeAlgG :: forall m. GenericExprAlgebraVT ConsNodeOps (VariablePlus m) AlphaNormalizeAlg
-alphaNormalizeAlgG rest = rest # shiftSubstAlgG <<< elim1 (_S::S_ "alphaNormalize") \{ ctx } node ->
+type AlphaNormalizeAlg node v = ( "alphaNormalize" :: { ctx :: Context Unit } | v )
+alphaNormalizeAlgG :: forall m. GenericExprAlgebraVT NodeOps (VariablePlus m) AlphaNormalizeAlg
+alphaNormalizeAlgG rest = rest # elim1 (_S::S_ "alphaNormalize") \{ ctx } node ->
   let
     norm = node.recurse <<< Variant.inj (_S::S_ "alphaNormalize")
     renam Nothing = norm { ctx }

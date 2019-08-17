@@ -87,18 +87,19 @@ recursor2DSharingCtx ::
     Functor m =>
   -- e.g. (ctx -> f (ctx -> TwoD m f) -> m (HalfTwoD m f)) ->
   --      HalfTwoD m f -> ctx -> TwoD m f
-  (ctx -> f (ctx -> r) -> m t) -> t -> ctx -> r
-recursor2DSharingCtx f = go where
+  (ctx -> f (ctx -> r) -> f r) ->
+  (ctx -> f r -> m t) -> t -> ctx -> r
+recursor2DSharingCtx contextualize f = go where
   go :: t -> ctx -> r
   go t ctx = case unwrap (project t) of
     Left r -> r -- already a TwoD node
     Right ft -> embed (Compose (goCf ft ctx))
   goCf :: f t -> ctx -> Cofree m (f r)
   goCf ft ctx = deferCofree \_ ->
-    let fr = go <$> ft in
+    let fr = contextualize ctx (go <$> ft) :: f r in
     -- The head receives the current context, the tail can choose what context
     -- it propagates, based on the current one.
-    Tuple (fr <@> ctx) $ (f ctx fr :: m t) <#> \t ->
+    Tuple fr $ (f ctx fr :: m t) <#> \t ->
       case unwrap (project t) of
         -- Assume that the passed through node already has its proper context
         -- (after all, there is nothing we can do anymore)

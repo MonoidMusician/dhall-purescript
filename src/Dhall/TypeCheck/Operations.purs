@@ -16,7 +16,6 @@ import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Lazy (defer)
-import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
 import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (over, un, unwrap, wrap)
@@ -35,12 +34,11 @@ import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Operations.Transformations (OverCases, OverCasesM(..))
 import Dhall.Map (class MapLike)
 import Dhall.Normalize as Dhall.Normalize
+import Dhall.TypeCheck.Tree (bitransProduct, deshare, embedShared, env, head2D, mapEnv, recursor2DSharingCtx, shared, step2D, unEnvT, unshared, wasShared)
+import Dhall.TypeCheck.Types (Ann, BiContext, Feedback, L, Lxpr, LxprF, Operations, Ospr, Oxpr, SubstContext, WithBiCtx(..), overBiCtx)
 import Dhall.Variables (MaybeIntro(..), alphaNormalizeAlgG, freeInAlg, shiftAlgG, trackIntro)
 import Matryoshka (class Recursive, cata, embed, mapR, project, transCata, traverseR)
 import Unsafe.Reference (unsafeRefEq)
-
-import Dhall.TypeCheck.Tree (bitransProduct, deshare, embedShared, env, head2D, mapEnv, recursor2DSharingCtx, shared, step2D, unEnvT, unshared, wasShared)
-import Dhall.TypeCheck.Types (Ann, BiContext, Feedback, L, Lxpr, LxprF, Operations, Ospr, Oxpr, SubstContext, WithBiCtx(..), overBiCtx)
 
 areEq :: forall w r m a. Eq a => MapLike String m => Oxpr w r m a -> Oxpr w r m a -> Boolean
 areEq ty0 ty1 | unsafeRefEq ty0 ty1 = true -- perhaps there is enough sharing
@@ -59,27 +57,30 @@ typecheckSketch :: forall w r m a. Eq a => MapLike String m =>
   (WithBiCtx (LxprF m a) (Oxpr w r m a) -> Feedback w r m a (Ospr w r m a)) ->
   Lxpr m a -> BiContext (Oxpr w r m a) -> Oxpr w r m a
 typecheckSketch alg = unshared >>> recursor2DSharingCtx
-  \ctx layer@(EnvT (Tuple loc e)) -> Product $ Tuple
+  (\ctx -> mapEnvT $ over ERVF $ bicontextualizeWithin1 shiftInOxpr0 (#) ctx)
+  \ctx (EnvT (Tuple loc layer)) ->
+    -- contextualize each child of `layer` in the proper context,
+    -- adapted for its place in the AST
+    -- (in particular, if `layer` is `Let`/`Pi`/`Lam`)
+    let
+      layerShared = defer \_ ->
+        embedShared $ EnvT $ Tuple loc $ shared <$> layer
+    in Product $ Tuple
       do Product $ Tuple
           do
             defer \_ ->
-              unshared $
-              alphaNormalizeLxpr $
-              embed $ EnvT $ Tuple loc $ head2D <$> (e <@> ctx)
+              alphaNormalizeOspr $
+              extract layerShared
           do WithBiCtx (ctx <#> join bimap shared) $
               Compose $ defer \_ ->
                 -- Look ma! We get sharing for free!!
                 let ctx' = ctx <#> theseLeft >>> map shared in
                 normalizeOsprW $
                 substContextOspr0 ctx' $
-                embedShared $ EnvT $ Tuple loc $ shared <$> (e <@> ctx)
+                extract layerShared
       do Compose $ defer \_ ->
           map (alsoOriginateFromS (Loc.stepF (_S::S_ "typecheck") <$> loc)) $
-          alg $ WithBiCtx ctx $ (((layer))) #
-            -- contextualize each child of `layer` in the proper context,
-            -- adapted for its place in the AST
-            -- (in particular, if `layer` is `Let`/`Pi`/`Lam`)
-            do mapEnvT $ _Newtype $ bicontextualizeWithin1 shiftInOxpr0 (#) ctx
+          alg $ WithBiCtx ctx $ EnvT (Tuple loc layer)
 
 -- Run the alpha-normalization operation.
 alphaNormalizeOp :: forall w r m a b. Operations w r m a b -> b
@@ -130,7 +131,7 @@ unlayerO :: forall w r m a.
   Oxpr w r m a -> AST.ExprLayerF m a (Oxpr w r m a)
 unlayerO = project >>> un Compose >>> extract >>> unEnvT >>> unwrap
 
--- Modify the Expr layer at the top of an Oxpr.
+-- Modify the Expr layer at the top of an Oxpr, and for all operations.
 overlayerO :: forall w r m a.
   (AST.ExprLayerF m a (Oxpr w r m a) -> AST.ExprLayerF m a (Oxpr w r m a)) ->
   Oxpr w r m a -> Oxpr w r m a
@@ -609,6 +610,23 @@ shiftInOspr0 v = shiftInOspr (AST.V v 0)
 
 shiftOutOspr :: forall w r m a. FunctorWithIndex String m => Var -> Ospr w r m a -> Ospr w r m a
 shiftOutOspr = shiftOspr (-1)
+
+alphaNormalizeOspr :: forall w r m a. MapLike String m => Eq a => Ospr w r m a -> Ospr w r m a
+alphaNormalizeOspr e = alsoOriginateFromS (Loc.stepF (_S::S_ "alphaNormalize") <$> topLocS e) $
+  let
+    ops =
+      { unlayer: unlayerOS
+      , overlayer: OverCasesM overlayerOSM
+      , recurse: \i -> go i
+      }
+    alg = Variant.case_ # alphaNormalizeAlgG
+    go = Variant.match
+      { alphaNormalize: \{ ctx } e' ->
+          case un Compose (project e') of
+            Left r | Dhall.Context.isEmpty ctx -> Identity (shared (alphaNormalizeStep r))
+            _ -> alg (Variant.inj (_S::S_ "alphaNormalize") { ctx }) ops e'
+      }
+  in un Identity $ go (Variant.inj (_S::S_ "alphaNormalize") { ctx: Dhall.Context.empty }) e
 
 normalizeOspr :: forall w r m a. MapLike String m => Eq a => Ospr w r m a -> Ospr w r m a
 normalizeOspr = extract <<< normalizeOsprW

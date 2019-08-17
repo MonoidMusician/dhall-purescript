@@ -55,6 +55,11 @@ instance traversableWithIndexContext :: TraversableWithIndex Var Context where
 empty :: forall a. Context a
 empty = Context Nil
 
+-- | Test if a context is empty
+isEmpty :: forall a. Context a -> Boolean
+isEmpty (Context Nil) = true
+isEmpty _ = false
+
 -- | Add a key-value pair to the `Context`
 insert :: forall a. String -> a -> Context a -> Context a
 insert k v (Context kvs) = Context (Tuple k v : kvs)
