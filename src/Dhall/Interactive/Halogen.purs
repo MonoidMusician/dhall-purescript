@@ -6,7 +6,7 @@ import Data.Const (Const(..))
 import Data.Functor.Mu (Mu(..))
 import Data.Functor.Variant (FProxy, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
-import Data.Newtype (un, unwrap, wrap)
+import Data.Newtype (un, unwrap)
 import Data.Newtype as N
 import Data.Profunctor (dimap)
 import Data.Profunctor.Star (Star(..))
@@ -14,12 +14,9 @@ import Data.Profunctor.Strong (first, second)
 import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..))
 import Dhall.Core.AST (_S, S_, BuiltinBinOps, Literals, Pair(..))
-import Dhall.Interactive.Halogen.Types (RenderValue, RenderVariantF', RenderVariantF, boolH, doubleH, intH, naturalH, simpleC)
-import Effect (Effect)
+import Dhall.Interactive.Halogen.Types (RenderValue, RenderVariantF, RenderVariantF', boolH, doubleH, intH, naturalH)
 import Halogen as H
-import Halogen.Aff as HA
 import Halogen.HTML as HH
-import Halogen.VDom.Driver (runUI)
 import Prim.Row as Row
 import Type.Row (type (+))
 import Data.Coyoneda (unCoyoneda)
@@ -93,13 +90,3 @@ builtinBinOps rest param = Star
   # renderCase (_S::S_ "CombineTypes") (renderBinOp "⩓")
   # renderCase (_S::S_ "Prefer") (renderBinOp "⫽")
   # renderCase (_S::S_ "Equivalent") (renderBinOp "≡")
-
-main :: Effect Unit
-main = HA.runHalogenAff do
-  body <- HA.awaitBody
-  let
-    expr = In $ VariantF.inj (_S::S_ "CombineTypes") $ Pair
-      (In $ VariantF.inj (_S::S_ "IntegerLit") $ wrap 0)
-      (In $ VariantF.inj (_S::S_ "BoolLit") $ wrap true)
-  driver <- runUI (simpleC (rec both)) expr body
-  pure unit
