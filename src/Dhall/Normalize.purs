@@ -274,14 +274,13 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
   rules :: (node -> W node) -> node -> W node
   rules = identity
     >>> expose (_S::S_ "Annot")
-      (\(AST.Pair e _) -> simpler e)
+    do \(AST.Pair e _) -> simpler e
     >>> expose (_S::S_ "Let")
-      (\(AST.LetF var _ value body) ->
+    do \(AST.LetF var _ value body) ->
         instead \_ -> extractW $ go $
           shiftSubstShift0 var (extractW value) (extractW body)
-      )
     >>> expose (_S::S_ "BoolAnd")
-      (binOpWith (previewLit (_S::S_ "BoolLit")) \l r -> case _, _ of
+    do binOpWith (previewLit (_S::S_ "BoolLit")) \l r -> case _, _ of
         Just true, _ -> simpler r -- (l = True) && r -> r
         Just false, _ -> simpler l -- (l = False) && r -> (l = False)
         _, Just false -> simpler r -- l && (r = False) -> (r = False)
@@ -290,9 +289,8 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           if judgEq l r
           then simpler l
           else reconstruct (_S::S_ "BoolAnd") (AST.Pair l r)
-      )
     >>> expose (_S::S_ "BoolOr")
-      (binOpWith (previewLit (_S::S_ "BoolLit")) \l r -> case _, _ of
+    do binOpWith (previewLit (_S::S_ "BoolLit")) \l r -> case _, _ of
         Just true, _ -> simpler l -- (l = True) || r -> (l = True)
         Just false, _ -> simpler r -- (l = False) || r -> r
         _, Just false -> simpler l -- l || (r = False) -> l
@@ -301,9 +299,8 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           if judgEq l r
           then simpler l
           else reconstruct (_S::S_ "BoolOr") (AST.Pair l r)
-      )
     >>> expose (_S::S_ "BoolEQ")
-      (binOpWith (previewLit (_S::S_ "BoolLit")) \l r -> case _, _ of
+    do binOpWith (previewLit (_S::S_ "BoolLit")) \l r -> case _, _ of
         Just a, Just b -> insteadExpr \_ -> AST.mkBoolLit (a == b)
         Just true, _ -> simpler r
         _, Just true -> simpler l
@@ -311,9 +308,8 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           if judgEq l r
           then insteadExpr \_ -> AST.mkBoolLit true
           else reconstruct (_S::S_ "BoolEQ") (AST.Pair l r)
-      )
     >>> expose (_S::S_ "BoolNE")
-      (binOpWith (previewLit (_S::S_ "BoolLit")) \l r -> case _, _ of
+    do binOpWith (previewLit (_S::S_ "BoolLit")) \l r -> case _, _ of
         Just a, Just b -> insteadExpr \_ -> AST.mkBoolLit (a /= b)
         Just false, _ -> simpler r
         _, Just false -> simpler l
@@ -321,9 +317,8 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           if judgEq l r
           then insteadExpr \_ -> AST.mkBoolLit false
           else reconstruct (_S::S_ "BoolNE") (AST.Pair l r)
-      )
     >>> expose (_S::S_ "BoolIf")
-      (\(AST.Triplet b t f) ->
+    do \(AST.Triplet b t f) ->
         case previewLit (_S::S_ "BoolLit") (extractW b) of
           Just true -> simpler t
           Just false -> simpler f
@@ -334,56 +329,50 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                 if judgEq t f
                   then simpler t
                   else reconstruct (_S::S_ "BoolIf") (AST.Triplet b t f)
-      )
     >>> expose (_S::S_ "NaturalPlus")
-      (binOpWith (previewLit (_S::S_ "NaturalLit")) \l r -> case _, _ of
+    do binOpWith (previewLit (_S::S_ "NaturalLit")) \l r -> case _, _ of
         Just a, Just b -> insteadExpr \_ -> AST.mkNaturalLit (a + b)
         Just a, _ | a == zero -> simpler r
         _, Just b | b == zero -> simpler l
         _, _ -> reconstruct (_S::S_ "NaturalPlus") (AST.Pair l r)
-      )
     >>> expose (_S::S_ "NaturalTimes")
-      (binOpWith (previewLit (_S::S_ "NaturalLit")) \l r -> case _, _ of
+    do binOpWith (previewLit (_S::S_ "NaturalLit")) \l r -> case _, _ of
         Just a, Just b -> insteadExpr \_ -> AST.mkNaturalLit (a * b)
         Just a, _ | a == zero -> simpler l
         _, Just b | b == zero -> simpler r
         Just a, _ | a == one -> simpler r
         _, Just b | b == one -> simpler l
         _, _ -> reconstruct (_S::S_ "NaturalTimes") (AST.Pair l r)
-      )
     >>> expose (_S::S_ "TextLit")
-      (
-        let
-          trav :: AST.TextLitF (W node) -> W (AST.TextLitF (W node))
-          trav (AST.TextLit s) = pure (AST.TextLit s)
-          trav (AST.TextInterp s v tl) =
-            (v # exposeW (_S::S_ "TextLit")
-              do \tl2 -> instead \_ -> (AST.TextLit s <> tl2) <> (extractW (trav tl))
-              do \_ -> lift2 (AST.TextInterp s) (v <$ v) (trav tl)
-            )
-          finalize tl =
-            let tl' = trav tl in
-            case extractW tl' of
-              AST.TextInterp "" v' (AST.TextLit "") -> simpler v'
-              _ -> reconstruct (_S::S_ "TextLit") =<< tl'
-        in finalize
-      )
+    do
+      let
+        trav :: AST.TextLitF (W node) -> W (AST.TextLitF (W node))
+        trav (AST.TextLit s) = pure (AST.TextLit s)
+        trav (AST.TextInterp s v tl) =
+          (v # exposeW (_S::S_ "TextLit")
+            do \tl2 -> instead \_ -> (AST.TextLit s <> tl2) <> (extractW (trav tl))
+            do \_ -> lift2 (AST.TextInterp s) (v <$ v) (trav tl)
+          )
+        finalize tl =
+          let tl' = trav tl in
+          case extractW tl' of
+            AST.TextInterp "" v' (AST.TextLit "") -> simpler v'
+            _ -> reconstruct (_S::S_ "TextLit") =<< tl'
+      finalize
     >>> expose (_S::S_ "TextAppend")
-      (binOpWith (previewF (_S::S_ "TextLit")) \l r -> case _, _ of
+    do binOpWith (previewF (_S::S_ "TextLit")) \l r -> case _, _ of
         Just a, Just b -> anew (_S::S_ "TextLit") (a <> b)
         Just (AST.TextLit ""), _ -> simpler r
         _, Just (AST.TextLit "") -> simpler l
         _, _ -> anewAnd (_S::S_ "TextLit") (TextInterp "" l (TextInterp "" r (TextLit "")))
-      )
     >>> expose (_S::S_ "ListLit")
-      (\(Product (Tuple mty vs)) ->
+    do \(Product (Tuple mty vs)) ->
         -- Remove annotation on non-empty lists
         if not Array.null vs && isJust mty
           then anew (_S::S_ "ListLit") (Product (Tuple Nothing vs))
           else reconstruct (_S::S_ "ListLit") (Product (Tuple mty vs))
-      )
     >>> expose (_S::S_ "ListAppend")
-      (binOpWith (previewF (_S::S_ "ListLit")) \l r -> case _, _ of
+    do binOpWith (previewF (_S::S_ "ListLit")) \l r -> case _, _ of
         Just (Product (Tuple mty as)), Just (Product (Tuple _ bs)) ->
           let rs = as <> bs
               mty' = if Array.null rs then mty else Nothing
@@ -392,9 +381,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
         Just (Product (Tuple _ [])), _ -> simpler r
         _, Just (Product (Tuple _ [])) -> simpler l
         _, _ -> reconstruct (_S::S_ "ListAppend") (AST.Pair l r)
-      )
     >>> expose (_S::S_ "Combine")
-      (let
+    do
+      let
         decideThese = case _ of
           This a -> a
           That b -> b
@@ -406,9 +395,10 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           _, Just b | Dhall.Map.isEmpty b -> simpler l
           _, _ | judgEq l r -> simpler r
           _, _ -> reconstruct (_S::S_ "Combine") (AST.Pair l r)
-      in decide)
+      decide
     >>> expose (_S::S_ "CombineTypes")
-      (let
+    do
+      let
         decideThese = case _ of
           This a -> a
           That b -> b
@@ -420,9 +410,10 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           _, Just b | Dhall.Map.isEmpty b -> simpler l
           _, _ | judgEq l r -> simpler r
           _, _ -> reconstruct (_S::S_ "CombineTypes") (AST.Pair l r)
-      in decide)
+      decide
     >>> expose (_S::S_ "Prefer")
-      (let
+    do
+      let
         preference = case _ of
           This a -> a
           That b -> b
@@ -434,9 +425,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
           _, Just b | Dhall.Map.isEmpty b -> simpler l
           _, _ | judgEq l r -> simpler r
           _, _ -> reconstruct (_S::S_ "Prefer") (AST.Pair l r)
-      in decide)
+      decide
     >>> expose (_S::S_ "Merge")
-      (\(AST.MergeF x y mty) ->
+    do \(AST.MergeF x y mty) ->
           let
             default _ = reconstruct (_S::S_ "Merge") (AST.MergeF x y mty)
           in x # exposeW (_S::S_ "RecordLit")
@@ -458,9 +449,8 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                               _ -> default unit
                         do \_ -> default unit
             do \_ -> default unit
-      )
     >>> expose (_S::S_ "ToMap")
-      (\(Product (Tuple (Identity x) mty)) ->
+    do \(Product (Tuple (Identity x) mty)) ->
           let
             default _ = reconstruct (_S::S_ "ToMap") (Product (Tuple (Identity x) mty))
           in x # exposeW (_S::S_ "RecordLit")
@@ -473,9 +463,8 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                         , Tuple "mapValue" v
                         ]
             do \_ -> default unit
-      )
     >>> expose (_S::S_ "Field")
-      (\(Tuple k r) ->
+    do \(Tuple k r) ->
         let
           default _ = reconstruct (_S::S_ "Field") (Tuple k r)
         in r # exposeW (_S::S_ "RecordLit")
@@ -540,9 +529,8 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                                         anewAnd (_S::S_ "Field") $ Tuple k r1
                                 do \_ -> default unit
                       do \_ -> default unit
-      )
     >>> expose (_S::S_ "Project")
-      (\(Product (Tuple (Identity r) proj)) ->
+    do \(Product (Tuple (Identity r) proj)) ->
         let
           default _ = reconstruct (_S::S_ "Project") (Product (Tuple (Identity r) proj))
           mks = case proj of
@@ -567,10 +555,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                       Left _ -> default unit
                       Right _ -> anew (_S::S_ "Project")
                         (Product (Tuple (Identity r) (Left (AppF.App ks))))
-      )
     -- NOTE: eta-normalization, added
     >>> expose (_S::S_ "Lam")
-      (\(AST.BindingBody var ty body) ->
+    do \(AST.BindingBody var ty body) ->
         body #
         let
           default :: Unit -> W node
@@ -585,21 +572,20 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                   node.recurse (Variant.inj (_S::S_ "shift") { variable: var0, delta: (-1) }) $
                     extractW fn
               else default unit
-      )
     -- composing with <<< gives this case priority
     >>> identity <<< expose (_S::S_ "App") \(AST.Pair fn arg) ->
       fn # exposeW (_S::S_ "Lam")
-        (\(AST.BindingBody var _ body) -> instead \_ -> extractW $ go $
-          shiftSubstShift0 var (extractW arg) (extractW body)
-        ) \_ ->
-        let
-          -- TODO: add builtins
-          again = go >>> extractW
-          appNormed = unwrap (builtinsG again <> normApp) (lowerOps node) $ on (~)
-            (extractW >>> Lens.view (appsG node)) fn arg
-        in case appNormed of
-          Just ret -> instead ret
-          _ -> reconstruct (_S::S_ "App") (AST.Pair fn arg)
+        do \(AST.BindingBody var _ body) -> instead \_ -> extractW $ go $
+            shiftSubstShift0 var (extractW arg) (extractW body)
+        do \_ ->
+            let
+              -- TODO: add builtins
+              again = go >>> extractW
+              appNormed = unwrap (builtinsG again <> normApp) (lowerOps node) $ on (~)
+                (extractW >>> Lens.view (appsG node)) fn arg
+            in case appNormed of
+              Just ret -> instead ret
+              _ -> reconstruct (_S::S_ "App") (AST.Pair fn arg)
 
 normalizeWithW :: forall m a. MapLike String m => Eq a =>
   Normalizer m a -> Expr m a ->
