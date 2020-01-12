@@ -1,0 +1,5 @@
+[{
+  "srcDir": "dhall",
+  "files": "**/*.dhall",
+  "command": "dhall format --inplace ${srcFile}"
+}]
