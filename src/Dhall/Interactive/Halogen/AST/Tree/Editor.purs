@@ -2,6 +2,7 @@ module Dhall.Interactive.Halogen.AST.Tree.Editor where
 
 import Prelude
 
+import CSS as CSS
 import Control.Comonad (extract)
 import Control.Monad.Writer (WriterT, runWriterT)
 import Control.Plus (empty, (<|>))
@@ -9,10 +10,12 @@ import Data.Array (any, fold, intercalate)
 import Data.Array as Array
 import Data.Array.NonEmpty as NEA
 import Data.Bifoldable (bifoldMap)
+import Data.Const (Const)
 import Data.Either (Either(..), either)
 import Data.Foldable (for_, traverse_)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.HeytingAlgebra (tt)
+import Data.Int as Int
 import Data.Lens (Traversal', _2, (%=), (.=), (.~))
 import Data.Lens as L
 import Data.Lens.Iso.Newtype (_Newtype)
@@ -20,10 +23,11 @@ import Data.Lens.Record (prop)
 import Data.List (List(..), (:))
 import Data.List as List
 import Data.Map (Map)
-import Data.Maybe (Maybe(..), fromMaybe, isJust)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Monoid (guard)
+import Data.Monoid.Additive (Additive(..))
 import Data.Natural (Natural)
-import Data.Newtype (un, unwrap)
+import Data.Newtype (un, unwrap, wrap)
 import Data.These (These(..))
 import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..), fst)
@@ -47,12 +51,14 @@ import Dhall.Lib.Timeline as Timeline
 import Dhall.Map (InsOrdStrMap)
 import Dhall.Map as Dhall.Map
 import Dhall.Parser as Dhall.Parser
+import Dhall.Printer (printAST)
 import Dhall.TypeCheck (Errors, L, OxprE, TypeCheckError(..), Oxpr, oneStopShop)
 import Dhall.TypeCheck.Errors (Reference(..))
 import Dhall.TypeCheck.Operations (plain, topLoc, typecheckStep)
 import Effect.Aff (Aff)
 import Halogen as H
 import Halogen.HTML as HH
+import Halogen.HTML.CSS as HCSS
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Type.Row (type (+))
@@ -167,7 +173,7 @@ editor = H.mkComponent
           let mparsed = Dhall.Parser.parse userInput <#> map Just >>> Ann.innote mempty
           for_ mparsed \parsed ->
             void $ H.query (_S::S_ "view") viewId $ ReceiveParsed unit parsed
-    render :: EditState -> H.ComponentHTML (EditQuery Unit) ( view :: H.Slot ViewQuery EditActions Natural ) Aff
+    render :: EditState -> H.ComponentHTML (EditQuery Unit) ( view :: H.Slot ViewQuery EditActions Natural, format :: H.Slot _ _ _ ) Aff
     render { views, value, userInput } =
       let
         renderedViews = views <#> \viewId ->
@@ -192,7 +198,99 @@ editor = H.mkComponent
           , HP.multiple false
           , HE.onChange (Just <<< FileChosen unit)
           ]
+        , HH.br_
+        , HH.br_
+        , HH.text "Formatted code: "
+        , HH.slot (_S::S_ "format") unit formatter (extract value) (const Nothing)
         ]
+
+data FormatAction
+  = FormatExpr Ixpr
+  | FormatLine Number
+  | FormatWidth Number
+  | FormatSoft Boolean
+  | FormatAlign Boolean
+  | FormatAscii Boolean
+formatter :: H.Component HH.HTML (Const Void) Ixpr String Aff
+formatter = H.mkComponent
+  { initialState:
+    { expr: _
+    , opts:
+      { ascii: false
+      , line: Just (Additive 40)
+      , printImport: maybe "_" show
+      , tabs:
+        { width: Additive 2
+        , soft: true
+        , align: true
+    } } }
+  , eval: H.mkEval $ H.defaultEval
+      { handleAction = eval
+      , receive = Just <<< FormatExpr
+      }
+  , render
+  } where
+    eval :: FormatAction -> _
+    eval = case _ of
+      FormatExpr expr -> do
+        expr_ <- H.gets _.expr
+        when (expr_ /= expr) do
+          prop (_S::S_ "expr") .= expr
+      FormatLine v -> prop (_S::S_ "opts") <<< prop (_S::S_ "line") .=
+        case Int.round v of
+          i | i > 120 -> Nothing
+          i -> Just (wrap i)
+      FormatAscii v -> prop (_S::S_ "opts") <<< prop (_S::S_ "ascii") .= v
+      FormatWidth v -> prop (_S::S_ "opts") <<< prop (_S::S_ "tabs") <<< prop (_S::S_ "width") .= wrap (Int.round v)
+      FormatSoft v -> prop (_S::S_ "opts") <<< prop (_S::S_ "tabs") <<< prop (_S::S_ "soft") .= v
+      FormatAlign v -> prop (_S::S_ "opts") <<< prop (_S::S_ "tabs") <<< prop (_S::S_ "align") .= v
+    render { expr, opts } = HH.div_
+      [ HH.text "Width: "
+      , HH.input
+        [ HP.type_ HP.InputRange
+        , HP.min 1.0, HP.max 121.0, HP.step (HP.Step 1.0)
+        , HP.value $ maybe "121" (show <<< unwrap) opts.line
+        , HE.onValueInput (Just <<< FormatLine <<< unsafeCoerce)
+        ]
+      , HH.text $ " (" <> maybe "∞" (show <<< unwrap) opts.line <> ")"
+      , HH.br_
+      , HH.text "Tab width: "
+      , HH.input
+        [ HP.type_ HP.InputRange
+        , HP.min 1.0, HP.max 8.0, HP.step (HP.Step 1.0)
+        , HP.value $ (show <<< unwrap) opts.tabs.width
+        , HE.onValueInput (Just <<< FormatWidth <<< unsafeCoerce)
+        ]
+      , HH.text $ " (" <> (show <<< unwrap) opts.tabs.width <> ")"
+      , HH.br_
+      , HH.text "Soft tabs: "
+      , HH.input
+        [ HP.type_ HP.InputCheckbox
+        , HP.checked opts.tabs.soft
+        , HE.onChecked (Just <<< FormatSoft)
+        ]
+      , HH.text " Align idents to tab stops: "
+      , HH.input
+        [ HP.type_ HP.InputCheckbox
+        , HP.checked opts.tabs.align
+        , HE.onChecked (Just <<< FormatAlign)
+        ]
+      , HH.text " ASCII: "
+      , HH.input
+        [ HP.type_ HP.InputCheckbox
+        , HP.checked opts.ascii
+        , HE.onChecked (Just <<< FormatAscii)
+        ]
+      , HH.br_
+      , HH.pre
+        [ HP.class_ (H.ClassName "code-preview")
+        , HCSS.style do
+            for_ opts.line \w ->
+              let ch i = CSS.Size (CSS.value i <> CSS.fromString "ch") in
+              CSS.minWidth (unwrap w # Int.toNumber # ch)
+        ]
+        [ HH.text $ printAST opts (Ann.denote expr) ]
+      ]
 
 _ixes_Ann :: forall m s a. TraversableWithIndex String m =>
   ExprI -> Traversal' (Ann.Expr m s a) (Ann.Expr m s a)
