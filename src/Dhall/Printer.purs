@@ -62,6 +62,25 @@ printAST { ascii, line, tabs, printImport } = identity
   >>> map _.value
   >>> printLines
 
+layoutAST :: forall i.
+  { ascii :: Boolean
+  , line :: Maybe (Additive Int)
+  , printImport :: i -> String
+  , tabs ::
+    { width :: Additive Int
+    , soft :: Boolean
+    , align :: Boolean
+  } } ->
+  Expr InsOrdStrMap i ->
+  MLines
+layoutAST { ascii, line, tabs, printImport } = identity
+  >>> cata (unwrap >>> fromAST printImport)
+  >>> cata precede
+  >>> cata structure
+  >>> strMap (tokDisp { ascii })
+  >>> (const <*> (spy <<< strMap' _.value <<< debugWith printLine))
+  >>> layout { line, tabs }
+
 -- Formatting should start by capturing the general syntactic structure
 -- in semantic chunks, so related things are in one node.
 -- Decisions should be deferred to as late as possible, so they can apply
@@ -788,8 +807,7 @@ tokDisp { ascii } = Variant.match
   , "Annot": simple space TTSeparator ":"
   , "App": mkSpace Yes No TTOperator "" ""
   , "Field": simple nospace TTOperator "."
-  -- Note: the hash value includes the identifying "sha256:" prefix
-  , "Hashed": simple space TTImport ""
+  , "Hashed": join (mkSpace Yes No TTImport) "sha256:"
   , "UsingHeaders": simple space TTImport "using"
   , "Keyword": valued space TTKeyword
   , "Builtin": datum (TTName true)
@@ -809,7 +827,7 @@ tokDisp { ascii } = Variant.match
   , "Comma": simple spaceAfter TTSeparator ","
   , "Alt": simple space TTSeparator "|"
   , "Equal": simple space TTSeparator "="
-  , "Arrow": space TTOperator "\x2192" "->"
+  , "Arrow": space TTSeparator "\x2192" "->"
   , "Space": simple raw TTSeparator " "
   , "Tab": simple raw TTSeparator "\t"
   } where

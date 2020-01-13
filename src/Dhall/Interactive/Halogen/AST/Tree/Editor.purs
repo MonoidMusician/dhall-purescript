@@ -3,6 +3,7 @@ module Dhall.Interactive.Halogen.AST.Tree.Editor where
 import Prelude
 
 import CSS as CSS
+import CSS.Overflow as CSS.Overflow
 import Control.Comonad (extract)
 import Control.Monad.Writer (WriterT, runWriterT)
 import Control.Plus (empty, (<|>))
@@ -51,7 +52,7 @@ import Dhall.Lib.Timeline as Timeline
 import Dhall.Map (InsOrdStrMap)
 import Dhall.Map as Dhall.Map
 import Dhall.Parser as Dhall.Parser
-import Dhall.Printer (printAST)
+import Dhall.Printer (Line, TokenType(..), layoutAST, printLine')
 import Dhall.TypeCheck (Errors, L, OxprE, TypeCheckError(..), Oxpr, oneStopShop)
 import Dhall.TypeCheck.Errors (Reference(..))
 import Dhall.TypeCheck.Operations (plain, topLoc, typecheckStep)
@@ -79,7 +80,8 @@ type EditState =
   -- , highlights :: Array { variety :: HighlightVariety, pos :: Derivation }
   , cache :: Map Import
     { text :: Maybe String
-    , expr :: Maybe (Expr InsOrdStrMap Void)
+    , parsed :: Maybe (Expr InsOrdStrMap Import)
+    , resolved :: Maybe (Expr InsOrdStrMap Void)
     }
   }
 type ViewId = Natural
@@ -211,10 +213,12 @@ data FormatAction
   | FormatSoft Boolean
   | FormatAlign Boolean
   | FormatAscii Boolean
+  | FormatScrolling Boolean
 formatter :: H.Component HH.HTML (Const Void) Ixpr String Aff
 formatter = H.mkComponent
   { initialState:
     { expr: _
+    , view: { scrolling: true }
     , opts:
       { ascii: false
       , line: Just (Additive 40)
@@ -244,13 +248,17 @@ formatter = H.mkComponent
       FormatWidth v -> prop (_S::S_ "opts") <<< prop (_S::S_ "tabs") <<< prop (_S::S_ "width") .= wrap (Int.round v)
       FormatSoft v -> prop (_S::S_ "opts") <<< prop (_S::S_ "tabs") <<< prop (_S::S_ "soft") .= v
       FormatAlign v -> prop (_S::S_ "opts") <<< prop (_S::S_ "tabs") <<< prop (_S::S_ "align") .= v
-    render { expr, opts } = HH.div_
+      FormatScrolling v -> prop (_S::S_ "view") <<< prop (_S::S_ "scrolling") .= v
+    render { expr, opts, view } = HH.div_
       [ HH.text "Width: "
       , HH.input
         [ HP.type_ HP.InputRange
         , HP.min 1.0, HP.max 121.0, HP.step (HP.Step 1.0)
         , HP.value $ maybe "121" (show <<< unwrap) opts.line
         , HE.onValueInput (Just <<< FormatLine <<< unsafeCoerce)
+        , HCSS.style
+          let ch i = CSS.Size (CSS.value i <> CSS.fromString "ch") in
+          CSS.width (40.0 # ch)
         ]
       , HH.text $ " (" <> maybe "∞" (show <<< unwrap) opts.line <> ")"
       , HH.br_
@@ -281,16 +289,47 @@ formatter = H.mkComponent
         , HP.checked opts.ascii
         , HE.onChecked (Just <<< FormatAscii)
         ]
+      , HH.text " Scrolling: "
+      , HH.input
+        [ HP.type_ HP.InputCheckbox
+        , HP.checked view.scrolling
+        , HE.onChecked (Just <<< FormatScrolling)
+        ]
       , HH.br_
       , HH.pre
         [ HP.class_ (H.ClassName "code-preview")
         , HCSS.style do
+            CSS.Overflow.overflow CSS.Overflow.overflowAuto
             for_ opts.line \w ->
               let ch i = CSS.Size (CSS.value i <> CSS.fromString "ch") in
-              CSS.minWidth (unwrap w # Int.toNumber # ch)
-        ]
-        [ HH.text $ printAST opts (Ann.denote expr) ]
+              CSS.width (unwrap w # Int.toNumber # ch)
+            when view.scrolling do
+              CSS.height (300.0 # CSS.px)
+        ] $ map (renderLine <<< _.value) $ layoutAST opts (Ann.denote expr)
       ]
+    renderTok :: forall r w i.
+      { value :: String, tokType :: TokenType | r } ->
+      HH.HTML w i
+    renderTok { value, tokType }=
+      let
+        ttcls = case tokType of
+          TTGrouping -> "token-grouping"
+          TTSeparator -> "token-separator"
+          TTOperator -> "token-operator"
+          TTLiteral -> "token-literal"
+          TTKeyword -> "token-keyword"
+          TTImport -> "token-import"
+          (TTName false) -> "token-name"
+          (TTName true) -> "token-name token-builtin"
+      in HH.span [ HP.class_ (H.ClassName ttcls) ] [ HH.text value ]
+    renderLine :: forall w i. Line -> HH.HTML w i
+    renderLine = HH.p_ <<<
+      printLine' [ renderTok { value: " ", tokType: TTSeparator } ] <<<
+      map \{ spaceBefore, spaceAfter, value, tokType } ->
+        { spaceBefore, spaceAfter
+        , value: [ renderTok { value, tokType } ]
+        }
+
 
 _ixes_Ann :: forall m s a. TraversableWithIndex String m =>
   ExprI -> Traversal' (Ann.Expr m s a) (Ann.Expr m s a)
