@@ -78,7 +78,6 @@ layoutAST { ascii, line, tabs, printImport } = identity
   >>> cata precede
   >>> cata structure
   >>> strMap (tokDisp { ascii })
-  >>> (const <*> (spy <<< strMap' _.value <<< debugWith printLine))
   >>> layout { line, tabs }
 
 -- Formatting should start by capturing the general syntactic structure
