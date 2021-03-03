@@ -26,7 +26,7 @@ The browser-based structural editor is running on [GitHub pages](https://monoidm
 Because Dhall is awesome, relatively simple, and conceptually clean. It has an agreed-upon standard, with lots of tests, is under active development, continually improving.
 
 ## Why PureScript?
-It is in my experience one of the best (typed!) compile-to-JS languages out there, and it supports all the abstraction I need. (Well, okay, I think it could use polykinds ... but that’s only a minor blemish ;)) And it has one of the most well-designed UI libraries out there.
+It is in my experience one of the best (typed!) compile-to-JS languages out there, and it supports all the abstraction I need. (It even has PolyKinds!) And it has one of the most well-designed UI libraries out there.
 
 ## Dhall Implementation and API
 Currently, the project is about 90% up-to-date with the latest version of the standard, plus some upcoming changes, as measured by the dhall-lang test suite. It implements the syntax, a parser, and all the judgments of the Dhall standard: import resolution, typechecking, alpha- and beta-normalization, and all the smaller judgments needed to support them. Additionally, there is a small and incomplete API for converting to PureScript types after the Haskell implementation.
