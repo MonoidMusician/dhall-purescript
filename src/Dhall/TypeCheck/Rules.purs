@@ -259,13 +259,6 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           AST.mkPi "nil" list $
             list
 
-    optionalEnc a =
-      AST.mkForall "optional" $
-        let optional = AST.mkVar (AST.V "optional" 0) in
-        AST.mkPi "just" (AST.mkArrow a optional) $
-          AST.mkPi "nothing" optional $
-            optional
-
     ensure :: forall sym f r'.
       IsSymbol sym =>
       R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
@@ -409,6 +402,8 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
   , "IntegerLit": always $ AST.mkInteger
   , "IntegerShow": always $ AST.mkArrow AST.mkInteger AST.mkText
   , "IntegerToDouble": always $ AST.mkArrow AST.mkInteger AST.mkDouble
+  , "IntegerNegate": always $ AST.mkArrow AST.mkInteger AST.mkInteger
+  , "IntegerClamp": always $ AST.mkArrow AST.mkInteger AST.mkNatural
   , "Double": identity aType
   , "DoubleLit": always $ AST.mkDouble
   , "DoubleShow": always $ AST.mkArrow AST.mkDouble AST.mkText
@@ -418,6 +413,11 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         (errorHere (_S::S_ "Cannot interpolate") <<< const i)
   , "TextAppend": checkBinOp AST.mkText
   , "TextShow": always $ AST.mkArrow AST.mkText AST.mkText
+  , "TextReplace": always $
+      AST.mkPi "needle" AST.mkText $
+        AST.mkPi "replacement" AST.mkText $
+          AST.mkPi "haystack" AST.mkText $
+            AST.mkText
   , "List": identity aFunctor
   , "ListLit": \(Product (Tuple mty lit)) -> V.mconfirmW (shared <$> mty) do
       -- get the assumed type of the list
@@ -484,10 +484,6 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
   , "Some": unwrap >>> \a ->
       mkFunctor AST.mkOptional <<< shared <$> ensureTerm a
         (errorHere (_S::S_ "Invalid `Some`"))
-  , "OptionalFold": always $ AST.mkForall "a" $
-      AST.mkArrow (AST.mkApp AST.mkOptional a0) (optionalEnc a0)
-  , "OptionalBuild": always $ AST.mkForall "a" $
-      AST.mkArrow (optionalEnc a0) (AST.mkApp AST.mkOptional a0)
   , "Record": \kts ->
       ensureNodupes
         (errorHere (_S::S_ "Duplicate record fields")) kts

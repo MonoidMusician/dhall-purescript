@@ -54,6 +54,8 @@ encode = recenc Nil where
       , "NaturalShow": pure $ J.fromString "Natural/show"
       , "IntegerToDouble": pure $ J.fromString "Integer/toDouble"
       , "IntegerShow": pure $ J.fromString "Integer/show"
+      , "IntegerNegate": pure $ J.fromString "Integer/negate"
+      , "IntegerClamp": pure $ J.fromString "Integer/clamp"
       , "DoubleShow": pure $ J.fromString "Double/show"
       , "ListBuild": pure $ J.fromString "List/build"
       , "ListFold": pure $ J.fromString "List/fold"
@@ -62,10 +64,9 @@ encode = recenc Nil where
       , "ListLast": pure $ J.fromString "List/last"
       , "ListIndexed": pure $ J.fromString "List/indexed"
       , "ListReverse": pure $ J.fromString "List/reverse"
-      , "OptionalFold": pure $ J.fromString "Optional/fold"
-      , "OptionalBuild": pure $ J.fromString "Optional/build"
       , "NaturalSubtract": pure $ J.fromString "Natural/subtract"
       , "TextShow": pure $ J.fromString "Text/show"
+      , "TextReplace": pure $ J.fromString "Text/replace"
       , "Bool": pure $ J.fromString "Bool"
       , "Optional": pure $ J.fromString "Optional"
       , "None": pure $ J.fromString "None"
@@ -326,6 +327,8 @@ decode = J.caseJson
       "Natural/show" -> pure AST.mkNaturalShow
       "Integer/toDouble" -> pure AST.mkIntegerToDouble
       "Integer/show" -> pure AST.mkIntegerShow
+      "Integer/negate" -> pure AST.mkIntegerNegate
+      "Integer/clamp" -> pure AST.mkIntegerClamp
       "Double/show" -> pure AST.mkDoubleShow
       "List/build" -> pure AST.mkListBuild
       "List/fold" -> pure AST.mkListFold
@@ -334,9 +337,8 @@ decode = J.caseJson
       "List/last" -> pure AST.mkListLast
       "List/indexed" -> pure AST.mkListIndexed
       "List/reverse" -> pure AST.mkListReverse
-      "Optional/fold" -> pure AST.mkOptionalFold
-      "Optional/build" -> pure AST.mkOptionalBuild
       "Text/show" -> pure AST.mkTextShow
+      "Text/replace" -> pure AST.mkTextReplace
       "Natural/subtract" -> pure AST.mkNaturalSubtract
       "Bool" -> pure AST.mkBool
       "Optional" -> pure AST.mkOptional

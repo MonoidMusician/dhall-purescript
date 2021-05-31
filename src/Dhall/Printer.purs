@@ -283,6 +283,8 @@ fromAST renderImport = VariantF.match
   , "IntegerLit": unwrap >>> showInteger >>> number
   , "IntegerShow": builtin "Integer/show"
   , "IntegerToDouble": builtin "Integer/toDouble"
+  , "IntegerNegate": builtin "Integer/negate"
+  , "IntegerClamp": builtin "Integer/clamp"
   , "Lam": \(BindingBody label ty body) ->
       bush (_S::S_ "Lam")
         [ { label: Just label, value: Just ty }
@@ -321,8 +323,6 @@ fromAST renderImport = VariantF.match
   , "NaturalToInteger": builtin "Natural/toInteger"
   , "None": builtin "None"
   , "Optional": builtin "Optional"
-  , "OptionalBuild": builtin "Optional/build"
-  , "OptionalFold": builtin "Optional/fold"
   , "Pi": \(BindingBody label ty body) ->
       if label == "_" then binop (_S::S_ "Arrow") (Pair ty body) else
       bush (_S::S_ "Pi")
@@ -354,6 +354,7 @@ fromAST renderImport = VariantF.match
           str s <> interp e <> rec t
       in foldable (_S::S_ "String") <<< rec
   , "TextShow": builtin "Text/show"
+  , "TextReplace": builtin "Text/replace"
   , "ToMap": \(Product (Tuple (Identity e) mty)) ->
       annotWith mty $ app $ Pair (keyword "toMap") e
   , "Union": unwrap >>> miosm (_S::S_ "Union")

@@ -158,10 +158,13 @@ const builtin =
   , "Integer"
   , "Integer/show"
   , "Integer/toDouble"
+  , "Integer/negate"
+  , "Integer/clamp"
   , "Double"
   , "Double/show"
   , "Text"
   , "Text/show"
+  , "Text/replace"
   , "List"
   , "List/build"
   , "List/fold"
@@ -172,13 +175,11 @@ const builtin =
   , "List/reverse"
   , "Optional"
   , "None"
-  , "Optional/build"
-  , "Optional/fold"
   ];
 %}
 
 # This just adds surrounding whitespace for the top-level of the program
-complete_expression -> whsp expression whsp {% pass1 %}
+complete_expression -> shebang:* whsp expression whsp {% pass(2) %}
 
 end_of_line -> [\n] {% pass0 %} | [\r] [\n] {% () => "\n" %}
 tab -> [\t] {% pass0 %}
@@ -255,7 +256,7 @@ simple_label ->
   } %}
 
 quoted_label_char -> [\x20-\x5F\x61-\x7E]
-quoted_label -> quoted_label_char:+ {% collapse %}
+quoted_label -> quoted_label_char:* {% collapse %}
 
 # NOTE: Dhall does not support Unicode labels, mainly to minimize the potential
 # for code obfuscation
@@ -275,9 +276,11 @@ label -> ("`" quoted_label "`" {% pass1 %} | simple_label {% pass0 %}) {% pass0 
 #    / !(builtin / sha256-prefix) label
 nonreserved_label -> ("`" quoted_label "`" {% pass1 %} | simple_label {% (d, _, reject) => builtin.includes(d[0]) ? reject : d[0] %}) {% pass0 %}
 
-# An any_label is allowed to be one of the reserved identifiers.
+# An any_label is allowed to be one of the reserved identifiers (but not a keyword).
 any_label -> label {% pass0 %}
 
+# Allow specifically `Some` in record and union labels.
+any_label_or_some -> any_label {% pass0 %} | Some {% pass0 %}
 
 # Dhall's double-quoted strings are similar to JSON strings (RFC7159) except:
 #
@@ -302,11 +305,59 @@ double_quote_escaped ->
   | "u" unicode_escape {% pass1 %}
   ) {% pass0 %}
 
+# Valid Unicode escape sequences are as follows:
+#
+# * Exactly 4 hexadecimal digits without braces:
+#       `\uXXXX`
+# * 1-6 hexadecimal digits within braces (with optional zero padding):
+#       `\u{XXXX}`, `\u{000X}`, `\u{XXXXX}`, `\u{00000XXXXX}`, etc.
+#   Any number of leading zeros are allowed within the braces preceding the 1-6
+#   digits specifying the codepoint.
+#
+# From these sequences, the parser must also reject any codepoints that are in
+# the following ranges:
+#
+# * Surrogate pairs: `%xD800-DFFF`
+# * Non-characters: `%xNFFFE-NFFFF` / `%x10FFFE-10FFFF` for `N` in `{ 0 .. F }`
+#
+# See the `valid-non-ascii` rule for the exact ranges that are not allowed
 unicode_escape ->
-    HEXDIG HEXDIG HEXDIG HEXDIG
-    {% d => String.fromCharCode(parseInt(d[0]+d[1]+d[2]+d[3], 16)) %}
-  | "{" HEXDIG:+ "}"
-    {% d => String.fromCodePoint(parseInt(d[1].join(""), 16)) %}
+    unbraced_escape
+    {% d => String.fromCharCode(parseInt(d[0], 16)) %}
+  | "{" braced_escape "}"
+    {% d => String.fromCodePoint(parseInt(d[1], 16)) %}
+
+# All valid last 4 digits for unicode codepoints (outside Plane 0): `0000-FFFD`
+unicode_suffix ->
+    (DIGIT | "A" | "B" | "C" | "D" | "E") HEXDIG HEXDIG HEXDIG {% collapse %}
+  | "F" HEXDIG HEXDIG (DIGIT | "A" | "B" | "C" | "D") {% collapse %}
+
+# All 4-hex digit unicode escape sequences that are not:
+#
+# * Surrogate pairs (i.e. `%xD800-DFFF`)
+# * Non-characters (i.e. `%xFFFE-FFFF`)
+#
+unbraced_escape ->
+      (DIGIT | "A" | "B" | "C") HEXDIG HEXDIG HEXDIG {% collapse %}
+    | "D" ("0" | "1" | "2" | "3" | "4" | "5" | "6" | "7") HEXDIG HEXDIG {% collapse %}
+    # %xD800-DFFF Surrogate pairs
+    | "E" HEXDIG HEXDIG HEXDIG {% collapse %}
+    | "F" HEXDIG HEXDIG (DIGIT | "A" | "B" | "C" | "D") {% collapse %}
+    # %xFFFE-FFFF Non-characters
+
+# All 1-6 digit unicode codepoints that are not:
+#
+# * Surrogate pairs: `%xD800-DFFF`
+# * Non-characters: `%xNFFFE-NFFFF` / `%x10FFFE-10FFFF` for `N` in `{ 0 .. F }`
+#
+# See the `valid-non-ascii` rule for the exact ranges that are not allowed
+braced_codepoint ->
+      ("1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "A" | "B" | "C" | "D" | "E" | "F" | "10") unicode_suffix {% collapse %} # (Planes 1-16)
+    | unbraced_escape {% collapse %} # (Plane 0)
+    | HEXDIG (HEXDIG HEXDIG:?):? {% collapse %} # %x000-FFF
+
+# Allow zero padding for braced codepoints
+braced_escape -> "0":* braced_codepoint {% collapse %}
 
 # Printable characters except double quote and backslash
 # FIXME
@@ -329,8 +380,8 @@ single_quote_continue ->
       interpolation single_quote_continue {% d => [d[0]].concat(d[1]) %}
     | escaped_quote_pair single_quote_continue {% d => [d[0]].concat(d[1]) %}
     | escaped_interpolation single_quote_continue {% d => [d[0]].concat(d[1]) %}
-    | single_quote_char single_quote_continue {% d => [d[0]].concat(d[1]) %}
     | "''" {% () => [] %}
+    | single_quote_char single_quote_continue {% d => [d[0]].concat(d[1]) %}
 
 # Escape two single quotes (i.e. replace this sequence with "''")
 escaped_quote_pair -> "'''" {% () => "''" %}
@@ -365,17 +416,26 @@ NaN               -> "NaN" {% pass0 %}
 Some              -> "Some" {% pass0 %}
 toMap             -> "toMap" {% pass0 %}
 assert            -> "assert" {% pass0 %}
+forall_keyword    -> "forall" {% pass0 %}
+forall_symbol     -> [\u2200] {% pass0 %}
+forall            -> forall_symbol | forall_keyword
+with              -> "with"
 
 # Unused rule that could be used as negative lookahead in the
 # `simple-label` rule for parsers that support this.
 keyword ->
       if {% pass0 %} | then {% pass0 %} | else {% pass0 %}
     | let {% pass0 %} | in {% pass0 %}
-    | using {% pass0 %} | missing {% pass0 %} | as {% pass0 %}
+    | using {% pass0 %} | missing {% pass0 %}
+    | assert {% pass0 %} | as {% pass0 %}
     | Infinity {% pass0 %} | NaN {% pass0 %}
     | merge {% pass0 %} | Some {% pass0 %} | toMap {% pass0 %}
-    | assert {% pass0 %} | "forall" {% pass0 %}
+    | forall_keyword {% pass0 %}
+    | with {% pass0 %}
 
+# Note that there is a corresponding parser test in
+# `tests/parser/success/builtinsA.dhall`. Please update it when
+# you modify this `builtin` rule.
 builtin ->
     Natural_fold {% pass0 %}
   | Natural_build {% pass0 %}
@@ -387,6 +447,8 @@ builtin ->
   | Natural_subtract {% pass0 %}
   | Integer_toDouble {% pass0 %}
   | Integer_show {% pass0 %}
+  | Integer_negate {% pass0 %}
+  | Integer_clamp {% pass0 %}
   | Double_show {% pass0 %}
   | List_build {% pass0 %}
   | List_fold {% pass0 %}
@@ -395,9 +457,8 @@ builtin ->
   | List_last {% pass0 %}
   | List_indexed {% pass0 %}
   | List_reverse {% pass0 %}
-  | Optional_fold {% pass0 %}
-  | Optional_build {% pass0 %}
   | Text_show {% pass0 %}
+  | Text_replace {% pass0 %}
   | Bool {% pass0 %}
   | True {% pass0 %}
   | False {% pass0 %}
@@ -413,19 +474,19 @@ builtin ->
   | Sort {% pass0 %}
 
 # Reserved identifiers, needed for some special cases of parsing
+Optional -> "Optional" {% pass0 %}
 Text     -> "Text" {% pass0 %}
+List     -> "List" {% pass0 %}
 Location -> "Location" {% pass0 %}
 
 # Reminder of the reserved identifiers, needed for the `builtin` rule
 Bool              -> "Bool" {% pass0 %}
 True              -> "True" {% pass0 %}
 False             -> "False" {% pass0 %}
-Optional          -> "Optional" {% pass0 %}
 None              -> "None" {% pass0 %}
 Natural           -> "Natural" {% pass0 %}
 Integer           -> "Integer" {% pass0 %}
 Double            -> "Double" {% pass0 %}
-List              -> "List" {% pass0 %}
 Type              -> "Type" {% pass0 %}
 Kind              -> "Kind" {% pass0 %}
 Sort              -> "Sort" {% pass0 %}
@@ -439,6 +500,8 @@ Natural_show      -> "Natural/show" {% pass0 %}
 Natural_subtract  -> "Natural/subtract" {% pass0 %}
 Integer_toDouble  -> "Integer/toDouble" {% pass0 %}
 Integer_show      -> "Integer/show" {% pass0 %}
+Integer_negate    -> "Integer/negate" {% pass0 %}
+Integer_clamp     -> "Integer/clamp" {% pass0 %}
 Double_show       -> "Double/show" {% pass0 %}
 List_build        -> "List/build" {% pass0 %}
 List_fold         -> "List/fold" {% pass0 %}
@@ -450,14 +513,15 @@ List_reverse      -> "List/reverse" {% pass0 %}
 Optional_fold     -> "Optional/fold" {% pass0 %}
 Optional_build    -> "Optional/build" {% pass0 %}
 Text_show         -> "Text/show" {% pass0 %}
+Text_replace      -> "Text/replace" {% pass0 %}
 
 combine       -> ( [\u2227] | "/\\"                ) {% pass0 %}
 combine_types -> ( [\u2A53] | "//\\\\"              ) {% pass0 %}
 equivalent    -> ( [\u2261] | "==="              ) {% pass0 %}
 prefer        -> ( [\u2AFD] | "//"                ) {% pass0 %}
 lambda        -> ( [\u03BB]  | "\\"                 ) {% pass0 %}
-forall        -> ( [\u2200] | "forall" ) {% pass0 %}
 arrow         -> ( [\u2192] | "->"                ) {% pass0 %}
+complete      -> "::" {% pass0 %}
 
 exponent -> "e" ( "+" | "-" ):? DIGIT:+
 
@@ -530,18 +594,12 @@ scheme -> "http" {% pass0 %} | "https" {% pass0 %}
 #   to be part of the URL instead of part of the list.  If you need a URL
 #   which contains parens or a comma, you must percent-encode them.
 #
-# Unquoted path components should be percent-decoded according to
-# https://tools.ietf.org/html/rfc3986#section-2
-http_raw -> scheme "://" authority url_path ( "?" query ):?
+# Reserved characters in quoted path components should be percent-encoded
+# according to https://tools.ietf.org/html/rfc3986#section-2
+http_raw -> scheme "://" authority path_abempty ( "?" query ):?
 {% d => ({ type: "Remote", value: [d[0], d[2], d[3].slice(0,-1), d[3][d[3].length-1], pass1(d[4])] }) %}
 
-
-# Temporary rule to allow old-style `path-component`s and RFC3986 `segment`s in
-# the same grammar. Eventually we can just use `path-abempty` from the same
-# RFC. See issue #581
-
-url_path -> ( "/" [\x22] quoted_path_component [\x22] {% pass(2) %} | "/" segment {% pass1 %} ):+ {% pass0 %} # FIXME
-
+path_abempty -> ("/" segment):* {% pass0 %}
 
 authority -> ( userinfo "@" ):? host ( ":" port ):? {% collapse %}
 
@@ -673,8 +731,12 @@ expression ->
     # NOTE: Backtrack if parsing this alternative fails
     | operator_expression whsp arrow whsp expression {% d => ({ type: "Pi", value: ["_", d[0], d[4]] }) %}
 
+    # "a with x = b"
+    #
+    # NOTE: Backtrack if parsing this alternative fails
+    | with_expression {% pass0 %}
+
     # "merge e1 e2 : t"
-    # "merge e1 e2"
     #
     # NOTE: Backtrack if parsing this alternative fails since we can't tell
     # from the keyword whether there will be a type annotation or not
@@ -685,8 +747,7 @@ expression ->
     # NOTE: Backtrack if parsing this alternative fails since we can't tell
     # from the opening bracket whether or not this will be an empty list or
     # a non-empty list
-    | "[" whsp "]" whsp ":" whsp1 application_expression {% d => ({ type: "ListLit", value: [[],d[6]] }) %}
-
+    | empty_list_literal {% pass0 %}
 
     # "toMap e : t"
     #
@@ -699,17 +760,27 @@ expression ->
 
     | annotated_expression {% pass0 %}
 
-let_binding ->
-  let whsp1 nonreserved_label whsp ( ":" whsp1 expression whsp ):? "=" whsp expression whsp {% d => [d[2],pass(2)(d[4]),d[7]] %}
-
 # Nonempty-whitespace to disambiguate `env:VARIABLE` from type annotations
 annotated_expression ->
     # "x : t"
     operator_expression (whsp ":" whsp1 expression):? {% d => d[1] == null ? d[0] : { type: "Annot", value: [d[0], d[1][3]] } %}
 
-operator_expression -> import_alt_expression {% pass0 %}
+let_binding ->
+  let whsp1 nonreserved_label whsp ( ":" whsp1 expression whsp ):? "=" whsp expression whsp {% d => [d[2],pass(2)(d[4]),d[7]] %}
+
+empty_list_literal ->
+  "[" whsp ( "," whsp ):? "]" whsp ":" whsp1 application_expression {% d => ({ type: "ListLit", value: [[],d[7]] }) %}
+
+with_expression ->
+    import_expression (whsp1 with whsp1 with_clause):+ {% d => binop("With", 3) %}
+
+with_clause ->
+    any_label_or_some (whsp "." whsp any_label_or_some):* whsp "=" whsp operator_expression {% d => {throw "WITH"} %}
+
+operator_expression -> equivalent_expression {% pass0 %}
 
 # Nonempty-whitespace to disambiguate `http://a/a?a`
+equivalent_expression    -> import_alt_expression    (whsp equivalent whsp application_expression):* {% binop("Equivalent", 3) %}
 import_alt_expression    -> or_expression            (whsp "?" whsp1 or_expression):* {% binop("ImportAlt", 3) %}
 or_expression            -> plus_expression          (whsp "||" whsp plus_expression):* {% binop("BoolOr", 3) %}
 # Nonempty-whitespace to disambiguate `f +2`
@@ -722,14 +793,14 @@ prefer_expression        -> combine_types_expression (whsp prefer whsp combine_t
 combine_types_expression -> times_expression         (whsp combine_types whsp times_expression):* {% binop("CombineTypes", 3) %}
 times_expression         -> equal_expression         (whsp "*" whsp equal_expression):* {% binop("NaturalTimes", 3) %}
 equal_expression         -> not_equal_expression     (whsp "==" whsp not_equal_expression):* {% binop("BoolEQ", 3) %}
-not_equal_expression     -> equivalent_expression    (whsp "!=" whsp equivalent_expression):* {% binop("BoolNE", 3) %}
-equivalent_expression    -> application_expression   (whsp equivalent whsp application_expression):* {% binop("Equivalent", 3) %}
+not_equal_expression     -> application_expression   (whsp "!=" whsp equivalent_expression):* {% binop("BoolNE", 3) %}
 
 # Import expressions need to be separated by some whitespace, otherwise there
 # would be ambiguity: `./ab` could be interpreted as "import the file `./ab`",
 # or "apply the import `./a` to label `b`"
 application_expression ->
     first_application_expression (whsp1 import_expression):* {% binop("App") %}
+
 first_application_expression ->
   # "merge e1 e2"
     merge whsp1 import_expression whsp1 import_expression
@@ -744,9 +815,12 @@ first_application_expression ->
 
 import_expression ->
   ( import {% pass0 %}
-  | selector_expression {% pass0 %}
+  | completion_expression {% pass0 %}
   ) (whsp1 hash):?
   {% d => d[1] == null ? d[0] : ({ type: "Hashed", value: [d[0], d[1][1]] }) %}
+
+completion_expression ->
+  selector_expression ( whsp complete whsp selector_expression ):? {% d => d[1] != null ? { type: "RecordCompletion", value: [d[0], d[1][3]] } : d[0] %}
 
 # `record.field` extracts one field of a record
 #
@@ -767,7 +841,7 @@ selector ->
   | labels {% tag("Project") %}
   | type_selector {% tag("ProjectType") %}
 
-labels -> "{" whsp ( any_label whsp ("," whsp any_label whsp):* ):? "}"
+labels -> "{" whsp ( any_label_or_some whsp ("," whsp any_label_or_some whsp):* ):? "}"
 {% d => d[2] != null ? [d[2][0]].concat(d[2][2].map(v => v[2])) : [] %}
 
 type_selector -> "(" whsp expression whsp ")" {% pass(2) %}
@@ -784,13 +858,10 @@ primitive_expression ->
     | text_literal {% d => ({ type: "TextLit", value: d[0] }) %}
     # "{ foo = 1      , bar = True }"
     # "{ foo : Integer, bar : Bool }"
-    | "{" whsp non_empty_record_type_or_literal whsp "}" {% pass(2) %}
-    | "{" whsp empty_record_literal whsp "}" {% pass(2) %}
-    | "{" whsp empty_record_type "}" {% pass(2) %}
+    | "{" whsp ( "," whsp ):? record_type_or_literal whsp "}" {% pass(3) %}
     # "< Foo : Integer | Bar : Bool >"
     # "< Foo : Integer | Bar = True >"
-    | "<" whsp non_empty_union_type whsp ">" {% pass(2) %}
-    | "<" whsp empty_union_type ">" {% pass(2) %}
+    | "<" whsp ( "," whsp ):? union_type whsp ">" {% pass(3) %}
     # "[1, 2, 3]"
     | non_empty_list_literal {% pass0 %}
     # "x"
@@ -804,10 +875,10 @@ record_type_or_literal ->
   | non_empty_record_type_or_literal {% pass0 %}
   | empty_record_type {% pass0 %}
 
-empty_record_literal -> "=" {% () => ({ type: "RecordLit", value: [] }) %}
+empty_record_literal -> "=" ( whsp "," ):? {% () => ({ type: "RecordLit", value: [] }) %}
 empty_record_type -> null {% () => ({ type: "Record", value: [] }) %}
 non_empty_record_type_or_literal ->
-    any_label whsp ( non_empty_record_literal | non_empty_record_type )
+    any_label_or_some whsp ( non_empty_record_literal | non_empty_record_type )
   {% d => {d[2][0].value[0][0] = d[0]; return d[2][0]} %}
 non_empty_record_type    -> ":" whsp1 expression (whsp "," whsp record_type_entry):*
   {%
@@ -835,5 +906,9 @@ non_empty_union_type ->
 union_type_entry -> any_label ( whsp ":" whsp1 expression ):?
     {% d => [d[0],pass(3)(d[1])] %}
 
-non_empty_list_literal -> "[" whsp expression whsp ("," whsp expression whsp):* "]"
-  {% d => ({ type: "ListLit", value: [[d[2]].concat(d[4].map(v => v[2])),null] }) %}
+non_empty_list_literal -> "[" whsp ( "," whsp ):? expression whsp ("," whsp expression whsp):* ( "," whsp ):? "]"
+  {% d => ({ type: "ListLit", value: [[d[3]].concat(d[5].map(v => v[2])),null] }) %}
+
+# We provide special support for the Unix shebang convention, by permitting
+# `#!` as a line comment only on the first lines
+shebang -> "#!" not_end_of_line:* end_of_line

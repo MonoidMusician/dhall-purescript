@@ -33,6 +33,7 @@ import Dhall.Test.Util as Util
 import Dhall.TypeCheck as TC
 import Effect (Effect)
 import Effect.Aff (Aff, catchError, error, launchAff_, makeAff, message, throwError)
+import Effect.Exception (stack)
 import Effect.Aff.Class (liftAff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console (log, logShow)
@@ -82,7 +83,9 @@ type RT = ReaderT R Aff
 
 logErrorWith :: RT Unit -> RT Unit -> RT Unit
 logErrorWith desc = catchError <@> \err ->
-  desc *> log ("  " <> message err)
+  desc *> log ("  " <> message err) *> case stack err of
+    Nothing -> pure unit
+    Just e -> pure unit -- log e
 
 testType :: String -> (Boolean -> FilePath -> Aff Unit) -> (Boolean -> FilePath -> Aff Unit) -> RT Unit
 testType ty = testType' ty ".dhall"

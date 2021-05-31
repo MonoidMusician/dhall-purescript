@@ -95,6 +95,8 @@ decodeFAST (FAST r) =
     "Natural/show", _ -> AST.mkNaturalShow
     "Integer/show", _ -> AST.mkIntegerShow
     "Integer/toDouble", _ -> AST.mkIntegerToDouble
+    "Integer/negate", _ -> AST.mkIntegerNegate
+    "Integer/clamp", _ -> AST.mkIntegerClamp
     "Double/show", _ -> AST.mkDoubleShow
     "List/build", _ -> AST.mkListBuild
     "List/fold", _ -> AST.mkListFold
@@ -103,9 +105,8 @@ decodeFAST (FAST r) =
     "List/last", _ -> AST.mkListLast
     "List/indexed", _ -> AST.mkListIndexed
     "List/reverse", _ -> AST.mkListReverse
-    "Optional/fold", _ -> AST.mkOptionalFold
-    "Optional/build", _ -> AST.mkOptionalBuild
     "Text/show", _ -> AST.mkTextShow
+    "Text/replace", _ -> AST.mkTextReplace
     "Natural/subtract", _ -> AST.mkNaturalSubtract
     "BoolAnd", [a, b] -> AST.mkBoolAnd (decodeF a) (decodeF b)
     "BoolOr", [a, b] -> AST.mkBoolOr (decodeF a) (decodeF b)

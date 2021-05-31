@@ -175,6 +175,8 @@ type BuiltinFuncs (m :: Type -> Type) vs =
   , "NaturalSubtract" :: UNIT
   , "IntegerShow" :: UNIT
   , "IntegerToDouble" :: UNIT
+  , "IntegerNegate" :: UNIT
+  , "IntegerClamp" :: UNIT
   , "DoubleShow" :: UNIT
   , "ListBuild" :: UNIT
   , "ListFold" :: UNIT
@@ -183,9 +185,8 @@ type BuiltinFuncs (m :: Type -> Type) vs =
   , "ListLast" :: UNIT
   , "ListIndexed" :: UNIT
   , "ListReverse" :: UNIT
-  , "OptionalFold" :: UNIT
-  , "OptionalBuild" :: UNIT
   , "TextShow" :: UNIT
+  , "TextReplace" :: UNIT
   | vs
   )
 
@@ -200,6 +201,8 @@ type BuiltinFuncs' (m :: Type -> Type) (m' :: Type -> Type) vs =
   , "NaturalSubtract" :: VOID
   , "IntegerShow" :: VOID
   , "IntegerToDouble" :: VOID
+  , "IntegerNegate" :: VOID
+  , "IntegerClamp" :: VOID
   , "DoubleShow" :: VOID
   , "ListBuild" :: VOID
   , "ListFold" :: VOID
@@ -208,9 +211,8 @@ type BuiltinFuncs' (m :: Type -> Type) (m' :: Type -> Type) vs =
   , "ListLast" :: VOID
   , "ListIndexed" :: VOID
   , "ListReverse" :: VOID
-  , "OptionalFold" :: VOID
-  , "OptionalBuild" :: VOID
   , "TextShow" :: VOID
+  , "TextReplace" :: VOID
   | vs
   )
 
@@ -225,6 +227,8 @@ type BuiltinFuncsI vs =
   , "NaturalSubtract" :: Void
   , "IntegerShow" :: Void
   , "IntegerToDouble" :: Void
+  , "IntegerNegate" :: Void
+  , "IntegerClamp" :: Void
   , "DoubleShow" :: Void
   , "ListBuild" :: Void
   , "ListFold" :: Void
@@ -233,9 +237,8 @@ type BuiltinFuncsI vs =
   , "ListLast" :: Void
   , "ListIndexed" :: Void
   , "ListReverse" :: Void
-  , "OptionalFold" :: Void
-  , "OptionalBuild" :: Void
   , "TextShow" :: Void
+  , "TextReplace" :: Void
   | vs
   )
 
@@ -542,6 +545,8 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
       # VariantF.on (_S::S_ "NaturalSubtract") (const "mkNaturalSubtract")
       # VariantF.on (_S::S_ "IntegerShow") (const "mkIntegerShow")
       # VariantF.on (_S::S_ "IntegerToDouble") (const "mkIntegerToDouble")
+      # VariantF.on (_S::S_ "IntegerNegate") (const "mkIntegerNegate")
+      # VariantF.on (_S::S_ "IntegerClamp") (const "mkIntegerClamp")
       # VariantF.on (_S::S_ "DoubleShow") (const "mkDoubleShow")
       # VariantF.on (_S::S_ "ListBuild") (const "mkListBuild")
       # VariantF.on (_S::S_ "ListFold") (const "mkListFold")
@@ -550,9 +555,8 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
       # VariantF.on (_S::S_ "ListLast") (const "mkListLast")
       # VariantF.on (_S::S_ "ListIndexed") (const "mkListIndexed")
       # VariantF.on (_S::S_ "ListReverse") (const "mkListReverse")
-      # VariantF.on (_S::S_ "OptionalFold") (const "mkOptionalFold")
-      # VariantF.on (_S::S_ "OptionalBuild") (const "mkOptionalBuild")
       # VariantF.on (_S::S_ "TextShow") (const "mkTextShow")
+      # VariantF.on (_S::S_ "TextReplace") (const "mkTextReplace")
       # VariantF.on (_S::S_ "Const")
         (case _ of
           ConstF.Const Type -> "(mkConst Type)"
@@ -702,6 +706,8 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (_S::S_ "IntegerLit")
     # vfEqCase (_S::S_ "IntegerShow")
     # vfEqCase (_S::S_ "IntegerToDouble")
+    # vfEqCase (_S::S_ "IntegerNegate")
+    # vfEqCase (_S::S_ "IntegerClamp")
     # vfEqCase (_S::S_ "Lam")
     # vfEqCase (_S::S_ "Let")
     # vfEqCase (_S::S_ "List")
@@ -729,8 +735,6 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (_S::S_ "NaturalSubtract")
     # vfEqCase (_S::S_ "None")
     # vfEqCase (_S::S_ "Optional")
-    # vfEqCase (_S::S_ "OptionalBuild")
-    # vfEqCase (_S::S_ "OptionalFold")
     # vfEqCase (_S::S_ "Pi")
     # vfEqCase (_S::S_ "Prefer")
     # vfEqCase (_S::S_ "Project")
@@ -741,6 +745,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (_S::S_ "TextAppend")
     # vfEqCase (_S::S_ "TextLit")
     # vfEqCase (_S::S_ "TextShow")
+    # vfEqCase (_S::S_ "TextReplace")
     # vfEqCase (_S::S_ "ToMap")
     # vfEq1Case (_S::S_ "Union")
     # vfEqCase (_S::S_ "UsingHeaders")
@@ -777,6 +782,8 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (_S::S_ "IntegerLit")
     # vfOrdCase (_S::S_ "IntegerShow")
     # vfOrdCase (_S::S_ "IntegerToDouble")
+    # vfOrdCase (_S::S_ "IntegerNegate")
+    # vfOrdCase (_S::S_ "IntegerClamp")
     # vfOrdCase (_S::S_ "Lam")
     # vfOrdCase (_S::S_ "Let")
     # vfOrdCase (_S::S_ "List")
@@ -804,8 +811,6 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (_S::S_ "NaturalSubtract")
     # vfOrdCase (_S::S_ "None")
     # vfOrdCase (_S::S_ "Optional")
-    # vfOrdCase (_S::S_ "OptionalBuild")
-    # vfOrdCase (_S::S_ "OptionalFold")
     # vfOrdCase (_S::S_ "Pi")
     # vfOrdCase (_S::S_ "Prefer")
     # vfOrdCase (_S::S_ "Project")
@@ -816,6 +821,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (_S::S_ "TextAppend")
     # vfOrdCase (_S::S_ "TextLit")
     # vfOrdCase (_S::S_ "TextShow")
+    # vfOrdCase (_S::S_ "TextReplace")
     # vfOrdCase (_S::S_ "ToMap")
     # vfOrd1Case (_S::S_ "Union")
     # vfOrdCase (_S::S_ "UsingHeaders")
@@ -852,6 +858,8 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (_S::S_ "IntegerLit")
     # vfEqCase (_S::S_ "IntegerShow")
     # vfEqCase (_S::S_ "IntegerToDouble")
+    # vfEqCase (_S::S_ "IntegerNegate")
+    # vfEqCase (_S::S_ "IntegerClamp")
     # vfEqCase (_S::S_ "Lam")
     # vfEqCase (_S::S_ "Let")
     # vfEqCase (_S::S_ "List")
@@ -879,8 +887,6 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (_S::S_ "NaturalSubtract")
     # vfEqCase (_S::S_ "None")
     # vfEqCase (_S::S_ "Optional")
-    # vfEqCase (_S::S_ "OptionalBuild")
-    # vfEqCase (_S::S_ "OptionalFold")
     # vfEqCase (_S::S_ "Pi")
     # vfEqCase (_S::S_ "Prefer")
     # vfEqCase (_S::S_ "Project")
@@ -891,6 +897,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (_S::S_ "TextAppend")
     # vfEqCase (_S::S_ "TextLit")
     # vfEqCase (_S::S_ "TextShow")
+    # vfEqCase (_S::S_ "TextReplace")
     # vfEqCase (_S::S_ "ToMap")
     # vfEq1Case (_S::S_ "Union")
     # vfEqCase (_S::S_ "UsingHeaders")
@@ -927,6 +934,8 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (_S::S_ "IntegerLit")
     # vfOrdCase (_S::S_ "IntegerShow")
     # vfOrdCase (_S::S_ "IntegerToDouble")
+    # vfOrdCase (_S::S_ "IntegerNegate")
+    # vfOrdCase (_S::S_ "IntegerClamp")
     # vfOrdCase (_S::S_ "Lam")
     # vfOrdCase (_S::S_ "Let")
     # vfOrdCase (_S::S_ "List")
@@ -954,8 +963,6 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (_S::S_ "NaturalSubtract")
     # vfOrdCase (_S::S_ "None")
     # vfOrdCase (_S::S_ "Optional")
-    # vfOrdCase (_S::S_ "OptionalBuild")
-    # vfOrdCase (_S::S_ "OptionalFold")
     # vfOrdCase (_S::S_ "Pi")
     # vfOrdCase (_S::S_ "Prefer")
     # vfOrdCase (_S::S_ "Project")
@@ -966,6 +973,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (_S::S_ "TextAppend")
     # vfOrdCase (_S::S_ "TextLit")
     # vfOrdCase (_S::S_ "TextShow")
+    # vfOrdCase (_S::S_ "TextReplace")
     # vfOrdCase (_S::S_ "ToMap")
     # vfOrd1Case (_S::S_ "Union")
     # vfOrdCase (_S::S_ "UsingHeaders")

@@ -128,7 +128,9 @@ import Dhall.Core.AST.Constructors
   , _Hashed
   , _ImportAlt
   , _Integer
+  , _IntegerClamp
   , _IntegerLit
+  , _IntegerNegate
   , _IntegerShow
   , _IntegerToDouble
   , _Lam
@@ -160,8 +162,6 @@ import Dhall.Core.AST.Constructors
   , _NaturalToInteger
   , _None
   , _Optional
-  , _OptionalBuild
-  , _OptionalFold
   , _Pi
   , _Prefer
   , _Project
@@ -175,6 +175,7 @@ import Dhall.Core.AST.Constructors
   , _TextLit
   , _TextLit_empty
   , _TextLit_single
+  , _TextReplace
   , _TextShow
   , _ToMap
   , _Union
@@ -208,7 +209,9 @@ import Dhall.Core.AST.Constructors
   , mkHashed
   , mkImportAlt
   , mkInteger
+  , mkIntegerClamp
   , mkIntegerLit
+  , mkIntegerNegate
   , mkIntegerShow
   , mkIntegerToDouble
   , mkKind
@@ -239,8 +242,6 @@ import Dhall.Core.AST.Constructors
   , mkNaturalToInteger
   , mkNone
   , mkOptional
-  , mkOptionalBuild
-  , mkOptionalFold
   , mkPi
   , mkPrefer
   , mkProject
@@ -252,6 +253,7 @@ import Dhall.Core.AST.Constructors
   , mkTextAppend
   , mkTextLit
   , mkTextLit'
+  , mkTextReplace
   , mkTextShow
   , mkToMap
   , mkType

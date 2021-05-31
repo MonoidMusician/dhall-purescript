@@ -347,6 +347,18 @@ mkIntegerToDouble = mkExpr (_S::S_ "IntegerToDouble") unit
 _IntegerToDouble :: forall r. ExprPrism ( "IntegerToDouble" :: UNIT | r ) Unit
 _IntegerToDouble = _ExprPrism (_S::S_ "IntegerToDouble")
 
+mkIntegerNegate :: forall m a. Expr m a
+mkIntegerNegate = mkExpr (_S::S_ "IntegerNegate") unit
+
+_IntegerNegate :: forall r. ExprPrism ( "IntegerNegate" :: UNIT | r ) Unit
+_IntegerNegate = _ExprPrism (_S::S_ "IntegerNegate")
+
+mkIntegerClamp :: forall m a. Expr m a
+mkIntegerClamp = mkExpr (_S::S_ "IntegerClamp") unit
+
+_IntegerClamp :: forall r. ExprPrism ( "IntegerClamp" :: UNIT | r ) Unit
+_IntegerClamp = _ExprPrism (_S::S_ "IntegerClamp")
+
 mkDouble :: forall m a. Expr m a
 mkDouble = mkExpr (_S::S_ "Double") unit
 
@@ -403,6 +415,12 @@ mkTextShow = mkExpr (_S::S_ "TextShow") unit
 
 _TextShow :: forall r. ExprPrism ( "TextShow" :: UNIT | r ) Unit
 _TextShow = _ExprPrism (_S::S_ "TextShow")
+
+mkTextReplace :: forall m a. Expr m a
+mkTextReplace = mkExpr (_S::S_ "TextReplace") unit
+
+_TextReplace :: forall r. ExprPrism ( "TextReplace" :: UNIT | r ) Unit
+_TextReplace = _ExprPrism (_S::S_ "TextReplace")
 
 mkList :: forall m a. Expr m a
 mkList = mkExpr (_S::S_ "List") unit
@@ -488,18 +506,6 @@ mkNone = mkExpr (_S::S_ "None") unit
 
 _None :: forall r. ExprPrism ( "None" :: UNIT | r ) Unit
 _None = _ExprPrism (_S::S_ "None")
-
-mkOptionalFold :: forall m a. Expr m a
-mkOptionalFold = mkExpr (_S::S_ "OptionalFold") unit
-
-_OptionalFold :: forall r. ExprPrism ( "OptionalFold" :: UNIT | r ) Unit
-_OptionalFold = _ExprPrism (_S::S_ "OptionalFold")
-
-mkOptionalBuild :: forall m a. Expr m a
-mkOptionalBuild = mkExpr (_S::S_ "OptionalBuild") unit
-
-_OptionalBuild :: forall r. ExprPrism ( "OptionalBuild" :: UNIT | r ) Unit
-_OptionalBuild = _ExprPrism (_S::S_ "OptionalBuild")
 
 mkRecord :: forall m a. Functor m => m (Expr m a) -> Expr m a
 mkRecord = mkExprF (_S::S_ "Record")

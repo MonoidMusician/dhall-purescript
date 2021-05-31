@@ -598,7 +598,7 @@ builtinsG :: forall node ops v m a. MapLike String m =>
   (node -> node) ->
   GNormalizer (AST.ExprLayerRow m a)
     (Variant (ShiftSubstAlg node v)) node ops
-builtinsG ctx = fusionsG ctx <> conversionsG ctx <> naturalfnsG ctx <> optionalfnsG ctx <> listfnsG ctx
+builtinsG ctx = fusionsG ctx <> conversionsG ctx <> naturalfnsG ctx <> listfnsG ctx
 
 mk ::
   forall sym f rest all node ops.
@@ -632,8 +632,6 @@ fusionsG :: forall all' i node ops.
     , "ListFold" :: UNIT
     , "NaturalBuild" :: UNIT
     , "NaturalFold" :: UNIT
-    , "OptionalBuild" :: UNIT
-    , "OptionalFold" :: UNIT
     | all'
     )
     i node ops
@@ -649,12 +647,6 @@ fusionsG again = GNormalizer \node -> case _ of
   naturalbuild~(naturalfold~e')
     | noappG node (_S::S_ "NaturalBuild") naturalbuild
     , noappG node (_S::S_ "NaturalFold") naturalfold ->
-      pure \_ -> Lens.review (appsG node) e'
-  -- build/fold fusion for `Optional`
-  -- App (App OptionalBuild _) (App (App OptionalFold _) e') -> loop e'
-  optionalbuild~_~(optionalfold~_~e')
-    | noappG node (_S::S_ "OptionalBuild") optionalbuild
-    , noappG node (_S::S_ "OptionalFold") optionalfold ->
       pure \_ -> Lens.review (appsG node) e'
   _ -> empty
 
@@ -807,42 +799,6 @@ naturalfnsG again = GNormalizer \node -> case _ of
           pure \_ -> mk node (_S::S_ "NaturalLit") (wrap zero)
         -}
         _, _ -> Nothing
-  _ -> Nothing
-
-optionalfnsG :: forall all' node v ops.
-  (node -> node) ->
-  GNormalizer
-    ( "App" :: FProxy AST.Pair
-    , "Optional" :: UNIT
-    , "OptionalBuild" :: UNIT
-    , "OptionalFold" :: UNIT
-    , "None" :: UNIT
-    , "Var" :: CONST AST.Var
-    , "Lam" :: FProxy AST.BindingBody
-    , "Some" :: FProxy Identity
-    | all'
-    )
-    (Variant (ShiftSubstAlg node v)) node ops
-optionalfnsG again = GNormalizer \node -> case _ of
-  optionalbuild~ty~fn
-    | noappG node (_S::S_ "OptionalBuild") optionalbuild -> pure \_ ->
-      let
-        optional = (mkAppsF node (_S::S_ "Optional") mempty)~ty
-        just = mkAppsF node (_S::S_ "Lam") $ AST.BindingBody "a" (Lens.review (appsG node) ty) $
-          mk node (_S::S_ "Some") $ Identity $ mk node (_S::S_ "Var") $ wrap (AST.V "a" 0)
-        nothing = (mkAppsF node (_S::S_ "None") mempty)~ty
-      in again $ Lens.review (appsG node) $
-        (fn~optional~just~nothing)
-  optionalfold~_~(none~_)~_~_~nothing
-    | noappG node (_S::S_ "OptionalFold") optionalfold
-    , noappG node (_S::S_ "None") none -> pure \_ ->
-      -- TODO: I don't think this is necessary
-      -- normalizeWith ctx $
-      (Lens.review (appsG node) nothing)
-  optionalfold~_~some~_~just~_
-    | noappG node (_S::S_ "OptionalFold") optionalfold
-    , Just (Identity x) <- noapplitG' node (_S::S_ "Some") some ->
-      pure \_ -> again $ Lens.review (appsG node) (just~NoApp x)
   _ -> Nothing
 
 listfnsG :: forall all' node v ops m. MapLike String m =>
