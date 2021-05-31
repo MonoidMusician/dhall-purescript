@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Comonad (extract)
 import Control.Monad.Free (Free)
+import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Bifunctor (class Bifunctor, lmap)
 import Data.Const as ConstF
 import Data.Either (Either(..), either)
@@ -256,6 +257,7 @@ type BuiltinBinOps (m :: Type -> Type) vs =
   , "CombineTypes" :: FProxy Pair
   , "Prefer" :: FProxy Pair
   , "Equivalent" :: FProxy Pair
+  , "RecordCompletion" :: FProxy Pair
   | vs
   )
 
@@ -272,6 +274,7 @@ type BuiltinBinOps' (m :: Type -> Type) (m' :: Type -> Type) vs =
   , "CombineTypes" :: FProxy Pair'
   , "Prefer" :: FProxy Pair'
   , "Equivalent" :: FProxy Pair'
+  , "RecordCompletion" :: FProxy Pair'
   | vs
   )
 
@@ -288,6 +291,7 @@ type BuiltinBinOpsI vs =
   , "CombineTypes" :: PairI
   , "Prefer" :: PairI
   , "Equivalent" :: PairI
+  , "RecordCompletion" :: PairI
   | vs
   )
 
@@ -295,6 +299,7 @@ type BuiltinBinOpsI vs =
 type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
   ( "BoolIf" :: FProxy (Triplet)
   , "Field" :: FProxy (Tuple String)
+  , "With" :: FProxy (Product Identity (Tuple (NonEmptyArray String)))
   , "Project" :: FProxy (Product Identity (Either (App m Unit)))
   , "Merge" :: FProxy (MergeF)
   , "ToMap" :: FProxy (Product Identity Maybe)
@@ -305,6 +310,7 @@ type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
 type BuiltinOps' (m :: Type -> Type) (m' :: Type -> Type) v = BuiltinBinOps' m m'
   ( "BoolIf" :: FProxy (Triplet')
   , "Field" :: FProxy (Tuple' String)
+  , "With" :: FProxy (Product' Identity Identity' (Tuple (NonEmptyArray String)) (Tuple' (NonEmptyArray String)))
   , "Project" :: FProxy (Product' Identity Identity' (Either (App m Unit)) (Either' (App m Unit)))
   , "Merge" :: FProxy (MergeF')
   , "ToMap" :: FProxy (Product' Identity Identity' Maybe Maybe')
@@ -315,6 +321,7 @@ type BuiltinOps' (m :: Type -> Type) (m' :: Type -> Type) v = BuiltinBinOps' m m
 type BuiltinOpsI v = BuiltinBinOpsI
   ( "BoolIf" :: TripletI
   , "Field" :: TupleI String
+  , "With" :: ProductI IdentityI (TupleI (NonEmptyArray String))
   , "Project" :: ProductI IdentityI EitherI
   , "Merge" :: MergeFI
   , "ToMap" :: ProductI IdentityI MaybeI
@@ -490,6 +497,7 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
       # VariantF.on (_S::S_ "ImportAlt") (binop "ImportAlt")
       # VariantF.on (_S::S_ "UsingHeaders") (binop "UsingHeaders")
       # VariantF.on (_S::S_ "Equivalent") (binop "Equivalent")
+      # VariantF.on (_S::S_ "RecordCompletion") (binop "RecordCompletion")
       # VariantF.on (_S::S_ "Hashed")
         (\(Tuple hash e) -> "(mkHashed " <> show hash <> " " <> e <> ")")
       # VariantF.on (_S::S_ "BoolIf")
@@ -506,6 +514,8 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
         (\(LetF n t e b) -> "(mkLet " <> n <> mb t <> e <> b <> ")")
       # VariantF.on (_S::S_ "ListLit")
         (\(Product (Tuple ty lit)) -> "(mkListLit " <> mb ty <> lits lit <> ")")
+      # VariantF.on (_S::S_ "With")
+        (\(Product (Tuple (Identity e) (Tuple fs v))) -> "(mkWith " <> e <> show fs <> v <> ")")
       # VariantF.on (_S::S_ "Merge")
         (\(MergeF a b c) -> "(mkMerge " <> a <> b <> mb c <> ")")
       # VariantF.on (_S::S_ "ToMap")
@@ -739,6 +749,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (_S::S_ "Prefer")
     # vfEqCase (_S::S_ "Project")
     # vfEq1Case (_S::S_ "Record")
+    # vfEqCase (_S::S_ "RecordCompletion")
     # vfEq1Case (_S::S_ "RecordLit")
     # vfEq1Case (_S::S_ "Some")
     # vfEqCase (_S::S_ "Text")
@@ -750,6 +761,7 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEq1Case (_S::S_ "Union")
     # vfEqCase (_S::S_ "UsingHeaders")
     # vfEqCase (_S::S_ "Var")
+    # vfEqCase (_S::S_ "With")
     ) e1 e2
 
 instance ordExprRowVF :: (Ord1 m, Ord a, Ord b) => Ord (ExprRowVF m a b) where
@@ -815,6 +827,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (_S::S_ "Prefer")
     # vfOrdCase (_S::S_ "Project")
     # vfOrd1Case (_S::S_ "Record")
+    # vfOrdCase (_S::S_ "RecordCompletion")
     # vfOrd1Case (_S::S_ "RecordLit")
     # vfOrd1Case (_S::S_ "Some")
     # vfOrdCase (_S::S_ "Text")
@@ -826,6 +839,7 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrd1Case (_S::S_ "Union")
     # vfOrdCase (_S::S_ "UsingHeaders")
     # vfOrdCase (_S::S_ "Var")
+    # vfOrdCase (_S::S_ "With")
     ) e1 e2
 
 instance eqExprRowVF' :: (Eq1 m, Eq1 m', Eq a, Eq b) => Eq (ExprRowVF' m m' a b) where
@@ -891,6 +905,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (_S::S_ "Prefer")
     # vfEqCase (_S::S_ "Project")
     # vfEq1Case (_S::S_ "Record")
+    # vfEqCase (_S::S_ "RecordCompletion")
     # vfEq1Case (_S::S_ "RecordLit")
     # vfEq1Case (_S::S_ "Some")
     # vfEqCase (_S::S_ "Text")
@@ -902,6 +917,7 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEq1Case (_S::S_ "Union")
     # vfEqCase (_S::S_ "UsingHeaders")
     # vfEqCase (_S::S_ "Var")
+    # vfEqCase (_S::S_ "With")
     ) e1 e2
 
 instance ordExprRowVF' :: (Ord1 m, Ord1 m', Ord a, Ord b) => Ord (ExprRowVF' m m' a b) where
@@ -967,6 +983,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (_S::S_ "Prefer")
     # vfOrdCase (_S::S_ "Project")
     # vfOrd1Case (_S::S_ "Record")
+    # vfOrdCase (_S::S_ "RecordCompletion")
     # vfOrd1Case (_S::S_ "RecordLit")
     # vfOrd1Case (_S::S_ "Some")
     # vfOrdCase (_S::S_ "Text")
@@ -978,6 +995,7 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrd1Case (_S::S_ "Union")
     # vfOrdCase (_S::S_ "UsingHeaders")
     # vfOrdCase (_S::S_ "Var")
+    # vfOrdCase (_S::S_ "With")
     ) e1 e2
 
 instance containerIERVF :: ContainerI String m' => ContainerI ExprRowVFI (ExprRowVF' m m' a) where

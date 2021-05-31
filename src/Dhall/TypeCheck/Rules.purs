@@ -564,6 +564,8 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           That b -> b
           Both a _ -> a
       pure $ mkShared(_S::S_"Record") $ map shared $ Dhall.Map.unionWith (pure preference) ktsR ktsL
+  , "RecordCompletion": \_ -> errorHere (_S::S_ "`Sort` has no type") unit
+  , "With": \_ -> errorHere (_S::S_ "`Sort` has no type") unit
   , "Merge": \(AST.MergeF handlers cases mty) -> do
       Tuple ktsX (Compose ktsY) <- Tuple
         <$> ensure (_S::S_ "Record") handlers

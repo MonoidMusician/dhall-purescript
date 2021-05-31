@@ -8,6 +8,7 @@ import Data.Argonaut.Core (Json)
 import Data.Argonaut.Core as J
 import Data.Array (any, fold, foldr)
 import Data.Array as Array
+import Data.Array.NonEmpty as NEA
 import Data.Const (Const(..))
 import Data.Either (Either(..))
 import Data.Functor.App (App(..))
@@ -104,6 +105,7 @@ encode = recenc Nil where
       , "CombineTypes": operator 10
       , "ImportAlt": operator 11
       , "Equivalent": operator 12
+      , "RecordCompletion": operator 13
       , "ListLit": \(Product (Tuple ty vals)) ->
           let
             listAnn = ty >>= \ty' ->
@@ -154,7 +156,7 @@ encode = recenc Nil where
           in rec d0
       , "Annot": \(Pair val ty) -> tagged 26 [ enc val, enc ty ]
       -- TODO: bytestring
-      , "Hashed": \(Tuple hash e) -> tagged 29 $ [ enc e, J.fromString $ "\x12\x20" <> hash ]
+      , "Hashed": \(Tuple hash e) -> tagged 63 $ [ enc e, J.fromString $ "\x12\x20" <> hash ]
       , "UsingHeaders": \(Pair e headers') -> recenc (headers' : headers) e
       , "Embed": un Const >>> encodeImport \moreHeaders ->
           let
@@ -174,6 +176,8 @@ encode = recenc Nil where
               _ -> Just headers2
           in
             maybe null enc headers3
+      , "With": \(Product (Tuple (Identity e) (Tuple fs v))) -> tagged 29
+          [ enc e, J.fromArray (Array.fromFoldable (fs <#> J.fromString)), enc v ]
       }
 
 null :: Json
@@ -409,6 +413,7 @@ decode = J.caseJson
             10 -> pure AST.mkCombineTypes
             11 -> pure AST.mkImportAlt
             12 -> pure AST.mkEquivalent
+            13 -> pure AST.mkRecordCompletion
             _ -> empty
           pure $ c l' r'
         _ -> empty
@@ -509,8 +514,14 @@ decode = J.caseJson
       28 -> case _ of
         [ val ] -> AST.mkListLit <$> (Just <$> decode val) <@> []
         _ -> empty
-      -- TODO: ensure hash
       29 -> case _ of
+        [ e, fs, v ] ->
+          let
+            dfs = traverse J.toString =<< NEA.fromArray =<< J.toArray fs
+          in AST.mkWith <$> decode e <*> dfs <*> decode v
+        _ -> empty
+      -- TODO: ensure hash
+      63 -> case _ of
         [ e, hash ] -> AST.mkHashed <$> decode e <*> J.toString hash
         _ -> empty
       _ -> pure empty

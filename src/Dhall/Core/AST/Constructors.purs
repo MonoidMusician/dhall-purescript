@@ -1,5 +1,6 @@
 module Dhall.Core.AST.Constructors where
 
+import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Bifunctor (bimap)
 import Data.Const as ConstF
 import Data.Either (Either)
@@ -237,6 +238,12 @@ mkBoolNE = mkBinOp (_S::S_ "BoolNE")
 
 _BoolNE :: forall r. BinOpPrism ( "BoolNE" :: FProxy Pair | r )
 _BoolNE = _BinOpPrism (_S::S_ "BoolNE")
+
+mkRecordCompletion :: forall m a. Expr m a -> Expr m a -> Expr m a
+mkRecordCompletion = mkBinOp (_S::S_ "RecordCompletion")
+
+_RecordCompletion :: forall r. BinOpPrism ( "RecordCompletion" :: FProxy Pair | r )
+_RecordCompletion = _BinOpPrism (_S::S_ "RecordCompletion")
 
 mkBoolIf :: forall m a. Expr m a -> Expr m a -> Expr m a -> Expr m a
 mkBoolIf cond t f = mkExprF (_S::S_ "BoolIf")
@@ -570,6 +577,13 @@ mkToMap x t = mkExprF (_S::S_ "ToMap")
 
 _ToMap :: forall r. ExprFPrism ( "ToMap" :: FProxy (Product Identity Maybe) | r ) (Product Identity Maybe)
 _ToMap = _ExprFPrism (_S::S_ "ToMap")
+
+mkWith :: forall m a. Expr m a -> NonEmptyArray String -> Expr m a -> Expr m a
+mkWith e fs v = mkExprF (_S::S_ "With")
+  (Product (Tuple (Identity e) (Tuple fs v)))
+
+_With :: forall r. ExprFPrism ( "With" :: FProxy (Product Identity (Tuple (NonEmptyArray String))) | r ) (Product Identity (Tuple (NonEmptyArray String)))
+_With = _ExprFPrism (_S::S_ "With")
 
 mkField :: forall m a. Expr m a -> String -> Expr m a
 mkField expr field = mkExprF (_S::S_ "Field")

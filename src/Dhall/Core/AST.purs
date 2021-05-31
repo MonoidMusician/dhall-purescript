@@ -166,6 +166,7 @@ import Dhall.Core.AST.Constructors
   , _Prefer
   , _Project
   , _Record
+  , _RecordCompletion
   , _RecordLit
   , _RecordLit_empty
   , _Record_empty
@@ -182,6 +183,7 @@ import Dhall.Core.AST.Constructors
   , _Union_empty
   , _UsingHeaders
   , _Var
+  , _With
   , mkAnnot
   , mkApp
   , mkArrow
@@ -246,6 +248,7 @@ import Dhall.Core.AST.Constructors
   , mkPrefer
   , mkProject
   , mkRecord
+  , mkRecordCompletion
   , mkRecordLit
   , mkSome
   , mkSort
@@ -260,4 +263,5 @@ import Dhall.Core.AST.Constructors
   , mkUnion
   , mkUsingHeaders
   , mkVar
+  , mkWith
   ) as Exports

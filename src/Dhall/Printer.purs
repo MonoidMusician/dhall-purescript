@@ -193,6 +193,7 @@ type Operators r =
   , "CombineTypes" :: Unit
   , "Prefer" :: Unit
   , "Equivalent" :: Unit
+  , "RecordCompletion" :: Unit
   , "ImportAlt" :: Unit
   , "Annot" :: Unit
   , "App" :: Unit
@@ -339,6 +340,7 @@ fromAST renderImport = VariantF.match
             in foldable (_S::S_ "LabelSet") names
           Right t -> foldable (_S::S_ "ByType") [ t ]
   , "Record": map Just >>> miosm (_S::S_ "Record")
+  , "RecordCompletion": binop (_S::S_ "RecordCompletion")
   , "RecordLit": map Just >>> miosm (_S::S_ "RecordLit")
   , "Some": \(Identity e) -> app $ Pair (keyword "Some") e
   , "Text": builtin "Text"
@@ -363,6 +365,9 @@ fromAST renderImport = VariantF.match
       if i /= 0
         then binop (_S::S_ "At") $ Pair (name n) (number (show i))
         else name n
+  , "With": \(Product (Tuple (Identity e) (Tuple fs v))) ->
+      -- FIXME FIXME FIXME
+      app $ Pair e v
   } where
     showDouble = show
     showNatural = show <<< natToInt
@@ -457,7 +462,8 @@ precede = In <<< process where
     , "BoolNE": lassoc (-2)
     , "Equivalent": lassoc (-1)
     , "App": lassoc 0
-    , "Field": lassoc 1
+    , "RecordCompletion": lassoc 1
+    , "Field": lassoc 2
     , "UsingHeaders": lassoc 100
     , "Hashed": lassoc 100
     }
@@ -494,6 +500,7 @@ structure (BushF v cs) = (#) v $ Variant.case_
   # handleOperator (_S::S_ "CombineTypes")
   # handleOperator (_S::S_ "Prefer")
   # handleOperator (_S::S_ "Equivalent")
+  # handleOperator (_S::S_ "RecordCompletion")
   # handleOperator (_S::S_ "ImportAlt")
   # handleOperator (_S::S_ "Annot")
   # handleOperator (_S::S_ "App")
@@ -803,6 +810,7 @@ tokDisp { ascii } = Variant.match
   , "CombineTypes": space TTOperator "\x2A53" "//\\\\"
   , "Prefer": space TTOperator "\x2AFD" "//"
   , "Equivalent": space TTOperator "\x2261" "==="
+  , "RecordCompletion": simple nospace TTOperator "::"
   , "ImportAlt": simple space TTImport "?"
   , "Annot": simple space TTSeparator ":"
   , "App": mkSpace Yes No TTOperator "" ""

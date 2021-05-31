@@ -143,6 +143,7 @@ import Dhall.Core.AST
   , _Prefer
   , _Project
   , _Record
+  , _RecordCompletion
   , _RecordLit
   , _RecordLit_empty
   , _Record_empty
@@ -160,6 +161,7 @@ import Dhall.Core.AST
   , _Union_empty
   , _UsingHeaders
   , _Var
+  , _With
   , conv
   , convTo
   , embedW
@@ -226,6 +228,7 @@ import Dhall.Core.AST
   , mkPrefer
   , mkProject
   , mkRecord
+  , mkRecordCompletion
   , mkRecordLit
   , mkSome
   , mkSort
@@ -240,6 +243,7 @@ import Dhall.Core.AST
   , mkUnion
   , mkUsingHeaders
   , mkVar
+  , mkWith
   , projectW
   , rehydrate
   , rewriteBottomUp
