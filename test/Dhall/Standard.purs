@@ -226,31 +226,6 @@ test = do
             <> "\n    Exp: " <> hashB
     do \verb failure ->
         throwError (error "Why is there a semantic hash failure?")
-  testType "typecheck"
-    do \verb success -> do
-        textA <- nodeRetrieveFile (success <> "A.dhall")
-        let actA = mkActions "typecheck" success textA
-        parsedA <- actA.parse # unwrap # extract #
-          note "Failed to parse A"
-        importedA <- parsedA.imports # unwrap # extract # unwrap >>=
-          noteFb "Failed to resolve A"
-        textB <- nodeRetrieveFile (success <> "B.dhall")
-        let actB = mkActions "typecheck" success textB
-        parsedB <- actB.parse # unwrap # extract #
-          note "Failed to parse B"
-        importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
-          note "Failed to resolve B"
-        void $ Test.tc' (AST.mkAnnot importedA.resolved importedB.resolved) #
-          noteR "Typechecking failed"
-    do \verb failure -> do
-        text <- nodeRetrieveFile (failure <> ".dhall")
-        let act = mkActions "typecheck" failure text
-        parsed <- act.parse # unwrap # extract #
-          note "Failed to parse"
-        imported <- parsed.imports # unwrap # extract # unwrap >>=
-          noteFb "Failed to resolve"
-        imported.typechecked # unwrap # extract #
-          etonR "Was not supposed to typecheck"
   testType "type-inference"
     do \verb success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")
@@ -272,8 +247,15 @@ test = do
             logShow $ extract typecheckedA.normalizedType
             logShow importedB.resolved
           throwError (error "Type inference did not match")
-    do \verb failure ->
-        throwError (error "Why is there a type-inference failure?")
+    do \verb failure -> do
+        text <- nodeRetrieveFile (failure <> ".dhall")
+        let act = mkActions "typecheck" failure text
+        parsed <- act.parse # unwrap # extract #
+          note "Failed to parse"
+        imported <- parsed.imports # unwrap # extract # unwrap >>=
+          noteFb "Failed to resolve"
+        imported.typechecked # unwrap # extract #
+          etonR "Was not supposed to typecheck"
   testType "import"
     do \verb success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall")

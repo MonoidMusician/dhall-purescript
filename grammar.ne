@@ -135,7 +135,8 @@ const keyword =
   , "Some"
   , "toMap"
   , "assert"
-  , "forall" // FIXME
+  , "forall"
+  , "with"
   ];
 
 const builtin =
@@ -329,8 +330,8 @@ unicode_escape ->
 
 # All valid last 4 digits for unicode codepoints (outside Plane 0): `0000-FFFD`
 unicode_suffix ->
-    (DIGIT | "A" | "B" | "C" | "D" | "E") HEXDIG HEXDIG HEXDIG {% collapse %}
-  | "F" HEXDIG HEXDIG (DIGIT | "A" | "B" | "C" | "D") {% collapse %}
+    (DIGIT | [A-E]) HEXDIG HEXDIG HEXDIG {% collapse %}
+  | "F" HEXDIG HEXDIG (DIGIT | [A-D]) {% collapse %}
 
 # All 4-hex digit unicode escape sequences that are not:
 #
@@ -338,11 +339,11 @@ unicode_suffix ->
 # * Non-characters (i.e. `%xFFFE-FFFF`)
 #
 unbraced_escape ->
-      (DIGIT | "A" | "B" | "C") HEXDIG HEXDIG HEXDIG {% collapse %}
-    | "D" ("0" | "1" | "2" | "3" | "4" | "5" | "6" | "7") HEXDIG HEXDIG {% collapse %}
+      (DIGIT | [A-C]) HEXDIG HEXDIG HEXDIG {% collapse %}
+    | "D" [0-7] HEXDIG HEXDIG {% collapse %}
     # %xD800-DFFF Surrogate pairs
     | "E" HEXDIG HEXDIG HEXDIG {% collapse %}
-    | "F" HEXDIG HEXDIG (DIGIT | "A" | "B" | "C" | "D") {% collapse %}
+    | "F" HEXDIG HEXDIG (DIGIT | [A-D]) {% collapse %}
     # %xFFFE-FFFF Non-characters
 
 # All 1-6 digit unicode codepoints that are not:
@@ -352,7 +353,7 @@ unbraced_escape ->
 #
 # See the `valid-non-ascii` rule for the exact ranges that are not allowed
 braced_codepoint ->
-      ("1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "A" | "B" | "C" | "D" | "E" | "F" | "10") unicode_suffix {% collapse %} # (Planes 1-16)
+      ([1-9A-F] | "10") unicode_suffix {% collapse %} # (Planes 1-16)
     | unbraced_escape {% collapse %} # (Plane 0)
     | HEXDIG (HEXDIG HEXDIG:?):? {% collapse %} # %x000-FFF
 
@@ -540,7 +541,13 @@ double_literal ->
   # "NaN"
   | NaN {% () => NaN %}
 
-natural_literal -> DIGIT:+ {% d => d[0].join("")|0 %}
+natural_literal ->
+    # Hexadecimal with "0x" prefix
+      "0x" HEXDIG:+ {% d => collapse(d)|0 %}
+    # Decimal; leading 0 digits are not allowed
+    | [1-9] DIGIT:* {% d => collapse(d)|0 %}
+    # ... except for 0 itself
+    | "0" {% () => 0 %}
 
 integer_literal -> ( "+" | "-" ) natural_literal {% d => d[0] == "+" ? +d[1] : -d[1] %}
 
@@ -861,7 +868,7 @@ primitive_expression ->
     | "{" whsp ( "," whsp ):? record_type_or_literal whsp "}" {% pass(3) %}
     # "< Foo : Integer | Bar : Bool >"
     # "< Foo : Integer | Bar = True >"
-    | "<" whsp ( "," whsp ):? union_type whsp ">" {% pass(3) %}
+    | "<" whsp ( "," whsp ):? union_type ">" {% pass(3) %}
     # "[1, 2, 3]"
     | non_empty_list_literal {% pass0 %}
     # "x"
@@ -892,7 +899,7 @@ non_empty_record_literal -> "=" whsp expression (whsp "," whsp record_literal_en
 record_literal_entry -> any_label whsp "=" whsp expression {% d => [d[0],d[4]] %}
 
 union_type ->
-      non_empty_union_type {% pass0 %}
+      non_empty_union_type whsp {% pass0 %}
     | empty_union_type {% pass0 %}
 
 empty_union_type -> null {% () => ({ type: "Union", value: [] }) %}
