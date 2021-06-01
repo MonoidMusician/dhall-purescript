@@ -292,9 +292,13 @@ any_label_or_some -> any_label {% pass0 %} | Some {% pass0 %}
 #
 # * Dhall strings also allow Unicode escape sequences of the form `\u{XXX}`
 double_quote_chunk ->
-      interpolation {% pass0 %}
-    | "\\" double_quote_escaped {% pass1 %}
+      double_quote_literal_chunk (interpolation double_quote_literal_chunk):*
+        {% d => [d[0]].concat(...d[1]) %}
+
+double_quote_literal_chunk ->
+    ( "\\" double_quote_escaped {% pass1 %}
     | double_quote_char {% pass0 %}
+    ):* {% d => d[0].join("") %}
 
 double_quote_escaped ->
   ( [\x22\x24\x5C\x2F] {% pass0 %}
@@ -353,18 +357,19 @@ unbraced_escape ->
 #
 # See the `valid-non-ascii` rule for the exact ranges that are not allowed
 braced_codepoint ->
-      ([1-9A-F] | "10") unicode_suffix {% collapse %} # (Planes 1-16)
+      "0":* ([1-9A-F] | "10") unicode_suffix {% collapse %} # (Planes 1-16)
     | unbraced_escape {% collapse %} # (Plane 0)
-    | HEXDIG (HEXDIG HEXDIG:?):? {% collapse %} # %x000-FFF
+    | "0" {% collapse%}
+    | ("0":+ "0"):? [1-9A-F] (HEXDIG HEXDIG:?):? {% collapse %} # %x000-FFF
 
 # Allow zero padding for braced codepoints
-braced_escape -> "0":* braced_codepoint {% collapse %}
+braced_escape -> braced_codepoint {% collapse %}
 
 # Printable characters except double quote and backslash
 # FIXME
 double_quote_char -> [\x20-\x21\x23\x25-\x5B\x5D-\x7F] {% pass0 %} | valid_non_ascii {% pass0 %}
 
-double_quote_literal -> [\x22] double_quote_chunk:* [\x22] {% pass1 %}
+double_quote_literal -> [\x22] double_quote_chunk [\x22] {% pass1 %}
 
 # NOTE: The only way to end a single-quote string literal with a single quote is
 # to either interpolate the single quote, like this:
@@ -800,7 +805,7 @@ prefer_expression        -> combine_types_expression (whsp prefer whsp combine_t
 combine_types_expression -> times_expression         (whsp combine_types whsp times_expression):* {% binop("CombineTypes", 3) %}
 times_expression         -> equal_expression         (whsp "*" whsp equal_expression):* {% binop("NaturalTimes", 3) %}
 equal_expression         -> not_equal_expression     (whsp "==" whsp not_equal_expression):* {% binop("BoolEQ", 3) %}
-not_equal_expression     -> application_expression   (whsp "!=" whsp equivalent_expression):* {% binop("BoolNE", 3) %}
+not_equal_expression     -> application_expression   (whsp "!=" whsp application_expression):* {% binop("BoolNE", 3) %}
 
 # Import expressions need to be separated by some whitespace, otherwise there
 # would be ambiguity: `./ab` could be interpreted as "import the file `./ab`",
