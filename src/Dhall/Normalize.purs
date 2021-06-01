@@ -556,6 +556,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                       Right _ -> anew (_S::S_ "Project")
                         (Product (Tuple (Identity r) (Left (AppF.App ks))))
     -- NOTE: eta-normalization, added
+    {-
     >>> expose (_S::S_ "Lam")
     do \(AST.BindingBody var ty body) ->
         body #
@@ -572,6 +573,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                   node.recurse (Variant.inj (_S::S_ "shift") { variable: var0, delta: (-1) }) $
                     extractW fn
               else default unit
+    -}
     -- composing with <<< gives this case priority
     >>> identity <<< expose (_S::S_ "App") \(AST.Pair fn arg) ->
       fn # exposeW (_S::S_ "Lam")
@@ -598,7 +600,7 @@ builtinsG :: forall node ops v m a. MapLike String m =>
   (node -> node) ->
   GNormalizer (AST.ExprLayerRow m a)
     (Variant (ShiftSubstAlg node v)) node ops
-builtinsG ctx = fusionsG ctx <> conversionsG ctx <> naturalfnsG ctx <> listfnsG ctx
+builtinsG ctx = conversionsG ctx <> naturalfnsG ctx <> listfnsG ctx
 
 mk ::
   forall sym f rest all node ops.
@@ -658,12 +660,15 @@ conversionsG :: forall all' node v ops.
     , "NaturalShow" :: UNIT
     , "IntegerShow" :: UNIT
     , "IntegerToDouble" :: UNIT
+    , "IntegerNegate" :: UNIT
+    , "IntegerClamp" :: UNIT
     , "DoubleShow" :: UNIT
     , "NaturalLit" :: CONST Natural
     , "IntegerLit" :: CONST Int
     , "TextLit" :: FProxy AST.TextLitF
     , "DoubleLit" :: CONST Number
     , "TextShow" :: UNIT
+    , "TextReplace" :: UNIT
     | all'
     )
     (Variant (ShiftSubstAlg node v)) node ops
@@ -685,6 +690,14 @@ conversionsG again = GNormalizer \node -> case _ of
     | noappG node (_S::S_ "IntegerToDouble") integertodouble
     , Just n <- noapplitG node (_S::S_ "IntegerLit") integerlit ->
       pure \_ -> mk node (_S::S_ "DoubleLit") $ wrap $ toNumber n
+  integernegate~integerlit
+    | noappG node (_S::S_ "IntegerNegate") integernegate
+    , Just n <- noapplitG node (_S::S_ "IntegerLit") integerlit ->
+      pure \_ -> mk node (_S::S_ "IntegerLit") $ wrap $ negate n
+  integerclamp~integerlit
+    | noappG node (_S::S_ "IntegerClamp") integerclamp
+    , Just n <- noapplitG node (_S::S_ "IntegerLit") integerlit ->
+      pure \_ -> mk node (_S::S_ "NaturalLit") $ wrap $ intToNat n
   doubleshow~doublelit
     | noappG node (_S::S_ "DoubleShow") doubleshow
     , Just n <- noapplitG node (_S::S_ "DoubleLit") doublelit ->
@@ -693,6 +706,25 @@ conversionsG again = GNormalizer \node -> case _ of
     | noappG node (_S::S_ "TextShow") textshow
     , Just (TextLit n) <- noapplitG' node (_S::S_ "TextLit") textlit ->
       pure \_ -> mk node (_S::S_ "TextLit") $ AST.TextLit $ textShow n
+  textreplace~needle~replacement~haystack
+    | noappG node (_S::S_ "TextReplace") textreplace
+    , Just (TextLit "") <- noapplitG' node (_S::S_ "TextLit") needle ->
+      pure \_ -> Lens.review (appsG node) haystack
+  textreplace~needle~replacement~haystack
+    | noappG node (_S::S_ "TextReplace") textreplace
+    , Just (TextLit n) <- noapplitG' node (_S::S_ "TextLit") needle
+    , Just (TextLit h) <- noapplitG' node (_S::S_ "TextLit") haystack ->
+      case noapplitG' node (_S::S_ "TextLit") replacement of
+        Just (TextLit r) -> pure \_ ->
+          mk node (_S::S_ "TextLit") $ AST.TextLit $
+            String.replaceAll (String.Pattern n) (String.Replacement r) h
+        _ -> pure \_ ->
+          let r = Lens.review (appsG node) replacement in
+          case Array.unsnoc (String.split (String.Pattern n) h) of
+            Nothing -> mk node (_S::S_ "TextLit") $ AST.TextLit ""
+            Just { init, last } ->
+              again $ mk node (_S::S_ "TextLit") $
+                Array.foldr (AST.TextInterp <@> r) (AST.TextLit last) init
   _ -> Nothing
 
 textShow :: String -> String
@@ -839,7 +871,7 @@ listfnsG again = GNormalizer \node -> case _ of
             mk node (_S::S_ "ListAppend") $ AST.Pair
               (mk node (_S::S_ "ListLit") (product Nothing (pure (mk node (_S::S_ "Var") (wrap $ AST.V "a" 0)))))
               (mk node (_S::S_ "Var") (wrap $ AST.V "as" 0))
-        nil = NoApp $ mk node (_S::S_ "ListLit") (product (Just ty) empty)
+        nil = NoApp $ mk node (_S::S_ "ListLit") (product (Just (mk node (_S::S_ "App") $ AST.Pair (mk node (_S::S_ "List") mempty) ty)) empty)
       in again $ Lens.review (appsG node) $
         (g~list~cons~nil)
   listfold~_~listlit~t~cons~nil
