@@ -111,7 +111,7 @@ type Errors r =
   , "Type mismatch" :: Unit
   , "Invalid predicate" :: Unit
   , "If branch mismatch" :: Unit
-  , "If branch must be term" :: Tuple Boolean (Maybe Const)
+  , "If branch must be term" :: Boolean
   , "Invalid list type" :: Maybe Const
   , "Missing list type" :: Unit
   , "Invalid list element" :: Int

@@ -123,24 +123,14 @@ explain ctx nodeType =
           " and the latter was "
           (typechecked <> within (_S::S_ "BoolIf") AST.Three3)
       ]
-  , "If branch must be term": \(Tuple side mc) ->
+  , "If branch must be term": \side ->
       let focus = within (_S::S_ "BoolIf") if side then AST.Three3 else AST.Three2 in
-      [ Text $ "If-then-else expressions must return a term "
-      , Text $ "(since dependent types are forbidden)"
+      [ Text $ "If-then-else expressions must return a term"
       , Text $ " but the expression had type "
       , reference $ typechecked <> focus
-      ] <> case mc of
-        Nothing ->
-          [ Text $ " which is not in a type universe, but instead had type "
-          , reference $ typechecked <> typechecked <> focus
-          ]
-        Just c ->
-          [ Compare
-              " which was in universe "
-              (expr (AST.mkConst c))
-              " instead of "
-              (expr (AST.mkConst AST.Type))
-          ]
+      , Text $ " which is not in a type universe, but instead had type "
+      , reference $ typechecked <> typechecked <> focus
+      ]
   -- TODO: needs work
   , "Invalid list type": \(mc :: Maybe Const) ->
       let

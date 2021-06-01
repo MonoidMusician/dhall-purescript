@@ -280,6 +280,15 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       ty <- typecheckStep expr
       ty <$ ensureType ty error
 
+    ensureAnyTerm ::
+      OxprE w r m a ->
+      (Unit -> FeedbackE w r m a Void) ->
+      FeedbackE w r m a (OxprE w r m a)
+    ensureAnyTerm expr error = do
+      ty <- typecheckStep expr
+      kind <- typecheckStep ty
+      ty <$ ensure' (_S::S_ "Const") kind error
+
     -- Ensure that the passed `ty` is a type; i.e. its type is `Type`.
     ensureType ::
       OxprE w r m a ->
@@ -381,10 +390,10 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       ensure (_S::S_ "Bool") c
         (errorHere (_S::S_ "Invalid predicate")) *> do
       map shared $ join $ checkEqL
-          <$> ensureTerm t
-            (errorHere (_S::S_ "If branch must be term") <<< Tuple false)
-          <*> ensureTerm f
-            (errorHere (_S::S_ "If branch must be term") <<< Tuple true)
+          <$> ensureAnyTerm t
+            (errorHere (_S::S_ "If branch must be term") <<< const false)
+          <*> ensureAnyTerm f
+            (errorHere (_S::S_ "If branch must be term") <<< const true)
           <@> errorHere (_S::S_ "If branch mismatch")
   , "Natural": identity aType
   , "NaturalLit": always $ AST.mkNatural
