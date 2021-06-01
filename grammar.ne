@@ -292,13 +292,21 @@ any_label_or_some -> any_label {% pass0 %} | Some {% pass0 %}
 #
 # * Dhall strings also allow Unicode escape sequences of the form `\u{XXX}`
 double_quote_chunk ->
-      double_quote_literal_chunk (interpolation double_quote_literal_chunk):*
-        {% d => [d[0]].concat(...d[1]) %}
+  double_quote_literal_chunk
+  (interpolation double_quote_literal_chunk):*
+  "$":?
+    {% d => {
+      var r = [d[0]].concat(...d[1]);
+      if (d[2] != null) {
+        r[r.length-1] += d[2];
+      }
+      return r;
+    } %}
 
 double_quote_literal_chunk ->
-    ( "\\" double_quote_escaped {% pass1 %}
-    | double_quote_char {% pass0 %}
-    ):* {% d => d[0].join("") %}
+  ( "\\" double_quote_escaped {% pass1 %}
+  | double_quote_char {% pass0 %}
+  ):* {% d => d[0].join("") %}
 
 double_quote_escaped ->
   ( [\x22\x24\x5C\x2F] {% pass0 %}
@@ -366,8 +374,10 @@ braced_codepoint ->
 braced_escape -> braced_codepoint {% collapse %}
 
 # Printable characters except double quote and backslash
-# FIXME
-double_quote_char -> [\x20-\x21\x23\x25-\x5B\x5D-\x7F] {% pass0 %} | valid_non_ascii {% pass0 %}
+double_quote_char ->
+    [\x20-\x21\x23\x25-\x5B\x5D-\x7F] {% pass0 %}
+  | valid_non_ascii {% pass0 %}
+  | "$" ( [\x20-\x21\x23-\x5B\x5D-\x7A\x7C-\x7F] | valid_non_ascii ) {% collapse %}
 
 double_quote_literal -> [\x22] double_quote_chunk [\x22] {% pass1 %}
 
@@ -396,7 +406,8 @@ escaped_quote_pair -> "'''" {% () => "''" %}
 escaped_interpolation -> "''${" {% () => "${" %}
 
 # FIXME
-single_quote_char -> [\x20-\x23\x25-\x26\x28-\x7F] {% pass0 %} | valid_non_ascii {% pass0 %} | tab {% pass0 %} | end_of_line {% pass0 %}
+single_quote_char ->
+    [\x20-\x23\x25-\x26\x28-\x7F] {% pass0 %} | valid_non_ascii {% pass0 %} | tab {% pass0 %} | end_of_line {% pass0 %}
   # single quote cannot be followed by single quote
   | [\x27] ( [\x20-\x26\x28-\x7F] {% pass0 %} | valid_non_ascii {% pass0 %} | tab {% pass0 %} | end_of_line {% pass0 %} ) {% collapse %}
   # $ cannot be followed by {
