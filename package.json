@@ -12,7 +12,7 @@
   },
   "devDependencies": {},
   "scripts": {
-    "test": "pulp test -m Dhall.Test.Standard",
+    "test": "DHALL_TEST_VAR=\"6 * 7\" pulp test -m Dhall.Test.Standard",
     "grammar": "./grammar.sh"
   },
   "repository": {

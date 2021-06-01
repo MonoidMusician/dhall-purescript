@@ -18,7 +18,7 @@ import Data.Lens (Prism', prism')
 import Data.List (List)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, fromMaybe')
+import Data.Maybe (Maybe(..), fromMaybe, fromMaybe', isJust)
 import Data.Newtype (class Newtype, over, unwrap, wrap)
 import Data.Ord (class Ord1)
 import Data.These (These(..))
@@ -146,6 +146,9 @@ instance strMapIshIOSM :: Ord k => MapLike k (InsOrdMap k) where
 -- FIXME: I don't think this is what I want for this name?
 set :: forall k m a. MapLike k m => k -> a -> m a -> Maybe (m a)
 set k v = modify k (pure (Tuple k v))
+
+has :: forall k m a. MapLike k m => k -> m a -> Boolean
+has k vs = isJust (get k vs)
 
 insert :: forall k m a. MapLike k m => k -> a -> m a -> m a
 insert k v = alter k (pure (pure v))

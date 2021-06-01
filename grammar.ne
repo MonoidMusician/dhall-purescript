@@ -1,8 +1,8 @@
 # Converted from https://github.com/dhall-lang/dhall-lang/blob/master/standard/dhall.abnf
 
 @{%
-function binop(type, i=1) {
-  return data => data[1].reduce((r, v) => ({ type, value: [r, v[i]] }), data[0]);
+function binop(type, i=1, flatten=false) {
+  return data => data[1].reduce((r, v) => ({ type, value: !flatten ? [r, v[i]] : [r, ...v[i]] }), data[0]);
 };
 
 function nuller() { return null; }
@@ -39,6 +39,21 @@ function collapse(items) {
   });
 
   return flat;
+}
+
+function merge_fields(fields) {
+  var result = [];
+  fields.forEach(([field, value]) => {
+    var found = false;
+    result.forEach(([key,existing], i) => {
+      if (key === field) {
+        found = true;
+        result[i] = [key, { type: "Combine", value: [existing, value] }];
+      }
+    });
+    if (!found) result.push([field,value]);
+  });
+  return result;
 }
 
 function remove_common_prefix(items) {
@@ -795,10 +810,11 @@ empty_list_literal ->
   "[" whsp ( "," whsp ):? "]" whsp ":" whsp1 application_expression {% d => ({ type: "ListLit", value: [[],d[7]] }) %}
 
 with_expression ->
-    import_expression (whsp1 with whsp1 with_clause):+ {% d => binop("With", 3) %}
+    import_expression (whsp1 with whsp1 with_clause):+ {% binop("With", 3, true) %}
 
 with_clause ->
-    any_label_or_some (whsp "." whsp any_label_or_some):* whsp "=" whsp operator_expression {% d => {throw "WITH"} %}
+    any_label_or_some (whsp "." whsp any_label_or_some):* whsp "=" whsp operator_expression
+    {% d => [ [d[0], ...d[1].map(e => e[3])], d[5] ] %}
 
 operator_expression -> equivalent_expression {% pass0 %}
 
@@ -864,8 +880,8 @@ selector ->
   | labels {% tag("Project") %}
   | type_selector {% tag("ProjectType") %}
 
-labels -> "{" whsp ( any_label_or_some whsp ("," whsp any_label_or_some whsp):* ):? "}"
-{% d => d[2] != null ? [d[2][0]].concat(d[2][2].map(v => v[2])) : [] %}
+labels -> "{" whsp ("," whsp):? ( any_label_or_some whsp ("," whsp any_label_or_some whsp):* ("," whsp):? ):? "}"
+{% d => d[3] != null ? [d[3][0]].concat(d[3][2].map(v => v[2])) : [] %}
 
 type_selector -> "(" whsp expression whsp ")" {% pass(2) %}
 
@@ -881,10 +897,10 @@ primitive_expression ->
     | text_literal {% d => ({ type: "TextLit", value: d[0] }) %}
     # "{ foo = 1      , bar = True }"
     # "{ foo : Integer, bar : Bool }"
-    | "{" whsp ( "," whsp ):? record_type_or_literal whsp "}" {% pass(3) %}
+    | "{" whsp ( "," whsp ):? record_type_or_literal "}" {% pass(3) %}
     # "< Foo : Integer | Bar : Bool >"
     # "< Foo : Integer | Bar = True >"
-    | "<" whsp ( "," whsp ):? union_type ">" {% pass(3) %}
+    | "<" whsp ( "|" whsp ):? union_type ">" {% pass(3) %}
     # "[1, 2, 3]"
     | non_empty_list_literal {% pass0 %}
     # "x"
@@ -894,28 +910,44 @@ primitive_expression ->
     | "(" complete_expression ")" {% pass1 %}
 
 record_type_or_literal ->
-    empty_record_literal {% pass0 %}
-  | non_empty_record_type_or_literal {% pass0 %}
+    empty_record_literal whsp {% pass0 %}
+  | non_empty_record_type_or_literal whsp {% pass0 %}
   | empty_record_type {% pass0 %}
 
 empty_record_literal -> "=" ( whsp "," ):? {% () => ({ type: "RecordLit", value: [] }) %}
-empty_record_type -> null {% () => ({ type: "Record", value: [] }) %}
-non_empty_record_type_or_literal ->
-    any_label_or_some whsp ( non_empty_record_literal | non_empty_record_type )
-  {% d => {d[2][0].value[0][0] = d[0]; return d[2][0]} %}
-non_empty_record_type    -> ":" whsp1 expression (whsp "," whsp record_type_entry):*
-  {%
-  d => ({ type: "Record", value: [["",d[2]]].concat(d[3].map(v => v[3])) })
-  %}
-record_type_entry -> any_label whsp ":" whsp1 expression {% d => [d[0], d[4]] %}
-non_empty_record_literal -> "=" whsp expression (whsp "," whsp record_literal_entry):*
-  {%
-  d => ({ type: "RecordLit", value: [["",d[2]]].concat(d[3].map(v => v[3])) })
-  %}
-record_literal_entry -> any_label whsp "=" whsp expression {% d => [d[0],d[4]] %}
 
+empty_record_type -> null {% () => ({ type: "Record", value: [] }) %}
+
+non_empty_record_type_or_literal ->
+    non_empty_record_type {% pass0 %}
+  | non_empty_record_literal {% pass0 %}
+
+non_empty_record_type ->
+    record_type_entry (whsp "," whsp record_type_entry):* (whsp ","):?
+  {% d => ({ type: "Record", value: [d[0], ...d[1].map(e => e[3])] }) %}
+
+record_type_entry -> any_label_or_some whsp ":" whsp1 expression {% d => [d[0], d[4]] %}
+
+non_empty_record_literal ->
+    record_literal_entry (whsp "," whsp record_literal_entry):* (whsp ","):?
+  {%
+  d => ({ type: "RecordLit", value: merge_fields([d[0], ...d[1].map(e => e[3])]) })
+  %}
+
+# If the `record_literal_normal_entry` is absent, that represents a punned
+# record entry, such as in `{ x }`, which is a short-hand for `{ x = x }`
+record_literal_entry ->
+   any_label_or_some {% d => [d[0], { type: "Var", value: [d[0],0] }] %}
+  | any_label_or_some (whsp "." whsp any_label_or_some):* whsp "=" whsp expression
+  {% d => [d[0],d[1].reduceRight(
+    (acc, l) => ({ type: "RecordLit", value: [[l[3], acc]] }),
+    d[5]
+  )] %}
+
+# If the `union_type_entry` is absent, that represents an empty union
+# alternative, such as in `< Heads | Tails >`
 union_type ->
-      non_empty_union_type whsp {% pass0 %}
+      non_empty_union_type (whsp "|"):? whsp {% pass0 %}
     | empty_union_type {% pass0 %}
 
 empty_union_type -> null {% () => ({ type: "Union", value: [] }) %}
@@ -926,7 +958,7 @@ non_empty_union_type ->
 
 # x : Natural
 # x
-union_type_entry -> any_label ( whsp ":" whsp1 expression ):?
+union_type_entry -> any_label_or_some ( whsp ":" whsp1 expression ):?
     {% d => [d[0],pass(3)(d[1])] %}
 
 non_empty_list_literal -> "[" whsp ( "," whsp ):? expression whsp ("," whsp expression whsp):* ( "," whsp ):? "]"

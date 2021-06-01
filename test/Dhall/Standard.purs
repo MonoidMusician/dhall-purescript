@@ -20,7 +20,6 @@ import Data.String as String
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
 import Dhall.Core (Directory(..), File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), alphaNormalize, conv, unordered)
-import Dhall.Core as AST
 import Dhall.Core.CBOR (decode)
 import Dhall.Imports.Resolve as Resolve
 import Dhall.Imports.Retrieve (nodeCacheIn, nodeReadBinary, nodeRetrieve, nodeRetrieveFile)
@@ -99,11 +98,11 @@ testType' section suff success failure = do
   successes <- liftAff $ Util.discover2 ("A" <> suff) (root <> section <> "/success") <#>
     Array.mapMaybe (\file -> Tuple <$> filter section file <@> file)
   count0 <- liftEffect $ Ref.new 0
-  traverse_ (\(Tuple verb file) -> logErrorWith (log file) (log file *> liftAff (success verb file) *> incr count0)) successes
+  traverse_ (\(Tuple verb file) -> logErrorWith (log file) (liftAff (success verb file) *> incr count0)) successes
   count1 <- liftEffect $ Ref.new 0
   failures <- liftAff $ Util.discover2 suff (root <> section <> "/failure") <#>
     Array.mapMaybe (\file -> Tuple <$> filter section file <@> file)
-  traverse_ (\(Tuple verb file) -> logErrorWith (log file) (log file *> liftAff (failure verb file) *> incr count1)) failures
+  traverse_ (\(Tuple verb file) -> logErrorWith (log file) (liftAff (failure verb file) *> incr count1)) failures
   counted0 <- liftEffect $ Ref.read count0
   counted1 <- liftEffect $ Ref.read count1
   let execed = Array.length successes + Array.length failures
@@ -188,7 +187,10 @@ test = do
           when verb do
             logShow $ norm
             logShow $ importedB.resolved
-          throwError (error "Normalization did not match")
+          throwError $ error $
+            if norm == importedA.resolved
+              then "Did not normalize"
+              else "Normalization did not match"
     do \verb failure ->
         throwError (error "Why is there a normalization failure?")
   testType "alpha-normalization"
@@ -271,6 +273,9 @@ test = do
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
           note "Failed to resolve B"
         when (importedA.resolved /= importedB.resolved) do
+          when verb do
+            logShow importedA.resolved
+            logShow importedB.resolved
           throwError (error "Imports did not match")
     do \verb failure -> do
         text <- nodeRetrieveFile (failure <> ".dhall")

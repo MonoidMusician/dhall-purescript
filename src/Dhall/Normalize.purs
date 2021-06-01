@@ -7,6 +7,7 @@ import Control.Comonad (class Comonad, class Extend, extend, extract)
 import Control.Plus (empty)
 import Data.Array (foldr)
 import Data.Array as Array
+import Data.Array.NonEmpty as NEA
 import Data.Const (Const)
 import Data.Either (Either(..))
 import Data.Enum (toEnum)
@@ -381,6 +382,10 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
         Just (Product (Tuple _ [])), _ -> simpler r
         _, Just (Product (Tuple _ [])) -> simpler l
         _, _ -> reconstruct (_S::S_ "ListAppend") (AST.Pair l r)
+    >>> expose (_S::S_ "RecordCompletion")
+    do \(AST.Pair t r) -> anewAnd (_S::S_ "Prefer") $ AST.Pair
+        (anew (_S::S_ "Field") (Tuple "default" t))
+        r
     >>> expose (_S::S_ "Combine")
     do
       let
@@ -440,14 +445,24 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                             case Dhall.Map.get kY kvsX of
                               Just vX -> anewAnd (_S::S_ "App") (AST.Pair vX vY)
                               _ -> default unit
-                        do \_ -> default unit
+                        do \_ -> field # exposeW (_S::S_ "None")
+                            do \_ ->
+                                case Dhall.Map.get "None" kvsX of
+                                  Just vX -> simpler vX
+                                  _ -> default unit
+                            do \_ -> default unit
                   do \_ ->
                       y # exposeW (_S::S_ "Field")
                         do \(Tuple kY _) ->
                             case Dhall.Map.get kY kvsX of
                               Just vX -> simpler vX
                               _ -> default unit
-                        do \_ -> default unit
+                        do \_ -> y # exposeW (_S::S_ "Some")
+                            do \(Identity vY) ->
+                                case Dhall.Map.get "Some" kvsX of
+                                  Just vX -> anewAnd (_S::S_ "App") (AST.Pair vX vY)
+                                  _ -> default unit
+                            do \_ -> default unit
             do \_ -> default unit
     >>> expose (_S::S_ "ToMap")
     do \(Product (Tuple (Identity x) mty)) ->
@@ -533,6 +548,16 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
     do \(Product (Tuple (Identity r) proj)) ->
         let
           default _ = reconstruct (_S::S_ "Project") (Product (Tuple (Identity r) proj))
+          default1 ks _ =
+            case proj of
+              Right _ -> anew (_S::S_ "Project")
+                (Product (Tuple (Identity r) (Left (AppF.App ks))))
+              Left _ -> default unit
+          default2 ks _ =
+            r # exposeW (_S::S_ "Project")
+              do \(Product (Tuple (Identity rr) _)) ->
+                  anewAnd (_S::S_ "Project") (Product (Tuple (Identity rr) proj))
+              do default1 ks
           mks = case proj of
             Left (AppF.App ks) -> Just ks
             Right t -> t # exposeW (_S::S_ "Record") (Just <<< (unit <$ _)) \_ -> Nothing
@@ -550,11 +575,43 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                     in
                       anewAnd (_S::S_ "RecordLit") $
                         Dhall.Map.unionWith (pure adapt) ks kvs
-                do \_ ->
-                    case proj of
-                      Left _ -> default unit
-                      Right _ -> anew (_S::S_ "Project")
-                        (Product (Tuple (Identity r) (Left (AppF.App ks))))
+                do \_ -> r # exposeW (_S::S_ "Prefer")
+                    do \(AST.Pair r1 r2) ->
+                        r2 # exposeW (_S::S_ "RecordLit")
+                          do \kvs ->
+                              let
+                                -- kvs restricted to the keys in kvs
+                                taken = Dhall.Map.unionWith take ks kvs
+                                take _ = case _ of
+                                  Both _ v -> Just v
+                                  _ -> Nothing
+                                -- ks minus the items from kvs
+                                left = Dhall.Map.unionWith leave ks kvs
+                                leave _ = case _ of
+                                  This u -> Just u
+                                  _ -> Nothing
+                              in anewAnd (_S::S_ "Prefer") $ AST.Pair
+                                (anew (_S::S_ "Project") (Product (Tuple (Identity r1) (Left (AppF.App left)))))
+                                (anew (_S::S_ "RecordLit") taken)
+                          do default2 ks
+                    do default2 ks
+    >>> expose (_S::S_ "With")
+    do \(Product (Tuple (Identity e) (Tuple ks v))) ->
+        let
+          default _ =
+            reconstruct (_S::S_ "With") (Product (Tuple (Identity e) (Tuple ks v)))
+          k0 = NEA.head ks
+          alterer = case NEA.fromArray (NEA.tail ks) of
+            Nothing -> \_ -> v
+            Just ks' -> case _ of
+              Nothing ->
+                Array.foldr (\k v' -> anew (_S::S_ "RecordLit") (Dhall.Map.singleton k v')) v ks'
+              Just v0 ->
+                anew (_S::S_ "With") (Product (Tuple (Identity v0) (Tuple ks' v)))
+        in e # exposeW (_S::S_ "RecordLit")
+          do \kvs -> anewAnd (_S::S_ "RecordLit") $
+              Dhall.Map.alter k0 (Just <<< alterer) kvs
+          do default
     -- NOTE: eta-normalization, added
     {-
     >>> expose (_S::S_ "Lam")
