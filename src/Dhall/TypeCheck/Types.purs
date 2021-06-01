@@ -130,8 +130,8 @@ type Errors r =
   , "Must merge a record" :: Unit
   , "Must merge a union" :: Unit
   , "Missing merge type" :: Unit
-  , "Missing handler" :: Set Unit
-  , "Unused handlers" :: Set Unit
+  , "Missing handler" :: Set String
+  , "Unused handlers" :: Set String
   , "Handler not a function" :: String
   , "Dependent handler function" :: String
   , "Handler input type mismatch" :: String

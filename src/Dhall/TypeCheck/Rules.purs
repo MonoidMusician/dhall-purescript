@@ -582,8 +582,8 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         <*> ensure (_S::S_ "Union") cases
           (errorHere (_S::S_ "Must merge a union"))
       let
-        ksX = Set.fromFoldable $ ktsX $> unit
-        ksY = Set.fromFoldable $ ktsY $> unit
+        ksX = Set.fromFoldable $ ((fst <$> Dhall.Map.toUnfoldable ktsX) :: List String)
+        ksY = Set.fromFoldable $ ((fst <$> Dhall.Map.toUnfoldable ktsY) :: List String)
         diffX = Set.difference ksX ksY
         diffY = Set.difference ksY ksX
       -- get the assumed type of the merge result
