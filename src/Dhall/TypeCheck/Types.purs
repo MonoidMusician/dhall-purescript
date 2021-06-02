@@ -84,6 +84,7 @@ newtype TypeCheckError r a = TypeCheckError
   -- The tag for the specific error, mostly for machine purposes
   , tag :: Variant r
   }
+derive instance newtypeTypeCheckError :: Newtype (TypeCheckError r a) _
 derive instance functorTypeCheckError :: Functor (TypeCheckError r)
 derive newtype instance showTypeCheckError :: (Show a, Show (Variant r)) => Show (TypeCheckError r a)
 

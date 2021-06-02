@@ -273,8 +273,8 @@ test = do
           note "Failed to parse B"
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
           note "Failed to resolve B"
-        when (importedA.resolved /= importedB.resolved) do
-          when verb do
+        when (unordered importedA.resolved /= unordered importedB.resolved) do
+          when (true || verb) do
             logShow importedA.resolved
             logShow importedB.resolved
           throwError (error "Imports did not match")

@@ -283,16 +283,21 @@ resolveAlternativesAndCheckHashes = rewriteBottomUpA' $ identity
       -- Recurse on the original but return the *normalized* node
       -- See: https://github.com/dhall-lang/dhall-lang/issues/690#issuecomment-518442494
       pure $ AST.mkHashed exprn hash
+    isRecoverableError = unwrap >>> _.tag >>> Variant.onMatch
+      { "Missing import": const true
+      , "Import error": const true
+      , "Import failed to resolve": const true
+      } (const false)
     recover :: Pair (M w r ResolvedExpr) -> M w r ResolvedExpr
     recover (Pair l r) = M $ ReaderT \rs -> Compose $ WriterT <$> do
       l' <- unwrap <$> unwrap (unwrap (unwrap l) rs)
       case l' of
-        V.Success a -> pure $ V.Success a
-        V.Error as ma -> do
+        V.Error as ma | List.any isRecoverableError as -> do
           r' <- unwrap <$> unwrap (unwrap (unwrap r) rs)
           case r' of
             V.Success a -> pure $ V.Success a
             V.Error bs mb -> pure $ V.Error (as <> bs) (ma <|> mb)
+        _ -> pure l'
 
 -- For hashes found in the cache, replace the expression with that
 replaceCached :: forall w r. LocalizedExpr -> M w r LocalizedExpr
@@ -307,9 +312,11 @@ replaceCached = rewriteTopDownA $ VariantF.on (_S::S_ "Hashed")
         -- standard would suggest it should be checked here
         -- TODO: verify expression typechecks and is (alpha-)normalized?
         | Just decoded <- decode (CBOR.decode cached)
-        , Just noImports <- traverse (pure Nothing) decoded -> do
-          liftAff $ logShow noImports
-          pure $ Tuple true noImports
+        , Just noImports <- traverse (pure Nothing) decoded
+        , hash == Hash.hash ((absurd <$> Hash.neutralize noImports) :: ImportExpr) -> do
+          let noImports' = absurd <$> noImports
+          liftAff $ logShow noImports'
+          pure $ Tuple true noImports'
       -- Recurse since this was a cache miss, maybe an inner node will succeed
       _ -> Tuple false <$> replaceCached expr
     -- Mark this hash as uncached
@@ -400,6 +407,7 @@ resolveImport i@(Localized (Import { importMode, importType })) =
         -- resolving (in the case of diamond imports, a sibling may wait for the
         -- first thread to complete resolving the shared import)
         Just resolving -> do
+          -- TODO: this does not tell us whether it is a recoverable error?
           liftAff' (pure (throw (Variant.inj (_S::S_ "Import failed to resolve") i))) $
             AVar.read resolving
         -- Otherwise, create the resolved value
@@ -428,6 +436,7 @@ resolveImport i@(Localized (Import { importMode, importType })) =
       >=> recurse
       -- Ensure it typechecks
       >=> ensureWellTyped
+      >>> map normalize
     -- Recurse, pushing context onto the stack and resolving all the imports
     -- based on that locale
     recurse = local (Lens.prop (_S::S_ "stack") (List.Cons i)) <<<

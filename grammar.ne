@@ -595,7 +595,7 @@ variable -> nonreserved_label ( whsp "@" natural_literal ):? {% d => ({ type: "V
 #
 # Excluding those characters ensures that paths don't have to end with trailing
 # whitespace most of the time
-path_character -> [\x21-\x22\x24-\x27\x2A-\x2B\x2D-\x2E\x30-\x3B\x3D\x40-\x5A\x5E-\x7A\x7C\x7E] {% pass0 %}
+path_character -> [\x21\x24-\x27\x2A-\x2B\x2D-\x2E\x30-\x3B\x3D\x40-\x5A\x5E-\x7A\x7C\x7E] {% pass0 %}
 
 quoted_path_character -> [\x20-\x21\x23-\x2E\x30-\x7F] {% pass0 %} | valid_non_ascii {% pass0 %}
 
