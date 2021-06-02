@@ -5,6 +5,7 @@
     "doc": "docs"
   },
   "dependencies": {
+    "@petamoriken/float16": "^2.0.0",
     "nearley": "^2.20.1",
     "node-fetch": "^2.6.1",
     "sjcl": "git://github.com/athanclark/sjcl.git#e6ca43fbcc85689f9e6b212cc88b85a53295a459"

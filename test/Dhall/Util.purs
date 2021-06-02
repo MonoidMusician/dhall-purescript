@@ -14,6 +14,7 @@ import Node.FS.Stats (isDirectory, isFile)
 import Node.Path (FilePath)
 
 foreign import eqArrayBuffer :: ArrayBuffer -> ArrayBuffer -> Boolean
+foreign import showCBOR :: ArrayBuffer -> String
 
 startsWith :: String -> String -> Boolean
 startsWith str pre =

@@ -25,7 +25,7 @@ import Data.Newtype (un, unwrap)
 import Data.Traversable (traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..), fst)
-import Dhall.Core (Const(..), Double(..), Expr, Import(..), ImportType(..), LetF(..), MergeF(..), Pair(..), S_, TextLitF(..), Triplet(..), Var(..), _S)
+import Dhall.Core (Const(..), Double, Expr, Import(..), ImportType(..), LetF(..), MergeF(..), Pair(..), S_, TextLitF(..), Triplet(..), Var(..), _S)
 import Dhall.Core.AST (BindingBody(..), projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Types.Basics (pureTextLitF)
@@ -34,6 +34,10 @@ import Dhall.Core.Imports (Directory(..), File(..), FilePrefix(..), ImportMode(.
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
 import Foreign.Object as Foreign.Object
+
+-- These use the JS Number class to signal with the CBOR reader/writer
+foreign import unsafeNumber :: Double -> Json
+foreign import unsafeFromNumber :: forall a. (Double -> a) -> (Json -> a) -> Json -> a
 
 encode :: forall m. MapLike String m => Expr m Import -> Json
 encode = recenc Nil where
@@ -141,7 +145,7 @@ encode = recenc Nil where
       , "NaturalLit": tagged 15 <<< pure <<< un Const >>> natToInt >>> Int.toNumber >>> J.fromNumber
       , "IntegerLit": tagged 16 <<< pure <<< un Const >>> Int.toNumber >>> J.fromNumber
       -- TODO
-      , "DoubleLit": un Const >>> un Double >>> J.fromNumber
+      , "DoubleLit": un Const >>> unsafeNumber
       , "TextLit": \m -> tagged 18 $
           let
             rec (TextLit s) = [ J.fromString s ]
@@ -307,26 +311,27 @@ decodeImport q = do
     }
 
 decode :: forall m. MapLike String m => Json -> Maybe (Expr m Import)
-decode = J.caseJson
-  (pure empty)
-  (pure <<< AST.mkBoolLit)
-  -- TODO: distinguish number types???
-  numberHack
-  builtin
-  (\a -> do
-    { head, tail } <- Array.uncons a
-    (<|>)
-      do
-        var <- J.toString head
-        case tail of
-          [ idx ] | var /= "_", Just i <- decodeTag idx ->
-            pure $ AST.mkVar (AST.V var i)
-          _ -> Nothing
-      do
-        tag <- decodeTag head
-        decodeTagged tag tail
-  )
-  (pure empty)
+decode = unsafeFromNumber (pure <<< AST.mkDoubleLit) $
+  J.caseJson
+    (pure empty)
+    (pure <<< AST.mkBoolLit)
+    -- TODO: distinguish number types???
+    numberHack
+    builtin
+    (\a -> do
+      { head, tail } <- Array.uncons a
+      (<|>)
+        do
+          var <- J.toString head
+          case tail of
+            [ idx ] | var /= "_", Just i <- decodeTag idx ->
+              pure $ AST.mkVar (AST.V var i)
+            _ -> Nothing
+        do
+          tag <- decodeTag head
+          decodeTagged tag tail
+    )
+    (pure empty)
   where
     builtin = case _ of
       "Natural/build" -> pure AST.mkNaturalBuild
@@ -363,16 +368,11 @@ decode = J.caseJson
       "Kind" -> pure AST.mkKind
       "Sort" -> pure AST.mkSort
       _ -> empty
-    -- FIXME: awful, awful hack
     numberHack n =
-      let
-        n' = Int.fromNumber n >>=
-          case _ of
-            i | i >= 0 -> pure i
-            _ -> empty
-      in case n' of
-        Nothing -> pure (AST.mkDoubleLit (Double n))
-        Just i -> pure (AST.mkVar (AST.V "_" i))
+      Int.fromNumber n >>=
+        case _ of
+          i | i >= 0 -> pure (AST.mkVar (AST.V "_" i))
+          _ -> empty
     decodeMaybe j = case J.toNull j of
       Just _ -> pure Nothing
       Nothing -> Just <$> decode j

@@ -17,3 +17,8 @@ function dataViewsAreEqual(a, b) {
   }
   return true;
 }
+
+// from https://stackoverflow.com/a/40031979
+exports.showCBOR = function(buffer) {
+  return [...new Uint8Array(buffer)].map(x => x.toString(16).padStart(2, '0')).join('');
+}

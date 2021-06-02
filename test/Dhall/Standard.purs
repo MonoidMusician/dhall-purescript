@@ -130,18 +130,17 @@ mkActions ty file = Test.mkActions'
   , retriever: nodeRetrieve
   }
 
-logDiag :: ArrayBuffer -> Aff Unit
+logDiag :: ArrayBuffer -> Aff String
 logDiag ab = makeAff \cb -> do
   cp <- ChildProcess.spawn "cbor2diag.rb" [] ChildProcess.defaultSpawnOptions
-  ChildProcess.onError cp \_ -> cb (Right unit)
+  ChildProcess.onError cp \_ -> cb (Right "")
   let stdout = ChildProcess.stdout cp
   result <- Ref.new mempty
   Stream.onDataString stdout UTF8 \res ->
     Ref.modify_ (_ <> res) result
   ChildProcess.onExit cp \_ -> do
     res <- Ref.read result
-    log res
-    cb (Right unit)
+    cb (Right res)
   let stdin = ChildProcess.stdin cp
   buffer <- Buffer.fromArrayBuffer ab
   void $ Stream.write stdin buffer (Stream.end stdin mempty)
@@ -159,8 +158,12 @@ test = do
         when ((extract parsedA.encoded).cbor `not eqArrayBuffer` binB) do
           when verb do
             logShow parsedA.parsed
-            logDiag (extract parsedA.encoded).cbor
-            logDiag binB
+            let binA = (extract parsedA.encoded).cbor
+            d1 <- logDiag binA
+            d2 <- logDiag binB
+            if d1 /= "" && d2 /= ""
+              then log d1 *> log d2
+              else log (Util.showCBOR binA) *> log (Util.showCBOR binB)
           throwError (error "Binary did not match")
     do \verb failure -> do
         text <- nodeRetrieveFile (failure <> ".dhall")
