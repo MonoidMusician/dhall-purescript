@@ -35,7 +35,7 @@ class (Ord k, Ord1 m, TraversableWithIndex k m) <= MapLike k m | m -> k where
   isEmpty :: forall a. m a -> Boolean
   get :: forall a. k -> m a -> Maybe a
   modify :: forall a. k -> (a -> Tuple k a) -> m a -> Maybe (m a)
-  alter :: forall a. k -> (Maybe a -> Maybe a) -> m a -> m a
+  alterA :: forall f a. Functor f => k -> (Maybe a -> f (Maybe a)) -> m a -> f (m a)
   delete :: forall a. k -> m a -> Maybe (m a)
   unionWith :: forall a b c. (k -> These a b -> Maybe c) -> m a -> m b -> m c
   toUnfoldable :: forall f a. Unfoldable f => m a -> f (Tuple k a)
@@ -73,7 +73,9 @@ instance strMapMapString :: Ord k => MapLike k (Map k) where
     let Tuple k' v' = f v
     let m' = if k == k' then m else Map.delete k m
     pure $ Map.insert k' v' m'
-  alter = flip Map.alter
+  alterA k f m = f (Map.lookup k m) <#> case _ of
+    Nothing -> Map.delete k m
+    Just v -> Map.insert k v m
   delete k m = Map.lookup k m $> Map.delete k m
   unionWith = unionWithMapThese
   toUnfoldable = Map.toUnfoldable
@@ -112,12 +114,13 @@ instance strMapIshIOSM :: Ord k => MapLike k (InsOrdMap k) where
   modify k f (InsOrdMap (Compose as)) = wrap <<< wrap <$> do
     i <- Array.findIndex (fst >>> eq k) as
     Array.modifyAt i (f <<< extract) as
-  alter k f (InsOrdMap (Compose as)) = wrap $ wrap $
-    case Array.findIndex (fst >>> eq k) as of
-      Nothing -> case f Nothing of
+  alterA k f (InsOrdMap (Compose as)) = wrap <<< wrap <$>
+    case Array.findIndex (fst >>> eq k) as, Array.find (fst >>> eq k) as of
+      Just i, Just (Tuple k' v) -> f (Just v) <#> \v' ->
+        (fromMaybe <*> Array.alterAt i (const (Tuple k' <$> v'))) as
+      _, _ -> f Nothing <#> case _ of
         Nothing -> as
         Just v -> [Tuple k v] <> as
-      Just i -> (fromMaybe <*> Array.alterAt i (traverse (f <<< Just))) as
   delete k (InsOrdMap (Compose as)) = wrap <<< wrap <$> do
     i <- Array.findIndex (fst >>> eq k) as
     Array.deleteAt i as
@@ -146,6 +149,9 @@ instance strMapIshIOSM :: Ord k => MapLike k (InsOrdMap k) where
 -- FIXME: I don't think this is what I want for this name?
 set :: forall k m a. MapLike k m => k -> a -> m a -> Maybe (m a)
 set k v = modify k (pure (Tuple k v))
+
+alter :: forall k m a. MapLike k m => k -> (Maybe a -> Maybe a) -> m a -> m a
+alter k f m = fromMaybe m (alterA k (pure <<< f) m)
 
 has :: forall k m a. MapLike k m => k -> m a -> Boolean
 has k vs = isJust (get k vs)

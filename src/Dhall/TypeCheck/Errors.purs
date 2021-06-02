@@ -367,6 +367,10 @@ explain ctx nodeType =
       , reference $ normalized <> within (_S::S_ "ToMap") (Right unit)
       ]
   -- TODO
+  , "Invalid completion type": \mc ->
+      [ Text $ "TODO"
+      ]
+  -- TODO
   , "Invalid toMap type": \mc ->
       [ Text $ "The `toMap` operation should contain elements in the universe "
       , referenceExpr $ AST.mkType

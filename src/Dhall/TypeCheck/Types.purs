@@ -143,6 +143,7 @@ type Errors r =
   , "Missing field" :: String
   , "Cannot access" :: Unit
   , "toMap takes a record" :: Unit
+  , "Invalid completion type" :: Unit
   , "Invalid toMap type annotation" :: Unit
   , "Invalid toMap type" :: Maybe Const
   , "Missing toMap type" :: Unit

@@ -517,8 +517,6 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         kts' <- forWithIndex kts \(Tuple field (_ :: Unit)) ty -> do
           unwrap <$> ensure (_S::S_ "Const") ty
             (errorHere (_S::S_ "Invalid field type") <<< const field)
-        ensureConsistency (((<<<)<<<(<<<)) (fromMaybe true) $ lift2 eq)
-          (errorHere (_S::S_ "Inconsistent alternative types") <<< (map <<< map) _.key) (unwrap kts')
         pure $ newb $ AST.mkConst $ maxConst kts'
   , "Combine":
       let
@@ -573,14 +571,70 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           That b -> b
           Both a _ -> a
       pure $ mkShared(_S::S_"Record") $ map shared $ Dhall.Map.unionWith (pure preference) ktsR ktsL
-  , "RecordCompletion": \_ -> errorHere (_S::S_ "`Sort` has no type") unit
-  , "With": \_ -> errorHere (_S::S_ "`Sort` has no type") unit
+  , "RecordCompletion": \(AST.Pair l r) -> do
+      AST.Pair lT rT <- traverse typecheckStep (AST.Pair l r)
+      fields <- ensure' (_S::S_ "RecordLit") l
+        (errorHere (_S::S_ "Cannot access"))
+      AST.Pair df dest <- AST.Pair
+        <$> (Dhall.Map.get "default" fields # noteHere (_S::S_ "Missing field") "default")
+        <*> (Dhall.Map.get "Type" fields # noteHere (_S::S_ "Missing field") "Type")
+      fields' <- ensure' (_S::S_ "Record") dest
+        (errorHere (_S::S_ "Annotation mismatch"))
+      V.confirmW (shared dest) do
+        let p = AST.Pair df r
+        AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
+          forWithIndex p \side kvs -> do
+            ty <- typecheckStep kvs
+            kts <- ensure' (_S::S_ "Record") ty
+              (errorHere (_S::S_ "Must combine a record") <<< const (Tuple Nil side))
+            k <- typecheckStep ty
+            const <- unwrap <$> ensure (_S::S_ "Const") ty
+              (errorHere (_S::S_ "Must combine a record") <<< const (Tuple Nil side))
+            pure { kts, const }
+        let
+          preference = Just <<< case _ of
+            This a -> a
+            That b -> b
+            Both a _ -> a
+          comparing = case _ of
+            Both l' r' -> checkEqR l' r' (errorHere (_S::S_ "Annotation mismatch"))
+            _ -> errorHere (_S::S_ "Annotation mismatch") unit
+          res = Dhall.Map.unionWith (pure preference) ktsR ktsL
+        void $ traverse identity $ Dhall.Map.unionWith (pure (Just <<< comparing)) res fields'
+  , "With": \(Product (Tuple (Identity e) (Tuple ks0 v))) -> do
+      AST.Pair eT vT <- traverse typecheckStep (AST.Pair e v)
+      let
+        addfield ks t = do
+          kts <- ensure' (_S::S_ "Record") t
+            (errorHere (_S::S_ "Must combine a record") <<< const (Tuple Nil false))
+          mkShared (_S::S_ "Record") <$> case NEA.fromArray (NEA.tail ks) of
+            Nothing -> pure $ map shared $ Dhall.Map.insert (NEA.head ks) vT kts
+            Just ks' -> do
+              changed <- forWithIndex kts \k' t' ->
+                if k' /= NEA.head ks then pure (shared t') else addfield ks' t'
+              pure $ changed # Dhall.Map.alter (NEA.head ks)
+                case _ of
+                  Nothing -> Just $
+                    Array.foldr (\k v' -> mkShared (_S::S_ "Record") (Dhall.Map.singleton k v')) (shared vT) ks'
+                  Just yes -> Just yes
+      addfield ks0 eT
   , "Merge": \(AST.MergeF handlers cases mty) -> do
       Tuple ktsX (Compose ktsY) <- Tuple
         <$> ensure (_S::S_ "Record") handlers
           (errorHere (_S::S_ "Must merge a record"))
-        <*> ensure (_S::S_ "Union") cases
-          (errorHere (_S::S_ "Must merge a union"))
+        <*> do
+          tyY <- typecheckStep cases
+          let
+            error = errorHere (_S::S_ "Must merge a union")
+            casing = (\_ -> absurd <$> error unit)
+              # VariantF.on (_S::S_ "Union") pure
+              # VariantF.on (_S::S_ "App") \(AST.Pair f t) -> do
+                  void $ ensure' (_S::S_ "Optional") f error
+                  pure $ Compose $ Dhall.Map.fromFoldable
+                    [ Tuple "Some" (Just t)
+                    , Tuple "None" Nothing
+                    ]
+          tyY # normalizeStep # unlayerO # casing
       let
         ksX = Set.fromFoldable $ ((fst <$> Dhall.Map.toUnfoldable ktsX) :: List String)
         ksY = Set.fromFoldable $ ((fst <$> Dhall.Map.toUnfoldable ktsY) :: List String)
@@ -656,6 +710,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         (errorHere (_S::S_ "Missing toMap type"))
         (errorHere (_S::S_ "Inconsistent toMap types") <<< (map <<< map) _.key)
         (WithHint tyA kts)
+      void $ ensureType ty (errorHere (_S::S_ "Invalid toMap type annotation") <<< const unit)
       pure $ mapType $ shared ty
   , "Field": \(Tuple field expr) -> do
       tyR <- typecheckStep expr
