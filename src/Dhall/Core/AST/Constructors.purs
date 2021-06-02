@@ -13,12 +13,11 @@ import Data.Identity (Identity(..))
 import Data.Lens (Prism', prism', iso, only)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
-import Data.Natural (Natural)
 import Data.Newtype (unwrap)
 import Data.Symbol (class IsSymbol, SProxy)
 import Data.Tuple (Tuple(..), swap)
 import Data.Variant.Internal (FProxy)
-import Dhall.Core.AST.Types (Const(..), Expr, ExprLayerRow, Var, embedW, projectW, Double)
+import Dhall.Core.AST.Types (Const(..), Expr, ExprLayerRow, Var, embedW, projectW, Double, Natural, Integer)
 import Dhall.Core.AST.Types.Basics (_S, S_, BindingBody(..), CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
@@ -336,10 +335,10 @@ mkInteger = mkExpr (_S::S_ "Integer") unit
 _Integer :: forall r. ExprPrism ( "Integer" :: UNIT | r ) Unit
 _Integer = _ExprPrism (_S::S_ "Integer")
 
-mkIntegerLit :: forall m a. Int -> Expr m a
+mkIntegerLit :: forall m a. Integer -> Expr m a
 mkIntegerLit = mkExpr (_S::S_ "IntegerLit")
 
-_IntegerLit :: forall r. ExprPrism ( "IntegerLit" :: CONST Int | r ) Int
+_IntegerLit :: forall r. ExprPrism ( "IntegerLit" :: CONST Integer | r ) Integer
 _IntegerLit = _ExprPrism (_S::S_ "IntegerLit")
 
 mkIntegerShow :: forall m a. Expr m a

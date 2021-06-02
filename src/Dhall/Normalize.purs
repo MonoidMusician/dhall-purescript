@@ -18,7 +18,6 @@ import Data.Functor.Variant (FProxy, SProxy, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Identity (Identity(..))
-import Data.Int (even, toNumber)
 import Data.Int as Int
 import Data.Lazy (Lazy, defer)
 import Data.Lens as Lens
@@ -27,7 +26,6 @@ import Data.Maybe (Maybe(..), isJust)
 import Data.Maybe.First (First)
 import Data.Monoid.Conj (Conj(..))
 import Data.Monoid.Disj (Disj(..))
-import Data.Natural (Natural, intToNat, natToInt, (+-))
 import Data.Newtype (class Newtype, un, unwrap, wrap)
 import Data.String as String
 import Data.Symbol (class IsSymbol)
@@ -36,7 +34,9 @@ import Data.Traversable (class Traversable, sequence, traverse)
 import Data.Tuple (Tuple(..), uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Core.AST (CONST, Expr, TextLitF(..), UNIT, ExprLayerRow, Double)
+import Dhall.Lib.Numbers (Double, Natural, Integer, (+-))
+import Dhall.Lib.Numbers as Num
+import Dhall.Core.AST (CONST, Expr, TextLitF(..), UNIT, ExprLayerRow)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, ConsNodeOpsM, OverCasesM(..), runAlgebraExprM)
 import Dhall.Core.AST.Types.Basics (S_, _S)
@@ -721,7 +721,7 @@ conversionsG :: forall all' node v ops.
     , "IntegerClamp" :: UNIT
     , "DoubleShow" :: UNIT
     , "NaturalLit" :: CONST Natural
-    , "IntegerLit" :: CONST Int
+    , "IntegerLit" :: CONST Integer
     , "TextLit" :: FProxy AST.TextLitF
     , "DoubleLit" :: CONST Double
     , "TextShow" :: UNIT
@@ -733,7 +733,7 @@ conversionsG again = GNormalizer \node -> case _ of
   naturaltointeger~naturallit
     | noappG node (_S::S_ "NaturalToInteger") naturaltointeger
     , Just n <- noapplitG node (_S::S_ "NaturalLit") naturallit ->
-      pure \_ -> mk node (_S::S_ "IntegerLit") $ wrap $ natToInt n
+      pure \_ -> mk node (_S::S_ "IntegerLit") $ wrap $ Num.naturalToInteger n
   naturalshow~naturallit
     | noappG node (_S::S_ "NaturalShow") naturalshow
     , Just n <- noapplitG node (_S::S_ "NaturalLit") naturallit ->
@@ -741,12 +741,11 @@ conversionsG again = GNormalizer \node -> case _ of
   integershow~integerlit
     | noappG node (_S::S_ "IntegerShow") integershow
     , Just n <- noapplitG node (_S::S_ "IntegerLit") integerlit ->
-      let s = if n >= 0 then "+" else "" in
-      pure \_ -> mk node (_S::S_ "TextLit") $ AST.TextLit $ s <> show n
+      pure \_ -> mk node (_S::S_ "TextLit") $ AST.TextLit $ show n
   integertodouble~integerlit
     | noappG node (_S::S_ "IntegerToDouble") integertodouble
     , Just n <- noapplitG node (_S::S_ "IntegerLit") integerlit ->
-      pure \_ -> mk node (_S::S_ "DoubleLit") $ wrap $ wrap $ toNumber n
+      pure \_ -> mk node (_S::S_ "DoubleLit") $ wrap $ wrap $ Num.integerToNumber n
   integernegate~integerlit
     | noappG node (_S::S_ "IntegerNegate") integernegate
     , Just n <- noapplitG node (_S::S_ "IntegerLit") integerlit ->
@@ -754,7 +753,7 @@ conversionsG again = GNormalizer \node -> case _ of
   integerclamp~integerlit
     | noappG node (_S::S_ "IntegerClamp") integerclamp
     , Just n <- noapplitG node (_S::S_ "IntegerLit") integerlit ->
-      pure \_ -> mk node (_S::S_ "NaturalLit") $ wrap $ intToNat n
+      pure \_ -> mk node (_S::S_ "NaturalLit") $ wrap $ Num.naturalFromInteger n
   doubleshow~doublelit
     | noappG node (_S::S_ "DoubleShow") doubleshow
     , Just n <- noapplitG node (_S::S_ "DoubleLit") doublelit ->
@@ -867,11 +866,11 @@ naturalfnsG again = GNormalizer \node -> case _ of
   naturaleven~naturallit
     | noappG node (_S::S_ "NaturalEven") naturaleven
     , Just n <- noapplitG node (_S::S_ "NaturalLit") naturallit ->
-      pure \_ -> mk node (_S::S_ "BoolLit") $ wrap $ even $ natToInt n
+      pure \_ -> mk node (_S::S_ "BoolLit") $ wrap $ Num.even $ Num.naturalToInteger n
   naturalodd~naturallit
     | noappG node (_S::S_ "NaturalOdd") naturalodd
     , Just n <- noapplitG node (_S::S_ "NaturalLit") naturallit ->
-      pure \_ -> mk node (_S::S_ "BoolLit") $ wrap $ not even $ natToInt n
+      pure \_ -> mk node (_S::S_ "BoolLit") $ wrap $ not Num.even $ Num.naturalToInteger n
   naturalsubtract~naturallit0~naturallit1
     | noappG node (_S::S_ "NaturalSubtract") naturalsubtract
     , a <- noapplitG node (_S::S_ "NaturalLit") naturallit0
@@ -955,7 +954,7 @@ listfnsG again = GNormalizer \node -> case _ of
     | noappG node (_S::S_ "ListLength") listlength
     , Just (Product (Tuple _ xs)) <- noapplitG' node (_S::S_ "ListLit") listlit ->
       pure \_ ->
-        mk node (_S::S_ "NaturalLit") $ wrap $ intToNat $ Array.length xs
+        mk node (_S::S_ "NaturalLit") $ wrap $ Num.naturalFromInt $ Array.length xs
   listhead~t~listlit
     | noappG node (_S::S_ "ListHead") listhead
     , Just (Product (Tuple _ xs)) <- noapplitG' node (_S::S_ "ListLit") listlit ->
@@ -982,7 +981,7 @@ listfnsG again = GNormalizer \node -> case _ of
                 , Tuple "value" (Lens.review (appsG node) t)
                 ]
           adapt i x = mk node (_S::S_ "RecordLit") $ Dhall.Map.fromFoldable
-            [ Tuple "index" $ mk node (_S::S_ "NaturalLit") $ wrap $ intToNat i
+            [ Tuple "index" $ mk node (_S::S_ "NaturalLit") $ wrap $ Num.naturalFromInt i
             , Tuple "value" x
             ]
         in mk node (_S::S_ "ListLit") $ product mty' (mapWithIndex adapt xs)

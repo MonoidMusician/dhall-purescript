@@ -12,7 +12,6 @@ import Data.Lens as Lens
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..), fromJust)
 import Data.Maybe as Maybe
-import Data.Natural (Natural)
 import Data.Newtype (class Newtype, over, unwrap)
 import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Traversable (traverse)
@@ -21,8 +20,10 @@ import Data.Unfoldable (class Unfoldable)
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Context as Dhall.Context
-import Dhall.Core.AST (Double(..), Expr, Pair(..), S_, _S)
+import Dhall.Core.AST (Expr, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
+import Dhall.Lib.Numbers (Double(..), Natural, Integer)
+import Dhall.Lib.Numbers as Num
 import Dhall.Map as Dhall.Map
 import Dhall.Normalize (GNormalizerF(..), Normalizer)
 import Dhall.Normalize as Dhall.Normalize
@@ -114,9 +115,21 @@ instance interpretInt :: Interpret Int where autoWith _ = int
 int :: Type Int
 int = Type
   { expected: AST.mkInteger
-  , extract: Lens.preview (AST._E AST._IntegerLit <<< _Newtype)
+  , extract: Lens.preview (AST._E AST._IntegerLit <<< _Newtype) >>> map Num.integerToInt
   }
 instance injectInt :: Inject Int where
+  injectWith _ = InputType
+    { declared: AST.mkInteger
+    , embed: AST.mkIntegerLit <<< Num.intToInteger
+    }
+
+instance interpretInteger :: Interpret Integer where autoWith _ = integer
+integer :: Type Integer
+integer = Type
+  { expected: AST.mkInteger
+  , extract: Lens.preview (AST._E AST._IntegerLit <<< _Newtype)
+  }
+instance injectInteger :: Inject Integer where
   injectWith _ = InputType
     { declared: AST.mkInteger
     , embed: AST.mkIntegerLit

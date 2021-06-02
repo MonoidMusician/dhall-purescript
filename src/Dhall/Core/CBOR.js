@@ -12,3 +12,14 @@ exports.unsafeFromNumber = function(just) {
     }
   }
 }
+exports.unsafeFromBigInt = function(just) {
+  return function(nothing) {
+    return function(n) {
+      if (require("big-integer").isInstance(n)) {
+        return just(n);
+      } else {
+        return nothing(n);
+      }
+    }
+  }
+}

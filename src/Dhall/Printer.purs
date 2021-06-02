@@ -16,7 +16,6 @@ import Data.Identity (Identity(..))
 import Data.List as List
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Monoid.Additive (Additive(..))
-import Data.Natural (natToInt)
 import Data.Newtype (over2, un, unwrap)
 import Data.String as String
 import Data.Symbol (class IsSymbol)
@@ -370,10 +369,8 @@ fromAST renderImport = VariantF.match
       app $ Pair e v
   } where
     showDouble = show
-    showNatural = show <<< natToInt
-    showInteger i
-      | i < 0 = show i
-      | otherwise = "+" <> show i
+    showNatural = show
+    showInteger = show
     annot = binop (_S::S_ "Annot")
     app = binop (_S::S_ "App")
     annotWith Nothing = identity

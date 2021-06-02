@@ -1,4 +1,4 @@
-module Dhall.Core.AST.Types where
+module Dhall.Core.AST.Types ( module Dhall.Core.AST.Types, module Exports ) where
 
 import Prelude
 
@@ -19,7 +19,6 @@ import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Maybe (Maybe(..))
-import Data.Natural (Natural)
 import Data.Newtype (class Newtype, un, unwrap, wrap)
 import Data.Ord (class Ord1, compare1)
 import Data.String (joinWith)
@@ -33,21 +32,13 @@ import Dhall.Core.AST.Types.Basics (_S, S_, BindingBody(..), BindingBody', Bindi
 import Dhall.Core.Zippers (class Container, class ContainerI, Array', ArrayI, Compose', Either', EitherI, Identity', IdentityI, Maybe', MaybeI, Product', ProductI, Tuple', TupleI, ComposeI, _contextZF, downZFV, ixFV, mapWithIndexV, upZFV, (:<-:))
 import Dhall.Core.Zippers.Merge (class Merge)
 import Dhall.Core.Zippers.Recursive (ZRec, Indices)
+import Dhall.Lib.Numbers (Double, Integer, Natural)
+import Dhall.Lib.Numbers as Exports
 import Matryoshka (class Corecursive, class Recursive, cata, embed, project)
 import Prim.Row as Row
 import Type.Row (type (+))
 
 -- This file defines the Expr type by its cases, and gives instances, etc.
-
--- Number with actual equality
-newtype Double = Double Number
-derive instance newtypeDouble :: Newtype Double _
-derive newtype instance showDouble :: Show Double
-instance eqDouble :: Eq Double where
-  eq (Double a) (Double b) = (a == b && recip a == recip b) || (a /= a && b /= b)
-instance ordDouble :: Ord Double where
-  compare a b | a == b = EQ
-  compare (Double a) (Double b) = compare a b <> compare (recip a) (recip b)
 
 -- copied from dhall-haskell
 data Const = Type | Kind | Sort
@@ -69,7 +60,7 @@ instance showVar :: Show Var where
 type Literals (m :: Type -> Type) vs =
   ( "BoolLit" :: CONST Boolean
   , "NaturalLit" :: CONST Natural
-  , "IntegerLit" :: CONST Int
+  , "IntegerLit" :: CONST Integer
   , "DoubleLit" :: CONST Double
   | vs
   )

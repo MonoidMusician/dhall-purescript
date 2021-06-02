@@ -9,6 +9,7 @@ import Data.Argonaut.Core as J
 import Data.Array (any, fold, foldr)
 import Data.Array as Array
 import Data.Array.NonEmpty as NEA
+import Data.BigInt (BigInt)
 import Data.Const (Const(..))
 import Data.Either (Either(..))
 import Data.Functor.App (App(..))
@@ -20,24 +21,26 @@ import Data.Int as Int
 import Data.Lens as Lens
 import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Natural (intToNat, natToInt)
 import Data.Newtype (un, unwrap)
 import Data.Traversable (traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..), fst)
-import Dhall.Core (Const(..), Double, Expr, Import(..), ImportType(..), LetF(..), MergeF(..), Pair(..), S_, TextLitF(..), Triplet(..), Var(..), _S)
+import Dhall.Core (Const(..), Double, Natural, Integer, Expr, Import(..), ImportType(..), LetF(..), MergeF(..), Pair(..), S_, TextLitF(..), Triplet(..), Var(..), _S)
 import Dhall.Core.AST (BindingBody(..), projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Types.Basics (pureTextLitF)
 import Dhall.Imports.Retrieve (fromHeaders, headerType)
 import Dhall.Core.Imports (Directory(..), File(..), FilePrefix(..), ImportMode(..), Scheme(..), URL(..), Headers)
+import Dhall.Lib.Numbers as Num
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
 import Foreign.Object as Foreign.Object
+import Unsafe.Coerce (unsafeCoerce)
 
 -- These use the JS Number class to signal with the CBOR reader/writer
 foreign import unsafeNumber :: Double -> Json
 foreign import unsafeFromNumber :: forall a. (Double -> a) -> (Json -> a) -> Json -> a
+foreign import unsafeFromBigInt :: forall a. (BigInt -> a) -> (Json -> a) -> Json -> a
 
 encode :: forall m. MapLike String m => Expr m Import -> Json
 encode = recenc Nil where
@@ -142,8 +145,8 @@ encode = recenc Nil where
       , "Union": \m -> tagged 11 [ toObject $ maybe null enc <$> unwrap m ]
       , "BoolLit": un Const >>> J.fromBoolean
       , "BoolIf": \(Triplet t l r) -> tagged 14 $ enc <$> [ t, l, r ]
-      , "NaturalLit": tagged 15 <<< pure <<< un Const >>> natToInt >>> Int.toNumber >>> J.fromNumber
-      , "IntegerLit": tagged 16 <<< pure <<< un Const >>> Int.toNumber >>> J.fromNumber
+      , "NaturalLit": tagged 15 <<< pure <<< un Const >>> (unsafeCoerce :: Natural -> Json)
+      , "IntegerLit": tagged 16 <<< pure <<< un Const >>> (unsafeCoerce :: Integer -> Json)
       -- TODO
       , "DoubleLit": un Const >>> unsafeNumber
       , "TextLit": \m -> tagged 18 $
@@ -477,17 +480,23 @@ decode = unsafeFromNumber (pure <<< AST.mkDoubleLit) $
         [ t, l, r ] -> AST.mkBoolIf <$> decode t <*> decode l <*> decode r
         _ -> empty
       15 -> case _ of
-        [ n ] -> do
-          n' <- J.toNumber n >>= Int.fromNumber >>=
-            case _ of
-              i | i >= 0 -> pure (intToNat i)
-              _ -> empty
-          pure $ AST.mkNaturalLit n'
+        [ n ] -> n # unsafeFromBigInt
+          do \i ->
+              if i < zero then empty else
+                pure (AST.mkNaturalLit (Num.Natural i))
+          do \_ -> do
+              n' <- J.toNumber n >>= Int.fromNumber >>=
+                case _ of
+                  i | i >= 0 -> pure (Num.naturalFromInteger (Num.intToInteger i))
+                  _ -> empty
+              pure $ AST.mkNaturalLit n'
         _ -> empty
       16 -> case _ of
-        [ n ] -> do
-          n' <- J.toNumber n >>= Int.fromNumber
-          pure $ AST.mkIntegerLit n'
+        [ n ] -> n # unsafeFromBigInt
+          do \i -> pure (AST.mkIntegerLit (Num.Integer i))
+          do \_ -> do
+              n' <- J.toNumber n >>= Int.fromNumber
+              pure $ AST.mkIntegerLit (Num.intToInteger n')
         _ -> empty
       18 ->
         map (AST.mkTextLit <<< fold) <<< traverseWithIndex \i ->

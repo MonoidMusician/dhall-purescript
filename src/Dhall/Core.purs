@@ -51,6 +51,7 @@ import Dhall.Core.AST
   , ImportSyntax
   , ImportSyntax'
   , ImportSyntaxI
+  , Integer(..)
   , LetF(..)
   , Literals
   , Literals'
@@ -59,6 +60,7 @@ import Dhall.Core.AST
   , Literals2I
   , LiteralsI
   , MergeF(..)
+  , Natural(..)
   , Pair(..)
   , S_
   , SimpleExpr

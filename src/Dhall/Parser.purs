@@ -28,6 +28,7 @@ import Dhall.Core (S_, _S)
 import Dhall.Core.AST (Const(..), Expr, ExprLayerRow, TextLitF(..), Var(..), ExprLayer, projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports (Directory, File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), Scheme(..), URL(..))
+import Dhall.Lib.Numbers as Num
 import Dhall.Map as Dhall.Map
 import Dhall.Parser.Prioritize (POrdering)
 import Dhall.Parser.Prioritize as Prioritize
@@ -134,8 +135,8 @@ decodeFAST (FAST r) =
     "Let", [a, b, c, d] -> AST.mkLet (decodeS a) (decodeN decodeF b) (decodeF c) (decodeF d)
     "Annot", [a, b] -> AST.mkAnnot (decodeF a) (decodeF b)
     "Var", [a, b] -> AST.mkVar (V (decodeS a) (unsafeCoerce b))
-    "NaturalLit", [a] -> AST.mkNaturalLit (unsafeCoerce a)
-    "IntegerLit", [a] -> AST.mkIntegerLit (unsafeCoerce a)
+    "NaturalLit", [a] | Just n <- Num.integerFromString (unsafeCoerce a) -> AST.mkNaturalLit (Num.naturalFromInteger n)
+    "IntegerLit", [a] | Just n <- Num.integerFromString (unsafeCoerce a) -> AST.mkIntegerLit n
     "DoubleLit", [a] -> AST.mkDoubleLit (unsafeCoerce a)
     "TextLit", vs -> AST.mkTextLit (decodeTextLit vs)
     "Some", [a] -> AST.mkSome (decodeF a)
@@ -157,7 +158,7 @@ decodeFAST (FAST r) =
                 Right "Location" -> Location
                 _ -> Code
             }
-    _, _ -> unsafeCrashWith $ "Unrecognized Expr: " <> r."type" <> " " <> unsafeCoerce r
+    _, _ -> unsafeCrashWith $ "Unrecognized Expr: " <> r."type" <> " " <> unsafeCoerce r."value"
 
 decodeTextLit :: Array Foreign -> TextLitF ParseExpr
 decodeTextLit = Array.foldr f (TextLit "") where

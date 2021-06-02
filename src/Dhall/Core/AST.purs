@@ -57,12 +57,14 @@ import Dhall.Core.AST.Types
   , ImportSyntax
   , ImportSyntax'
   , ImportSyntaxI
+  , Integer(..)
   , Literals
   , Literals'
   , Literals2
   , Literals2'
   , Literals2I
   , LiteralsI
+  , Natural(..)
   , SimpleExpr
   , SimpleThings
   , SimpleThings'

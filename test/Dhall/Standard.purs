@@ -22,7 +22,7 @@ import Data.Variant (Variant)
 import Dhall.Core (Directory(..), File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), alphaNormalize, conv, unordered)
 import Dhall.Core.CBOR (decode)
 import Dhall.Imports.Resolve as Resolve
-import Dhall.Imports.Retrieve (nodeCacheIn, nodeReadBinary, nodeRetrieve, nodeRetrieveFile)
+import Dhall.Imports.Retrieve (nodeCache, nodeReadBinary, nodeRetrieve, nodeRetrieveFile)
 import Dhall.Lib.CBOR as CBOR
 import Dhall.Map (InsOrdStrMap)
 import Dhall.Test (Actions)
@@ -124,8 +124,8 @@ mkActions ty file = Test.mkActions'
       }
     }
   , cacher:
-    { get: (nodeCacheIn ("./dhall-lang/tests/" <> ty <> "/cache")).get
-    , put: \_ _ -> pure unit
+    { get: nodeCache.get -- requires env:XDG_CACHE_HOME="./dhall-lang/tests/import/cache/"
+    , put: \_ _ -> pure unit -- prevents writing to cache
     }
   , retriever: nodeRetrieve
   }
@@ -161,7 +161,7 @@ test = do
             let binA = (extract parsedA.encoded).cbor
             d1 <- logDiag binA
             d2 <- logDiag binB
-            if d1 /= "" && d2 /= ""
+            if d1 /= "" && d2 /= "" && d1 /= d2
               then log d1 *> log d2
               else log (Util.showCBOR binA) *> log (Util.showCBOR binB)
           throwError (error "Binary did not match")

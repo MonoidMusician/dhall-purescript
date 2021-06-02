@@ -37,7 +37,8 @@
     "purescript-node-process": "^7.0.0",
     "purescript-node-child-process": "^6.0.0",
     "purescript-profunctor-lenses": "^6.0.0",
-    "purescript-dom-filereader": "^5.0.0"
+    "purescript-dom-filereader": "^5.0.0",
+    "purescript-bigints": "^5.0.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"

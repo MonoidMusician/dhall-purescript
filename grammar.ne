@@ -574,13 +574,13 @@ double_literal ->
 
 natural_literal ->
     # Hexadecimal with "0x" prefix
-      "0x" HEXDIG:+ {% d => collapse(d)|0 %}
+      "0x" HEXDIG:+ {% collapse %}
     # Decimal; leading 0 digits are not allowed
-    | [1-9] DIGIT:* {% d => collapse(d)|0 %}
+    | [1-9] DIGIT:* {% collapse %}
     # ... except for 0 itself
-    | "0" {% () => 0 %}
+    | "0" {% collapse %}
 
-integer_literal -> ( "+" | "-" ) natural_literal {% d => d[0] == "+" ? +d[1] : -d[1] %}
+integer_literal -> ( "+" | "-" ) natural_literal {% collapse %}
 
 # If the identifier matches one of the names in the `builtin` rule, then it is a
 # builtin, and should be treated as the curresponding item in the list of
@@ -589,7 +589,7 @@ integer_literal -> ( "+" | "-" ) natural_literal {% d => d[0] == "+" ? +d[1] : -
 # Otherwise, this is a variable with name and index matching the label and index.
 identifier -> variable {% pass0 %} | builtin {% d => ({ type: d[0], value: [] }) %}
 
-variable -> nonreserved_label ( whsp "@" natural_literal ):? {% d => ({ type: "Var", value: [d[0], pass(2)(d[1]) || 0] }) %}
+variable -> nonreserved_label ( whsp "@" natural_literal ):? {% d => ({ type: "Var", value: [d[0], (pass(2)(d[1]) || 0) | 0] }) %}
 
 # Printable characters other than " ()[]{}<>/\,"
 #
