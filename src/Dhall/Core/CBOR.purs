@@ -167,6 +167,10 @@ encode = recenc Nil where
                 case xy of
                   [] -> headers0
                   _ -> AST.mkListLit Nothing xy
+            addHeader a b
+              | Just { values: [] } <- Lens.preview AST._ListLit (AST.projectW a) = b
+            addHeader a b
+              | Just { values: [] } <- Lens.preview AST._ListLit (AST.projectW b) = a
             addHeader a b = AST.mkListAppend a b
             headers0 = AST.mkListLit (Just headerType) []
             headers1 = foldr addHeader headers0 headers
@@ -212,7 +216,8 @@ encodeImport headers = case _ of
     { importType
     , importMode
     } -> tagged 24 $
-      [ int case importMode of
+      [ null
+      , int case importMode of
           Code -> 0
           RawText -> 1
           Location -> 2
@@ -241,8 +246,10 @@ decodeImport :: Array Json -> Maybe
   , headers :: Maybe Json
   }
 decodeImport q = do
-  { head: tag, tail: q0 } <- Array.uncons q
+  { head: tag, tail: q' } <- Array.uncons q
   guard $ decodeTag tag == Just 24
+  -- TODO: hash
+  { head: hash, tail: q0 } <- Array.uncons q'
   -- TODO: Location
   { head: importMode', tail: q1 } <- Array.uncons q0
   importMode <- decodeTag importMode' >>= case _ of

@@ -635,9 +635,9 @@ scheme -> "http" {% pass0 %} | "https" {% pass0 %}
 # Reserved characters in quoted path components should be percent-encoded
 # according to https://tools.ietf.org/html/rfc3986#section-2
 http_raw -> scheme "://" authority path_abempty ( "?" query ):?
-{% d => ({ type: "Remote", value: [d[0], d[2], d[3].slice(0,-1), d[3][d[3].length-1], pass1(d[4])] }) %}
+{% d => ({ type: "Remote", value: [d[0], d[2], d[3].slice(0,-1), d[3][d[3].length-1] || "", pass1(d[4])] }) %}
 
-path_abempty -> ("/" segment):* {% pass0 %}
+path_abempty -> ("/" segment {% pass1 %}):* {% pass0 %}
 
 authority -> ( userinfo "@" ):? host ( ":" port ):? {% collapse %}
 
