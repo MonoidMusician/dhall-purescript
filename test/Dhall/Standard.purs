@@ -219,7 +219,9 @@ test = do
         when verb do log "Resolved: " *> logShow importedA.resolved
         typecheckedA <- importedA.typechecked # unwrap # extract #
           noteR "Failed to typecheck A"
-        when verb do log "Typechecked: " *> logShow typecheckedA.inferredType
+        -- when verb do log "Typechecked: " *> logShow typecheckedA.inferredType
+        -- when verb do log "Normalized: " *> logShow (extract typecheckedA.safeNormalized)
+        -- when verb do log "CBOR: " *> logDiag (extract typecheckedA.encoded).cbor
         hashB <- (fromMaybe <*> stripSuffix (Pattern "\n")) <$> nodeRetrieveFile (success <> "B.hash")
         let hashA = "sha256:" <> (extract typecheckedA.encoded).hash
         when (hashA /= hashB) do

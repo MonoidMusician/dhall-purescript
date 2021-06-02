@@ -133,7 +133,7 @@ mkActions' resolver text =
                 , safeNormalized: defer \_ -> normalize resolved
                 , encoded: defer \_ ->
                     let
-                      norm = Hash.neutralize parsed
+                      norm = Hash.neutralize (absurd <$> resolved)
                       hash = Hash.hash norm
                       json = encode norm
                       cbor = CBOR.encode json
