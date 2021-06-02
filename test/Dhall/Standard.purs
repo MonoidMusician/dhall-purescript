@@ -244,9 +244,10 @@ test = do
           note "Failed to parse B"
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
           note "Failed to resolve B"
-        when (extract typecheckedA.normalizedType /= importedB.resolved) do
+        let norm = (conv <<< unordered) (extract typecheckedA.normalizedType)
+        when (alphaNormalize norm /= alphaNormalize importedB.resolved) do
           when true do
-            logShow $ extract typecheckedA.normalizedType
+            logShow $ norm
             logShow importedB.resolved
           throwError (error "Type inference did not match")
     do \verb failure -> do
