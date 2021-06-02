@@ -39,6 +39,16 @@ import Type.Row (type (+))
 
 -- This file defines the Expr type by its cases, and gives instances, etc.
 
+-- Number with actual equality
+newtype Double = Double Number
+derive instance newtypeDouble :: Newtype Double _
+derive newtype instance showDouble :: Show Double
+instance eqDouble :: Eq Double where
+  eq (Double a) (Double b) = (a == b && recip a == recip b) || (a /= a && b /= b)
+instance ordDouble :: Ord Double where
+  compare a b | a == b = EQ
+  compare (Double a) (Double b) = compare a b <> compare (recip a) (recip b)
+
 -- copied from dhall-haskell
 data Const = Type | Kind | Sort
 derive instance eqConst :: Eq Const
@@ -60,7 +70,7 @@ type Literals (m :: Type -> Type) vs =
   ( "BoolLit" :: CONST Boolean
   , "NaturalLit" :: CONST Natural
   , "IntegerLit" :: CONST Int
-  , "DoubleLit" :: CONST Number
+  , "DoubleLit" :: CONST Double
   | vs
   )
 

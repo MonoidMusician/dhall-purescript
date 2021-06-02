@@ -36,7 +36,7 @@ import Data.Traversable (class Traversable, sequence, traverse)
 import Data.Tuple (Tuple(..), uncurry)
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Core.AST (CONST, Expr, TextLitF(..), UNIT, ExprLayerRow)
+import Dhall.Core.AST (CONST, Expr, TextLitF(..), UNIT, ExprLayerRow, Double)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Transformations (ConsNodeOps, ConsNodeOpsM, OverCasesM(..), runAlgebraExprM)
 import Dhall.Core.AST.Types.Basics (S_, _S)
@@ -723,7 +723,7 @@ conversionsG :: forall all' node v ops.
     , "NaturalLit" :: CONST Natural
     , "IntegerLit" :: CONST Int
     , "TextLit" :: FProxy AST.TextLitF
-    , "DoubleLit" :: CONST Number
+    , "DoubleLit" :: CONST Double
     , "TextShow" :: UNIT
     , "TextReplace" :: UNIT
     | all'
@@ -746,7 +746,7 @@ conversionsG again = GNormalizer \node -> case _ of
   integertodouble~integerlit
     | noappG node (_S::S_ "IntegerToDouble") integertodouble
     , Just n <- noapplitG node (_S::S_ "IntegerLit") integerlit ->
-      pure \_ -> mk node (_S::S_ "DoubleLit") $ wrap $ toNumber n
+      pure \_ -> mk node (_S::S_ "DoubleLit") $ wrap $ wrap $ toNumber n
   integernegate~integerlit
     | noappG node (_S::S_ "IntegerNegate") integernegate
     , Just n <- noapplitG node (_S::S_ "IntegerLit") integerlit ->

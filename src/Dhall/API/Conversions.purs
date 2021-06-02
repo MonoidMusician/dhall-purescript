@@ -21,7 +21,7 @@ import Data.Unfoldable (class Unfoldable)
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Context as Dhall.Context
-import Dhall.Core.AST (Expr, Pair(..), S_, _S)
+import Dhall.Core.AST (Double(..), Expr, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Map as Dhall.Map
 import Dhall.Normalize (GNormalizerF(..), Normalizer)
@@ -126,12 +126,12 @@ instance interpretNumber :: Interpret Number where autoWith _ = number
 number :: Type Number
 number = Type
   { expected: AST.mkDouble
-  , extract: Lens.preview (AST._E AST._DoubleLit <<< _Newtype)
+  , extract: Lens.preview (AST._E AST._DoubleLit <<< _Newtype <<< _Newtype)
   }
 instance injectNumber :: Inject Number where
   injectWith _ = InputType
     { declared: AST.mkDouble
-    , embed: AST.mkDoubleLit
+    , embed: AST.mkDoubleLit <<< Double
     }
 
 instance interpretString :: Interpret String where autoWith _ = string

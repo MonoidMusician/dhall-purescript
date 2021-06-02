@@ -34,6 +34,7 @@ import Dhall.Core.AST.Types
   , BuiltinTypes2I
   , BuiltinTypesI
   , Const(..)
+  , Double(..)
   , Expr(..)
   , Expr'
   , ExprI

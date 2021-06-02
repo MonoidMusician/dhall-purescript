@@ -25,7 +25,7 @@ import Data.Newtype (un, unwrap)
 import Data.Traversable (traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..), fst)
-import Dhall.Core (Const(..), Expr, Import(..), ImportType(..), LetF(..), MergeF(..), Pair(..), S_, TextLitF(..), Triplet(..), Var(..), _S)
+import Dhall.Core (Const(..), Double(..), Expr, Import(..), ImportType(..), LetF(..), MergeF(..), Pair(..), S_, TextLitF(..), Triplet(..), Var(..), _S)
 import Dhall.Core.AST (BindingBody(..), projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Types.Basics (pureTextLitF)
@@ -141,7 +141,7 @@ encode = recenc Nil where
       , "NaturalLit": tagged 15 <<< pure <<< un Const >>> natToInt >>> Int.toNumber >>> J.fromNumber
       , "IntegerLit": tagged 16 <<< pure <<< un Const >>> Int.toNumber >>> J.fromNumber
       -- TODO
-      , "DoubleLit": un Const >>> J.fromNumber
+      , "DoubleLit": un Const >>> un Double >>> J.fromNumber
       , "TextLit": \m -> tagged 18 $
           let
             rec (TextLit s) = [ J.fromString s ]
@@ -364,7 +364,7 @@ decode = J.caseJson
             i | i >= 0 -> pure i
             _ -> empty
       in case n' of
-        Nothing -> pure (AST.mkDoubleLit n)
+        Nothing -> pure (AST.mkDoubleLit (Double n))
         Just i -> pure (AST.mkVar (AST.V "_" i))
     decodeMaybe j = case J.toNull j of
       Just _ -> pure Nothing

@@ -26,6 +26,7 @@ import Dhall.Core.AST
   , BuiltinTypesI
   , CONST
   , Const(..)
+  , Double(..)
   , Expr(..)
   , Expr'
   , ExprFPrism

@@ -18,7 +18,7 @@ import Data.Newtype (unwrap)
 import Data.Symbol (class IsSymbol, SProxy)
 import Data.Tuple (Tuple(..), swap)
 import Data.Variant.Internal (FProxy)
-import Dhall.Core.AST.Types (Const(..), Expr, ExprLayerRow, Var, embedW, projectW)
+import Dhall.Core.AST.Types (Const(..), Expr, ExprLayerRow, Var, embedW, projectW, Double)
 import Dhall.Core.AST.Types.Basics (_S, S_, BindingBody(..), CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
@@ -372,10 +372,10 @@ mkDouble = mkExpr (_S::S_ "Double") unit
 _Double :: forall r. ExprPrism ( "Double" :: UNIT | r ) Unit
 _Double = _ExprPrism (_S::S_ "Double")
 
-mkDoubleLit :: forall m a. Number -> Expr m a
+mkDoubleLit :: forall m a. Double -> Expr m a
 mkDoubleLit = mkExpr (_S::S_ "DoubleLit")
 
-_DoubleLit :: forall r. ExprPrism ( "DoubleLit" :: CONST Number | r ) Number
+_DoubleLit :: forall r. ExprPrism ( "DoubleLit" :: CONST Double | r ) Double
 _DoubleLit = _ExprPrism (_S::S_ "DoubleLit")
 
 mkDoubleShow :: forall m a. Expr m a
