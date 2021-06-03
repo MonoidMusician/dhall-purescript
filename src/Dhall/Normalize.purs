@@ -240,6 +240,10 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
   judgEq = on (eq :: Expr (Map String) a -> Expr (Map String) a -> Boolean) $
     extractW >>> unlayers >>> AST.unordered >>> Variables.alphaNormalize
 
+  judgEqW :: node -> node -> Boolean
+  judgEqW = on (eq :: Expr (Map String) a -> Expr (Map String) a -> Boolean) $
+    unlayers >>> AST.unordered >>> Variables.alphaNormalize
+
   unlayers :: node -> Expr m a
   unlayers e = AST.embedW (node.unlayer e <#> unlayers)
 
@@ -640,7 +644,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
             let
               -- TODO: add builtins
               again = go >>> extractW
-              appNormed = unwrap (builtinsG again <> normApp) (lowerOps node) $ on (~)
+              appNormed = unwrap (builtinsG judgEqW again <> normApp) (lowerOps node) $ on (~)
                 (extractW >>> Lens.view (appsG node)) fn arg
             in case appNormed of
               Just ret -> instead ret
@@ -654,10 +658,11 @@ normalizeWithW (GNormalizer normApp) =
     (Variant.case_ # normalizeWithAlgGW (GNormalizer \_ -> normApp unit))
 
 builtinsG :: forall node ops v m a. MapLike String m =>
+  (node -> node -> Boolean) ->
   (node -> node) ->
   GNormalizer (AST.ExprLayerRow m a)
     (Variant (ShiftSubstAlg node v)) node ops
-builtinsG ctx = conversionsG ctx <> naturalfnsG ctx <> listfnsG ctx
+builtinsG = conversionsG <> naturalfnsG <> listfnsG
 
 mk ::
   forall sym f rest all node ops.
@@ -684,6 +689,7 @@ mkAppsF ::
 mkAppsF node sym children = NoApp $ mk node sym children
 
 fusionsG :: forall all' i node ops.
+  (node -> node -> Boolean) ->
   (node -> node) ->
   GNormalizer
     ( "App" :: FProxy AST.Pair
@@ -694,7 +700,7 @@ fusionsG :: forall all' i node ops.
     | all'
     )
     i node ops
-fusionsG again = GNormalizer \node -> case _ of
+fusionsG judgEq again = GNormalizer \node -> case _ of
   -- build/fold fusion for `List`
   -- App (App ListBuild _) (App (App ListFold _) e') -> loop e'
   listbuild~_~(listfold~_~e')
@@ -710,6 +716,7 @@ fusionsG again = GNormalizer \node -> case _ of
   _ -> empty
 
 conversionsG :: forall all' node v ops.
+  (node -> node -> Boolean) ->
   (node -> node) ->
   GNormalizer
     ( "App" :: FProxy AST.Pair
@@ -729,7 +736,7 @@ conversionsG :: forall all' node v ops.
     | all'
     )
     (Variant (ShiftSubstAlg node v)) node ops
-conversionsG again = GNormalizer \node -> case _ of
+conversionsG judgEq again = GNormalizer \node -> case _ of
   naturaltointeger~naturallit
     | noappG node (_S::S_ "NaturalToInteger") naturaltointeger
     , Just n <- noapplitG node (_S::S_ "NaturalLit") naturallit ->
@@ -808,6 +815,7 @@ unlayersG :: forall node m a all unused r.
 unlayersG node e = AST.embedW (VariantF.expand (node.unlayer e <#> unlayersG node))
 
 naturalfnsG :: forall all' node v ops.
+  (node -> node -> Boolean) ->
   (node -> node) ->
   GNormalizer
     ( "App" :: FProxy AST.Pair
@@ -826,7 +834,7 @@ naturalfnsG :: forall all' node v ops.
     | all'
     )
     (Variant (ShiftSubstAlg node v)) node ops
-naturalfnsG again = GNormalizer \node -> case _ of
+naturalfnsG judgEq again = GNormalizer \node -> case _ of
   -- App (App (App (App NaturalFold (NaturalLit n0)) t) succ') zero
   naturalfold~naturallit~t~succ'~zero'
     | noappG node (_S::S_ "NaturalFold") naturalfold
@@ -882,14 +890,13 @@ naturalfnsG again = GNormalizer \node -> case _ of
           pure \_ -> Lens.review (appsG node) naturallit1
         _, Just m | m == zero ->
           pure \_ -> Lens.review (appsG node) naturallit1
-        {- FIXME
-        _, _ | (judgmentallyEqual `on` ((unlayersG node :: node -> Expr (Map String) Void) <<< Lens.review (appsG node))) naturallit0 naturallit1 ->
+        _, _ | (Lens.review (appsG node) naturallit0) `judgEq` (Lens.review (appsG node) naturallit1) ->
           pure \_ -> mk node (_S::S_ "NaturalLit") (wrap zero)
-        -}
         _, _ -> Nothing
   _ -> Nothing
 
 listfnsG :: forall all' node v ops m. MapLike String m =>
+  (node -> node -> Boolean) ->
   (node -> node) ->
   GNormalizer
     ( "App" :: FProxy AST.Pair
@@ -914,7 +921,7 @@ listfnsG :: forall all' node v ops m. MapLike String m =>
     | all'
     )
     (Variant (ShiftSubstAlg node v)) node ops
-listfnsG again = GNormalizer \node -> case _ of
+listfnsG judgEq again = GNormalizer \node -> case _ of
   listbuild~t~g
     | noappG node (_S::S_ "ListBuild") listbuild -> pure \_ ->
       let

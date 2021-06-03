@@ -143,7 +143,7 @@ instance strMapIshIOSM :: Ord k => MapLike k (InsOrdMap k) where
     in mkIOSM $ finalize $
       Array.foldl inserting (map This <$> l) (map That <$> r)
   toUnfoldable = unIOSM >>> Array.toUnfoldable
-  fromFoldable = mkIOSM <<< Array.nubBy (compare `on` fst) <<< Array.fromFoldable
+  fromFoldable = mkIOSM <<< Array.fromFoldable
   size = unIOSM >>> Array.length
 
 -- FIXME: I don't think this is what I want for this name?

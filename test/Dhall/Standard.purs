@@ -278,7 +278,7 @@ test = do
           note "Failed to parse B"
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
           note "Failed to resolve B"
-        when (unordered importedA.resolved /= unordered importedB.resolved) do
+        when (alphaNormalize (unordered importedA.resolved) /= alphaNormalize (unordered importedB.resolved)) do
           when (true || verb) do
             logShow importedA.resolved
             logShow importedB.resolved

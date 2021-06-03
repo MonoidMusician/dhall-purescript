@@ -22,6 +22,7 @@ import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (unwrap)
 import Data.Nullable (Nullable)
 import Data.Nullable as Nullable
+import Data.String as String
 import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..))
 import Dhall.Core (S_, _S)
@@ -262,6 +263,7 @@ priorities e1 e2 = (\f -> f e1 e2)
       <> keyword (_S::S_ "BoolIf") "if"
       <> prioritize_forall
       <> prioritize_env
+      <> prioritize_prefer
       <> prioritize_annot
 
 -- True if the left expression is more or equally prioritized than the right.
@@ -311,6 +313,15 @@ prioritize_env = Prioritize.fromLRPredicates
   do
     fits AST._Annot $ flip compose _.value $
       fits AST._Var $ unwrap >>> eq (AST.V "env" 0)
+
+-- TODO: make more specific?
+-- TODO: I think this misses things like (`a//` 0) vs (a // 0)
+prioritize_prefer :: ParseExpr -> ParseExpr -> Maybe POrdering
+prioritize_prefer = Prioritize.fromLRPredicates
+  do
+    fits AST._Var $ unwrap >>> \(AST.V v _) -> String.contains (String.Pattern "//") v
+  do
+    fits AST._Prefer $ const true
 
 prioritize_annot :: ParseExpr -> ParseExpr -> Maybe POrdering
 prioritize_annot = Prioritize.fromRelation \better worse -> Array.foldMap (Disj <<< isJust)

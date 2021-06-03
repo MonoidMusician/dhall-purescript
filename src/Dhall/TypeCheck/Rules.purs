@@ -512,7 +512,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
               (errorHere (_S::S_ "Invalid field type") <<< const field)
   , "Union": \kts ->
       ensureNodupes
-        (errorHere (_S::S_ "Duplicate union alternatives") <<< map fst) kts
+        (errorHere (_S::S_ "Duplicate union alternatives")) (unwrap kts)
       *> do
         kts' <- forWithIndex kts \(Tuple field (_ :: Unit)) ty -> do
           unwrap <$> ensure (_S::S_ "Const") ty
@@ -735,7 +735,10 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       kts <- ensure (_S::S_ "Record") expr
         (errorHere (_S::S_ "Cannot project"))
       ks <- case projs of
-        Left (App ks) -> pure $ ks <#> \(_ :: Unit) -> Nothing
+        Left (App ks) ->
+            ensureNodupes
+              (errorHere (_S::S_ "Duplicate record fields")) ks
+            $> (ks <#> \(_ :: Unit) -> Nothing)
         Right fields -> do
           _ <- typecheckStep fields
           -- TODO: right error?
