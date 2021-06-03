@@ -412,6 +412,7 @@ single_quote_continue ->
     | escaped_quote_pair single_quote_continue {% d => [d[0]].concat(d[1]) %}
     | escaped_interpolation single_quote_continue {% d => [d[0]].concat(d[1]) %}
     | "''" {% () => [] %}
+    | "$''" {% () => ["$"] %}
     | single_quote_char single_quote_continue {% d => [d[0]].concat(d[1]) %}
 
 # Escape two single quotes (i.e. replace this sequence with "''")
