@@ -20,7 +20,7 @@ import Data.List (List)
 import Data.List as List
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), isJust)
 import Data.Newtype (class Newtype, un, unwrap)
 import Data.Set (Set)
 import Data.Set as Set
@@ -46,7 +46,6 @@ import Effect.Aff (Aff)
 import Effect.Aff as Aff
 import Effect.Aff.AVar as AVar
 import Effect.Class (liftEffect)
-import Effect.Class.Console (logShow)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Validation.These as V
@@ -76,7 +75,7 @@ type R =
 type S =
   -- In-memory cache of imports, both as text and to-be-resolved expressions
   { cache :: Map Localized
-    { text :: String
+    { text :: AVar String
     , resolved :: Maybe (AVar ResolvedExpr)
     }
   -- Set of hashes whose results will be written to cache
@@ -315,7 +314,7 @@ replaceCached = rewriteTopDownA $ VariantF.on (_S::S_ "Hashed")
         , Just noImports <- traverse (pure Nothing) decoded
         , hash == Hash.hash ((absurd <$> Hash.neutralize noImports) :: ImportExpr) -> do
           let noImports' = absurd <$> noImports
-          liftAff $ logShow noImports'
+          -- liftAff $ logShow noImports'
           pure $ Tuple true noImports'
       -- Recurse since this was a cache miss, maybe an inner node will succeed
       _ -> Tuple false <$> replaceCached expr
@@ -379,21 +378,34 @@ ensureWellTyped e = e <$ do
 -- The main workhorse: turn a localized import into a resolved expression
 resolveImport :: forall w r. Localized -> M w r ResolvedExpr
 resolveImport i@(Localized (Import { importMode, importType })) =
-  importType # case importMode of
-    Location -> fromLocation >>> pure
-    RawText -> referentiallySane >=> retrieveTextVerifiedOrCached >>> map AST.mkTextLit'
-    Code -> checkCycle >=> referentiallySane >=> retrieveExprVerifiedOrCached
+  importType # case importMode, importType of
+    Location, _ -> fromLocation >>> pure
+    _, Missing -> \_ -> throw (Variant.inj (_S::S_ "Missing import") unit)
+    RawText, _ -> referentiallySane >=> retrieveTextVerifiedOrCached Nothing >>> map AST.mkTextLit'
+    Code, _ -> checkCycle >=> referentiallySane >=> retrieveExprVerifiedOrCached
   where
     -- Manage imported text in the cache
-    retrieveTextVerifiedOrCached a = do
+    -- Takes Maybe AVar indicating intent to resolve as source
+    retrieveTextVerifiedOrCached resolver a = do
       cache <- gets _.cache
       case Map.lookup i cache <#> _.text of
-        Just text -> pure text
+        Just retrieving -> do
+          -- liftAff $ log $ "Found " <> show i
+          when (resolver # isJust) do
+            -- Put resolver in state as a courtesy
+            modify_ $ prop (_S::S_ "cache") $
+              Map.insert i { text: retrieving, resolved: resolver }
+          liftAff' (pure (throw (Variant.inj (_S::S_ "Import failed to resolve") i))) $
+              AVar.read retrieving
         Nothing -> do
-          text <- retrieveTextVerified a
+          -- liftAff $ log $ "Caching " <> show i
+          retrieving <- liftAff AVar.empty
           modify_ $ prop (_S::S_ "cache") $
-            Map.insert i { text, resolved: Nothing }
-          pure text
+            Map.insert i { text: retrieving, resolved: resolver }
+          retrieved <- retrieveTextVerified a
+          void $ liftAff $ AVar.tryPut retrieved retrieving
+          -- liftAff $ log $ "Cached " <> show i
+          pure retrieved
     -- Retrieve the import as text over the wire and ensure it is CORS compliant
     retrieveTextVerified = pure
       >=> retrieveImport
@@ -407,17 +419,17 @@ resolveImport i@(Localized (Import { importMode, importType })) =
         -- resolving (in the case of diamond imports, a sibling may wait for the
         -- first thread to complete resolving the shared import)
         Just resolving -> do
+          -- liftAff $ log $ "Waiting for " <> show i
           -- TODO: this does not tell us whether it is a recoverable error?
           liftAff' (pure (throw (Variant.inj (_S::S_ "Import failed to resolve") i))) $
             AVar.read resolving
         -- Otherwise, create the resolved value
         Nothing -> do
-          -- First obtain the text of the import, from cache or retrieved
-          text <- retrieveTextVerifiedOrCached a
-          -- Make an AVar to hold the result, and add it to the cache
+          -- Make an AVar to hold the result, and pass it while retrieving text
           resolving <- liftAff AVar.empty
-          modify_ $ prop (_S::S_ "cache") $
-            Map.insert i { text, resolved: Just resolving }
+          -- Then obtain the text of the import, from cache or retrieved
+          -- (this also will put `resolving` in state)
+          text <- retrieveTextVerifiedOrCached (Just resolving) a
           -- Fully parse, resolve, and verify the import
           resolved <- retrieveExprVerified text #
             withCleanup (AVar.kill (Aff.error $ "Import failed " <> show i) resolving)
