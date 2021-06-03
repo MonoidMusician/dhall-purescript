@@ -311,6 +311,10 @@ import Dhall.Variables
   , shiftSubstShift0
   , subst
   ) as Exports
+import Dhall.Map
+  ( InsOrdMap(..)
+  , InsOrdStrMap
+  ) as Exports
 
 -- | The set of reserved identifiers for the Dhall language
 reservedIdentifiers :: Set String

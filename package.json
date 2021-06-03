@@ -14,6 +14,8 @@
   "devDependencies": {},
   "scripts": {
     "test": "XDG_CACHE_HOME=\"./dhall-lang/tests/import/cache/\" DHALL_TEST_VAR=\"6 * 7\" pulp test -m Dhall.Test.Standard",
+    "cli": "pulp run -m Dhall.CLI.Main",
+    "normalize": "pulp run -m Dhall.CLI.Main -- normalize",
     "grammar": "./grammar.sh"
   },
   "repository": {
