@@ -7,7 +7,7 @@ import Data.Array as Array
 import Data.Either (Either(..))
 import Data.Foldable (foldMap, null)
 import Data.FoldableWithIndex (anyWithIndex, foldMapWithIndex)
-import Data.Functor.Variant (SProxy, VariantF)
+import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Lens (firstOf, has, lastOf)
 import Data.Lens.Indexed (asIndex, itraversed)
@@ -27,6 +27,7 @@ import Dhall.Imports.Retrieve (headerType)
 import Dhall.Core.Zippers (_ix)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
+import Type.Proxy (Proxy)
 import Type.Row as R
 
 import Dhall.TypeCheck.Types (BiContext, Errors)
@@ -56,7 +57,7 @@ explain ctx nodeType =
         forall sym v r'.
           IsSymbol sym =>
           R.Cons sym v r' AST.ExprLayerRowI =>
-        SProxy sym -> v -> Endo (->) (Loc.BasedExprDerivation m a)
+        Proxy sym -> v -> Endo (->) (Loc.BasedExprDerivation m a)
       within sym v = within' (ERVFI (Variant.inj sym v))
       within' :: ExprRowVFI -> Endo (->) (Loc.BasedExprDerivation m a)
       within' ervfi = Endo $ Loc.moveF (_S::S_ "within") ervfi

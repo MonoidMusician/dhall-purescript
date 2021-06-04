@@ -4,13 +4,12 @@ import Prelude
 
 import Control.Monad.Except (runExcept)
 import Control.MonadZero (guard)
-import Data.Array (any)
 import Data.Array as Array
 import Data.Either (Either(..))
-import Data.Foldable (oneOfMap)
+import Data.Foldable (any, oneOfMap)
 import Data.Function (on)
 import Data.Functor.Product (Product(..))
-import Data.Functor.Variant (FProxy, SProxy, VariantF)
+import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff, tt)
 import Data.Identity (Identity(..))
@@ -37,6 +36,7 @@ import Foreign (Foreign)
 import Foreign as Foreign
 import Partial.Unsafe (unsafeCrashWith)
 import Prim.Row as Row
+import Type.Proxy (Proxy)
 import Unsafe.Coerce (unsafeCoerce)
 
 type ParseExpr = Expr Dhall.Map.InsOrdStrMap Import
@@ -227,8 +227,8 @@ disambiguate as = as
 prioritizeVF ::
   forall s f r' r a.
     IsSymbol s =>
-    Row.Cons s (FProxy f) r' r =>
-  SProxy s ->
+    Row.Cons s f r' r =>
+  Proxy s ->
   (VariantF r a -> VariantF r a -> Maybe POrdering)
 prioritizeVF s = Prioritize.fromPredicate (VariantF.on s tt ff)
 
@@ -239,16 +239,16 @@ firstVar e = e # projectW #
 pc ::
   forall s f r'.
     IsSymbol s =>
-    Row.Cons s (FProxy f) r' (ExprLayerRow Dhall.Map.InsOrdStrMap Import) =>
-  SProxy s ->
+    Row.Cons s f r' (ExprLayerRow Dhall.Map.InsOrdStrMap Import) =>
+  Proxy s ->
   (ParseExpr -> ParseExpr -> Maybe POrdering)
 pc s = prioritizeVF s `on` projectW
 
 keyword ::
   forall s f r'.
     IsSymbol s =>
-    Row.Cons s (FProxy f) r' (ExprLayerRow Dhall.Map.InsOrdStrMap Import) =>
-  SProxy s ->
+    Row.Cons s f r' (ExprLayerRow Dhall.Map.InsOrdStrMap Import) =>
+  Proxy s ->
   String ->
   (ParseExpr -> ParseExpr -> Maybe POrdering)
 keyword s var = Prioritize.fromLRPredicates

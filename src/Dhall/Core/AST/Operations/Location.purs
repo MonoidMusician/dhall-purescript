@@ -6,7 +6,7 @@ import Control.Plus (empty)
 import Data.Bifunctor (lmap)
 import Data.List (List, (:))
 import Data.Maybe (Maybe)
-import Data.Symbol (class IsSymbol, SProxy)
+import Data.Symbol (class IsSymbol)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple)
 import Data.Variant (Variant)
@@ -14,6 +14,7 @@ import Data.Variant as Variant
 import Dhall.Core.AST (Expr, ExprRowVFI, Var, S_, _S)
 import Prim.Row as Row
 import Type.Row (type (+))
+import Type.Proxy (Proxy)
 
 type Within r =
   ( "within" :: ExprRowVFI
@@ -49,28 +50,28 @@ move ::
   forall sym ix all most.
     IsSymbol sym =>
     Row.Cons sym ix most all =>
-  SProxy sym -> ix -> LV all -> LV all
+  Proxy sym -> ix -> LV all -> LV all
 move sym ix path = Variant.inj sym ix : path
 
 moveF ::
   forall sym ix all most.
     IsSymbol sym =>
     Row.Cons sym ix most all =>
-  SProxy sym -> ix -> TLV all ~> TLV all
+  Proxy sym -> ix -> TLV all ~> TLV all
 moveF sym ix = lmap (move sym ix)
 
 stepF ::
   forall sym all most.
     IsSymbol sym =>
     Row.Cons sym {} most all =>
-  SProxy sym -> TLV all ~> TLV all
+  Proxy sym -> TLV all ~> TLV all
 stepF sym = moveF sym mempty
 
 step ::
   forall sym all most.
     IsSymbol sym =>
     Row.Cons sym {} most all =>
-  SProxy sym -> LV all -> LV all
+  Proxy sym -> LV all -> LV all
 step sym = move sym mempty
 
 allWithin :: forall most. LV (Within most) -> Maybe (List ExprRowVFI)
