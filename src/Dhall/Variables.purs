@@ -6,7 +6,7 @@ import Control.Apply (lift2)
 import Data.Const (Const(..))
 import Data.Foldable (class Foldable, fold, length)
 import Data.FoldableWithIndex (foldMapWithIndex)
-import Data.Functor.Variant (FProxy, VariantF)
+import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff)
 import Data.Identity (Identity(..))
@@ -163,8 +163,8 @@ trackVar v@(V x n) = case _ of
   _ -> v
 
 trackIntro :: forall m v a b. (MaybeIntro a -> a -> b) ->
-  VariantF (Variable m + ( "UsingHeaders" :: FProxy Pair | v )) a ->
-  VariantF (Variable m + ( "UsingHeaders" :: FProxy Pair | v )) b
+  VariantF (Variable m + ( "UsingHeaders" :: Pair | v )) a ->
+  VariantF (Variable m + ( "UsingHeaders" :: Pair | v )) b
 trackIntro next = VariantF.expandOverMatch
   (trackIntroCases next)
   (next DoNothing)
@@ -200,7 +200,7 @@ trackIntroCasesM next =
   }
 
 type VariablePlus (m :: Type -> Type) v = Variable m
-  ( "UsingHeaders" :: FProxy Pair | v )
+  ( "UsingHeaders" :: Pair | v )
 
 -- A simple algebra for `freeIn`. Will work with anything that is
 -- vaguely like `Expr`.

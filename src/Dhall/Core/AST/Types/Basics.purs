@@ -12,26 +12,29 @@ import Data.Foldable (class Foldable, foldMap, foldl, foldr, oneOfMap)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, foldlWithIndex, foldrWithIndex)
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Show (genericShow)
+import Data.Show.Generic (genericShow)
 import Data.Lazy (defer)
 import Data.Maybe (Maybe(..))
 import Data.Natural (Natural)
 import Data.Ord (class Ord1)
-import Data.Symbol (SProxy(..))
 import Data.Traversable (class Traversable, sequence, traverse)
 import Data.TraversableWithIndex (class TraversableWithIndex, traverseWithIndex)
-import Data.Variant.Internal (FProxy)
+import Type.Proxy (Proxy(..))
+
 import Dhall.Core.Zippers (class Container, class ContainerI, Maybe', _contextZF', downZF, ixF, upZF, (:<-:))
 import Dhall.Core.Zippers.Merge (class Merge, mergeWith)
 
 -- This file defines basic functor types used in the AST definition
 
-type S_ = SProxy
-_S = SProxy :: forall s. S_ s
+type S_ = Proxy
+_S = Proxy :: forall s. S_ s
 
 -- Convenience synonyms
-type CONST a = FProxy (ConstF.Const a)
+type CONST :: Type -> (Type -> Type)
+type CONST = ConstF.Const
+type UNIT :: Type -> Type
 type UNIT = CONST Unit
+type VOID :: Type -> Type
 type VOID = CONST Void
 
 -- | Index type for `Triplet` functor below

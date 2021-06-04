@@ -6,12 +6,12 @@ import Control.MonadZero (guard, (<|>))
 import Control.Plus (empty)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Core as J
-import Data.Array (any, fold, foldr)
 import Data.Array as Array
 import Data.Array.NonEmpty as NEA
 import Data.BigInt (BigInt)
 import Data.Const (Const(..))
 import Data.Either (Either(..))
+import Data.Foldable (any, fold, foldr)
 import Data.Functor.App (App(..))
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant as VariantF

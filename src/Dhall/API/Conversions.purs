@@ -31,7 +31,7 @@ import Dhall.Normalize.Apps (apps, noapplit, (~))
 import Prim.Row as Row
 import Prim.RowList (Nil, Cons, class RowToList)
 import Record as Record
-import Type.RowList (RLProxy(..))
+import Type.Proxy (Proxy(..))
 
 type StandardExpr = Expr Dhall.Map.InsOrdStrMap Void
 
@@ -208,7 +208,7 @@ variant opts = Type
         Lens.preview (AST._E (AST._ExprFPrism (_S::S_ "Field"))) field >>=
           \(Tuple key _) ->
             extractV rl opts key val
-  } where rl = RLProxy :: RLProxy rl
+  } where rl = Proxy :: Proxy rl
 
 instance interpretRecord ::
   (RowToList r rl, InterpretRL rl r) => Interpret (Record r) where
@@ -220,17 +220,17 @@ record opts = Type
   , extract: \e ->
     Lens.preview (AST._E (AST._ExprFPrism (_S::S_ "RecordLit"))) e >>=
       extractR rl opts
-  } where rl = RLProxy :: RLProxy rl
+  } where rl = Proxy :: Proxy rl
 
 class InterpretRL rl r | rl -> r where
-  expectedR :: RLProxy rl -> InterpretOptions ->
+  expectedR :: Proxy rl -> InterpretOptions ->
     Dhall.Map.InsOrdStrMap StandardExpr
-  expectedV :: RLProxy rl -> InterpretOptions ->
+  expectedV :: Proxy rl -> InterpretOptions ->
     Dhall.Map.InsOrdStrMap StandardExpr
-  extractR :: RLProxy rl -> InterpretOptions ->
+  extractR :: Proxy rl -> InterpretOptions ->
     Dhall.Map.InsOrdStrMap StandardExpr ->
     Maybe (Record r)
-  extractV :: RLProxy rl -> InterpretOptions ->
+  extractV :: Proxy rl -> InterpretOptions ->
     String -> StandardExpr ->
     Maybe (Variant r)
 
@@ -250,26 +250,26 @@ instance interpretCons ::
   ) => InterpretRL (Cons s t rl') r where
   expectedR _ opts =
     Dhall.Map.insert (opts.fieldModifier field) t.expected
-      (expectedR (RLProxy :: RLProxy rl') opts)
+      (expectedR (Proxy :: Proxy rl') opts)
     where
       (Type t :: Type t) = autoWith opts
       field = reflectSymbol (_S::S_ s)
   extractR _ opts vs = Record.insert (_S::S_ s)
     <$> (Dhall.Map.get (opts.fieldModifier field) vs >>= t.extract)
-    <*> extractR (RLProxy :: RLProxy rl') opts vs
+    <*> extractR (Proxy :: Proxy rl') opts vs
     where
       (Type t :: Type t) = autoWith opts
       field = reflectSymbol (_S::S_ s)
   expectedV _ opts =
     Dhall.Map.insert (opts.constructorModifier field) t.expected
-      (expectedV (RLProxy :: RLProxy rl') opts)
+      (expectedV (Proxy :: Proxy rl') opts)
     where
       (Type t :: Type t) = autoWith opts
       field = reflectSymbol (_S::S_ s)
   extractV _ opts key v =
     if key == opts.constructorModifier field
       then t.extract v <#> Variant.inj (_S::S_ s)
-      else extractV (RLProxy :: RLProxy rl') opts key v <#> Variant.expand
+      else extractV (Proxy :: Proxy rl') opts key v <#> Variant.expand
     where
       (Type t :: Type t) = autoWith opts
       field = reflectSymbol (_S::S_ s)
@@ -281,23 +281,23 @@ instance injectVariant ::
       , embed: embedV rl opts >>>
           \(Product (Tuple (Tuple key val) tys)) ->
             AST.mkApp (AST.mkField (AST.mkUnion $ pure <$> declaredV rl opts) key) val
-      } where rl = RLProxy :: RLProxy rl
+      } where rl = Proxy :: Proxy rl
 
 instance injectRecord ::
   (RowToList r rl, InjectRL rl r) => Inject (Record r) where
     injectWith opts = InputType
       { declared: AST.mkRecord $ declaredR rl opts
       , embed: AST.mkRecordLit <<< embedR rl opts
-      } where rl = RLProxy :: RLProxy rl
+      } where rl = Proxy :: Proxy rl
 
 class InjectRL rl r | rl -> r where
-  declaredR :: RLProxy rl -> InterpretOptions ->
+  declaredR :: Proxy rl -> InterpretOptions ->
     Dhall.Map.InsOrdStrMap StandardExpr
-  declaredV :: RLProxy rl -> InterpretOptions ->
+  declaredV :: Proxy rl -> InterpretOptions ->
     Dhall.Map.InsOrdStrMap StandardExpr
-  embedR :: RLProxy rl -> InterpretOptions -> Record r ->
+  embedR :: Proxy rl -> InterpretOptions -> Record r ->
     Dhall.Map.InsOrdStrMap StandardExpr
-  embedV :: RLProxy rl -> InterpretOptions -> Variant r ->
+  embedV :: Proxy rl -> InterpretOptions -> Variant r ->
     Product (Tuple String) Dhall.Map.InsOrdStrMap StandardExpr
 
 instance injectNil :: InjectRL Nil () where
@@ -316,19 +316,19 @@ instance injectCons ::
   ) => InjectRL (Cons s t rl') r where
   declaredR _ opts =
     Dhall.Map.insert (opts.fieldModifier field) t.declared
-      (declaredR (RLProxy :: RLProxy rl') opts)
+      (declaredR (Proxy :: Proxy rl') opts)
     where
       (InputType t :: InputType t) = injectWith opts
       field = reflectSymbol (_S::S_ s)
   embedR _ opts vs = Dhall.Map.insert (opts.fieldModifier field)
       do Record.get (_S::S_ s) vs # t.embed
-      do Record.delete (_S::S_ s) vs # embedR (RLProxy :: RLProxy rl') opts
+      do Record.delete (_S::S_ s) vs # embedR (Proxy :: Proxy rl') opts
     where
       (InputType t :: InputType t) = injectWith opts
       field = reflectSymbol (_S::S_ s)
   declaredV _ opts =
     Dhall.Map.insert (opts.constructorModifier field) t.declared
-      (declaredV (RLProxy :: RLProxy rl') opts)
+      (declaredV (Proxy :: Proxy rl') opts)
     where
       (InputType t :: InputType t) = injectWith opts
       field = reflectSymbol (_S::S_ s)
@@ -336,8 +336,8 @@ instance injectCons ::
     Variant.on (_S::S_ s)
       do \v -> product
             do Tuple (opts.constructorModifier field) (t.embed v)
-            do declaredV (RLProxy :: RLProxy rl') opts
-      do embedV (RLProxy :: RLProxy rl') opts >>>
+            do declaredV (Proxy :: Proxy rl') opts
+      do embedV (Proxy :: Proxy rl') opts >>>
           (map >>> over Product) (Dhall.Map.insert (opts.constructorModifier field) t.declared)
     where
       (InputType t :: InputType t) = injectWith opts
