@@ -21,7 +21,6 @@ import Dhall.Core.AST as AST
 import Dhall.Core.AST.Noted as Noted
 import Dhall.Core.Zippers.Recursive (_recurse)
 import Matryoshka (embed, project)
-import Type.Row (type (+))
 import Type.Row as R
 import Type.RowList as RL
 import Type.Proxy (Proxy)
@@ -41,14 +40,14 @@ type GenericExprAlgebraM m ops i node =
 -- This is the type of a transformation that handles a couple cases of a Variant
 -- input.
 type GenericExprAlgebraVT (ops :: # (Type -> Type) -> Type -> Type -> # Type -> # Type) affected (i :: Type -> # Type -> # Type) =
-  forall node v v' r ops'.
-  (Variant v -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> Identity node) ->
-  (Variant (i node v) -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> Identity node)
+  forall (node :: Type) (v :: # Type) (v' :: # Type) (r :: # (Type -> Type)) ops'.
+  (Variant v -> Record (ops (affected r) (Variant (i node v')) node ops') -> node -> Identity node) ->
+  (Variant (i node v) -> Record (ops (affected r) (Variant (i node v')) node ops') -> node -> Identity node)
 
 type GenericExprAlgebraVTM m (ops :: # (Type -> Type) -> Type -> Type -> # Type -> # Type) affected (i :: Type -> # Type -> # Type) =
-  forall node v v' r ops'. Traversable (VariantF r) =>
-  (Variant v -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> m node) ->
-  (Variant (i node v) -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> m node)
+  forall (node :: Type) (v :: # Type) (v' :: # Type) (r :: # (Type -> Type)) ops'. Traversable (VariantF r) =>
+  (Variant v -> Record (ops (affected r) (Variant (i node v')) node ops') -> node -> m node) ->
+  (Variant (i node v) -> Record (ops (affected r) (Variant (i node v')) node ops') -> node -> m node)
 
 -- The operations on a node of type `node` which has cases given by `all`,
 -- with input (internal language) `i`.
@@ -75,7 +74,7 @@ type NodeOpsM m all i node ops =
 -- include nor preserve any extra structure beside the Expr cases.
 -- Prefer `overlayer` when possible.
 type ConsNodeOps all i node ops = ConsNodeOpsM Identity all i node ops
-type ConsNodeOpsM m all i node ops = NodeOpsM m all i node +
+type ConsNodeOpsM m all i node ops = NodeOpsM m all i node
   ( layer :: VariantF all node -> node | ops )
 
 -- Just a way to mutate one layer. Call via `runOverCases` to ensure that

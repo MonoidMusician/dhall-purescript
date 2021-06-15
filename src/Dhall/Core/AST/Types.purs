@@ -35,7 +35,6 @@ import Dhall.Lib.Numbers (Double, Integer, Natural)
 import Dhall.Lib.Numbers as Exports
 import Matryoshka (class Corecursive, class Recursive, cata, embed, project)
 import Prim.Row as Row
-import Type.Row (type (+))
 import Type.Proxy (Proxy)
 
 -- This file defines the Expr type by its cases, and gives instances, etc.
@@ -395,19 +394,19 @@ type ImportSyntaxI v =
   )
 
 -- Non-recursive items
-type SimpleThings m vs = Literals m + BuiltinTypes m + BuiltinFuncs m + vs
-type SimpleThings' m m' vs = Literals' m m' + BuiltinTypes' m m' + BuiltinFuncs' m m' + vs
-type SimpleThingsI vs = LiteralsI + BuiltinTypesI + BuiltinFuncsI + vs
+type SimpleThings m vs = Literals m (BuiltinTypes m (BuiltinFuncs m vs))
+type SimpleThings' m m' vs = Literals' m m' (BuiltinTypes' m m' (BuiltinFuncs' m m' vs))
+type SimpleThingsI vs = LiteralsI (BuiltinTypesI (BuiltinFuncsI vs))
 
 -- Recursive items
-type FunctorThings m v = Literals2 m + BuiltinTypes2 m + BuiltinOps m + Syntax m + Variable m + ImportSyntax m + v
-type FunctorThings' m m' v = Literals2' m m' + BuiltinTypes2' m m' + BuiltinOps' m m' + Syntax' m m' + Variable' m m' + ImportSyntax' m m' + v
-type FunctorThingsI v = Literals2I + BuiltinTypes2I + BuiltinOpsI + SyntaxI + VariableI + ImportSyntaxI + v
+type FunctorThings m v = Literals2 m (BuiltinTypes2 m (BuiltinOps m (Syntax m (Variable m (ImportSyntax m v)))))
+type FunctorThings' m m' v = Literals2' m m' (BuiltinTypes2' m m' (BuiltinOps' m m' (Syntax' m m' (Variable' m m' (ImportSyntax' m m' v)))))
+type FunctorThingsI v = Literals2I (BuiltinTypes2I (BuiltinOpsI (SyntaxI (VariableI (ImportSyntaxI v)))))
 
 -- Both together
-type AllTheThings m v = SimpleThings m + FunctorThings m + v
-type AllTheThings' m m' v = SimpleThings' m m' + FunctorThings' m m' + v
-type AllTheThingsI v = SimpleThingsI + FunctorThingsI + v
+type AllTheThings m v = SimpleThings m (FunctorThings m v)
+type AllTheThings' m m' v = SimpleThings' m m' (FunctorThings' m m' v)
+type AllTheThingsI v = SimpleThingsI (FunctorThingsI v)
 
 -- A layer of Expr (within Free) is AllTheThings
 -- No Note constructor anymore!

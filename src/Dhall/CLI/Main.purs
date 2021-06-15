@@ -54,7 +54,7 @@ normalizeFile file = do
   case Parser.parse text of
     Nothing -> logShow "Parser error"
     Just parsed ->
-      Resolve.runM resolver mempty (Resolve.resolveImportsHere parsed) >>=
+      Resolve.runM resolver { cache: Map.empty, toBeCached: mempty } (Resolve.resolveImportsHere parsed) >>=
         fst >>> unwrap >>> map fst >>> case _ of
           V.Error _ _ -> logShow "Imports failed"
           V.Success resolved -> do
