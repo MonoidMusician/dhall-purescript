@@ -29,7 +29,6 @@ import Effect.Console (log)
 import Effect.Unsafe (unsafePerformEffect)
 import Matryoshka (Algebra, cata)
 import Prim.Row (class Cons) as Row
-import Type.Row (type (+))
 import Type.Proxy (Proxy)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -234,16 +233,16 @@ type Whitespace r =
   )
 
 type Nodes r =
-  Precedence + Containers + Blocks + Abstractions + Operators + Literals + r
+  Precedence (Containers (Blocks (Abstractions (Operators (Literals r)))))
 type Tokens r =
-  Abstractions + Operators + Literals + Groupings + Separators + Whitespace + r
+  Abstractions (Operators (Literals (Groupings (Separators (Whitespace r)))))
 
-type Node = Variant (Nodes + ())
-type NodeBush = Bush (Variant (Nodes + ()))
-type NodeBushF = BushF (Variant (Nodes + ()))
-type Tok = Variant (Tokens + ())
-type TokStruct = Struct (Variant (Tokens + ()))
-type TokStructF = StructF (Variant (Tokens + ()))
+type Node = Variant (Nodes ())
+type NodeBush = Bush (Variant (Nodes ()))
+type NodeBushF = BushF (Variant (Nodes ()))
+type Tok = Variant (Tokens ())
+type TokStruct = Struct (Variant (Tokens ()))
+type TokStructF = StructF (Variant (Tokens ()))
 type DispStruct = Struct Disp
 type DispStructF = StructF Disp
 
@@ -437,7 +436,7 @@ precede = In <<< process where
   lassoc prec _ = Just { assoc: Just false, prec }
   rassoc :: Int -> Unit -> Maybe Prec
   rassoc prec _ = Just { assoc: Just true, prec }
-  precedence :: Variant (Nodes + ()) -> Maybe Prec
+  precedence :: Variant (Nodes ()) -> Maybe Prec
   precedence = Variant.default Nothing # Variant.onMatch
     { "Lam": rassoc (-100)
     , "BoolIf": rassoc (-100)
@@ -521,17 +520,17 @@ structure (BushF v cs) = (#) v $ Variant.case_
     emptyLine = In $ StrTokens []
     handleContainer ::
       forall s2 s3 r2 r3.
-        IsSymbol s2 => Row.Cons s2 Side r2 (Tokens + ()) =>
-        IsSymbol s3 => Row.Cons s3 Unit r3 (Tokens + ()) =>
+        IsSymbol s2 => Row.Cons s2 Side r2 (Tokens ()) =>
+        IsSymbol s3 => Row.Cons s3 Unit r3 (Tokens ()) =>
       Proxy s2 -> Proxy s3 ->
       Array Tok -> Unit -> TokStruct
     handleContainer s2 s3 empt _ = buildGroup (Variant.inj s2) (Variant.inj s3 unit) empt $
       cs # Array.mapMaybe \{ label, value } -> value
     handleLabelled ::
       forall s2 s3 s4 r2 r3 r4.
-        IsSymbol s2 => Row.Cons s2 Side r2 (Tokens + ()) =>
-        IsSymbol s3 => Row.Cons s3 Unit r3 (Tokens + ()) =>
-        IsSymbol s4 => Row.Cons s4 Unit r4 (Tokens + ()) =>
+        IsSymbol s2 => Row.Cons s2 Side r2 (Tokens ()) =>
+        IsSymbol s3 => Row.Cons s3 Unit r3 (Tokens ()) =>
+        IsSymbol s4 => Row.Cons s4 Unit r4 (Tokens ()) =>
       Proxy s2 -> Proxy s3 -> Proxy s4 ->
       Array Tok -> Unit -> TokStruct
     handleLabelled s2 s3 s4 empt _ = buildGroup (Variant.inj s2) (Variant.inj s3 unit) empt $
@@ -605,7 +604,7 @@ structure (BushF v cs) = (#) v $ Variant.case_
       forall s r1 r2 r3.
         IsSymbol s =>
         Row.Cons s Unit r1 r2 =>
-        Row.Cons s Unit r3 (Tokens + ()) =>
+        Row.Cons s Unit r3 (Tokens ()) =>
       Proxy s ->
       (Variant r1 -> TokStruct) ->
       (Variant r2 -> TokStruct)
@@ -639,7 +638,7 @@ structure (BushF v cs) = (#) v $ Variant.case_
       forall s r1 r2 r3.
         IsSymbol s =>
         Row.Cons s Unit r1 r2 =>
-        Row.Cons s Unit r3 (Tokens + ()) =>
+        Row.Cons s Unit r3 (Tokens ()) =>
       Proxy s ->
       (Variant r1 -> TokStruct) ->
       (Variant r2 -> TokStruct)
@@ -654,7 +653,7 @@ structure (BushF v cs) = (#) v $ Variant.case_
       forall s t r1 r2 r3.
         IsSymbol s =>
         Row.Cons s t r1 r2 =>
-        Row.Cons s t r3 (Tokens + ()) =>
+        Row.Cons s t r3 (Tokens ()) =>
       Proxy s ->
       (Variant r1 -> TokStruct) ->
       (Variant r2 -> TokStruct)
@@ -783,11 +782,11 @@ type TokInfo r =
   ( tokType :: TokenType
   | r
   )
-type TokValue v r =
+type TokValue (v :: Type) r =
   ( value :: v
   | r
   )
-type Disp = Record (Padding + TokInfo + TokValue String + ())
+type Disp = Record (Padding (TokInfo (TokValue String ())))
 
 tokDisp ::
   { ascii :: Boolean } ->
@@ -884,7 +883,7 @@ type MLines = Array MLine
 
 printLine' :: forall r m. Monoid m =>
   m ->
-  Array (Record (Padding + TokValue m + r)) ->
+  Array (Record (Padding (TokValue m r))) ->
   m
 printLine' spc = _.value <<< Array.foldl folder { value: mempty, space: No } where
   needSpace = case _, _ of

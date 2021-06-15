@@ -46,7 +46,7 @@ resolve' = resolve''
   , cacher: Retrieve.nodeCache
   }
 resolve'' :: Resolve.R -> Resolve.ImportExpr -> Aff (Resolve.Feedback () () Resolve.ResolvedExpr)
-resolve'' resolver e = Resolve.runM resolver mempty (Resolve.resolveImportsHere e) <#> \(Tuple fb _) -> fb
+resolve'' resolver e = Resolve.runM resolver { cache: IOSM.empty, toBeCached: mempty } (Resolve.resolveImportsHere e) <#> \(Tuple fb _) -> fb
 resolve :: Expr (InsOrdMap String) Import -> Aff (Maybe (Expr (InsOrdMap String) Void))
 resolve e = resolve' e <#> \fb -> V.hushW' fb
 tc :: forall t14. MapLike String t14 => Expr t14 Void -> Maybe (Expr t14 Void)

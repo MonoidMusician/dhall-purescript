@@ -13,7 +13,6 @@ import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Core.AST (Expr, ExprRowVFI, Var, S_, _S)
 import Prim.Row as Row
-import Type.Row (type (+))
 import Type.Proxy (Proxy)
 
 type Within r =
@@ -34,9 +33,9 @@ type Operated r =
   )
 
 type LV r = List (Variant r)
-type Pointer = LV (Within + ())
-type Location = LV (Derived + Within + ())
-type Derivation = LV (Operated + Derived + Within + ())
+type Pointer = LV (Within ())
+type Location = LV (Derived (Within ()))
+type Derivation = LV (Operated (Derived (Within ())))
 type TLV r = Tuple (LV r)
 type PointerF = Tuple Pointer
 type LocationF = Tuple Location

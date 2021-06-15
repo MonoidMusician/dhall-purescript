@@ -47,7 +47,6 @@ import Dhall.Normalize.Apps (AppsF(..), appsG, noappG, noapplitG, noapplitG', (~
 import Dhall.Variables (ShiftSubstAlg, shiftSubstAlgGM)
 import Dhall.Variables as Variables
 import Prim.Row as Row
-import Type.Row (type (+))
 import Type.Proxy (Proxy)
 
 -- | Reduce an expression to its normal form, performing beta reduction
@@ -122,7 +121,7 @@ instance extendW :: Extend W where
 instance comonadW :: Comonad W where
   extract (W (Tuple _ l)) = extract l
 
-type NormalizeAlg node v = ShiftSubstAlg node +
+type NormalizeAlg node v = ShiftSubstAlg node
   ( normalize :: {} | v )
 
 lowerOps :: forall all i node.
