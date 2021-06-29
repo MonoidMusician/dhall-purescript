@@ -61,7 +61,6 @@ to generate this file without the comments in this block.
   , "psci-support"
   , "record"
   , "refs"
-  , "sjcl"
   , "strings"
   , "these"
   , "transformers"
