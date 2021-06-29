@@ -104,28 +104,3 @@ let upstream =
 in  upstream
   with variant.version = "map-variant"
   with variant.repo = "https://github.com/MonoidMusician/purescript-variant.git"
-
-  with tuples-native =
-    { dependencies =
-        [ "prelude"
-        , "unsafe-coerce"
-        , "typelevel"
-        ]
-    , repo =
-        "https://github.com/poorscript/purescript-tuples-native.git"
-    , version = "master"
-    }
-
-  with sjcl =
-    { dependencies =
-       [ "arraybuffer-types"
-       , "exceptions"
-       , "nullable"
-       , "sized-vectors"
-       , "tuples-native"
-       ]
-    , repo =
-       "https://github.com/athanclark/purescript-sjcl.git"
-    , version =
-        "v0.0.1"
-    }
