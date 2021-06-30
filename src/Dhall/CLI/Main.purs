@@ -49,7 +49,7 @@ normalizeFile :: String -> Aff Unit
 normalizeFile file = do
   let target = Dhall.parseImportType file
   text <- Retrieve.nodeRetrieve target <#> _.result
-  case Parser.parse text of
+  case Parser.parse =<< text of
     Nothing -> logShow "Parser error"
     Just parsed ->
       Resolve.runM (resolver target) { cache: Map.empty, toBeCached: mempty } (Resolve.resolveImportsHere parsed) >>=
