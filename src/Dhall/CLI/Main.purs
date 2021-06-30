@@ -1,13 +1,12 @@
 module Dhall.CLI.Main where
 
 import Prelude
-import Control.Comonad (extract)
+
 import Data.Array as Array
-import Data.Either (Either(..))
-import Data.Foldable (traverse_)
+import Data.Foldable (for_, traverse_)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), isJust)
+import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap, wrap)
 import Data.String as String
 import Data.Tuple (Tuple(..), fst)
@@ -30,9 +29,10 @@ runNormalize argv = case argv of
   [ s ] -> normalizeFile s
   _ -> log "Specify a single file to normalize"
 
-resolver :: Resolve.R
-resolver =
-  { stack: mempty
+resolver :: Dhall.ImportType -> Resolve.R
+resolver target =
+  { stack: pure $ Resolve.Localized $ Dhall.Import
+      { importMode: Dhall.Code, importType: target }
   , retriever: Retrieve.nodeRetrieve
   , cacher: Retrieve.nodeCache
   }
@@ -47,20 +47,22 @@ print i = Printer.printAST
 
 normalizeFile :: String -> Aff Unit
 normalizeFile file = do
-  text <-
-    if isJust (String.stripPrefix (String.Pattern "http://") file) || isJust (String.stripPrefix (String.Pattern "https://") file)
-      then Retrieve.nodeRetrieveURL mempty file <#> _.result
-      else Retrieve.nodeRetrieveFile file
+  let target = Dhall.parseImportType file
+  text <- Retrieve.nodeRetrieve target <#> _.result
   case Parser.parse text of
     Nothing -> logShow "Parser error"
     Just parsed ->
-      Resolve.runM resolver mempty (Resolve.resolveImportsHere parsed) >>=
+      Resolve.runM (resolver target) { cache: Map.empty, toBeCached: mempty } (Resolve.resolveImportsHere parsed) >>=
         fst >>> unwrap >>> map fst >>> case _ of
-          V.Error _ _ -> logShow "Imports failed"
+          V.Error es _ -> do
+            logShow "Imports failed"
+            for_ es \(TC.TypeCheckError { tag }) -> logShow (tag :: Variant (Resolve.Errors ()))
           V.Success resolved -> do
             -- logShow resolved
             case TC.typeOf resolved of
-              V.Error _ _ -> logShow "Type error"
+              V.Error es _ -> do
+                logShow "Type error"
+                for_ es \(TC.TypeCheckError { tag }) -> logShow (tag :: Variant (Resolve.Errors ()))
               V.Success a -> do
                 -- logShow a
                 let normalized = Dhall.normalize resolved

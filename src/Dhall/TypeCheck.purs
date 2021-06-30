@@ -33,7 +33,6 @@ import Dhall.TypeCheck.Types (Ann, BiContext, Errors, Feedback, FeedbackE, Incon
 import Dhall.TypeCheck.Types (BiContext, Errors, FeedbackE, L, OxprE, TypeCheckError(..), ResultE)
 import Dhall.Variables (MaybeIntro(..), trackIntro)
 import Matryoshka (project)
-import Type.Row (type (+))
 import Validation.These (unW)
 import Validation.These as V
 
@@ -43,7 +42,7 @@ type Typer m a = a -> Expr m a
 
 locateO' :: forall w r m a. Eq a => MapLike String m =>
   OxprE w ( "Not found" :: ExprRowVFI | r ) m a ->
-  Variant (Operated + Derived + Within + ()) ->
+  Variant (Operated (Derived (Within ()))) ->
   FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a
     (OxprE w ( "Not found" :: ExprRowVFI | r ) m a)
 locateO' foc0 = Variant.match
@@ -71,7 +70,7 @@ locateO foc0 deriv = foldr (\v foc -> foc >>= flip locateO' v) (pure foc0) deriv
 
 locateE' :: forall w r m a. Eq a => MapLike String m =>
   (a -> Expr m a) ->
-  Variant (Operated + Derived + Within + ()) ->
+  Variant (Operated (Derived (Within ()))) ->
   Tuple (BiContext (Expr m a)) (Expr m a) ->
   FeedbackE w ( "Not found" :: ExprRowVFI | r ) m a
     (Tuple (BiContext (Expr m a)) (Expr m a))

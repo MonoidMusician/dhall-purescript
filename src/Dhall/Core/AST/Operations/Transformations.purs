@@ -4,7 +4,7 @@ import Prelude
 
 import Control.Comonad (extract)
 import Control.Comonad.Env (EnvT(..))
-import Data.Functor.Variant (class VariantFMapCases, class VariantFMaps, SProxy, VariantF)
+import Data.Functor.Variant (class VariantFMapCases, class VariantFMaps, VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Identity (Identity(..))
 import Data.Newtype (un, unwrap, wrap)
@@ -21,9 +21,9 @@ import Dhall.Core.AST as AST
 import Dhall.Core.AST.Noted as Noted
 import Dhall.Core.Zippers.Recursive (_recurse)
 import Matryoshka (embed, project)
-import Type.Row (type (+))
 import Type.Row as R
 import Type.RowList as RL
+import Type.Proxy (Proxy)
 
 -- The general shape of a transformation that runs over an Expr-like object
 -- (top-down, with explicit recursion).
@@ -39,15 +39,15 @@ type GenericExprAlgebraM m ops i node =
 
 -- This is the type of a transformation that handles a couple cases of a Variant
 -- input.
-type GenericExprAlgebraVT (ops :: # Type -> Type -> Type -> # Type -> # Type) affected (i :: Type -> # Type -> # Type) =
-  forall node v v' r ops'.
-  (Variant v -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> Identity node) ->
-  (Variant (i node v) -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> Identity node)
+type GenericExprAlgebraVT (ops :: # (Type -> Type) -> Type -> Type -> # Type -> # Type) affected (i :: Type -> # Type -> # Type) =
+  forall (node :: Type) (v :: # Type) (v' :: # Type) (r :: # (Type -> Type)) ops'.
+  (Variant v -> Record (ops (affected r) (Variant (i node v')) node ops') -> node -> Identity node) ->
+  (Variant (i node v) -> Record (ops (affected r) (Variant (i node v')) node ops') -> node -> Identity node)
 
-type GenericExprAlgebraVTM m (ops :: # Type -> Type -> Type -> # Type -> # Type) affected (i :: Type -> # Type -> # Type) =
-  forall node v v' r ops'. Traversable (VariantF r) =>
-  (Variant v -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> m node) ->
-  (Variant (i node v) -> Record (ops (affected + r) (Variant (i node v')) node + ops') -> node -> m node)
+type GenericExprAlgebraVTM m (ops :: # (Type -> Type) -> Type -> Type -> # Type -> # Type) affected (i :: Type -> # Type -> # Type) =
+  forall (node :: Type) (v :: # Type) (v' :: # Type) (r :: # (Type -> Type)) ops'. Traversable (VariantF r) =>
+  (Variant v -> Record (ops (affected r) (Variant (i node v')) node ops') -> node -> m node) ->
+  (Variant (i node v) -> Record (ops (affected r) (Variant (i node v')) node ops') -> node -> m node)
 
 -- The operations on a node of type `node` which has cases given by `all`,
 -- with input (internal language) `i`.
@@ -74,7 +74,7 @@ type NodeOpsM m all i node ops =
 -- include nor preserve any extra structure beside the Expr cases.
 -- Prefer `overlayer` when possible.
 type ConsNodeOps all i node ops = ConsNodeOpsM Identity all i node ops
-type ConsNodeOpsM m all i node ops = NodeOpsM m all i node +
+type ConsNodeOpsM m all i node ops = NodeOpsM m all i node
   ( layer :: VariantF all node -> node | ops )
 
 -- Just a way to mutate one layer. Call via `runOverCases` to ensure that
@@ -97,7 +97,7 @@ runOverCases :: forall cases casesrl affected affectedrl unaffected all node.
   (node -> node) ->
   Record cases -> node -> node
 runOverCases (OverCasesM f) rest cases = un Identity <<< f
-  (Identity <<< VariantF.expandOverMatch cases rest)
+  (Identity <<< VariantF.over cases rest)
 
 runOverCasesM :: forall cases casesrl affected affectedrl unaffected all node m.
     RL.RowToList cases casesrl =>
@@ -111,7 +111,7 @@ runOverCasesM :: forall cases casesrl affected affectedrl unaffected all node m.
   OverCasesM m all node ->
   (node -> m node) ->
   Record cases -> node -> m node
-runOverCasesM (OverCasesM f) rest cases = f (VariantF.expandTravMatch cases rest)
+runOverCasesM (OverCasesM f) rest cases = f (VariantF.traverse cases rest)
 
 -- Eliminate one case of a recursive algebra.
 --
@@ -127,7 +127,7 @@ elim1 ::
     VariantTags affectedrl =>
     VariantFMaps affectedrl =>
     R.Union affected unaffected all =>
-  SProxy sym ->
+  Proxy sym ->
   (i          ->
   { overlayer :: OverCases all node
   , recurse :: Variant v' -> node -> node
@@ -162,7 +162,7 @@ elim1M ::
     R.Union affected unaffected all =>
     Applicative m =>
     Traversable (VariantF unaffected) =>
-  SProxy sym ->
+  Proxy sym ->
   (i          ->
   { overlayer :: OverCasesM m all node
   , recurse :: Variant v' -> node -> m node
@@ -197,7 +197,7 @@ runAlgebraExprM alg = go where
   go i e = alg i
     { unlayer: project >>> unwrap
     , layer: embed <<< wrap
-    , overlayer: OverCasesM (N.under Star _recurse <<< N.traverse AST.ERVF)
+    , overlayer: OverCasesM (N.under Star _recurse <<< (\f -> map AST.ERVF <<< f <<< un AST.ERVF))
     , recurse: go
     } e
 
@@ -216,7 +216,7 @@ runAlgebraNotedM df alg = go where
   go i e = alg i
     { unlayer: project >>> unwrap >>> extract >>> unwrap
     , layer: embed <<< wrap <<< Tuple df <<< wrap
-    , overlayer: OverCasesM (N.under Star _recurse <<< travEnvT <<< N.traverse AST.ERVF)
+    , overlayer: OverCasesM (N.under Star _recurse <<< travEnvT <<< (\f -> map AST.ERVF <<< f <<< un AST.ERVF))
     , recurse: go
     } e
   travEnvT f (EnvT (Tuple e x)) = EnvT <<< Tuple e <$> f x

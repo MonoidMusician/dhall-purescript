@@ -11,10 +11,11 @@ import Data.Array.NonEmpty as NEA
 import Data.Const (Const)
 import Data.Either (Either(..))
 import Data.Enum (toEnum)
+import Data.Foldable as Foldable
 import Data.Function (on)
 import Data.Functor.App as AppF
 import Data.Functor.Product (Product(..), product)
-import Data.Functor.Variant (FProxy, SProxy, VariantF)
+import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Identity (Identity(..))
@@ -46,7 +47,7 @@ import Dhall.Normalize.Apps (AppsF(..), appsG, noappG, noapplitG, noapplitG', (~
 import Dhall.Variables (ShiftSubstAlg, shiftSubstAlgGM)
 import Dhall.Variables as Variables
 import Prim.Row as Row
-import Type.Row (type (+))
+import Type.Proxy (Proxy)
 
 -- | Reduce an expression to its normal form, performing beta reduction
 -- | `normalize` does not type-check the expression.  You may want to type-check
@@ -120,7 +121,7 @@ instance extendW :: Extend W where
 instance comonadW :: Comonad W where
   extract (W (Tuple _ l)) = extract l
 
-type NormalizeAlg node v = ShiftSubstAlg node +
+type NormalizeAlg node v = ShiftSubstAlg node
   ( normalize :: {} | v )
 
 lowerOps :: forall all i node.
@@ -159,9 +160,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
   expose ::
     forall sym f rest r.
       Functor f =>
-      Row.Cons sym (FProxy f) rest (AST.ExprLayerRow m a) =>
+      Row.Cons sym f rest (AST.ExprLayerRow m a) =>
       IsSymbol sym =>
-    SProxy sym ->
+    Proxy sym ->
     (f (W node) -> r) -> (node -> r) -> node -> r
   expose sym here other e =
     VariantF.on sym (here <<< map go) (\_ -> other e) (node.unlayer e)
@@ -169,9 +170,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
   exposeW ::
     forall sym f rest r.
       Functor f =>
-      Row.Cons sym (FProxy f) rest (AST.ExprLayerRow m a) =>
+      Row.Cons sym f rest (AST.ExprLayerRow m a) =>
       IsSymbol sym =>
-    SProxy sym ->
+    Proxy sym ->
     (f (W node) -> r) -> (W node -> r) -> W node -> r
   exposeW sym here other e =
     VariantF.on sym (here <<< map pure) (\_ -> other e) (node.unlayer (extractW e))
@@ -179,17 +180,17 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
   previewF ::
     forall sym f rest.
       Functor f =>
-      Row.Cons sym (FProxy f) rest (AST.ExprLayerRow m a) =>
+      Row.Cons sym f rest (AST.ExprLayerRow m a) =>
       IsSymbol sym =>
-    SProxy sym ->
+    Proxy sym ->
     node -> Maybe (f (W node))
   previewF sym = expose sym Just (const Nothing)
 
   previewLit ::
     forall sym lit rest.
-      Row.Cons sym (FProxy (Const lit)) rest (AST.ExprLayerRow m a) =>
+      Row.Cons sym (Const lit) rest (AST.ExprLayerRow m a) =>
       IsSymbol sym =>
-    SProxy sym ->
+    Proxy sym ->
     node -> Maybe lit
   previewLit sym = previewF sym >>> map unwrap
 
@@ -207,9 +208,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
   anew ::
     forall sym f rest.
       Functor f =>
-      Row.Cons sym (FProxy f) rest (AST.ExprLayerRow m a) =>
+      Row.Cons sym f rest (AST.ExprLayerRow m a) =>
       IsSymbol sym =>
-    SProxy sym ->
+    Proxy sym ->
     f (W node) -> W node
   anew sym children = instead \_ ->
     node.layer $ VariantF.inj sym $ children <#> extractW
@@ -217,9 +218,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
   anewAnd ::
     forall sym f rest.
       Functor f =>
-      Row.Cons sym (FProxy f) rest (AST.ExprLayerRow m a) =>
+      Row.Cons sym f rest (AST.ExprLayerRow m a) =>
       IsSymbol sym =>
-    SProxy sym ->
+    Proxy sym ->
     f (W node) -> W node
   anewAnd sym children = instead \_ -> extractW $ go $
     node.layer $ VariantF.inj sym $ children <#> extractW
@@ -227,9 +228,9 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
   reconstruct ::
     forall sym f rest.
       Traversable f =>
-      Row.Cons sym (FProxy f) rest (AST.ExprLayerRow m a) =>
+      Row.Cons sym f rest (AST.ExprLayerRow m a) =>
       IsSymbol sym =>
-    SProxy sym ->
+    Proxy sym ->
     f (W node) -> W node
   reconstruct sym = sequence >>> map \children ->
     node.layer $ VariantF.inj sym $ children
@@ -609,7 +610,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
             Nothing -> \_ -> v
             Just ks' -> case _ of
               Nothing ->
-                Array.foldr (\k v' -> anew (_S::S_ "RecordLit") (Dhall.Map.singleton k v')) v ks'
+                Foldable.foldr (\k v' -> anew (_S::S_ "RecordLit") (Dhall.Map.singleton k v')) v ks'
               Just v0 ->
                 anew (_S::S_ "With") (Product (Tuple (Identity v0) (Tuple ks' v)))
         in e # exposeW (_S::S_ "RecordLit")
@@ -667,24 +668,24 @@ builtinsG = conversionsG <> naturalfnsG <> listfnsG
 mk ::
   forall sym f rest all node ops.
     Functor f =>
-    Row.Cons sym (FProxy f) rest all =>
+    Row.Cons sym f rest all =>
     IsSymbol sym =>
   { layer :: VariantF all node -> node
   | ops
   } ->
-  SProxy sym ->
+  Proxy sym ->
   f node -> node
 mk node sym children = node.layer $ VariantF.inj sym $ children
 
 mkAppsF ::
   forall sym f rest all node ops.
     Functor f =>
-    Row.Cons sym (FProxy f) rest all =>
+    Row.Cons sym f rest all =>
     IsSymbol sym =>
   { layer :: VariantF all node -> node
   | ops
   } ->
-  SProxy sym ->
+  Proxy sym ->
   f node -> AppsF node
 mkAppsF node sym children = NoApp $ mk node sym children
 
@@ -692,7 +693,7 @@ fusionsG :: forall all' i node ops.
   (node -> node -> Boolean) ->
   (node -> node) ->
   GNormalizer
-    ( "App" :: FProxy AST.Pair
+    ( "App" :: AST.Pair
     , "ListBuild" :: UNIT
     , "ListFold" :: UNIT
     , "NaturalBuild" :: UNIT
@@ -719,7 +720,7 @@ conversionsG :: forall all' node v ops.
   (node -> node -> Boolean) ->
   (node -> node) ->
   GNormalizer
-    ( "App" :: FProxy AST.Pair
+    ( "App" :: AST.Pair
     , "NaturalToInteger" :: UNIT
     , "NaturalShow" :: UNIT
     , "IntegerShow" :: UNIT
@@ -729,7 +730,7 @@ conversionsG :: forall all' node v ops.
     , "DoubleShow" :: UNIT
     , "NaturalLit" :: CONST Natural
     , "IntegerLit" :: CONST Integer
-    , "TextLit" :: FProxy AST.TextLitF
+    , "TextLit" :: AST.TextLitF
     , "DoubleLit" :: CONST Double
     , "TextShow" :: UNIT
     , "TextReplace" :: UNIT
@@ -818,7 +819,7 @@ naturalfnsG :: forall all' node v ops.
   (node -> node -> Boolean) ->
   (node -> node) ->
   GNormalizer
-    ( "App" :: FProxy AST.Pair
+    ( "App" :: AST.Pair
     , "Natural" :: UNIT
     , "NaturalFold" :: UNIT
     , "NaturalBuild" :: UNIT
@@ -829,8 +830,8 @@ naturalfnsG :: forall all' node v ops.
     , "NaturalSubtract" :: UNIT
     , "BoolLit" :: CONST Boolean
     , "Var" :: CONST AST.Var
-    , "Lam" :: FProxy AST.BindingBody
-    , "NaturalPlus" :: FProxy AST.Pair
+    , "Lam" :: AST.BindingBody
+    , "NaturalPlus" :: AST.Pair
     | all'
     )
     (Variant (ShiftSubstAlg node v)) node ops
@@ -899,7 +900,7 @@ listfnsG :: forall all' node v ops m. MapLike String m =>
   (node -> node -> Boolean) ->
   (node -> node) ->
   GNormalizer
-    ( "App" :: FProxy AST.Pair
+    ( "App" :: AST.Pair
     , "List" :: UNIT
     , "ListBuild" :: UNIT
     , "ListFold" :: UNIT
@@ -908,16 +909,16 @@ listfnsG :: forall all' node v ops m. MapLike String m =>
     , "ListLast" :: UNIT
     , "ListIndexed" :: UNIT
     , "ListReverse" :: UNIT
-    , "ListLit" :: FProxy (Product Maybe Array)
-    , "Lam" :: FProxy AST.BindingBody
-    , "ListAppend" :: FProxy AST.Pair
+    , "ListLit" :: Product Maybe Array
+    , "Lam" :: AST.BindingBody
+    , "ListAppend" :: AST.Pair
     , "Var" :: CONST AST.Var
     , "NaturalLit" :: CONST Natural
-    , "Some" :: FProxy Identity
+    , "Some" :: Identity
     , "None" :: UNIT
-    , "Record" :: FProxy m
+    , "Record" :: m
     , "Natural" :: UNIT
-    , "RecordLit" :: FProxy m
+    , "RecordLit" :: m
     | all'
     )
     (Variant (ShiftSubstAlg node v)) node ops

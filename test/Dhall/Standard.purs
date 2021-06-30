@@ -5,11 +5,10 @@ import Prelude
 import Control.Comonad (extract)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.Writer (WriterT(..))
-import Data.Array (foldMap)
 import Data.Array as Array
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Either (Either(..))
-import Data.Foldable (traverse_)
+import Data.Foldable (foldMap, traverse_)
 import Data.FoldableWithIndex (forWithIndex_)
 import Data.Map (Map)
 import Data.Map as Map
@@ -250,7 +249,7 @@ test = do
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
           note "Failed to resolve B"
         let norm = (conv <<< unordered) (extract typecheckedA.normalizedType)
-        when (alphaNormalize norm /= alphaNormalize importedB.resolved) do
+        when (norm /= importedB.resolved) do
           when true do
             logShow $ norm
             logShow importedB.resolved
@@ -278,7 +277,7 @@ test = do
           note "Failed to parse B"
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
           note "Failed to resolve B"
-        when (alphaNormalize (unordered importedA.resolved) /= alphaNormalize (unordered importedB.resolved)) do
+        when (unordered importedA.resolved /= unordered importedB.resolved) do
           when (true || verb) do
             logShow importedA.resolved
             logShow importedB.resolved
@@ -331,10 +330,10 @@ main = launchAff_ do
       in if allowed && not rejected
         then Just (Array.elem file files.yes)
         else Nothing
-  results <- liftEffect $ Ref.new mempty
+  results <- liftEffect $ Ref.new Map.empty
   runReaderT test { filter, results }
   finalResults <- liftEffect $ Ref.read results
-  if finalResults == mempty
+  if finalResults == Map.empty
     then log "No tests run"
     else
       forWithIndex_ finalResults \k v ->

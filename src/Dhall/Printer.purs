@@ -10,7 +10,6 @@ import Data.Either (Either(..))
 import Data.Functor.App (App(..))
 import Data.Functor.Mu (Mu(..))
 import Data.Functor.Product (Product(..))
-import Data.Functor.Variant (SProxy)
 import Data.Functor.Variant as VariantF
 import Data.Identity (Identity(..))
 import Data.List as List
@@ -30,7 +29,7 @@ import Effect.Console (log)
 import Effect.Unsafe (unsafePerformEffect)
 import Matryoshka (Algebra, cata)
 import Prim.Row (class Cons) as Row
-import Type.Row (type (+))
+import Type.Proxy (Proxy)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- The process of printing an AST goes like so:
@@ -234,16 +233,16 @@ type Whitespace r =
   )
 
 type Nodes r =
-  Precedence + Containers + Blocks + Abstractions + Operators + Literals + r
+  Precedence (Containers (Blocks (Abstractions (Operators (Literals r)))))
 type Tokens r =
-  Abstractions + Operators + Literals + Groupings + Separators + Whitespace + r
+  Abstractions (Operators (Literals (Groupings (Separators (Whitespace r)))))
 
-type Node = Variant (Nodes + ())
-type NodeBush = Bush (Variant (Nodes + ()))
-type NodeBushF = BushF (Variant (Nodes + ()))
-type Tok = Variant (Tokens + ())
-type TokStruct = Struct (Variant (Tokens + ()))
-type TokStructF = StructF (Variant (Tokens + ()))
+type Node = Variant (Nodes ())
+type NodeBush = Bush (Variant (Nodes ()))
+type NodeBushF = BushF (Variant (Nodes ()))
+type Tok = Variant (Tokens ())
+type TokStruct = Struct (Variant (Tokens ()))
+type TokStructF = StructF (Variant (Tokens ()))
 type DispStruct = Struct Disp
 type DispStructF = StructF Disp
 
@@ -379,34 +378,34 @@ fromAST renderImport = VariantF.match
       forall s r.
         IsSymbol s =>
         Row.Cons s Unit r (Nodes ()) =>
-      SProxy s -> Algebra Branching NodeBush
+      Proxy s -> Algebra Branching NodeBush
     bush s = In <<< BushF (Variant.inj s unit)
     foldable ::
       forall s r f.
         IsSymbol s =>
         Row.Cons s Unit r (Nodes ()) =>
         Foldable f =>
-      SProxy s -> Algebra f NodeBush
+      Proxy s -> Algebra f NodeBush
     foldable s = bush s <<< map conv <<< Array.fromFoldable where
       conv value = { label: Nothing, value: Just value }
     miosm ::
       forall s r.
         IsSymbol s =>
         Row.Cons s Unit r (Nodes ()) =>
-      SProxy s -> InsOrdStrMap (Maybe NodeBush) -> NodeBush
+      Proxy s -> InsOrdStrMap (Maybe NodeBush) -> NodeBush
     miosm s = bush s <<< map conv <<< unIOSM where
       conv (Tuple label value) = { label: Just label, value }
     binop ::
       forall s r.
         IsSymbol s =>
         Row.Cons s Unit r (Nodes ()) =>
-      SProxy s -> Algebra Pair NodeBush
+      Proxy s -> Algebra Pair NodeBush
     binop s = foldable s
     literal ::
       forall s r t.
         IsSymbol s =>
         Row.Cons s t r (Nodes ()) =>
-      SProxy s -> t -> NodeBush
+      Proxy s -> t -> NodeBush
     literal s v = In (BushF (Variant.inj s v) [])
     builtin :: String -> C.Const Unit NodeBush -> NodeBush
     builtin = const <<< literal (_S::S_ "Builtin")
@@ -437,7 +436,7 @@ precede = In <<< process where
   lassoc prec _ = Just { assoc: Just false, prec }
   rassoc :: Int -> Unit -> Maybe Prec
   rassoc prec _ = Just { assoc: Just true, prec }
-  precedence :: Variant (Nodes + ()) -> Maybe Prec
+  precedence :: Variant (Nodes ()) -> Maybe Prec
   precedence = Variant.default Nothing # Variant.onMatch
     { "Lam": rassoc (-100)
     , "BoolIf": rassoc (-100)
@@ -521,18 +520,18 @@ structure (BushF v cs) = (#) v $ Variant.case_
     emptyLine = In $ StrTokens []
     handleContainer ::
       forall s2 s3 r2 r3.
-        IsSymbol s2 => Row.Cons s2 Side r2 (Tokens + ()) =>
-        IsSymbol s3 => Row.Cons s3 Unit r3 (Tokens + ()) =>
-      SProxy s2 -> SProxy s3 ->
+        IsSymbol s2 => Row.Cons s2 Side r2 (Tokens ()) =>
+        IsSymbol s3 => Row.Cons s3 Unit r3 (Tokens ()) =>
+      Proxy s2 -> Proxy s3 ->
       Array Tok -> Unit -> TokStruct
     handleContainer s2 s3 empt _ = buildGroup (Variant.inj s2) (Variant.inj s3 unit) empt $
       cs # Array.mapMaybe \{ label, value } -> value
     handleLabelled ::
       forall s2 s3 s4 r2 r3 r4.
-        IsSymbol s2 => Row.Cons s2 Side r2 (Tokens + ()) =>
-        IsSymbol s3 => Row.Cons s3 Unit r3 (Tokens + ()) =>
-        IsSymbol s4 => Row.Cons s4 Unit r4 (Tokens + ()) =>
-      SProxy s2 -> SProxy s3 -> SProxy s4 ->
+        IsSymbol s2 => Row.Cons s2 Side r2 (Tokens ()) =>
+        IsSymbol s3 => Row.Cons s3 Unit r3 (Tokens ()) =>
+        IsSymbol s4 => Row.Cons s4 Unit r4 (Tokens ()) =>
+      Proxy s2 -> Proxy s3 -> Proxy s4 ->
       Array Tok -> Unit -> TokStruct
     handleLabelled s2 s3 s4 empt _ = buildGroup (Variant.inj s2) (Variant.inj s3 unit) empt $
       cs # Array.mapMaybe \{ label, value } -> label <#> \l ->
@@ -605,8 +604,8 @@ structure (BushF v cs) = (#) v $ Variant.case_
       forall s r1 r2 r3.
         IsSymbol s =>
         Row.Cons s Unit r1 r2 =>
-        Row.Cons s Unit r3 (Tokens + ()) =>
-      SProxy s ->
+        Row.Cons s Unit r3 (Tokens ()) =>
+      Proxy s ->
       (Variant r1 -> TokStruct) ->
       (Variant r2 -> TokStruct)
     handleAbstraction s = Variant.on s \_ -> In $ StrGroup
@@ -639,8 +638,8 @@ structure (BushF v cs) = (#) v $ Variant.case_
       forall s r1 r2 r3.
         IsSymbol s =>
         Row.Cons s Unit r1 r2 =>
-        Row.Cons s Unit r3 (Tokens + ()) =>
-      SProxy s ->
+        Row.Cons s Unit r3 (Tokens ()) =>
+      Proxy s ->
       (Variant r1 -> TokStruct) ->
       (Variant r2 -> TokStruct)
     handleOperator s = Variant.on s \_ -> In $ StrGroup
@@ -654,8 +653,8 @@ structure (BushF v cs) = (#) v $ Variant.case_
       forall s t r1 r2 r3.
         IsSymbol s =>
         Row.Cons s t r1 r2 =>
-        Row.Cons s t r3 (Tokens + ()) =>
-      SProxy s ->
+        Row.Cons s t r3 (Tokens ()) =>
+      Proxy s ->
       (Variant r1 -> TokStruct) ->
       (Variant r2 -> TokStruct)
     handleLiteral s = Variant.on s \l ->
@@ -783,11 +782,11 @@ type TokInfo r =
   ( tokType :: TokenType
   | r
   )
-type TokValue v r =
+type TokValue (v :: Type) r =
   ( value :: v
   | r
   )
-type Disp = Record (Padding + TokInfo + TokValue String + ())
+type Disp = Record (Padding (TokInfo (TokValue String ())))
 
 tokDisp ::
   { ascii :: Boolean } ->
@@ -884,7 +883,7 @@ type MLines = Array MLine
 
 printLine' :: forall r m. Monoid m =>
   m ->
-  Array (Record (Padding + TokValue m + r)) ->
+  Array (Record (Padding (TokValue m r))) ->
   m
 printLine' spc = _.value <<< Array.foldl folder { value: mempty, space: No } where
   needSpace = case _, _ of

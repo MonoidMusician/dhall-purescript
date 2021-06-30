@@ -11,12 +11,11 @@ import Data.Array as Array
 import Data.Array.NonEmpty as NEA
 import Data.Const as Const
 import Data.Either (Either(..))
-import Data.Foldable (class Foldable, foldMap, foldlDefault, foldrDefault, traverse_)
+import Data.Foldable (class Foldable, foldMap, foldlDefault, foldr, foldrDefault, traverse_)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex, forWithIndex_)
 import Data.Functor.App (App(..))
 import Data.Functor.Compose (Compose(..))
 import Data.Functor.Product (Product(..))
-import Data.Functor.Variant (FProxy, SProxy)
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
@@ -48,6 +47,7 @@ import Dhall.TypeCheck.Operations (alsoOriginateFromO, areEq, newborn, newshared
 import Dhall.TypeCheck.Tree (shared, unshared)
 import Dhall.TypeCheck.Types (Errors, FeedbackE, Inconsistency(..), L, LxprF, OsprE, Oxpr, OxprE, TypeCheckError(..), WithBiCtx(..))
 import Type.Row as R
+import Type.Proxy (Proxy)
 import Validation.These as V
 
 axiom :: forall f. Alternative f => Const -> f Const
@@ -153,7 +153,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       forall sym t r' b.
         IsSymbol sym =>
         R.Cons sym t r' (Errors r) =>
-      SProxy sym ->
+      Proxy sym ->
       t ->
       FeedbackE w r m a b
     errorHere sym v = V.liftW $ V.erroring $ TypeCheckError
@@ -165,7 +165,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       forall sym t r' b.
         IsSymbol sym =>
         R.Cons sym t r' (Errors r) =>
-      SProxy sym ->
+      Proxy sym ->
       t ->
       Maybe b ->
       FeedbackE w r m a b
@@ -181,15 +181,15 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
     mkShared :: forall sym f r'.
       Functor f =>
       IsSymbol sym =>
-      R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
-      SProxy sym ->
+      R.Cons sym f r' (AST.ExprLayerRow m a) =>
+      Proxy sym ->
       f (OsprE w r m a) ->
       OsprE w r m a
     mkShared sym = newshared <<< VariantF.inj sym
     ensure' :: forall sym f r'.
       IsSymbol sym =>
-      R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
-      SProxy sym ->
+      R.Cons sym f r' (AST.ExprLayerRow m a) =>
+      Proxy sym ->
       OxprE w r m a ->
       (Unit -> FeedbackE w r m a Void) ->
       FeedbackE w r m a (f (OxprE w r m a))
@@ -261,8 +261,8 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
 
     ensure :: forall sym f r'.
       IsSymbol sym =>
-      R.Cons sym (FProxy f) r' (AST.ExprLayerRow m a) =>
-      SProxy sym ->
+      R.Cons sym f r' (AST.ExprLayerRow m a) =>
+      Proxy sym ->
       OxprE w r m a ->
       (Unit -> FeedbackE w r m a Void) ->
       FeedbackE w r m a (f (OxprE w r m a))
@@ -615,7 +615,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
               pure $ changed # Dhall.Map.alter (NEA.head ks)
                 case _ of
                   Nothing -> Just $
-                    Array.foldr (\k v' -> mkShared (_S::S_ "Record") (Dhall.Map.singleton k v')) (shared vT) ks'
+                    foldr (\k v' -> mkShared (_S::S_ "Record") (Dhall.Map.singleton k v')) (shared vT) ks'
                   Just yes -> Just yes
       addfield ks0 eT
   , "Merge": \(AST.MergeF handlers cases mty) -> do
