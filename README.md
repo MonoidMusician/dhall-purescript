@@ -20,10 +20,10 @@ You should probably use `spago` to install this! For the time being, add the fol
 in  upstream
   with dhall-purescript =
     { dependencies =
-        ( https://raw.githubusercontent.com/MonoidMusician/dhall-purescript/master/spago.dhall
+        ( https://raw.githubusercontent.com/MonoidMusician/dhall-purescript/main/spago.dhall
         ).dependencies
     , repo = "https://github.com/MonoidMusician/dhall-purescript.git"
-    , version = "master"
+    , version = "main"
     }
   with variant.version = "map-variant"
   with variant.repo = "https://github.com/MonoidMusician/purescript-variant.git"
@@ -31,7 +31,7 @@ in  upstream
 
 If you want to use `bower`, it's in an ugly state since some dependencies are not updated (warning: solving dependencies will take a loooong time):
 ```sh
-bower install --force-latest --save MonoidMusician/dhall-purescript#master
+bower install --force-latest --save MonoidMusician/dhall-purescript#main
 rm -rf bower_components/purescript-generics-rep/ bower_components/purescript-proxy/
 pulp build -I bower_components/dhall-purescript/src/
 ```
