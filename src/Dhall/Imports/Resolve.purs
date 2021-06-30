@@ -63,7 +63,7 @@ type R =
   -- A list of imports visited, in reverse order (i.e. head is the deepest)
   { stack :: List Localized
   -- The function used to retrieve imports
-  , retriever :: ImportType -> Aff { result :: String, headers :: Headers }
+  , retriever :: ImportType -> Aff { result :: Maybe String, headers :: Headers }
   -- Get and put expressions from the cache, wherever it is.
   -- May return Aff errors, especially for cache misses, though these are
   -- all silenced.
@@ -88,6 +88,7 @@ type Infos w =
   )
 type Errors r = TC.Errors
   ( "Parse error" :: Unit
+  , "Decoding error" :: Unit
   , "Invalid headers" :: Unit
   , "Import error" :: Aff.Error
   , "Cyclic import" :: Localized
@@ -363,8 +364,11 @@ retrieveImport :: forall w r. ImportType -> M w r { headers :: Headers, result :
 retrieveImport Missing = throw (Variant.inj (_S::S_ "Missing import") unit)
 retrieveImport i = do
   retriever <- asks _.retriever
-  liftAff' (throw <<< Variant.inj (_S::S_ "Import error")) $
+  mresult <- liftAff' (throw <<< Variant.inj (_S::S_ "Import error")) $
     retriever i
+  case mresult.result of
+    Nothing -> throw $ Variant.inj (_S::S_ "Decoding error") unit
+    Just result -> pure { headers: mresult.headers, result }
 
 parseImport :: forall w r. String -> M w r ImportExpr
 parseImport = Parser.parse >>> note (Variant.inj (_S::S_ "Parse error") unit)

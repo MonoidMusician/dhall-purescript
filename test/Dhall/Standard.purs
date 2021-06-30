@@ -8,7 +8,7 @@ import Control.Monad.Writer (WriterT(..))
 import Data.Array as Array
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Either (Either(..))
-import Data.Foldable (foldMap, traverse_)
+import Data.Foldable (foldMap, for_, traverse_)
 import Data.FoldableWithIndex (forWithIndex_)
 import Data.Map (Map)
 import Data.Map as Map
@@ -31,10 +31,10 @@ import Dhall.Test.Util as Util
 import Dhall.TypeCheck as TC
 import Effect (Effect)
 import Effect.Aff (Aff, catchError, error, launchAff_, makeAff, message, throwError)
-import Effect.Exception (stack)
 import Effect.Aff.Class (liftAff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console (log, logShow)
+import Effect.Exception (stack)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Node.Buffer as Buffer
@@ -149,7 +149,7 @@ test :: RT Unit
 test = do
   testType "parser"
     do \verb success -> do
-        textA <- nodeRetrieveFile (success <> "A.dhall")
+        textA <- nodeRetrieveFile (success <> "A.dhall") >>= note "Failed to decode A"
         let actA = mkActions "parser" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
@@ -165,20 +165,21 @@ test = do
               else log (Util.showCBOR binA) *> log (Util.showCBOR binB)
           throwError (error "Binary did not match")
     do \verb failure -> do
-        text <- nodeRetrieveFile (failure <> ".dhall")
-        let act = mkActions "parser" failure text
-        let parsed = act.parse # unwrap # extract
-        when (isJust parsed) do
-          throwError (error "Was not supposed to parse")
+        mtext <- nodeRetrieveFile (failure <> ".dhall")
+        for_ mtext \text -> do
+          let act = mkActions "parser" failure text
+          let parsed = act.parse # unwrap # extract
+          when (isJust parsed) do
+            throwError (error "Was not supposed to parse")
   testType "normalization"
     do \verb success -> do
-        textA <- nodeRetrieveFile (success <> "A.dhall")
+        textA <- nodeRetrieveFile (success <> "A.dhall") >>= note "Failed to decode A"
         let actA = mkActions "normalization" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
         importedA <- parsedA.imports # unwrap # extract # unwrap >>=
           noteFb "Failed to resolve A"
-        textB <- nodeRetrieveFile (success <> "B.dhall")
+        textB <- nodeRetrieveFile (success <> "B.dhall") >>= note "Failed to decode B"
         let actB = mkActions "normalization" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
@@ -197,11 +198,11 @@ test = do
         throwError (error "Why is there a normalization failure?")
   testType "alpha-normalization"
     do \verb success -> do
-        textA <- nodeRetrieveFile (success <> "A.dhall")
+        textA <- nodeRetrieveFile (success <> "A.dhall") >>= note "Failed to decode A"
         let actA = mkActions "alpha-normalization" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
-        textB <- nodeRetrieveFile (success <> "B.dhall")
+        textB <- nodeRetrieveFile (success <> "B.dhall") >>= note "Failed to decode B"
         let actB = mkActions "alpha-normalization" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
@@ -211,7 +212,7 @@ test = do
         throwError (error "Why is there an alpha-normalization failure?")
   testType "semantic-hash"
     do \verb success -> do
-        textA <- nodeRetrieveFile (success <> "A.dhall")
+        textA <- nodeRetrieveFile (success <> "A.dhall") >>= note "Failed to decode A"
         let actA = mkActions "semantic-hash" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse"
@@ -224,7 +225,7 @@ test = do
         -- when verb do log "Typechecked: " *> logShow typecheckedA.inferredType
         -- when verb do log "Normalized: " *> logShow (extract typecheckedA.safeNormalized)
         -- when verb do log "CBOR: " *> logDiag (extract typecheckedA.encoded).cbor
-        hashB <- (fromMaybe <*> stripSuffix (Pattern "\n")) <$> nodeRetrieveFile (success <> "B.hash")
+        hashB <- (fromMaybe <*> stripSuffix (Pattern "\n")) <$> (nodeRetrieveFile (success <> "B.hash") >>= note "Failed to decode B")
         let hashA = "sha256:" <> (extract typecheckedA.encoded).hash
         when (hashA /= hashB) do
           throwError $ error $ "Binary did not match"
@@ -234,7 +235,7 @@ test = do
         throwError (error "Why is there a semantic hash failure?")
   testType "type-inference"
     do \verb success -> do
-        textA <- nodeRetrieveFile (success <> "A.dhall")
+        textA <- nodeRetrieveFile (success <> "A.dhall") >>= note "Failed to decode A"
         let actA = mkActions "type-inference" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
@@ -242,7 +243,7 @@ test = do
           noteFb "Failed to resolve A"
         typecheckedA <- importedA.typechecked # unwrap # extract #
           noteR "Failed to typecheck A"
-        textB <- nodeRetrieveFile (success <> "B.dhall")
+        textB <- nodeRetrieveFile (success <> "B.dhall") >>= note "Failed to decode B"
         let actB = mkActions "type-inference" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
@@ -255,7 +256,7 @@ test = do
             logShow importedB.resolved
           throwError (error "Type inference did not match")
     do \verb failure -> do
-        text <- nodeRetrieveFile (failure <> ".dhall")
+        text <- nodeRetrieveFile (failure <> ".dhall") >>= note "Failed to decode"
         let act = mkActions "typecheck" failure text
         parsed <- act.parse # unwrap # extract #
           note "Failed to parse"
@@ -265,13 +266,13 @@ test = do
           etonR "Was not supposed to typecheck"
   testType "import"
     do \verb success -> do
-        textA <- nodeRetrieveFile (success <> "A.dhall")
+        textA <- nodeRetrieveFile (success <> "A.dhall") >>= note "Failed to decode A"
         let actA = mkActions "import" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
         importedA <- parsedA.imports # unwrap # extract # unwrap >>=
           noteFb "Failed to resolve A"
-        textB <- nodeRetrieveFile (success <> "B.dhall")
+        textB <- nodeRetrieveFile (success <> "B.dhall") >>= note "Failed to decode B"
         let actB = mkActions "import" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
@@ -283,7 +284,7 @@ test = do
             logShow importedB.resolved
           throwError (error "Imports did not match")
     do \verb failure -> do
-        text <- nodeRetrieveFile (failure <> ".dhall")
+        text <- nodeRetrieveFile (failure <> ".dhall") >>= note "Failed to decode"
         let act = mkActions "import" failure text
         parsed <- act.parse # unwrap # extract #
           note "Failed to parse"
@@ -294,7 +295,7 @@ test = do
         binA <- nodeReadBinary (success <> "A.dhallb")
         decodedA <- binA # CBOR.decode # decode #
           note "Failed to decode A"
-        textB <- nodeRetrieveFile (success <> "B.dhall")
+        textB <- nodeRetrieveFile (success <> "B.dhall") >>= note "Failed to decode B"
         let actB = mkActions "binary-decode" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"

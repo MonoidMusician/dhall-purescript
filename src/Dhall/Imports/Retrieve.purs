@@ -28,10 +28,13 @@ import Foreign.Object as Foreign.Object
 import Milkis as M
 import Milkis.Impl (FetchImpl)
 import Node.Buffer as Node.Buffer
-import Node.Encoding (Encoding(UTF8))
 import Node.FS.Aff as Node.FS.Aff
 
 foreign import getEnv :: Effect (Foreign.Object.Object String)
+foreign import unsafeDecode :: forall r. (String -> r) -> r -> ArrayBuffer -> r
+
+decode :: ArrayBuffer -> Maybe String
+decode = unsafeDecode Just Nothing
 
 lookupEnv :: String -> Effect (Maybe String)
 lookupEnv k = Foreign.Object.lookup k <$> getEnv
@@ -41,14 +44,14 @@ nodeRetrieveEnv name = liftEffect $ lookupEnv name >>= case _ of
   Nothing -> throw $ "Unknown envionment variable: " <> name
   Just v -> pure v
 
-nodeRetrieveFile :: String -> Aff String
-nodeRetrieveFile path = Node.FS.Aff.readTextFile UTF8 path
+nodeRetrieveFile :: String -> Aff (Maybe String)
+nodeRetrieveFile path = nodeReadBinary path <#> decode
 
 foreign import responseHeaders :: M.Response -> M.Headers
 foreign import nodeFetch :: Unit -> FetchImpl
 foreign import windowFetch :: Unit -> FetchImpl
 
-milkisRetrieveURL :: FetchImpl -> Headers -> String -> Aff { result :: String, headers :: Headers }
+milkisRetrieveURL :: FetchImpl -> Headers -> String -> Aff { result :: Maybe String, headers :: Headers }
 milkisRetrieveURL impl headers = M.URL >>> (=<<) infos <<< flip (M.fetch impl)
   { method: M.getMethod
   -- FIXME: duplicate headers
@@ -56,15 +59,15 @@ milkisRetrieveURL impl headers = M.URL >>> (=<<) infos <<< flip (M.fetch impl)
       (headers <#> \{ header, value } -> Tuple header value)
   } where
     infos resp = do
-      result <- M.text resp
+      result <- decode <$> M.arrayBuffer resp
       let resHeaders = Foreign.Object.toUnfoldable (responseHeaders resp) <#>
             \(Tuple header value) -> { header, value }
       pure { result, headers: resHeaders }
 
-nodeRetrieveURL :: Headers -> String -> Aff { result :: String, headers :: Headers }
+nodeRetrieveURL :: Headers -> String -> Aff { result :: Maybe String, headers :: Headers }
 nodeRetrieveURL headers url = milkisRetrieveURL (nodeFetch unit) headers url
 
-windowRetrieveURL :: Headers -> String -> Aff { result :: String, headers :: Headers }
+windowRetrieveURL :: Headers -> String -> Aff { result :: Maybe String, headers :: Headers }
 windowRetrieveURL headers url = milkisRetrieveURL (windowFetch unit) headers url
 
 moveHere :: String -> ImportType -> ImportType
@@ -78,10 +81,10 @@ moveHere here (Local Here (File { directory, file })) =
   in Local Here (File { directory: adddir <> directory, file })
 moveHere _ i = i
 
-nodeRetrieve :: ImportType -> Aff { result :: String, headers :: Headers }
+nodeRetrieve :: ImportType -> Aff { result :: Maybe String, headers :: Headers }
 nodeRetrieve i = case i of
   Missing -> empty
-  Env name -> nodeRetrieveEnv name <#> { headers: [], result: _ }
+  Env name -> nodeRetrieveEnv name <#> Just >>> { headers: [], result: _ }
   Local prefix path -> do
     nodeRetrieveFile (prettyFilePrefix prefix <> prettyFile path) <#> { headers: [], result: _ }
   Remote url -> nodeRetrieveURL

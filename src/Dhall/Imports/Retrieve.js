@@ -10,6 +10,19 @@ exports.responseHeaders = function(resp) {
   return obj;
 };
 
+exports.unsafeDecode = function(just) {
+  return function(nothing) {
+    return function(s) {
+      try {
+        var r = new TextDecoder("utf-8", { fatal: true }).decode(s);
+        return just(r);
+      } catch(e) {
+        return nothing;
+      }
+    };
+  };
+};
+
 exports.windowFetch = function() {
   return window.fetch;
 };
