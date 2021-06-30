@@ -208,7 +208,7 @@ ascii -> [\x20-\x7F] {% pass0 %}
 # * not part of a surrogate pair
 # * not a "non-character"
 valid_non_ascii ->
-    [\x80-\uD7FF\uE000-\uFFFD] {% collapse %}
+    [\x80-\uD7FF\uE000-\uFFFC] {% collapse %}
   | [\uD800-\uD83E\uD840-\uD87E\uD880-\uD8BE\uD8C0-\uD8FE\uD900-\uD93E\uD940-\uD97E\uD980-\uD9BE\uD9C0-\uD9FE\uDA00-\uDA3E\uDA40-\uDA7E\uDA80-\uDABE\uDAC0-\uDAFE\uDB00-\uDB3E\uDB40-\uDB7E\uDB80-\uDBBE\uDBC0-\uDBFE] [\uDC00-\uDFFF] {% collapse %}
   | [\uD83F\uD87F\uD8BF\uD8FF\uD93F\uD97F\uD9BF\uD9FF\uDA3F\uDA7F\uDABF\uDAFF\uDB3F\uDB7F\uDBBF\uDBFF] [\uDC00-\uDFFD] {% collapse %}
 
