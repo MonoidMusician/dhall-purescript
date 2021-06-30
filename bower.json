@@ -37,7 +37,6 @@
     "purescript-dom-filereader": "^6.0.0",
     "purescript-bigints": "master",
     "purescript-milkis": "^7.1.0",
-    "purescript-sjcl": "master",
     "purescript-argonaut-codecs": "^8.0.0"
   },
   "resolutions": {
