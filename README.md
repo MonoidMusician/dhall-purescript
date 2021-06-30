@@ -6,9 +6,8 @@ It works both in the browser and on node.js. Or at least it should! File an issu
 The current weaknesses are lack of efficiency and some bugs/edge cases in parsing and pretty printing.
 
 ## Installation
-PS dependencies currently use `bower`, and JS dependencies use `npm`, so installation looks like:
+JS dependencies use `npm`, see `package.json`:
 ```sh
-bower install --save MonoidMusician/dhall-purescript#master
 npm install --save @petamoriken/float16@^2.0.0
 npm install --save big-integer@^1.6.48
 npm install --save nearley@^2.20.1
@@ -16,13 +15,32 @@ npm install --save node-fetch@^2.6.1
 npm install --save git://github.com/athanclark/sjcl.git#e6ca43fbcc85689f9e6b212cc88b85a53295a459
 ```
 
-It should also be possible to use `spago` to install it too.
+You should probably use `spago` to install this! For the time being, add the following to your `packages.dhall`:
+```dhall
+in  upstream
+  with dhall-purescript =
+    { dependencies =
+        ( https://raw.githubusercontent.com/MonoidMusician/dhall-purescript/master/spago.dhall
+        ).dependencies
+    , repo = "https://github.com/MonoidMusician/dhall-purescript.git"
+    , version = "master"
+    }
+  with variant.version = "map-variant"
+  with variant.repo = "https://github.com/MonoidMusician/purescript-variant.git"
+```
 
-Generate the grammar by calling `nearleyc grammar.ne -o grammar.js` through `npm`:
+If you want to use `bower`, it's in an ugly state since some dependencies are not updated (warning: solving dependencies will take a loooong time):
+```sh
+bower install --force-latest --save MonoidMusician/dhall-purescript#master
+rm -rf bower_components/purescript-generics-rep/ bower_components/purescript-proxy/
+pulp build -I bower_components/dhall-purescript/src/
 ```
-cd bower_components/dhall-purescript
-npm run grammar
+
+Generate the grammar by calling `dhall-purescript/grammar.sh` from the root of your project:
 ```
+./bower_components/dhall-purescript/grammar.sh || ./.spago/dhall-purescript/grammar.sh
+```
+(this ensures `grammar.js` ends up adjacent to `output`, so the FFI can find it)
 
 ## Why Dhall?
 Because Dhall is awesome, relatively simple, and conceptually clean. It has an agreed-upon standard, with lots of tests, is under active development, continually improving.
@@ -51,3 +69,18 @@ A word of warning: most of the library is implemented in more generality than yo
 - `Dhall.Parser.parse` implements parsing, using the external [`nearley.js`](https://nearley.js.org/) library. Sorry, there are no meaningful errors provided.
 - `Dhall.Printer.printAST` implements a basic pretty printer.
 - `Dhall.API.Conversions` implements conversions to/from PS types.
+
+### CLI
+You can use the npm commands `cli` and `normalize` to access the basic command-line interface:
+```sh
+npm run cli -- normalize-all dhall-lang/Prelude/Double/*.dhall
+npm run normalize https://test.dhall-lang.org/Bool/package.dhall
+```
+
+### Running tests
+You can run the tests with `npm run test -- --`. You can specify test categories (parser, normalization, alpha-normalization, semantic-hash, type-inference, import, and binary-decode) and individual tests (starting with `./dhall-lang/` but NOT including the suffix of `{A,B}.*`!!). You can also exclude test categories or tests by prepending a minus sign. The prelude doesn't complete without OOMing so I typically exclude it.
+```sh
+npm run test -- -- parser
+npm run test -- -- -type-inference -import
+npm run test -- -- -./dhall-lang/tests/type-inference/success/prelude
+```
