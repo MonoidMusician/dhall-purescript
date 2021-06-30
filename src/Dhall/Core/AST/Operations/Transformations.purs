@@ -97,7 +97,7 @@ runOverCases :: forall cases casesrl affected affectedrl unaffected all node.
   (node -> node) ->
   Record cases -> node -> node
 runOverCases (OverCasesM f) rest cases = un Identity <<< f
-  (Identity <<< VariantF.expandOverMatch cases rest)
+  (Identity <<< VariantF.over cases rest)
 
 runOverCasesM :: forall cases casesrl affected affectedrl unaffected all node m.
     RL.RowToList cases casesrl =>
@@ -111,7 +111,7 @@ runOverCasesM :: forall cases casesrl affected affectedrl unaffected all node m.
   OverCasesM m all node ->
   (node -> m node) ->
   Record cases -> node -> m node
-runOverCasesM (OverCasesM f) rest cases = f (VariantF.expandTravMatch cases rest)
+runOverCasesM (OverCasesM f) rest cases = f (VariantF.traverse cases rest)
 
 -- Eliminate one case of a recursive algebra.
 --
