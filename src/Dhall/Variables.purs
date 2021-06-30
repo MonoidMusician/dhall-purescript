@@ -164,7 +164,7 @@ trackVar v@(V x n) = case _ of
 trackIntro :: forall m v a b. (MaybeIntro a -> a -> b) ->
   VariantF (Variable m ( "UsingHeaders" :: Pair | v )) a ->
   VariantF (Variable m ( "UsingHeaders" :: Pair | v )) b
-trackIntro next = VariantF.expandOverMatch
+trackIntro next = VariantF.over
   (trackIntroCases next)
   (next DoNothing)
 
