@@ -38,7 +38,7 @@ pulp build -I bower_components/dhall-purescript/src/
 
 Generate the grammar by calling `dhall-purescript/grammar.sh` from the root of your project:
 ```
-./bower_components/dhall-purescript/grammar.sh || ./.spago/dhall-purescript/grammar.sh
+./bower_components/dhall-purescript/grammar.sh || ./.spago/dhall-purescript/*/grammar.sh
 ```
 (this ensures `grammar.js` ends up adjacent to `output`, so the FFI can find it)
 
