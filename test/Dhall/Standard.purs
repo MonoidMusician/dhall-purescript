@@ -249,7 +249,7 @@ test = do
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
           note "Failed to resolve B"
         let norm = (conv <<< unordered) (extract typecheckedA.normalizedType)
-        when (alphaNormalize norm /= alphaNormalize importedB.resolved) do
+        when (norm /= importedB.resolved) do
           when true do
             logShow $ norm
             logShow importedB.resolved
@@ -277,7 +277,7 @@ test = do
           note "Failed to parse B"
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
           note "Failed to resolve B"
-        when (alphaNormalize (unordered importedA.resolved) /= alphaNormalize (unordered importedB.resolved)) do
+        when (unordered importedA.resolved /= unordered importedB.resolved) do
           when (true || verb) do
             logShow importedA.resolved
             logShow importedB.resolved
