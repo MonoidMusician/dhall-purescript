@@ -17,7 +17,7 @@ import Data.Functor.Coproduct (Coproduct(..))
 import Data.Functor.Coproduct as Coproduct
 import Data.Functor.Product (Product(..))
 import Data.Functor.Product as Product
-import Data.Functor.Variant (FProxy, SProxy(..), VariantF)
+import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.FunctorWithIndex as FunctorWithIndex
@@ -45,7 +45,7 @@ import Dhall.Core.Zippers.Merge (class Merge)
 import Dhall.Map (InsOrdMap(..), mkIOSM, unIOSM)
 import Partial.Unsafe (unsafePartial)
 import Prim.RowList as RL
-import Type.Data.RowList (RLProxy(..))
+import Type.Proxy (Proxy(..))
 import Type.Row as Row
 
 {-
@@ -110,10 +110,10 @@ mapWithIndexV :: forall rl is fs a b.
   RL.RowToList fs rl =>
   FunctorWithIndexVRL rl is fs =>
   (Variant is -> a -> b) -> VariantF fs a -> VariantF fs b
-mapWithIndexV = mapWithIndexVRL (RLProxy :: RLProxy rl)
+mapWithIndexV = mapWithIndexVRL (Proxy :: Proxy rl)
 
 class FunctorWithIndexVRL rl is fs | rl -> is fs where
-  mapWithIndexVRL :: forall a b. RLProxy rl ->
+  mapWithIndexVRL :: forall a b. Proxy rl ->
     (Variant is -> a -> b) -> VariantF fs a -> VariantF fs b
 
 instance functorWithIndexVRLNil :: FunctorWithIndexVRL RL.Nil () () where
@@ -122,25 +122,25 @@ instance functorWithIndexVRLNil :: FunctorWithIndexVRL RL.Nil () () where
 instance functorWithIndexVRLCons ::
   ( IsSymbol s
   , FunctorWithIndex i f
-  , Row.Cons s (FProxy f) fs' fs
+  , Row.Cons s f fs' fs
   , Row.Cons s i is' is
   , Row.Union is' is_ is
   , Row.Union fs' fs_ fs
   , FunctorWithIndexVRL rl' is' fs'
-  ) => FunctorWithIndexVRL (RL.Cons s (FProxy f) rl') is fs where
+  ) => FunctorWithIndexVRL (RL.Cons s f rl') is fs where
   mapWithIndexVRL _ f = VariantF.on s
     (mapWithIndex (Variant.inj s >>> f) >>> VariantF.inj s)
-    (mapWithIndexVRL (RLProxy :: RLProxy rl') (f <<< Variant.expand) >>> VariantF.expand)
-    where s = SProxy :: SProxy s
+    (mapWithIndexVRL (Proxy :: Proxy rl') (f <<< Variant.expand) >>> VariantF.expand)
+    where s = Proxy :: Proxy s
 
 ixFV :: forall rl is f's x.
   RL.RowToList f's rl =>
   ContainerIVRL rl is f's =>
   VariantF f's x -> Variant is
-ixFV = ixFVRL (RLProxy :: RLProxy rl)
+ixFV = ixFVRL (Proxy :: Proxy rl)
 
 class ContainerIVRL rl is f's | rl -> is f's where
-  ixFVRL :: forall x. RLProxy rl -> VariantF f's x -> Variant is
+  ixFVRL :: forall x. Proxy rl -> VariantF f's x -> Variant is
 
 instance containerIVRLNil :: ContainerIVRL RL.Nil () () where
   ixFVRL _ = VariantF.case_
@@ -148,30 +148,30 @@ instance containerIVRLNil :: ContainerIVRL RL.Nil () () where
 instance containerIVRLCons ::
   ( IsSymbol s
   , ContainerI i f'
-  , Row.Cons s (FProxy f') f's' f's
+  , Row.Cons s f' f's' f's
   , Row.Cons s i is' is
   , Row.Union is' is_ is
   , ContainerIVRL rl' is' f's'
-  ) => ContainerIVRL (RL.Cons s (FProxy f') rl') is f's where
+  ) => ContainerIVRL (RL.Cons s f' rl') is f's where
   ixFVRL _ = VariantF.on s (ixF >>> Variant.inj s)
-    (ixFVRL (RLProxy :: RLProxy rl') >>> Variant.expand)
-    where s = SProxy :: SProxy s
+    (ixFVRL (Proxy :: Proxy rl') >>> Variant.expand)
+    where s = Proxy :: Proxy s
 
 upZFV :: forall rl is fs f's x.
   RL.RowToList fs rl =>
   ContainerVRL rl is fs f's =>
   ZF (VariantF f's) x -> VariantF fs x
-upZFV = upZFVRL (RLProxy :: RLProxy rl)
+upZFV = upZFVRL (Proxy :: Proxy rl)
 
 downZFV :: forall rl is fs f's x.
   RL.RowToList fs rl =>
   ContainerVRL rl is fs f's =>
   VariantF fs x -> VariantF fs (ZF (VariantF f's) x)
-downZFV = downZFVRL (RLProxy :: RLProxy rl)
+downZFV = downZFVRL (Proxy :: Proxy rl)
 
 class ContainerVRL rl (is :: # Type) fs f's | rl -> is fs f's where
-  upZFVRL :: forall x. RLProxy rl -> ZF (VariantF f's) x -> VariantF fs x
-  downZFVRL :: forall x. RLProxy rl -> VariantF fs x -> VariantF fs (ZF (VariantF f's) x)
+  upZFVRL :: forall x. Proxy rl -> ZF (VariantF f's) x -> VariantF fs x
+  downZFVRL :: forall x. Proxy rl -> VariantF fs x -> VariantF fs (ZF (VariantF f's) x)
 
 instance containerVRLNil :: ContainerVRL RL.Nil () () () where
   upZFVRL _ (_ :<-: z) = VariantF.case_ (extract z)
@@ -181,22 +181,22 @@ instance containerVRLCons ::
   ( IsSymbol s
   , Functor f'
   , Container i f f'
-  , Row.Cons s (FProxy f) fs' fs
-  , Row.Cons s (FProxy f') f's' f's
+  , Row.Cons s f fs' fs
+  , Row.Cons s f' f's' f's
   , Row.Cons s i is' is
   , Row.Union fs' fs_ fs
   , Row.Union f's' f's_ f's
   , ContainerVRL rl' is' fs' f's'
-  ) => ContainerVRL (RL.Cons s (FProxy f) rl') is fs f's where
+  ) => ContainerVRL (RL.Cons s f rl') is fs f's where
   upZFVRL _ (a :<-: z) = VariantF.on s
     (\z' -> upZF (a :<-: pure z') # VariantF.inj s)
-    (\z' -> upZFVRL (RLProxy :: RLProxy rl') (a :<-: pure z') # VariantF.expand)
+    (\z' -> upZFVRL (Proxy :: Proxy rl') (a :<-: pure z') # VariantF.expand)
     (extract z)
-    where s = SProxy :: SProxy s
+    where s = Proxy :: Proxy s
   downZFVRL _ = VariantF.on s
     (downZF >>> injector (VariantF.inj s) (VariantF.inj s))
-    (downZFVRL (RLProxy :: RLProxy rl') >>> injector VariantF.expand VariantF.expand)
-    where s = SProxy :: SProxy s
+    (downZFVRL (Proxy :: Proxy rl') >>> injector VariantF.expand VariantF.expand)
+    where s = Proxy :: Proxy s
 
 -- Random utilities
 injector :: forall f g f' g' a. Functor f => (f ~> g) -> (f' a -> g' a) -> f (ZF f' a) -> g (ZF g' a)
@@ -209,7 +209,7 @@ deferAp f a = defer \_ -> f a
 
 -- A focus and with its (lazy) context
 -- (`f` is most often `f'` that is the derivative of some container)
-data ZF f x = ZF x (Lazy (f x))
+data ZF (f :: Type -> Type) x = ZF x (Lazy (f x))
 -- The arrow points to the focus
 infix 1 ZF as :<-:
 
@@ -262,7 +262,7 @@ _ix_wholeZF = _Newtype <<< prism' (ixZF &&& upZF) (uncurry previewIndexZF)
 newtype ZF4 (f :: Type -> Type) f' x = ZF4 (ZF f' x)
 derive instance newtypeZF4 :: Newtype (ZF4 f f' x) _
 
-zf4 :: forall f f' x. FProxy f -> ZF f' x -> ZF4 f f' x
+zf4 :: forall f f' x. Proxy f -> ZF f' x -> ZF4 f f' x
 zf4 _ = ZF4
 
 unZF4 :: forall f f' x. ZF4 f f' x -> ZF f' x
@@ -333,6 +333,7 @@ else instance containerIConst :: ContainerI Unit (Const a) where
 instance containerIIdentity :: ContainerI Unit Identity where
   ixF (Identity _) = unit
 
+type Const' :: Type -> Type -> Type
 type Const' c = Const Void
 type ConstI c = Void
 
@@ -340,6 +341,7 @@ instance containerConst :: Eq c => Container Void (Const c) (Const Void) where
   upZF (_ :<-: z) = case extract z of Const void -> absurd void
   downZF (Const c) = Const c
 
+type Identity' :: Type -> Type
 type Identity' = Const Unit
 type IdentityI = Unit
 
@@ -472,6 +474,7 @@ instance containerCompose :: (Eq1 f, Eq1 g, Traversable f, Merge f, Merge g, Fun
       Compose' (Product (Tuple (Compose f'g) g')) -> Compose $ upZF $
         upZF (a :<-: pure g') :<-: pure f'g
 
+type Maybe' :: Type -> Type
 type Maybe' = Const Unit
 type MaybeI = Unit
 
@@ -481,6 +484,7 @@ instance containerMaybe :: Container Unit Maybe (Const Unit) where
   downZF Nothing = Nothing
   downZF (Just a) = Just (a :<-: pure (Const unit))
 
+type Either' :: Type -> Type -> Type
 type Either' c = Const Unit
 type EitherI = Unit
 
@@ -490,6 +494,7 @@ instance containerEither :: (Eq c) => Container Unit (Either c) (Const Unit) whe
   downZF (Left c) = Left c
   downZF (Right a) = Right (a :<-: pure (Const unit))
 
+type Tuple' :: Type -> Type -> Type
 type Tuple' c = Const c
 type TupleI c = Unit
 

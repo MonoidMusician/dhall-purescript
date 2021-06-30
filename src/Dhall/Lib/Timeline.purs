@@ -17,7 +17,7 @@ import Data.Monoid.Dual (Dual(..))
 import Data.Newtype (un)
 import Data.NonEmpty ((:|))
 import Data.Ord (class Ord1)
-import Data.Semigroup.Foldable (class Foldable1)
+import Data.Semigroup.Foldable (class Foldable1, foldl1Default, foldr1Default)
 import Data.Traversable (class Traversable, sequence, traverse)
 import Data.TraversableWithIndex (class TraversableWithIndex, traverseWithIndex)
 import Dhall.Lib.DualAp (DualAp(..))
@@ -66,7 +66,8 @@ instance traversableWithIndexTimeline :: TraversableWithIndex Int Timeline where
     <*> f zero a
     <*> traverseWithIndex (f <<< add one) n
 instance foldable1Timeline :: Foldable1 Timeline where
-  fold1 (Timeline p a n) = foldl (<>) (foldl (flip (<>)) a p) n
+  foldl1 a = foldl1Default a
+  foldr1 a = foldr1Default a
   foldMap1 f (Timeline p a n) =
     foldl (\r e → r <> f e) (foldl (\r e → f e <> r) (f a) p) n
 instance extendTimeline :: Extend Timeline where

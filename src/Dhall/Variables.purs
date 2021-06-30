@@ -6,7 +6,7 @@ import Control.Apply (lift2)
 import Data.Const (Const(..))
 import Data.Foldable (class Foldable, fold, length)
 import Data.FoldableWithIndex (foldMapWithIndex)
-import Data.Functor.Variant (FProxy, VariantF)
+import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff)
 import Data.Identity (Identity(..))
@@ -25,7 +25,6 @@ import Dhall.Core.AST (BindingBody(..), CONST, Expr, LetF(..), Pair(..), S_, Var
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Transformations (GenericExprAlgebraVT, GenericExprAlgebraVTM, NodeOps, NodeOpsM, elim1, elim1M, runAlgebraExpr, runOverCases, runOverCasesM)
 import Matryoshka (Algebra, cata)
-import Type.Row (type (+))
 import Type.RowList as RL
 
 -- | `shift` is used by both normalization and type-checking to avoid variable
@@ -163,9 +162,9 @@ trackVar v@(V x n) = case _ of
   _ -> v
 
 trackIntro :: forall m v a b. (MaybeIntro a -> a -> b) ->
-  VariantF (Variable m + ( "UsingHeaders" :: FProxy Pair | v )) a ->
-  VariantF (Variable m + ( "UsingHeaders" :: FProxy Pair | v )) b
-trackIntro next = VariantF.expandOverMatch
+  VariantF (Variable m ( "UsingHeaders" :: Pair | v )) a ->
+  VariantF (Variable m ( "UsingHeaders" :: Pair | v )) b
+trackIntro next = VariantF.over
   (trackIntroCases next)
   (next DoNothing)
 
@@ -200,20 +199,20 @@ trackIntroCasesM next =
   }
 
 type VariablePlus (m :: Type -> Type) v = Variable m
-  ( "UsingHeaders" :: FProxy Pair | v )
+  ( "UsingHeaders" :: Pair | v )
 
 -- A simple algebra for `freeIn`. Will work with anything that is
 -- vaguely like `Expr`.
 freeInAlg ::
   forall m v rl.
-    RL.RowToList (VariablePlus m + v) rl =>
-    VariantF.FoldableVFRL rl (VariablePlus m + v) =>
-  Algebra (VariantF (VariablePlus m + v)) (Var -> Disj Boolean)
+    RL.RowToList (VariablePlus m v) rl =>
+    VariantF.FoldableVFRL rl (VariablePlus m v) =>
+  Algebra (VariantF (VariablePlus m v)) (Var -> Disj Boolean)
 freeInAlg layer v | layer # VariantF.on (_S::S_ "Var") (eq (Const v)) ff = Disj true
 freeInAlg layer v = layer # trackIntro ((#) <<< trackVar v <<< trackIntroVar) >>> fold
 
 -- Generic Algebra for shifting variable references.
-type ShiftAlg node v = ( shift :: { delta :: Int, variable :: Var } | v )
+type ShiftAlg (node :: Type) v = ( shift :: { delta :: Int, variable :: Var } | v )
 shiftAlgG :: forall m. GenericExprAlgebraVT NodeOps (VariablePlus m) ShiftAlg
 shiftAlgG = elim1 (_S::S_ "shift")
   \i@{ delta, variable: v@(V x n) } node ->
@@ -244,7 +243,7 @@ shiftAlgGM = elim1M (_S::S_ "shift")
 -- Generic Algebra for substituting variable references.
 -- (Note how the input type references `node`.)
 type SubstAlg node v = ( subst :: { variable :: Var, substitution :: node } | v )
-type ShiftSubstAlg node v = ShiftAlg node + SubstAlg node + v
+type ShiftSubstAlg node v = ShiftAlg node (SubstAlg node v)
 shiftSubstAlgG :: forall m. GenericExprAlgebraVT NodeOps (VariablePlus m) ShiftSubstAlg
 shiftSubstAlgG rest = rest # shiftAlgG <<< Variant.on (_S::S_ "subst")
   \i@{ variable: variable, substitution } node -> Identity <<<
@@ -318,7 +317,7 @@ doRenameAlgG v0 v1 node = identity
 -- still references the same unbound variable when it is all said and done;
 -- additionally, if the unbound variable name is also `_`, then the length of
 -- the context (i.e., the number of variables about to be named `_`) is added.
-type AlphaNormalizeAlg node v = ( "alphaNormalize" :: { ctx :: Context Unit } | v )
+type AlphaNormalizeAlg (node :: Type) v = ( "alphaNormalize" :: { ctx :: Context Unit } | v )
 alphaNormalizeAlgG :: forall m. GenericExprAlgebraVT NodeOps (VariablePlus m) AlphaNormalizeAlg
 alphaNormalizeAlgG rest = rest # elim1 (_S::S_ "alphaNormalize") \{ ctx } node ->
   let

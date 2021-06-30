@@ -2,7 +2,6 @@ module Dhall.Core.Zippers.Merge where
 
 import Prelude
 
-import Data.Array (any)
 import Data.Array as Array
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Array.NonEmpty as NonEmptyArray
@@ -11,7 +10,7 @@ import Data.Either (Either(..))
 import Data.Functor.Compose (Compose(..))
 import Data.Functor.Coproduct (Coproduct(..))
 import Data.Functor.Product (Product(..))
-import Data.Functor.Variant (FProxy, SProxy(..), VariantF)
+import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Identity (Identity(..))
 import Data.List (List(..))
@@ -20,12 +19,12 @@ import Data.Maybe (Maybe(..))
 import Data.NonEmpty (NonEmpty, (:|))
 import Data.Symbol (class IsSymbol)
 import Data.These (These(..))
-import Data.Traversable (class Foldable, class Traversable, and, sequence)
+import Data.Traversable (class Foldable, class Traversable, and, any, sequence)
 import Data.Tuple (Tuple(..))
 import Dhall.Map as Dhall.Map
 import Prim.Row as Row
 import Prim.RowList as RL
-import Type.Data.RowList (RLProxy(..))
+import Type.Proxy (Proxy(..))
 
 -- Zip two functors only iff they have identical shapes.
 -- That is, they must contain values at exactly the same "positions",
@@ -133,10 +132,10 @@ mergeWithVF :: forall rl fs a b c.
   (a -> b -> c) ->
   VariantF fs a -> VariantF fs b ->
   Maybe (VariantF fs c)
-mergeWithVF = mergeWithVFRL (RLProxy :: RLProxy rl)
+mergeWithVF = mergeWithVFRL (Proxy :: Proxy rl)
 
 class MergeVFRL rl fs | rl -> fs where
-  mergeWithVFRL :: forall a b c. RLProxy rl ->
+  mergeWithVFRL :: forall a b c. Proxy rl ->
     (a -> b -> c) ->
     VariantF fs a -> VariantF fs b ->
     Maybe (VariantF fs c)
@@ -146,11 +145,11 @@ instance mergeVFRLNil :: MergeVFRL RL.Nil () where
 
 instance mergeVFRLCons ::
   ( IsSymbol s
-  , Row.Cons s (FProxy f) fs' fs
+  , Row.Cons s f fs' fs
   , Row.Union fs' unusedsingleton fs
   , Merge f
   , MergeVFRL rl' fs'
-  ) => MergeVFRL (RL.Cons s (FProxy f) rl') fs where
+  ) => MergeVFRL (RL.Cons s f rl') fs where
     mergeWithVFRL _ f =
       VariantF.on s
         do \fa -> VariantF.on s
@@ -160,9 +159,9 @@ instance mergeVFRLCons ::
         do \va' -> VariantF.on s
             do \_ -> Nothing
             do \vb' -> VariantF.expand <$>
-                mergeWithVFRL (RLProxy :: RLProxy rl') f va' vb'
+                mergeWithVFRL (Proxy :: Proxy rl') f va' vb'
       where
-        s = SProxy :: SProxy s
+        s = Proxy :: Proxy s
 
 instance mergeVariantF :: (RL.RowToList fs rl, MergeVFRL rl fs) => Merge (VariantF fs) where
   mergeWith = mergeWithVF

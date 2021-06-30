@@ -14,23 +14,23 @@ import Data.Lens (Prism', prism', iso, only)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
-import Data.Symbol (class IsSymbol, SProxy)
+import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..), swap)
-import Data.Variant.Internal (FProxy)
 import Dhall.Core.AST.Types (Const(..), Expr, ExprLayerRow, Var, embedW, projectW, Double, Natural, Integer)
 import Dhall.Core.AST.Types.Basics (_S, S_, BindingBody(..), CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
 import Prelude (class Functor, Unit, const, identity, one, pure, unit, zero, (#), ($), (<<<))
 import Prim.Row as Row
+import Type.Proxy (Proxy)
 
 -- Constructors and prisms for each case of the AST
 
 -- Pris(o)ms of the behemoth
 _ExprF :: forall m a unused f k.
-  Row.Cons k (FProxy f) unused (ExprLayerRow m a) =>
+  Row.Cons k f unused (ExprLayerRow m a) =>
   IsSymbol k => Functor f =>
-  SProxy k -> Prism' (Expr m a) (f (Expr m a))
+  Proxy k -> Prism' (Expr m a) (f (Expr m a))
 _ExprF k = _E (_ExprFPrism k)
 
 -- Convert a prism operating on VariantF ( ... ) Expr to one operating on Expr
@@ -43,16 +43,16 @@ _E p = iso projectW embedW <<< p
 
 type ExprFPrism r f = forall o. Prism' (VariantF r o) (f o)
 _ExprFPrism :: forall r unused f k.
-  Row.Cons k (FProxy f) unused r =>
+  Row.Cons k f unused r =>
   IsSymbol k => Functor f =>
-  SProxy k -> ExprFPrism r f
+  Proxy k -> ExprFPrism r f
 _ExprFPrism k = prism' (VariantF.inj k)
   (VariantF.default Nothing # VariantF.on k Just)
 
 _Expr :: forall m a unused v k.
   Row.Cons k (CONST v) unused (ExprLayerRow m a) =>
   IsSymbol k =>
-  SProxy k -> Prism' (Expr m a) v
+  Proxy k -> Prism' (Expr m a) v
 _Expr k = _E (_ExprPrism k) <<< _Newtype
 
 type ExprPrism r v =
@@ -69,14 +69,14 @@ type SimplePrism r v =
 _ExprPrism :: forall r unused v k.
   Row.Cons k (CONST v) unused r =>
   IsSymbol k =>
-  SProxy k ->
+  Proxy k ->
   ExprPrism r v
 _ExprPrism k = _ExprFPrism k
 
 _BinOp :: forall m a unused k.
-  Row.Cons k (FProxy Pair) unused (ExprLayerRow m a) =>
+  Row.Cons k Pair unused (ExprLayerRow m a) =>
   IsSymbol k =>
-  SProxy k -> Prism' (Expr m a) (Pair (Expr m a))
+  Proxy k -> Prism' (Expr m a) (Pair (Expr m a))
 _BinOp k = _E (_BinOpPrism k)
 
 type BinOpPrism r =
@@ -85,28 +85,28 @@ type BinOpPrism r =
       Pair
 _BinOpPrism ::
   forall unused k r.
-    Row.Cons k (FProxy Pair) unused r =>
+    Row.Cons k Pair unused r =>
     IsSymbol k =>
-  SProxy k ->
+  Proxy k ->
   BinOpPrism r
 _BinOpPrism k = _ExprFPrism k
 
 mkExprF :: forall m a unused f k.
-  Row.Cons k (FProxy f) unused (ExprLayerRow m a) =>
+  Row.Cons k f unused (ExprLayerRow m a) =>
   IsSymbol k => Functor f =>
-  SProxy k -> f (Expr m a) -> Expr m a
+  Proxy k -> f (Expr m a) -> Expr m a
 mkExprF k v = embedW $ VariantF.inj k v
 
 mkExpr :: forall m a unused v k.
   Row.Cons k (CONST v) unused (ExprLayerRow m a) =>
   IsSymbol k =>
-  SProxy k -> v -> Expr m a
+  Proxy k -> v -> Expr m a
 mkExpr k v = mkExprF k (ConstF.Const v)
 
 mkBinOp :: forall m a unused k.
-  Row.Cons k (FProxy Pair) unused (ExprLayerRow m a) =>
+  Row.Cons k Pair unused (ExprLayerRow m a) =>
   IsSymbol k =>
-  SProxy k -> Expr m a -> Expr m a -> Expr m a
+  Proxy k -> Expr m a -> Expr m a -> Expr m a
 mkBinOp k l r = mkExprF k
   (Pair l r)
 
@@ -136,7 +136,7 @@ mkLam name ty expr = mkExprF (_S::S_ "Lam")
   (BindingBody name ty expr)
 
 _Lam :: forall r o.
-  Prism' (VariantF ( "Lam" :: FProxy BindingBody | r ) o)
+  Prism' (VariantF ( "Lam" :: BindingBody | r ) o)
   { var :: String, ty :: o, body :: o }
 _Lam = _ExprFPrism (_S::S_ "Lam") <<< iso into outof where
   into (BindingBody var ty body) = { var, ty, body }
@@ -147,7 +147,7 @@ mkPi name ty expr = mkExprF (_S::S_ "Pi")
   (BindingBody name ty expr)
 
 _Pi :: forall r o.
-  Prism' (VariantF ( "Pi" :: FProxy BindingBody | r ) o)
+  Prism' (VariantF ( "Pi" :: BindingBody | r ) o)
   { var :: String, ty :: o, body :: o }
 _Pi = _ExprFPrism (_S::S_ "Pi") <<< iso into outof where
   into (BindingBody var ty body) = { var, ty, body }
@@ -164,7 +164,7 @@ mkApp fn arg = mkExprF (_S::S_ "App")
   (Pair fn arg)
 
 _App :: forall r o.
-  Prism' (VariantF ( "App" :: FProxy Pair | r ) o)
+  Prism' (VariantF ( "App" :: Pair | r ) o)
   { fn :: o, arg :: o }
 _App = _ExprFPrism (_S::S_ "App") <<< iso into outof where
   into (Pair fn arg) = { fn, arg }
@@ -175,7 +175,7 @@ mkLet name ty val expr = mkExprF (_S::S_ "Let")
   (LetF name ty val expr)
 
 _Let :: forall r o.
-  Prism' (VariantF ( "Let" :: FProxy LetF | r ) o)
+  Prism' (VariantF ( "Let" :: LetF | r ) o)
   { var :: String
   , ty :: Maybe o
   , value :: o
@@ -190,7 +190,7 @@ mkAnnot val ty = mkExprF (_S::S_ "Annot")
   (Pair val ty)
 
 _Annot :: forall r o.
-  Prism' (VariantF ( "Annot" :: FProxy Pair | r ) o)
+  Prism' (VariantF ( "Annot" :: Pair | r ) o)
   { value :: o, ty :: o }
 _Annot = _ExprFPrism (_S::S_ "Annot") <<< iso into outof where
   into (Pair value ty) = { value, ty }
@@ -217,38 +217,38 @@ _BoolLit_False = _BoolLit <<< _Newtype <<< only false
 mkBoolAnd :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkBoolAnd = mkBinOp (_S::S_ "BoolAnd")
 
-_BoolAnd :: forall r. BinOpPrism ( "BoolAnd" :: FProxy Pair | r )
+_BoolAnd :: forall r. BinOpPrism ( "BoolAnd" :: Pair | r )
 _BoolAnd = _BinOpPrism (_S::S_ "BoolAnd")
 
 mkBoolOr :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkBoolOr = mkBinOp (_S::S_ "BoolOr")
 
-_BoolOr :: forall r. BinOpPrism ( "BoolOr" :: FProxy Pair | r )
+_BoolOr :: forall r. BinOpPrism ( "BoolOr" :: Pair | r )
 _BoolOr = _BinOpPrism (_S::S_ "BoolOr")
 
 mkBoolEQ :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkBoolEQ = mkBinOp (_S::S_ "BoolEQ")
 
-_BoolEQ :: forall r. BinOpPrism ( "BoolEQ" :: FProxy Pair | r )
+_BoolEQ :: forall r. BinOpPrism ( "BoolEQ" :: Pair | r )
 _BoolEQ = _BinOpPrism (_S::S_ "BoolEQ")
 
 mkBoolNE :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkBoolNE = mkBinOp (_S::S_ "BoolNE")
 
-_BoolNE :: forall r. BinOpPrism ( "BoolNE" :: FProxy Pair | r )
+_BoolNE :: forall r. BinOpPrism ( "BoolNE" :: Pair | r )
 _BoolNE = _BinOpPrism (_S::S_ "BoolNE")
 
 mkRecordCompletion :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkRecordCompletion = mkBinOp (_S::S_ "RecordCompletion")
 
-_RecordCompletion :: forall r. BinOpPrism ( "RecordCompletion" :: FProxy Pair | r )
+_RecordCompletion :: forall r. BinOpPrism ( "RecordCompletion" :: Pair | r )
 _RecordCompletion = _BinOpPrism (_S::S_ "RecordCompletion")
 
 mkBoolIf :: forall m a. Expr m a -> Expr m a -> Expr m a -> Expr m a
 mkBoolIf cond t f = mkExprF (_S::S_ "BoolIf")
   (Triplet cond t f)
 
-_BoolIf :: forall r. ExprFPrism ( "BoolIf" :: FProxy Triplet | r ) Triplet
+_BoolIf :: forall r. ExprFPrism ( "BoolIf" :: Triplet | r ) Triplet
 _BoolIf = _ExprFPrism (_S::S_ "BoolIf")
 
 mkNatural :: forall m a. Expr m a
@@ -320,13 +320,13 @@ _NaturalSubtract = _ExprPrism (_S::S_ "NaturalSubtract")
 mkNaturalPlus :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkNaturalPlus = mkBinOp (_S::S_ "NaturalPlus")
 
-_NaturalPlus :: forall r. BinOpPrism ( "NaturalPlus" :: FProxy Pair | r )
+_NaturalPlus :: forall r. BinOpPrism ( "NaturalPlus" :: Pair | r )
 _NaturalPlus = _BinOpPrism (_S::S_ "NaturalPlus")
 
 mkNaturalTimes :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkNaturalTimes = mkBinOp (_S::S_ "NaturalTimes")
 
-_NaturalTimes :: forall r. BinOpPrism ( "NaturalTimes" :: FProxy Pair | r )
+_NaturalTimes :: forall r. BinOpPrism ( "NaturalTimes" :: Pair | r )
 _NaturalTimes = _BinOpPrism (_S::S_ "NaturalTimes")
 
 mkInteger :: forall m a. Expr m a
@@ -395,16 +395,16 @@ mkTextLit = mkExprF (_S::S_ "TextLit")
 mkTextLit' :: forall m a. String -> Expr m a
 mkTextLit' = mkTextLit <<< TextLit
 
-_TextLit :: forall r. ExprFPrism ( "TextLit" :: FProxy TextLitF | r ) TextLitF
+_TextLit :: forall r. ExprFPrism ( "TextLit" :: TextLitF | r ) TextLitF
 _TextLit = _ExprFPrism (_S::S_ "TextLit")
 
-_TextLit_empty :: forall r o. Prism' (VariantF ( "TextLit" :: FProxy TextLitF | r ) o) Unit
+_TextLit_empty :: forall r o. Prism' (VariantF ( "TextLit" :: TextLitF | r ) o) Unit
 _TextLit_empty = _TextLit <<< prism' (const (TextLit ""))
   case _ of
     TextLit "" -> Just unit
     _ -> Nothing
 
-_TextLit_single :: forall r o. Prism' (VariantF ( "TextLit" :: FProxy TextLitF | r ) o) String
+_TextLit_single :: forall r o. Prism' (VariantF ( "TextLit" :: TextLitF | r ) o) String
 _TextLit_single = _TextLit <<< prism' TextLit
   case _ of
     TextLit s -> Just s
@@ -413,7 +413,7 @@ _TextLit_single = _TextLit <<< prism' TextLit
 mkTextAppend :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkTextAppend = mkBinOp (_S::S_ "TextAppend")
 
-_TextAppend :: forall r. BinOpPrism ( "TextAppend" :: FProxy Pair | r )
+_TextAppend :: forall r. BinOpPrism ( "TextAppend" :: Pair | r )
 _TextAppend = _BinOpPrism (_S::S_ "TextAppend")
 
 mkTextShow :: forall m a. Expr m a
@@ -439,7 +439,7 @@ mkListLit ty lit = mkExprF (_S::S_ "ListLit")
   (product ty lit)
 
 _ListLit :: forall r o.
-  Prism' (VariantF ( "ListLit" :: FProxy (Product Maybe Array) | r ) o)
+  Prism' (VariantF ( "ListLit" :: Product Maybe Array | r ) o)
   { ty :: Maybe o, values :: Array o }
 _ListLit = _ExprFPrism (_S::S_ "ListLit") <<< _Newtype <<< iso into outof where
   into (Tuple ty values) = { ty, values }
@@ -448,7 +448,7 @@ _ListLit = _ExprFPrism (_S::S_ "ListLit") <<< _Newtype <<< iso into outof where
 mkListAppend :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkListAppend = mkBinOp (_S::S_ "ListAppend")
 
-_ListAppend :: forall r. BinOpPrism ( "ListAppend" :: FProxy Pair | r )
+_ListAppend :: forall r. BinOpPrism ( "ListAppend" :: Pair | r )
 _ListAppend = _BinOpPrism (_S::S_ "ListAppend")
 
 mkListFold :: forall m a. Expr m a
@@ -504,7 +504,7 @@ mkSome val = mkExprF (_S::S_ "Some")
   (Identity val)
 
 _Some :: forall r o.
-  Prism' (VariantF ( "Some" :: FProxy Identity | r ) o) o
+  Prism' (VariantF ( "Some" :: Identity | r ) o) o
 _Some = _ExprFPrism (_S::S_ "Some") <<< _Newtype
 
 mkNone :: forall m a. Expr m a
@@ -517,71 +517,71 @@ mkRecord :: forall m a. Functor m => m (Expr m a) -> Expr m a
 mkRecord = mkExprF (_S::S_ "Record")
 
 _Record :: forall r m. Functor m => ExprFPrism
-  ( "Record" :: FProxy m | r ) m
+  ( "Record" :: m | r ) m
 _Record = _ExprFPrism (_S::S_ "Record")
 
 _Record_empty :: forall r o m. MapLike String m =>
-  Prism' (VariantF ( "Record" :: FProxy m | r ) o) Unit
+  Prism' (VariantF ( "Record" :: m | r ) o) Unit
 _Record_empty = _Record <<< Dhall.Map._Empty
 
 mkRecordLit :: forall a m. Functor m => m (Expr m a) -> Expr m a
 mkRecordLit = mkExprF (_S::S_ "RecordLit")
 
 _RecordLit :: forall r m. Functor m => ExprFPrism
-  ( "RecordLit" :: FProxy m | r ) m
+  ( "RecordLit" :: m | r ) m
 _RecordLit = _ExprFPrism (_S::S_ "RecordLit")
 
 _RecordLit_empty :: forall r o m. MapLike String m =>
-  Prism' (VariantF ( "RecordLit" :: FProxy m | r ) o) Unit
+  Prism' (VariantF ( "RecordLit" :: m | r ) o) Unit
 _RecordLit_empty = _RecordLit <<< Dhall.Map._Empty
 
 mkUnion :: forall m a. Functor m => m (Maybe (Expr m a)) -> Expr m a
 mkUnion = mkExprF (_S::S_ "Union") <<< Compose
 
-_Union :: forall r m. Functor m => ExprFPrism ( "Union" :: FProxy (Compose m Maybe) | r ) (Compose m Maybe)
+_Union :: forall r m. Functor m => ExprFPrism ( "Union" :: Compose m Maybe | r ) (Compose m Maybe)
 _Union = _ExprFPrism (_S::S_ "Union")
 
 _Union_empty :: forall r o m. MapLike String m =>
-  Prism' (VariantF ( "Union" :: FProxy (Compose m Maybe) | r ) o) Unit
+  Prism' (VariantF ( "Union" :: Compose m Maybe | r ) o) Unit
 _Union_empty = _Union <<< _Newtype <<< Dhall.Map._Empty
 
 mkCombine :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkCombine = mkBinOp (_S::S_ "Combine")
 
-_Combine :: forall r. BinOpPrism ( "Combine" :: FProxy Pair | r )
+_Combine :: forall r. BinOpPrism ( "Combine" :: Pair | r )
 _Combine = _BinOpPrism (_S::S_ "Combine")
 
 mkCombineTypes :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkCombineTypes = mkBinOp (_S::S_ "CombineTypes")
 
-_CombineTypes :: forall r. BinOpPrism ( "CombineTypes" :: FProxy Pair | r )
+_CombineTypes :: forall r. BinOpPrism ( "CombineTypes" :: Pair | r )
 _CombineTypes = _BinOpPrism (_S::S_ "CombineTypes")
 
 mkPrefer :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkPrefer = mkBinOp (_S::S_ "Prefer")
 
-_Prefer :: forall r. BinOpPrism ( "Prefer" :: FProxy Pair | r )
+_Prefer :: forall r. BinOpPrism ( "Prefer" :: Pair | r )
 _Prefer = _BinOpPrism (_S::S_ "Prefer")
 
 mkMerge :: forall m a. Expr m a -> Expr m a -> Maybe (Expr m a) -> Expr m a
 mkMerge x y t = mkExprF (_S::S_ "Merge")
   (MergeF x y t)
 
-_Merge :: forall r. ExprFPrism ( "Merge" :: FProxy MergeF | r ) MergeF
+_Merge :: forall r. ExprFPrism ( "Merge" :: MergeF | r ) MergeF
 _Merge = _ExprFPrism (_S::S_ "Merge")
 
 mkToMap :: forall m a. Expr m a -> Maybe (Expr m a) -> Expr m a
 mkToMap x t = mkExprF (_S::S_ "ToMap")
   (Product (Tuple (Identity x) t))
 
-_ToMap :: forall r. ExprFPrism ( "ToMap" :: FProxy (Product Identity Maybe) | r ) (Product Identity Maybe)
+_ToMap :: forall r. ExprFPrism ( "ToMap" :: Product Identity Maybe | r ) (Product Identity Maybe)
 _ToMap = _ExprFPrism (_S::S_ "ToMap")
 
 mkWith :: forall m a. Expr m a -> NonEmptyArray String -> Expr m a -> Expr m a
 mkWith e fs v = mkExprF (_S::S_ "With")
   (Product (Tuple (Identity e) (Tuple fs v)))
 
-_With :: forall r. ExprFPrism ( "With" :: FProxy (Product Identity (Tuple (NonEmptyArray String))) | r ) (Product Identity (Tuple (NonEmptyArray String)))
+_With :: forall r. ExprFPrism ( "With" :: Product Identity (Tuple (NonEmptyArray String)) | r ) (Product Identity (Tuple (NonEmptyArray String)))
 _With = _ExprFPrism (_S::S_ "With")
 
 mkField :: forall m a. Expr m a -> String -> Expr m a
@@ -589,7 +589,7 @@ mkField expr field = mkExprF (_S::S_ "Field")
   (Tuple field expr)
 
 _Field :: forall r o. Prism'
-  (VariantF ( "Field" :: FProxy (Tuple String) | r ) o)
+  (VariantF ( "Field" :: Tuple String | r ) o)
   (Tuple o String)
 _Field = _ExprFPrism (_S::S_ "Field") <<< iso swap swap
 
@@ -598,7 +598,7 @@ mkProject expr fields = mkExprF (_S::S_ "Project")
   (Product (Tuple (pure expr) (bimap App identity fields)))
 
 _Project :: forall m r o. Prism'
-  (VariantF ( "Project" :: FProxy (Product Identity (Either (App m Unit))) | r ) o)
+  (VariantF ( "Project" :: Product Identity (Either (App m Unit)) | r ) o)
   (Tuple o (Either (m Unit) o))
 _Project = _ExprFPrism (_S::S_ "Project") <<< iso
   do \(Product (Tuple (Identity o) e)) -> Tuple o (bimap unwrap identity e)
@@ -608,31 +608,31 @@ mkAssert :: forall m a. Expr m a -> Expr m a
 mkAssert = mkExprF (_S::S_ "Assert") <<< Identity
 
 _Assert :: forall r o.
-  Prism' (VariantF ( "Assert" :: FProxy Identity | r ) o) o
+  Prism' (VariantF ( "Assert" :: Identity | r ) o) o
 _Assert = _ExprFPrism (_S::S_ "Assert") <<< _Newtype
 
 mkEquivalent :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkEquivalent = mkBinOp (_S::S_ "Equivalent")
 
-_Equivalent :: forall r. BinOpPrism ( "Equivalent" :: FProxy Pair | r )
+_Equivalent :: forall r. BinOpPrism ( "Equivalent" :: Pair | r )
 _Equivalent = _BinOpPrism (_S::S_ "Equivalent")
 
 mkImportAlt :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkImportAlt = mkBinOp (_S::S_ "ImportAlt")
 
-_ImportAlt :: forall r. BinOpPrism ( "ImportAlt" :: FProxy Pair | r )
+_ImportAlt :: forall r. BinOpPrism ( "ImportAlt" :: Pair | r )
 _ImportAlt = _BinOpPrism (_S::S_ "ImportAlt")
 
 mkUsingHeaders :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkUsingHeaders = mkBinOp (_S::S_ "UsingHeaders")
 
-_UsingHeaders :: forall r. BinOpPrism ( "UsingHeaders" :: FProxy Pair | r )
+_UsingHeaders :: forall r. BinOpPrism ( "UsingHeaders" :: Pair | r )
 _UsingHeaders = _BinOpPrism (_S::S_ "UsingHeaders")
 
 mkHashed :: forall m a. Expr m a -> String -> Expr m a
 mkHashed e hash = mkExprF (_S::S_ "Hashed") (Tuple hash e)
 
-_Hashed :: forall r. ExprFPrism ( "Hashed" :: FProxy (Tuple String) | r ) (Tuple String)
+_Hashed :: forall r. ExprFPrism ( "Hashed" :: Tuple String | r ) (Tuple String)
 _Hashed = _ExprFPrism (_S::S_ "Hashed")
 
 mkEmbed :: forall m a. a -> Expr m a

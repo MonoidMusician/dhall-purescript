@@ -452,7 +452,7 @@ runLxprAlgM :: forall f m a i. FunctorWithIndex String m => Functor f =>
 runLxprAlgM alg = go where
   go i e = alg i
     { unlayer: project >>> unEnvT >>> unwrap
-    , overlayer: OverCasesM $ traverseR <<< travEnvT <<< N.traverse ERVF
+    , overlayer: OverCasesM $ traverseR <<< travEnvT <<< (\f -> map ERVF <<< f <<< unwrap)
     , recurse: go
     , layer: newmother
     } e
@@ -534,7 +534,7 @@ overlayerOSM f = project >>> unwrap >>> case _ of
       EnvT (Tuple e (ERVF x)) ->
         embedShared <<< EnvT <<< Tuple e <<< ERVF <$>
           f (shared <$> x)
-    Right ft -> embedShared <$> (travEnvT <<< N.traverse ERVF) f ft
+    Right ft -> embedShared <$> (travEnvT <<< (\f -> map ERVF <<< f <<< unwrap)) f ft
   where
     travEnvT f' (EnvT (Tuple e x)) = EnvT <<< Tuple e <$> f' x
 

@@ -22,12 +22,11 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un, unwrap, wrap)
 import Data.Ord (class Ord1, compare1)
 import Data.String (joinWith)
-import Data.Symbol (class IsSymbol, SProxy)
+import Data.Symbol (class IsSymbol)
 import Data.Traversable (class Traversable, sequence)
 import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
-import Data.Variant.Internal (FProxy)
 import Dhall.Core.AST.Types.Basics (_S, S_, BindingBody(..), BindingBody', BindingBodyI, CONST, LetF(..), LetF', LetFI, MergeF(..), MergeF', MergeFI, Pair(..), Pair', PairI, TextLitF(..), TextLitF', TextLitFI, Triplet(..), Triplet', TripletI, UNIT, VOID)
 import Dhall.Core.Zippers (class Container, class ContainerI, Array', ArrayI, Compose', Either', EitherI, Identity', IdentityI, Maybe', MaybeI, Product', ProductI, Tuple', TupleI, ComposeI, _contextZF, downZFV, ixFV, mapWithIndexV, upZFV, (:<-:))
 import Dhall.Core.Zippers.Merge (class Merge)
@@ -36,7 +35,7 @@ import Dhall.Lib.Numbers (Double, Integer, Natural)
 import Dhall.Lib.Numbers as Exports
 import Matryoshka (class Corecursive, class Recursive, cata, embed, project)
 import Prim.Row as Row
-import Type.Row (type (+))
+import Type.Proxy (Proxy)
 
 -- This file defines the Expr type by its cases, and gives instances, etc.
 
@@ -83,20 +82,20 @@ type LiteralsI vs =
 
 -- Other kinds of literals that _are_ recursive
 type Literals2 (m :: Type -> Type) v =
-  ( "TextLit" :: FProxy TextLitF
-  , "ListLit" :: FProxy (Product Maybe Array)
-  , "Some" :: FProxy Identity
+  ( "TextLit" :: TextLitF
+  , "ListLit" :: Product Maybe Array
+  , "Some" :: Identity
   , "None" :: CONST Unit
-  , "RecordLit" :: FProxy m
+  , "RecordLit" :: m
   | v
   )
 
 type Literals2' (m :: Type -> Type) (m' :: Type -> Type) v =
-  ( "TextLit" :: FProxy TextLitF'
-  , "ListLit" :: FProxy (Product' Maybe Maybe' Array Array')
-  , "Some" :: FProxy Identity'
+  ( "TextLit" :: TextLitF'
+  , "ListLit" :: Product' Maybe Maybe' Array Array'
+  , "Some" :: Identity'
   , "None" :: VOID
-  , "RecordLit" :: FProxy m'
+  , "RecordLit" :: m'
   | v
   )
 
@@ -148,14 +147,14 @@ type BuiltinTypesI vs =
 
 -- Record and union types (which are recursive)
 type BuiltinTypes2 (m :: Type -> Type) v =
-  ( "Record" :: FProxy m
-  , "Union" :: FProxy (Compose m Maybe)
+  ( "Record" :: m
+  , "Union" :: Compose m Maybe
   | v
   )
 
 type BuiltinTypes2' (m :: Type -> Type) (m' :: Type -> Type) v =
-  ( "Record" :: FProxy m'
-  , "Union" :: FProxy (Compose' m' Maybe Maybe')
+  ( "Record" :: m'
+  , "Union" :: Compose' m' Maybe Maybe'
   | v
   )
 
@@ -246,36 +245,36 @@ type BuiltinFuncsI vs =
 
 -- And binary operations
 type BuiltinBinOps (m :: Type -> Type) vs =
-  ( "BoolAnd" :: FProxy Pair
-  , "BoolOr" :: FProxy Pair
-  , "BoolEQ" :: FProxy Pair
-  , "BoolNE" :: FProxy Pair
-  , "NaturalPlus" :: FProxy Pair
-  , "NaturalTimes" :: FProxy Pair
-  , "TextAppend" :: FProxy Pair
-  , "ListAppend" :: FProxy Pair
-  , "Combine" :: FProxy Pair
-  , "CombineTypes" :: FProxy Pair
-  , "Prefer" :: FProxy Pair
-  , "Equivalent" :: FProxy Pair
-  , "RecordCompletion" :: FProxy Pair
+  ( "BoolAnd" :: Pair
+  , "BoolOr" :: Pair
+  , "BoolEQ" :: Pair
+  , "BoolNE" :: Pair
+  , "NaturalPlus" :: Pair
+  , "NaturalTimes" :: Pair
+  , "TextAppend" :: Pair
+  , "ListAppend" :: Pair
+  , "Combine" :: Pair
+  , "CombineTypes" :: Pair
+  , "Prefer" :: Pair
+  , "Equivalent" :: Pair
+  , "RecordCompletion" :: Pair
   | vs
   )
 
 type BuiltinBinOps' (m :: Type -> Type) (m' :: Type -> Type) vs =
-  ( "BoolAnd" :: FProxy Pair'
-  , "BoolOr" :: FProxy Pair'
-  , "BoolEQ" :: FProxy Pair'
-  , "BoolNE" :: FProxy Pair'
-  , "NaturalPlus" :: FProxy Pair'
-  , "NaturalTimes" :: FProxy Pair'
-  , "TextAppend" :: FProxy Pair'
-  , "ListAppend" :: FProxy Pair'
-  , "Combine" :: FProxy Pair'
-  , "CombineTypes" :: FProxy Pair'
-  , "Prefer" :: FProxy Pair'
-  , "Equivalent" :: FProxy Pair'
-  , "RecordCompletion" :: FProxy Pair'
+  ( "BoolAnd" :: Pair'
+  , "BoolOr" :: Pair'
+  , "BoolEQ" :: Pair'
+  , "BoolNE" :: Pair'
+  , "NaturalPlus" :: Pair'
+  , "NaturalTimes" :: Pair'
+  , "TextAppend" :: Pair'
+  , "ListAppend" :: Pair'
+  , "Combine" :: Pair'
+  , "CombineTypes" :: Pair'
+  , "Prefer" :: Pair'
+  , "Equivalent" :: Pair'
+  , "RecordCompletion" :: Pair'
   | vs
   )
 
@@ -298,24 +297,24 @@ type BuiltinBinOpsI vs =
 
 -- All builtin operations with their own syntax
 type BuiltinOps (m :: Type -> Type) v = BuiltinBinOps m
-  ( "BoolIf" :: FProxy (Triplet)
-  , "Field" :: FProxy (Tuple String)
-  , "With" :: FProxy (Product Identity (Tuple (NonEmptyArray String)))
-  , "Project" :: FProxy (Product Identity (Either (App m Unit)))
-  , "Merge" :: FProxy (MergeF)
-  , "ToMap" :: FProxy (Product Identity Maybe)
-  , "Assert" :: FProxy Identity
+  ( "BoolIf" :: Triplet
+  , "Field" :: Tuple String
+  , "With" :: Product Identity (Tuple (NonEmptyArray String))
+  , "Project" :: Product Identity (Either (App m Unit))
+  , "Merge" :: MergeF
+  , "ToMap" :: Product Identity Maybe
+  , "Assert" :: Identity
   | v
   )
 
 type BuiltinOps' (m :: Type -> Type) (m' :: Type -> Type) v = BuiltinBinOps' m m'
-  ( "BoolIf" :: FProxy (Triplet')
-  , "Field" :: FProxy (Tuple' String)
-  , "With" :: FProxy (Product' Identity Identity' (Tuple (NonEmptyArray String)) (Tuple' (NonEmptyArray String)))
-  , "Project" :: FProxy (Product' Identity Identity' (Either (App m Unit)) (Either' (App m Unit)))
-  , "Merge" :: FProxy (MergeF')
-  , "ToMap" :: FProxy (Product' Identity Identity' Maybe Maybe')
-  , "Assert" :: FProxy Identity'
+  ( "BoolIf" :: Triplet'
+  , "Field" :: Tuple' String
+  , "With" :: Product' Identity Identity' (Tuple (NonEmptyArray String)) (Tuple' (NonEmptyArray String))
+  , "Project" :: Product' Identity Identity' (Either (App m Unit)) (Either' (App m Unit))
+  , "Merge" :: MergeF'
+  , "ToMap" :: Product' Identity Identity' Maybe Maybe'
+  , "Assert" :: Identity'
   | v
   )
 
@@ -331,17 +330,17 @@ type BuiltinOpsI v = BuiltinBinOpsI
   )
 
 type Variable (m :: Type -> Type) v =
-  ( "Lam" :: FProxy BindingBody
-  , "Pi" :: FProxy BindingBody
-  , "Let" :: FProxy LetF
+  ( "Lam" :: BindingBody
+  , "Pi" :: BindingBody
+  , "Let" :: LetF
   , "Var" :: CONST Var
   | v
   )
 
 type Variable' (m :: Type -> Type) (m' :: Type -> Type) v =
-  ( "Lam" :: FProxy (BindingBody')
-  , "Pi" :: FProxy (BindingBody')
-  , "Let" :: FProxy LetF'
+  ( "Lam" :: BindingBody'
+  , "Pi" :: BindingBody'
+  , "Let" :: LetF'
   , "Var" :: VOID
   | v
   )
@@ -356,14 +355,14 @@ type VariableI v =
 
 -- Other things that have special/fundamental syntax
 type Syntax (m :: Type -> Type) v =
-  ( "App" :: FProxy Pair
-  , "Annot" :: FProxy Pair
+  ( "App" :: Pair
+  , "Annot" :: Pair
   | v
   )
 
 type Syntax' (m :: Type -> Type) (m' :: Type -> Type) v =
-  ( "App" :: FProxy Pair'
-  , "Annot" :: FProxy Pair'
+  ( "App" :: Pair'
+  , "Annot" :: Pair'
   | v
   )
 
@@ -374,16 +373,16 @@ type SyntaxI v =
   )
 
 type ImportSyntax (m :: Type -> Type) v =
-  ( "ImportAlt" :: FProxy Pair
-  , "UsingHeaders" :: FProxy Pair
-  , "Hashed" :: FProxy (Tuple String) -- Todo: better type?
+  ( "ImportAlt" :: Pair
+  , "UsingHeaders" :: Pair
+  , "Hashed" :: Tuple String -- Todo: better type?
   | v
   )
 
 type ImportSyntax' (m :: Type -> Type) (m' :: Type -> Type) v =
-  ( "ImportAlt" :: FProxy Pair'
-  , "UsingHeaders" :: FProxy Pair'
-  , "Hashed" :: FProxy (Tuple' String)
+  ( "ImportAlt" :: Pair'
+  , "UsingHeaders" :: Pair'
+  , "Hashed" :: Tuple' String
   | v
   )
 
@@ -395,19 +394,19 @@ type ImportSyntaxI v =
   )
 
 -- Non-recursive items
-type SimpleThings m vs = Literals m + BuiltinTypes m + BuiltinFuncs m + vs
-type SimpleThings' m m' vs = Literals' m m' + BuiltinTypes' m m' + BuiltinFuncs' m m' + vs
-type SimpleThingsI vs = LiteralsI + BuiltinTypesI + BuiltinFuncsI + vs
+type SimpleThings m vs = Literals m (BuiltinTypes m (BuiltinFuncs m vs))
+type SimpleThings' m m' vs = Literals' m m' (BuiltinTypes' m m' (BuiltinFuncs' m m' vs))
+type SimpleThingsI vs = LiteralsI (BuiltinTypesI (BuiltinFuncsI vs))
 
 -- Recursive items
-type FunctorThings m v = Literals2 m + BuiltinTypes2 m + BuiltinOps m + Syntax m + Variable m + ImportSyntax m + v
-type FunctorThings' m m' v = Literals2' m m' + BuiltinTypes2' m m' + BuiltinOps' m m' + Syntax' m m' + Variable' m m' + ImportSyntax' m m' + v
-type FunctorThingsI v = Literals2I + BuiltinTypes2I + BuiltinOpsI + SyntaxI + VariableI + ImportSyntaxI + v
+type FunctorThings m v = Literals2 m (BuiltinTypes2 m (BuiltinOps m (Syntax m (Variable m (ImportSyntax m v)))))
+type FunctorThings' m m' v = Literals2' m m' (BuiltinTypes2' m m' (BuiltinOps' m m' (Syntax' m m' (Variable' m m' (ImportSyntax' m m' v)))))
+type FunctorThingsI v = Literals2I (BuiltinTypes2I (BuiltinOpsI (SyntaxI (VariableI (ImportSyntaxI v)))))
 
 -- Both together
-type AllTheThings m v = SimpleThings m + FunctorThings m + v
-type AllTheThings' m m' v = SimpleThings' m m' + FunctorThings' m m' + v
-type AllTheThingsI v = SimpleThingsI + FunctorThingsI + v
+type AllTheThings m v = SimpleThings m (FunctorThings m v)
+type AllTheThings' m m' v = SimpleThings' m m' (FunctorThings' m m' v)
+type AllTheThingsI v = SimpleThingsI (FunctorThingsI v)
 
 -- A layer of Expr (within Free) is AllTheThings
 -- No Note constructor anymore!
@@ -600,11 +599,11 @@ instance ord1Expr :: (Ord1 m) => Ord1 (Expr m) where
 vfCase ::
   forall sym fnc v' v v1' v1 a r.
     IsSymbol sym =>
-    Row.Cons sym (FProxy fnc) v' v =>
-    Row.Cons sym (FProxy fnc) v1' v1 =>
+    Row.Cons sym fnc v' v =>
+    Row.Cons sym fnc v1' v1 =>
   r ->
   (fnc a -> fnc a -> r) ->
-  SProxy sym ->
+  Proxy sym ->
   (VariantF v' a -> VariantF v1 a -> r) ->
   VariantF v a -> VariantF v1 a -> r
 vfCase df f k = VariantF.on k (\a -> VariantF.default df # VariantF.on k (f a))
@@ -613,9 +612,9 @@ vfEqCase ::
   forall sym fnc v' v v1' v1 a.
     IsSymbol sym =>
     Eq (fnc a) =>
-    Row.Cons sym (FProxy fnc) v' v =>
-    Row.Cons sym (FProxy fnc) v1' v1 =>
-  SProxy sym ->
+    Row.Cons sym fnc v' v =>
+    Row.Cons sym fnc v1' v1 =>
+  Proxy sym ->
   (VariantF v' a -> VariantF v1 a -> Boolean) ->
   VariantF v a -> VariantF v1 a -> Boolean
 vfEqCase = vfCase false eq
@@ -625,9 +624,9 @@ vfEq1Case ::
     IsSymbol sym =>
     Eq1 fnc =>
     Eq a =>
-    Row.Cons sym (FProxy fnc) v' v =>
-    Row.Cons sym (FProxy fnc) v1' v1 =>
-  SProxy sym ->
+    Row.Cons sym fnc v' v =>
+    Row.Cons sym fnc v1' v1 =>
+  Proxy sym ->
   (VariantF v' a -> VariantF v1 a -> Boolean) ->
   VariantF v a -> VariantF v1 a -> Boolean
 vfEq1Case = vfCase false eq1
@@ -636,9 +635,9 @@ vfOrdCase ::
   forall sym fnc v' v v1' v1 a.
     IsSymbol sym =>
     Ord (fnc a) =>
-    Row.Cons sym (FProxy fnc) v' v =>
-    Row.Cons sym (FProxy fnc) v1' v1 =>
-  SProxy sym ->
+    Row.Cons sym fnc v' v =>
+    Row.Cons sym fnc v1' v1 =>
+  Proxy sym ->
   (VariantF v' a -> VariantF v1 a -> Ordering) ->
   VariantF v a -> VariantF v1 a -> Ordering
 vfOrdCase = vfCase LT compare
@@ -648,9 +647,9 @@ vfOrd1Case ::
     IsSymbol sym =>
     Ord1 fnc =>
     Ord a =>
-    Row.Cons sym (FProxy fnc) v' v =>
-    Row.Cons sym (FProxy fnc) v1' v1 =>
-  SProxy sym ->
+    Row.Cons sym fnc v' v =>
+    Row.Cons sym fnc v1' v1 =>
+  Proxy sym ->
   (VariantF v' a -> VariantF v1 a -> Ordering) ->
   VariantF v a -> VariantF v1 a -> Ordering
 vfOrd1Case = vfCase LT compare1

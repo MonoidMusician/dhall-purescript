@@ -3,7 +3,7 @@ module Dhall.Normalize.Apps where
 import Prelude
 
 import Data.Const (Const)
-import Data.Functor.Variant (FProxy, SProxy, VariantF)
+import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.Lens as Lens
 import Data.Lens.Iso.Newtype (_Newtype)
@@ -13,6 +13,7 @@ import Data.Symbol (class IsSymbol)
 import Dhall.Core.AST (Expr, S_, _S)
 import Dhall.Core.AST as AST
 import Prim.Row as Row
+import Type.Proxy (Proxy)
 
 -- Little ADT to make destructuring applications easier for normalization
 data AppsF a = App (AppsF a) (AppsF a) | NoApp a
@@ -73,11 +74,11 @@ apps = Lens.iso fromExpr toExpr where
 noapplitG ::
   forall sym v all all' node ops.
     IsSymbol sym =>
-    Row.Cons sym (FProxy (Const v)) all' all =>
+    Row.Cons sym (Const v) all' all =>
   { unlayer :: node -> VariantF all node
   | ops
   } ->
-  SProxy sym ->
+  Proxy sym ->
   AppsF node ->
   Maybe v
 noapplitG ops sym = noapplitG' ops sym >>> map unwrap
@@ -85,11 +86,11 @@ noapplitG ops sym = noapplitG' ops sym >>> map unwrap
 noapplitG' ::
   forall sym f all all' node ops.
     IsSymbol sym =>
-    Row.Cons sym (FProxy f) all' all =>
+    Row.Cons sym f all' all =>
   { unlayer :: node -> VariantF all node
   | ops
   } ->
-  SProxy sym ->
+  Proxy sym ->
   AppsF node ->
   Maybe (f node)
 noapplitG' ops sym = Lens.preview _NoApp >=> ops.unlayer >>> VariantF.prj sym
@@ -97,19 +98,19 @@ noapplitG' ops sym = Lens.preview _NoApp >=> ops.unlayer >>> VariantF.prj sym
 noappG ::
   forall sym f all all' node ops.
     IsSymbol sym =>
-    Row.Cons sym (FProxy f) all' all =>
+    Row.Cons sym f all' all =>
   { unlayer :: node -> VariantF all node
   | ops
   } ->
-  SProxy sym ->
+  Proxy sym ->
   AppsF node ->
   Boolean
 noappG ops sym = isJust <<< noapplitG' ops sym
 
 appsG ::
   forall all' node ops.
-  { unlayer :: node -> VariantF ( "App" :: FProxy AST.Pair | all' ) node
-  , layer :: VariantF ( "App" :: FProxy AST.Pair | all' ) node -> node
+  { unlayer :: node -> VariantF ( "App" :: AST.Pair | all' ) node
+  , layer :: VariantF ( "App" :: AST.Pair | all' ) node -> node
   | ops
   } ->
   Lens.Iso' node (AppsF node)

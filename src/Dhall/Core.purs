@@ -271,17 +271,30 @@ import Dhall.Core.Imports
   , ImportType(..)
   , Scheme(..)
   , URL(..)
+  , addHeaders
   , canonicalizeDirectory
   , canonicalizeFile
   , canonicalizeImport
   , canonicalizeImportType
+  , getHeader
   , getHeaders
+  , isLocal
+  , mkDirectory
+  , mkFile
   , parent
+  , parseDirectory
+  , parseFile
+  , parseFilePrefix
+  , parseImportType
+  , parseScheme
+  , parseURL
   , prettyDirectory
   , prettyFile
   , prettyFilePrefix
   , prettyImport
   , prettyImportType
+  , prettyURL
+  , unDirectory
   ) as Exports
 import Dhall.Normalize
   ( Normalizer

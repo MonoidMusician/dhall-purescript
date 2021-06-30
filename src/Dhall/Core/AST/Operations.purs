@@ -21,7 +21,7 @@ import Type.Proxy (Proxy2)
 -- Some general operations for the Expr AST
 hoistExpr :: forall m m'. Functor m' => (m ~> m') -> Expr m ~> Expr m'
 hoistExpr nat = over Expr $ hoistFree \a ->
-  VariantF.expandOverMatch
+  VariantF.over
     { "Project": (bihoistProduct identity (lmap (over App nat)) $ _)
     , "Record": ($) nat
     , "RecordLit": ($) nat
