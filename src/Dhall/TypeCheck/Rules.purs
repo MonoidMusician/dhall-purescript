@@ -43,7 +43,7 @@ import Dhall.Core.AST (Const(..), Expr, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
-import Dhall.TypeCheck.Operations (alsoOriginateFromO, areEq, newborn, newshared, normalizeStep, plain, topLoc, tryShiftOut0Oxpr, typecheckStep, unlayerO)
+import Dhall.TypeCheck.Operations (alsoOriginateFromO, areEq, newborn, newshared, normalizeStep, plain, shiftInOxpr0, topLoc, tryShiftOut0Oxpr, typecheckStep, unlayerO)
 import Dhall.TypeCheck.Tree (shared, unshared)
 import Dhall.TypeCheck.Types (Errors, FeedbackE, Inconsistency(..), L, LxprF, OsprE, Oxpr, OxprE, TypeCheckError(..), WithBiCtx(..))
 import Type.Row as R
@@ -722,7 +722,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
             Nothing -> errorHere (_S::S_ "Missing field") $ field
         handleType kts = do
           case Dhall.Map.get field kts of
-            Just (Just ty) -> pure $ mkShared(_S::S_"Pi") $ map shared $ (AST.BindingBody field ty expr)
+            Just (Just ty) -> pure $ mkShared(_S::S_"Pi") $ map shared $ (AST.BindingBody field ty (shiftInOxpr0 field expr))
             Just Nothing -> pure $ shared expr
             Nothing -> errorHere (_S::S_ "Missing field") $ field
         casing = (\_ -> error unit)
