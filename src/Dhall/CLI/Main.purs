@@ -64,7 +64,7 @@ normalizeFile file = do
                 logShow "Type error"
                 for_ es \(TC.TypeCheckError { tag }) -> logShow (tag :: Variant (Resolve.Errors ()))
               V.Success a -> do
-                -- logShow a
+                log $ print show a
                 let normalized = Dhall.normalize resolved
                 log $ print show normalized
                 pure unit
