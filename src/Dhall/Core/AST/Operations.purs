@@ -73,7 +73,8 @@ rewriteTopDownA :: forall r r' m a b f. Applicative f =>
   ) ->
   Expr m a -> f (Expr m b)
 rewriteTopDownA rw1 = go where
-  go expr = rw1 (traverse go >>> map (VariantF.expand >>> embedW)) $ projectW expr
+  trav = traverse :: forall x y. (x -> f y) -> VariantF r x -> f (VariantF r y)
+  go expr = rw1 (trav go >>> map (VariantF.expand >>> embedW)) $ projectW expr
 
 rewriteBottomUpM :: forall r r' m a b f. Monad f => Traversable m =>
   Row.Union r r' (ExprLayerRow m b) =>

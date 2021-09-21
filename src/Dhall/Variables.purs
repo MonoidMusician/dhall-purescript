@@ -204,9 +204,8 @@ type VariablePlus (m :: Type -> Type) v = Variable m
 -- A simple algebra for `freeIn`. Will work with anything that is
 -- vaguely like `Expr`.
 freeInAlg ::
-  forall m v rl.
-    RL.RowToList (VariablePlus m v) rl =>
-    VariantF.FoldableVFRL rl (VariablePlus m v) =>
+  forall m v.
+    Foldable (VariantF (VariablePlus m v)) =>
   Algebra (VariantF (VariablePlus m v)) (Var -> Disj Boolean)
 freeInAlg layer v | layer # VariantF.on (_S::S_ "Var") (eq (Const v)) ff = Disj true
 freeInAlg layer v = layer # trackIntro ((#) <<< trackVar v <<< trackIntroVar) >>> fold
