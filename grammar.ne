@@ -820,7 +820,7 @@ with_clause ->
 operator_expression -> equivalent_expression {% pass0 %}
 
 # Nonempty-whitespace to disambiguate `http://a/a?a`
-equivalent_expression    -> import_alt_expression    (whsp equivalent whsp application_expression):* {% binop("Equivalent", 3) %}
+equivalent_expression    -> import_alt_expression    (whsp equivalent whsp import_alt_expression):* {% binop("Equivalent", 3) %}
 import_alt_expression    -> or_expression            (whsp "?" whsp1 or_expression):* {% binop("ImportAlt", 3) %}
 or_expression            -> plus_expression          (whsp "||" whsp plus_expression):* {% binop("BoolOr", 3) %}
 # Nonempty-whitespace to disambiguate `f +2`
