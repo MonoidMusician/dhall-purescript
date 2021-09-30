@@ -5,6 +5,7 @@ import Prelude
 import Control.Plus (empty)
 import Data.Array as Array
 import Data.Array.NonEmpty as NEA
+import Data.Bifunctor (bimap)
 import Data.Const (Const(..))
 import Data.Const (Const) as C
 import Data.Either (Either(..))
@@ -16,6 +17,7 @@ import Data.Functor.Variant as VariantF
 import Data.Identity (Identity(..))
 import Data.Int as Int
 import Data.List as List
+import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Monoid.Additive (Additive(..))
 import Data.Newtype (over2, un, unwrap)
@@ -923,15 +925,19 @@ escapeString = identity
   <<< String.fromCodePointArray
     <<< (=<<) escapeCodePoint
   <<< String.toCodePointArray
-  <<< String.replaceAll (String.Pattern "\n") (String.Replacement "\\n")
-  <<< String.replaceAll (String.Pattern "\r") (String.Replacement "\\r")
-  <<< String.replaceAll (String.Pattern "\x0008") (String.Replacement "\\b")
-  <<< String.replaceAll (String.Pattern "\x000C") (String.Replacement "\\f")
-  <<< String.replaceAll (String.Pattern "\t") (String.Replacement "\\t")
-  <<< String.replaceAll (String.Pattern "$") (String.Replacement "\\$")
-  <<< String.replaceAll (String.Pattern "\"") (String.Replacement "\\\"")
-  <<< String.replaceAll (String.Pattern "\\") (String.Replacement "\\\\")
   where
+    escapes = Map.fromFoldable $
+      map (bimap String.codePointFromChar String.toCodePointArray)
+        [ Tuple '\n' "\\n"
+        , Tuple '\r' "\\r"
+        , Tuple '\t' "\\t"
+        , Tuple '$' "\\$"
+        , Tuple '"' "\\\""
+        , Tuple '\\' "\\\\"
+        , Tuple '\x0008' "\\b"
+        , Tuple '\x000C' "\\f"
+        ]
+    escapeCodePoint c | Just r <- Map.lookup c escapes = r
     escapeCodePoint c | fromEnum c < 0x20 || fromEnum c > 0x10FFFF =
       String.toCodePointArray ("\\u{" <> Int.toStringAs Int.hexadecimal (fromEnum c) <> "}")
     escapeCodePoint c = pure c
