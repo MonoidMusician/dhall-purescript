@@ -4,25 +4,29 @@ import Prelude
 
 import Control.Plus (empty)
 import Data.Array as Array
+import Data.Array.NonEmpty as NEA
 import Data.Const (Const(..))
 import Data.Const (Const) as C
 import Data.Either (Either(..))
+import Data.Enum (fromEnum)
 import Data.Functor.App (App(..))
 import Data.Functor.Mu (Mu(..))
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant as VariantF
 import Data.Identity (Identity(..))
+import Data.Int as Int
 import Data.List as List
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Monoid.Additive (Additive(..))
 import Data.Newtype (over2, un, unwrap)
+import Data.Set as Set
 import Data.String as String
 import Data.Symbol (class IsSymbol)
 import Data.Traversable (class Foldable, maximum, or)
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Core (BindingBody(..), Const(..), Expr, ExprLayerF, LetF(..), MergeF(..), Pair(..), S_, TextLitF(..), Var(..), _S)
+import Dhall.Core (BindingBody(..), Const(..), Expr, ExprLayerF, LetF(..), MergeF(..), Pair(..), S_, TextLitF(..), Var(..), _S, reservedIdentifiers)
 import Dhall.Map (InsOrdStrMap, unIOSM)
 import Dhall.Map as Dhall.Map
 import Effect.Console (log)
@@ -51,12 +55,8 @@ printAST :: forall i.
   } } ->
   Expr InsOrdStrMap i ->
   String
-printAST { ascii, line, tabs, printImport } = identity
-  >>> cata (unwrap >>> fromAST printImport)
-  >>> cata precede
-  >>> cata structure
-  >>> strMap (tokDisp { ascii })
-  >>> layout { line, tabs }
+printAST opts = identity
+  >>> layoutAST opts
   >>> map _.value
   >>> printLines
 
@@ -153,6 +153,8 @@ mapBranch :: forall t d.
 mapBranch f { label, value } = { label, value: map f value }
 data BushF v r = BushF v (Branching r)
 derive instance functorBushF :: Functor (BushF v)
+instance showBushF :: (Show v, Show r) => Show (BushF v r) where
+  show (BushF v br) = "BushF (" <> show v <> ") (" <> show br <> ")"
 
 type Containers r =
   ( "List" :: Unit
@@ -171,6 +173,7 @@ type Precedence r =
 type Blocks r =
   ( "Let" :: Unit
   , "BoolIf" :: Unit
+  , "With" :: Unit
   | r
   )
 type Abstractions r =
@@ -345,8 +348,7 @@ fromAST renderImport = VariantF.match
   , "TextAppend": binop (_S::S_ "TextAppend")
   , "TextLit":
       let
-        -- FIXME: escapes
-        str s = [ literal (_S::S_ "StringData") s ]
+        str s = [ literal (_S::S_ "StringData") (escapeString s) ]
         interp e =
           [ foldable (_S::S_ "StringInterp") [ e ] ]
         rec (TextLit s) = str s
@@ -364,15 +366,22 @@ fromAST renderImport = VariantF.match
         then binop (_S::S_ "At") $ Pair (name n) (number (show i))
         else name n
   , "With": \(Product (Tuple (Identity e) (Tuple fs v))) ->
-      -- FIXME FIXME FIXME
-      app $ Pair e v
+      foldable (_S::S_ "With")
+        [ e
+        , NEA.foldl1 (\l r -> foldable (_S::S_ "Field") $ Pair l r) $ map name fs
+        , v
+        ]
   } where
     showDouble = show
     showNatural = show
     showInteger = show
     annot = binop (_S::S_ "Annot")
     app = binop (_S::S_ "App")
-    annotWith Nothing = identity
+    -- Note: We insert a unary annotation node as a signal that this node
+    -- could have taken an annotation, meaning if we have an outer Annot
+    -- node, we actually need parentheses around this to disambiguate
+    -- the parse.
+    annotWith Nothing = foldable (_S::S_ "Annot") <<< Identity
     annotWith (Just ty) = \e -> annot $ Pair e ty
     bush ::
       forall s r.
@@ -444,6 +453,7 @@ precede = In <<< process where
     , "Pi": rassoc (-100)
     , "Arrow": rassoc (-100)
     , "Annot": rassoc (-100)
+    , "With": lassoc (-100)
     , "ImportAlt": lassoc (-13)
     , "BoolOr": lassoc (-12)
     , "NaturalPlus": lassoc (-11)
@@ -482,6 +492,7 @@ structure (BushF v cs) = (#) v $ Variant.case_
     ( handleContainer (_S::S_ "Paren") (_S::S_ "Comma") [] )
   # Variant.on (_S::S_ "Let") handleLet
   # Variant.on (_S::S_ "BoolIf") handleIf
+  # Variant.on (_S::S_ "With") handleWith
   # handleAbstraction (_S::S_ "Pi")
   # handleAbstraction (_S::S_ "Lam")
   # handleOperator (_S::S_ "BoolAnd")
@@ -559,6 +570,27 @@ structure (BushF v cs) = (#) v $ Variant.case_
               = sep
         in { before: pure b, line: fromMaybe emptyLine line }
     keyword = Variant.inj (_S::S_ "Keyword")
+    handleWith :: Unit -> TokStruct
+    handleWith _ = In $ StrGroup (handleTop (List.fromFoldable cs)) where
+      handleTop ({ value: Just top } List.: rest) =
+        [ { before: empty, line: top } ] <>
+        handleRest rest
+      handleTop _ = []
+      handleRest ( { value: Just field }
+        List.: { value: Just line }
+        List.: r ) =
+        [ { before: pure (keyword "with")
+          , line: In $ StrGroup
+            [ { before: empty, line: field }
+            , { before: pure (Variant.inj (_S::S_ "Equal") unit)
+              , line
+              }
+            ]
+          }
+        ] <> handleRest r
+      handleRest (_ List.: r) =
+        handleRest r
+      handleRest List.Nil = []
     handleLet :: Unit -> TokStruct
     handleLet _ = In $ StrGroup (handle (List.fromFoldable cs)) where
       handle List.Nil = []
@@ -815,11 +847,11 @@ tokDisp { ascii } = Variant.match
   , "UsingHeaders": simple space TTImport "using"
   , "Keyword": valued space TTKeyword
   , "Builtin": datum (TTName true)
-  , "Name": datum (TTName false)
+  , "Name": datum (TTName false) <<< escapeName
   , "At": simple nospace TTSeparator "@"
   , "Number": datum TTLiteral
   , "Import": datum TTImport
-  , "String": simple nospace TTLiteral "''"
+  , "String": simple nospace TTLiteral "\""
   , "StringData": valued raw TTLiteral
   , "Paren": group "(" ")"
   , "Brace": spread "{" "}"
@@ -867,6 +899,42 @@ tokDisp { ascii } = Variant.match
           L -> l
           R -> r
         )
+
+goodName :: String -> Boolean
+goodName s =
+  if Set.member s reservedIdentifiers then false else
+  let
+    cps = String.toCodePointArray s
+    alphas =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ" <>
+      "abcdefghijklmnopqrstuvwxyz"
+    nums = "0123456789"
+    gotit v c = String.contains (String.Pattern (String.fromCodePointArray [c])) v
+  in case Array.head cps of
+    Nothing -> false
+    Just h -> gotit (alphas <> "_") h &&
+      Array.all (gotit (alphas <> nums <> "-/_")) cps
+
+escapeName :: String -> String
+escapeName s = if goodName s then s else "`" <> s <> "`"
+
+escapeString :: String -> String
+escapeString = identity
+  <<< String.fromCodePointArray
+    <<< (=<<) escapeCodePoint
+  <<< String.toCodePointArray
+  <<< String.replaceAll (String.Pattern "\n") (String.Replacement "\\n")
+  <<< String.replaceAll (String.Pattern "\r") (String.Replacement "\\r")
+  <<< String.replaceAll (String.Pattern "\x0008") (String.Replacement "\\b")
+  <<< String.replaceAll (String.Pattern "\x000C") (String.Replacement "\\f")
+  <<< String.replaceAll (String.Pattern "\t") (String.Replacement "\\t")
+  <<< String.replaceAll (String.Pattern "$") (String.Replacement "\\$")
+  <<< String.replaceAll (String.Pattern "\"") (String.Replacement "\\\"")
+  <<< String.replaceAll (String.Pattern "\\") (String.Replacement "\\\\")
+  where
+    escapeCodePoint c | fromEnum c < 0x20 || fromEnum c > 0x10FFFF =
+      String.toCodePointArray ("\\u{" <> Int.toStringAs Int.hexadecimal (fromEnum c) <> "}")
+    escapeCodePoint c = pure c
 
 type Counting = Additive Int
 type Colmn = Counting

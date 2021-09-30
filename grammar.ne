@@ -779,7 +779,7 @@ expression ->
     #
     # NOTE: Backtrack if parsing this alternative fails since we can't tell
     # from the keyword whether there will be a type annotation or not
-    | merge whsp1 import_expression whsp1 import_expression whsp ":" whsp1 application_expression {% d => ({ type: "Merge", value: [d[2], d[4], d[8]] }) %}
+    | merge whsp1 import_expression whsp1 import_expression whsp ":" whsp1 expression {% d => ({ type: "Merge", value: [d[2], d[4], d[8]] }) %}
 
     # "[] : t"
     #
@@ -792,7 +792,7 @@ expression ->
     #
     # NOTE: Backtrack if parsing this alternative fails since we can't tell
     # from the keyword whether there will be a type annotation or not
-    | toMap whsp1 import_expression whsp ":" whsp1 application_expression {% d => ({ type: "ToMap", value: [d[2],d[6]] }) %}
+    | toMap whsp1 import_expression whsp ":" whsp1 expression {% d => ({ type: "ToMap", value: [d[2],d[6]] }) %}
 
     # "assert : Natural/even 1 ≡ False"
     | assert whsp ":" whsp1 expression {% d => ({ type: "Assert", value: [d[4]] }) %} # FIXME?

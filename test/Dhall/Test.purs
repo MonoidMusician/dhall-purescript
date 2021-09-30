@@ -11,7 +11,7 @@ import Data.Functor.Compose (Compose(..))
 import Data.Functor.Product (Product, product)
 import Data.Lazy (Lazy, defer)
 import Data.Maybe (Maybe(..))
-import Data.Newtype (unwrap)
+import Data.Newtype (unwrap, wrap)
 import Data.Traversable (class Traversable, traverse)
 import Data.Tuple (Tuple(..), fst)
 import Dhall.Core (Expr, Import, unordered)
@@ -24,6 +24,7 @@ import Dhall.Lib.CBOR as CBOR
 import Dhall.Map (class MapLike, InsOrdMap)
 import Dhall.Map as IOSM
 import Dhall.Parser as Parser
+import Dhall.Printer (printAST)
 import Dhall.TypeCheck as TC
 import Effect (Effect)
 import Effect.Aff (Aff, runAff_)
@@ -37,6 +38,8 @@ testAff = runAff_ case _ of
   Right a -> logShow a
 parse :: String -> Maybe (Expr (InsOrdMap String) Import)
 parse = Parser.parse
+print :: Resolve.ImportExpr -> String
+print = printAST { ascii: true, line: Nothing, printImport: show, tabs: { width: wrap 2, soft: false, align: false } }
 noImports :: forall f a. Traversable f => f a -> Maybe (f Void)
 noImports = traverse (const Nothing)
 resolve' :: Resolve.ImportExpr -> Aff (Resolve.Feedback () () Resolve.ResolvedExpr)

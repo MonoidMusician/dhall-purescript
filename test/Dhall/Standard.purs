@@ -9,13 +9,14 @@ import Data.Array as Array
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Either (Either(..))
 import Data.Foldable (foldMap, for_, traverse_)
-import Data.FoldableWithIndex (forWithIndex_)
+import Data.FoldableWithIndex (forWithIndex_, traverseWithIndex_)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Newtype (unwrap, wrap)
 import Data.String (Pattern(..), stripSuffix)
 import Data.String as String
+import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
 import Dhall.Core (Directory(..), File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), alphaNormalize, conv, unordered)
@@ -24,7 +25,8 @@ import Dhall.Imports.Resolve as Resolve
 import Dhall.Imports.Retrieve (nodeCache, nodeReadBinary, nodeRetrieve, nodeRetrieveFile)
 import Dhall.Lib.CBOR as CBOR
 import Dhall.Map (InsOrdStrMap)
-import Dhall.Test (Actions)
+import Dhall.Printer (printAST)
+import Dhall.Test (Actions, parse, print)
 import Dhall.Test as Test
 import Dhall.Test.Util (eqArrayBuffer)
 import Dhall.Test.Util as Util
@@ -147,12 +149,17 @@ logDiag ab = makeAff \cb -> do
 
 test :: RT Unit
 test = do
+  seen <- liftEffect $ Ref.new (Map.empty :: Map String Resolve.ImportExpr)
+  let
+    see :: String -> Resolve.ImportExpr -> Aff Unit
+    see k v = liftEffect $ Ref.modify_ (Map.insert k v) seen
   testType "parser"
     do \verb success -> do
         textA <- nodeRetrieveFile (success <> "A.dhall") >>= note "Failed to decode A"
         let actA = mkActions "parser" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
+        see (success <> "A.dhall") parsedA.parsed
         binB <- nodeReadBinary (success <> "B.dhallb")
         when ((extract parsedA.encoded).cbor `not eqArrayBuffer` binB) do
           when verb do
@@ -177,12 +184,15 @@ test = do
         let actA = mkActions "normalization" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
+        see (success <> "A.dhall") parsedA.parsed
         importedA <- parsedA.imports # unwrap # extract # unwrap >>=
           noteFb "Failed to resolve A"
+        see (success <> "A.dhall.resolved") (map absurd importedA.resolved)
         textB <- nodeRetrieveFile (success <> "B.dhall") >>= note "Failed to decode B"
         let actB = mkActions "normalization" success textB
         parsedB <- actB.parse # unwrap # extract #
           note "Failed to parse B"
+        see (success <> "B.dhall") parsedB.parsed
         importedB <- parsedB.imports # unwrap # fst # unwrap # extract #
           note "Failed to resolve B"
         let norm = (conv <<< unordered) (extract importedA.unsafeNormalized)
@@ -216,15 +226,18 @@ test = do
         let actA = mkActions "semantic-hash" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse"
+        see (success <> "A.dhall") parsedA.parsed
         when verb do log "Parsed: " *> logShow parsedA.parsed
         importedA <- parsedA.imports # unwrap # extract # unwrap >>=
           noteFb "Failed to resolve A"
+        see (success <> "A.dhall.resolved") (map absurd importedA.resolved)
         when verb do log "Resolved: " *> logShow importedA.resolved
         typecheckedA <- importedA.typechecked # unwrap # extract #
           noteR "Failed to typecheck A"
         -- when verb do log "Typechecked: " *> logShow typecheckedA.inferredType
         -- when verb do log "Normalized: " *> logShow (extract typecheckedA.safeNormalized)
         -- when verb do log "CBOR: " *> logDiag (extract typecheckedA.encoded).cbor
+        see (success <> "A.dhall.type") (map absurd typecheckedA.inferredType)
         hashB <- (fromMaybe <*> stripSuffix (Pattern "\n")) <$> (nodeRetrieveFile (success <> "B.hash") >>= note "Failed to decode B")
         let hashA = "sha256:" <> (extract typecheckedA.encoded).hash
         when (hashA /= hashB) do
@@ -239,10 +252,13 @@ test = do
         let actA = mkActions "type-inference" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
+        see (success <> "A.dhall") parsedA.parsed
         importedA <- parsedA.imports # unwrap # extract # unwrap >>=
           noteFb "Failed to resolve A"
+        see (success <> "A.dhall.resolved") (map absurd importedA.resolved)
         typecheckedA <- importedA.typechecked # unwrap # extract #
           noteR "Failed to typecheck A"
+        see (success <> "A.dhall.type") (map absurd typecheckedA.inferredType)
         textB <- nodeRetrieveFile (success <> "B.dhall") >>= note "Failed to decode B"
         let actB = mkActions "type-inference" success textB
         parsedB <- actB.parse # unwrap # extract #
@@ -260,6 +276,7 @@ test = do
         let act = mkActions "typecheck" failure text
         parsed <- act.parse # unwrap # extract #
           note "Failed to parse"
+        see (failure <> ".dhall") parsed.parsed
         imported <- parsed.imports # unwrap # extract # unwrap >>=
           noteFb "Failed to resolve"
         imported.typechecked # unwrap # extract #
@@ -309,6 +326,27 @@ test = do
         let decoded = (bin # CBOR.decode # decode) :: Maybe Resolve.ImportExpr
         when (isJust decoded) do
           throwError (error "Was not supposed to decode")
+  do
+    didSee <- liftEffect (Ref.read seen)
+    results <- didSee # traverseWithIndex \src expr ->
+      let printed = print expr
+      in case parse printed of
+        Just e | e == expr -> pure true
+        Nothing -> do
+          log $ "Failed to reparse " <> src
+          log $ "Result: " <> show printed
+          log printed
+          pure false
+        Just e -> do
+          log $ "Failed to roundtrip on " <> src
+          log $ printed
+          log $ "Got this: " <> show e
+          log $ "Instead of: " <> show expr
+          pure false
+    let failed = Array.length (Array.filter (_ == false) (Array.fromFoldable results))
+    when (failed > 0) do
+      log $ "Total printing failures: " <> show failed
+    pure unit
 
 main :: Effect Unit
 main = launchAff_ do

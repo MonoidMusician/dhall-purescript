@@ -10,7 +10,9 @@ import Unsafe.Coerce (unsafeCoerce)
 -- Number with actual equality
 newtype Double = Double Number
 derive instance newtypeDouble :: Newtype Double _
-derive newtype instance showDouble :: Show Double
+instance showDouble :: Show Double where
+  show (Double z) | z == 0.0 && 1.0/z < 0.0 = "-0.0"
+  show (Double z) = show z
 instance eqDouble :: Eq Double where
   eq (Double a) (Double b) = (a == b && recip a == recip b) || (a /= a && b /= b)
 instance ordDouble :: Ord Double where
