@@ -4,6 +4,7 @@ import Prelude
 
 import Data.Newtype (class Newtype)
 
+newtype DualAp :: (Type -> Type) -> Type -> Type
 newtype DualAp f a = DualAp (f a)
 derive instance newtypeDualAp :: Newtype (DualAp f a) _
 derive newtype instance functorDualAp :: Functor f => Functor (DualAp f)

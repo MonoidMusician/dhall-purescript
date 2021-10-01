@@ -17,6 +17,7 @@ import Dhall.Core.Zippers (class Container, class ContainerI, _ix, downZF, ixF, 
 import Matryoshka (class Corecursive, class Recursive, embed, project)
 
 type Indices i = List (Lazy i)
+type ParentCtxs :: (Type -> Type) -> Type -> Type
 type ParentCtxs f x = List (Lazy (f x))
 data ZRec f x = ZRec x (ParentCtxs f x)
 type ZRecMu f = ZRec f (Mu f)

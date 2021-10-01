@@ -26,8 +26,7 @@ import Data.Map (Map)
 import Data.Maybe (Maybe(..), isJust)
 import Data.Maybe.First (First)
 import Data.Monoid.Conj (Conj(..))
-import Data.Monoid.Disj (Disj(..))
-import Data.Newtype (class Newtype, un, unwrap, wrap)
+import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.String as String
 import Data.Symbol (class IsSymbol)
 import Data.These (These(..))
@@ -117,7 +116,7 @@ instance bindW :: Bind W where
     W (Tuple (Conj false) (l >>= f >>> unwrap >>> extract))
   bind (W (Tuple (Conj true) l)) f = f $ extract l
 instance extendW :: Extend W where
-  extend f w@(W (Tuple c l)) = W $ Tuple c $ extend (extract >>> f) (pure w)
+  extend f w@(W (Tuple c _)) = W $ Tuple c $ extend (extract >>> f) (pure w)
 instance comonadW :: Comonad W where
   extract (W (Tuple _ l)) = extract l
 
@@ -142,11 +141,16 @@ normalizeWithAlgGW :: forall m a v node. MapLike String m => Eq a =>
 normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normalize")) rest handleLayer where
   rest = shiftSubstAlgGM finally <@> node
 
+  unchanged :: forall x. W x -> Boolean
+  unchanged (W (Tuple (Conj c) _)) = c
+
   -- Normalize one layer of content
   handleLayer (_ :: {}) orig = case rules catchall orig of
     -- Hack: return the original node of the algorithm says it was unchanged
-    W (Tuple (Conj true) _) -> pure orig
-    modified -> modified
+    modified ->
+      if unchanged modified
+        then pure orig
+        else modified
 
   -- Recurse as necessary
   go = node.recurse $ Variant.inj (_S::S_ "normalize") mempty
@@ -201,9 +205,6 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
   binOpWith praevise here (AST.Pair l r) = here l r
       do l # extractW # praevise
       do r # extractW # praevise
-
-  unchanged :: forall x. W x -> Boolean
-  unchanged (W (Tuple (Conj c) _)) = c
 
   anew ::
     forall sym f rest.
@@ -273,9 +274,6 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
     extractW <<< node.recurse (Variant.inj (_S::S_ "subst") { variable, substitution:
       substitution # extractW <<< node.recurse (Variant.inj (_S::S_ "shift") { variable, delta: 1 })
     })
-
-  freeIn :: AST.Var -> node -> Disj Boolean
-  freeIn var = Variables.freeIn var <<< unlayers
 
   rules :: (node -> W node) -> node -> W node
   rules = identity
@@ -502,7 +500,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                         do \kvs ->
                             case Dhall.Map.get k kvs of
                               -- Ensure this is strictly better
-                              Just v | Dhall.Map.size kvs == 1 ->
+                              Just _v | Dhall.Map.size kvs == 1 ->
                                 default unit
                               Just v ->
                                 let single = Dhall.Map.singleton k v in
@@ -525,7 +523,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                             do \kvs ->
                                 case Dhall.Map.get k kvs of
                                   -- Ensure this is strictly better
-                                  Just v | Dhall.Map.size kvs == 1 ->
+                                  Just _v | Dhall.Map.size kvs == 1 ->
                                     default unit
                                   Just v ->
                                     let single = Dhall.Map.singleton k v in
@@ -538,7 +536,7 @@ normalizeWithAlgGW normApp finally i node = i # flip (Variant.on (_S::S_ "normal
                                 do \kvs ->
                                     case Dhall.Map.get k kvs of
                                       -- Ensure this is strictly better
-                                      Just v | Dhall.Map.size kvs == 1 ->
+                                      Just _v | Dhall.Map.size kvs == 1 ->
                                         default unit
                                       Just v ->
                                         let single = Dhall.Map.singleton k v in
@@ -701,7 +699,7 @@ fusionsG :: forall all' i node ops.
     | all'
     )
     i node ops
-fusionsG judgEq again = GNormalizer \node -> case _ of
+fusionsG _judgEq _again = GNormalizer \node -> case _ of
   -- build/fold fusion for `List`
   -- App (App ListBuild _) (App (App ListFold _) e') -> loop e'
   listbuild~_~(listfold~_~e')
@@ -737,7 +735,7 @@ conversionsG :: forall all' node v ops.
     | all'
     )
     (Variant (ShiftSubstAlg node v)) node ops
-conversionsG judgEq again = GNormalizer \node -> case _ of
+conversionsG _judgEq again = GNormalizer \node -> case _ of
   naturaltointeger~naturallit
     | noappG node (_S::S_ "NaturalToInteger") naturaltointeger
     , Just n <- noapplitG node (_S::S_ "NaturalLit") naturallit ->
@@ -770,7 +768,7 @@ conversionsG judgEq again = GNormalizer \node -> case _ of
     | noappG node (_S::S_ "TextShow") textshow
     , Just (TextLit n) <- noapplitG' node (_S::S_ "TextLit") textlit ->
       pure \_ -> mk node (_S::S_ "TextLit") $ AST.TextLit $ textShow n
-  textreplace~needle~replacement~haystack
+  textreplace~needle~_replacement~haystack
     | noappG node (_S::S_ "TextReplace") textreplace
     , Just (TextLit "") <- noapplitG' node (_S::S_ "TextLit") needle ->
       pure \_ -> Lens.review (appsG node) haystack
@@ -922,11 +920,10 @@ listfnsG :: forall all' node v ops m. MapLike String m =>
     | all'
     )
     (Variant (ShiftSubstAlg node v)) node ops
-listfnsG judgEq again = GNormalizer \node -> case _ of
+listfnsG _judgEq again = GNormalizer \node -> case _ of
   listbuild~t~g
     | noappG node (_S::S_ "ListBuild") listbuild -> pure \_ ->
       let
-        g' = Lens.review (appsG node) g
         ty = Lens.review (appsG node) t
         ty' = extract $ node.recurse (Variant.inj (_S::S_ "shift") { variable: AST.V "a" 0, delta: 1 }) ty
         list = mkAppsF node (_S::S_ "List") mempty ~ NoApp ty'

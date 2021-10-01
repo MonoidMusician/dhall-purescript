@@ -26,6 +26,7 @@ import Dhall.Core.Zippers.Merge (class Merge, mergeWith)
 
 -- This file defines basic functor types used in the AST definition
 
+type S_ :: forall k. k -> Type
 type S_ = Proxy
 _S = Proxy :: forall s. S_ s
 
@@ -229,46 +230,46 @@ derive instance ord1TextLitF :: Ord1 TextLitF
 type TextLitFI = Natural
 
 instance functorTextLitF :: Functor TextLitF where
-  map f (TextLit s) = TextLit s
+  map _ (TextLit s) = TextLit s
   map f (TextInterp s a0 a1) = TextInterp s (f a0) (map f a1)
 
 instance functorWithIndexTextLitF :: FunctorWithIndex (Natural) TextLitF where
-  mapWithIndex f (TextLit s) = TextLit s
+  mapWithIndex _ (TextLit s) = TextLit s
   mapWithIndex f (TextInterp s a0 a1) = TextInterp s (f zero a0) (mapWithIndex (\i -> f (one + i)) a1)
 
 instance foldableTextLitF :: Foldable TextLitF where
-  foldMap f (TextLit _) = mempty
+  foldMap _ (TextLit _) = mempty
   foldMap f (TextInterp _ a0 a1) = f a0 <> foldMap f a1
 
-  foldl f b (TextLit _) = b
+  foldl _ b (TextLit _) = b
   foldl f b (TextInterp _ a0 a1) = (foldl f (f b a0) a1)
 
-  foldr f b (TextLit _) = b
+  foldr _ b (TextLit _) = b
   foldr f b (TextInterp _ a0 a1) = (f a0 (foldr f b a1))
 
 instance foldableWithIndexTextLitF :: FoldableWithIndex (Natural) TextLitF where
-  foldMapWithIndex f (TextLit _) = mempty
+  foldMapWithIndex _ (TextLit _) = mempty
   foldMapWithIndex f (TextInterp _ a0 a1) = f zero a0 <> foldMapWithIndex (\i -> f (one + i)) a1
 
-  foldlWithIndex f b (TextLit _) = b
+  foldlWithIndex _ b (TextLit _) = b
   foldlWithIndex f b (TextInterp _ a0 a1) = (foldlWithIndex (\i -> f (one + i)) (f zero b a0) a1)
 
-  foldrWithIndex f b (TextLit _) = b
+  foldrWithIndex _ b (TextLit _) = b
   foldrWithIndex f b (TextInterp _ a0 a1) = (f zero a0 (foldrWithIndex (\i -> f (one + i)) b a1))
 
 instance traversableTextLitF :: Traversable TextLitF where
-  traverse f (TextLit s) = pure (TextLit s)
+  traverse _ (TextLit s) = pure (TextLit s)
   traverse f (TextInterp s a0 a1) = TextInterp s <$> f a0 <*> traverse f a1
 
   sequence (TextLit s) = pure (TextLit s)
   sequence (TextInterp s a0 a1) = TextInterp s <$> a0 <*> sequence a1
 
 instance traversableWithIndexTextLitF :: TraversableWithIndex (Natural) TextLitF where
-  traverseWithIndex f (TextLit s) = pure (TextLit s)
+  traverseWithIndex _ (TextLit s) = pure (TextLit s)
   traverseWithIndex f (TextInterp s a0 a1) = TextInterp s <$> f zero a0 <*> traverseWithIndex (\i -> f (one + i)) a1
 
 instance mergeTextLitF :: Merge TextLitF where
-  mergeWith f (TextLit s_l) (TextLit s_r) = pure TextLit <*> (if s_l == s_r then Just s_l else Nothing)
+  mergeWith _ (TextLit s_l) (TextLit s_r) = pure TextLit <*> (if s_l == s_r then Just s_l else Nothing)
   mergeWith f (TextInterp s_l a0_l a1_l) (TextInterp s_r a0_r a1_r) = pure TextInterp <*> (if s_l == s_r then Just s_l else Nothing) <*> Just (f a0_l a0_r) <*> (mergeWith f a1_l a1_r)
   mergeWith _ _ _ = Nothing
 data TextLitF' a = TextInterp0 String {- a -} (TextLitF a) | TextInterp1 String a (TextLitF' a)

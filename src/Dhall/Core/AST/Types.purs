@@ -32,7 +32,7 @@ import Dhall.Core.Zippers (class Container, class ContainerI, Array', ArrayI, Co
 import Dhall.Core.Zippers.Merge (class Merge)
 import Dhall.Core.Zippers.Recursive (ZRec, Indices)
 import Dhall.Lib.Numbers (Double, Integer, Natural)
-import Dhall.Lib.Numbers as Exports
+import Dhall.Lib.Numbers (Double(..), Integer(..), Natural(..), intToInteger, integerFromString, integerToInt, integerToInt', integerToNumber, naturalFromInt, naturalFromInteger, naturalToInteger) as Exports
 import Matryoshka (class Corecursive, class Recursive, cata, embed, project)
 import Prim.Row as Row
 import Type.Proxy (Proxy)
@@ -419,7 +419,7 @@ type ExprLayerRow m a =
   AllTheThings m
     ( "Embed" :: CONST a
     )
-type ExprLayerRow' m m' a =
+type ExprLayerRow' m m' (a :: Type) =
   AllTheThings' m m'
     ( "Embed" :: VOID
     )
@@ -1017,6 +1017,7 @@ derive newtype instance foldableExpr :: Foldable m => Foldable (Expr m)
 -- imports (especially via URL).
 derive newtype instance traversableExpr :: Traversable m => Traversable (Expr m)
 
+newtype NoStrMap :: Type -> Type
 newtype NoStrMap a = NoStrMap (ConstF.Const Void a)
 derive instance newtypeNoStrMap :: Newtype (NoStrMap a) _
 derive newtype instance functorNoStrMap :: Functor NoStrMap

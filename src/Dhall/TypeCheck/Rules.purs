@@ -3,7 +3,6 @@ module Dhall.TypeCheck.Rules where
 import Prelude
 
 import Control.Alternative (class Alternative, (<|>))
-import Control.Apply (lift2)
 import Control.Comonad (extract)
 import Control.Comonad.Env (EnvT(..))
 import Control.Plus (empty)
@@ -313,13 +312,13 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         Nothing ->
           errorHere (_S::S_ "Unbound variable") v
   , "Lam": \(AST.BindingBody name ty body) -> do
-      kI <- ensureConst ty
+      _kI <- ensureConst ty
         (errorHere (_S::S_ "Invalid input type"))
       ty_body <- typecheckStep body
-      kO <- ensureConst ty_body
+      _kO <- ensureConst ty_body
         (errorHere (_S::S_ "Invalid output type"))
       pure $ mkShared(_S::S_"Pi") (AST.BindingBody name (shared ty) (shared ty_body))
-  , "Pi": \(AST.BindingBody name ty ty_body) -> do
+  , "Pi": \(AST.BindingBody _name ty ty_body) -> do
       kI <- ensureConst ty
         (errorHere (_S::S_ "Invalid input type"))
       kO <- ensureConst ty_body
@@ -327,7 +326,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       map (newb <<< AST.mkConst) $ rule kI kO
   , "Let": \(AST.LetF name mty value expr) -> do
       ty0 <- typecheckStep value
-      ty <- fromMaybe ty0 <$> for mty \ty' -> do
+      _ty <- fromMaybe ty0 <$> for mty \ty' -> do
         _ <- typecheckStep ty'
         checkEqR ty0 ty'
           (errorHere (_S::S_ "Annotation mismatch"))
@@ -521,7 +520,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
   , "Combine":
       let
         combineTypes here (p :: Pair (OxprE w r m a)) = do
-          AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
+          AST.Pair { const: _constL, kts: ktsL } { const: _constR, kts: ktsR } <-
             forWithIndex p \side ty -> do
               kts <- ensure' (_S::S_ "Record") ty
                 (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
@@ -556,12 +555,12 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           pure { const: max constL constR, rec: mkShared(_S::S_"Record") kts }
       in map (newb <<< AST.mkConst <<< _.const) <<< combineTypes Nil
   , "Prefer": \p -> do
-      AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
+      AST.Pair { const: _constL, kts: ktsL } { const: _constR, kts: ktsR } <-
         forWithIndex p \side kvs -> do
           ty <- typecheckStep kvs
           kts <- ensure' (_S::S_ "Record") ty
             (errorHere (_S::S_ "Must combine a record") <<< const (Tuple Nil side))
-          k <- typecheckStep ty
+          _k <- typecheckStep ty
           const <- unwrap <$> ensure (_S::S_ "Const") ty
             (errorHere (_S::S_ "Must combine a record") <<< const (Tuple Nil side))
           pure { kts, const }
@@ -572,7 +571,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           Both a _ -> a
       pure $ mkShared(_S::S_"Record") $ map shared $ Dhall.Map.unionWith (pure preference) ktsR ktsL
   , "RecordCompletion": \(AST.Pair l r) -> do
-      AST.Pair lT rT <- traverse typecheckStep (AST.Pair l r)
+      AST.Pair _lT _rT <- traverse typecheckStep (AST.Pair l r)
       fields <- ensure' (_S::S_ "RecordLit") l
         (errorHere (_S::S_ "Cannot access"))
       AST.Pair df dest <- AST.Pair
@@ -582,12 +581,12 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         (errorHere (_S::S_ "Annotation mismatch"))
       V.confirmW (shared dest) do
         let p = AST.Pair df r
-        AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
+        AST.Pair { const: _constL, kts: ktsL } { const: _constR, kts: ktsR } <-
           forWithIndex p \side kvs -> do
             ty <- typecheckStep kvs
             kts <- ensure' (_S::S_ "Record") ty
               (errorHere (_S::S_ "Must combine a record") <<< const (Tuple Nil side))
-            k <- typecheckStep ty
+            _k <- typecheckStep ty
             const <- unwrap <$> ensure (_S::S_ "Const") ty
               (errorHere (_S::S_ "Must combine a record") <<< const (Tuple Nil side))
             pure { kts, const }
@@ -727,7 +726,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
             Nothing -> errorHere (_S::S_ "Missing field") $ field
         casing = (\_ -> error unit)
           # VariantF.on (_S::S_ "Record") handleRecord
-          # VariantF.on (_S::S_ "Const") \(Const.Const c) ->
+          # VariantF.on (_S::S_ "Const") \(Const.Const _) ->
               expr # normalizeStep # unlayerO #
                 VariantF.on (_S::S_ "Union") (unwrap >>> handleType) (\_ -> error unit)
       tyR # normalizeStep # unlayerO # casing

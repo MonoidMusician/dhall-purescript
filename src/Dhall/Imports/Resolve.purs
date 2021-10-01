@@ -170,7 +170,7 @@ local :: forall w r. (R -> R) -> M w r ~> M w r
 local f (M (ReaderT rf)) = M $ ReaderT \(Tuple r s) -> rf (Tuple (f r) s)
 
 state :: forall w r a. (S -> Tuple a S) -> M w r a
-state f = M $ ReaderT \(Tuple r rs) -> Compose do
+state f = M $ ReaderT \(Tuple _ rs) -> Compose do
   s0 <- liftEffect (Ref.read rs)
   let Tuple a s1 = f s0
   liftEffect $ Ref.write s1 rs

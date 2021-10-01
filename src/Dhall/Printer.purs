@@ -538,7 +538,7 @@ structure (BushF v cs) = (#) v $ Variant.case_
       Proxy s2 -> Proxy s3 ->
       Array Tok -> Unit -> TokStruct
     handleContainer s2 s3 empt _ = buildGroup (Variant.inj s2) (Variant.inj s3 unit) empt $
-      cs # Array.mapMaybe \{ label, value } -> value
+      cs # Array.mapMaybe \{ value } -> value
     handleLabelled ::
       forall s2 s3 s4 r2 r3 r4.
         IsSymbol s2 => Row.Cons s2 Side r2 (Tokens ()) =>

@@ -39,13 +39,13 @@ type GenericExprAlgebraM m ops i node =
 
 -- This is the type of a transformation that handles a couple cases of a Variant
 -- input.
-type GenericExprAlgebraVT (ops :: # (Type -> Type) -> Type -> Type -> # Type -> # Type) affected (i :: Type -> # Type -> # Type) =
-  forall (node :: Type) (v :: # Type) (v' :: # Type) (r :: # (Type -> Type)) ops'.
+type GenericExprAlgebraVT (ops :: Row (Type -> Type) -> Type -> Type -> Row Type -> Row Type) affected (i :: Type -> Row Type -> Row Type) =
+  forall (node :: Type) (v :: Row Type) (v' :: Row Type) (r :: Row (Type -> Type)) ops'.
   (Variant v -> Record (ops (affected r) (Variant (i node v')) node ops') -> node -> Identity node) ->
   (Variant (i node v) -> Record (ops (affected r) (Variant (i node v')) node ops') -> node -> Identity node)
 
-type GenericExprAlgebraVTM m (ops :: # (Type -> Type) -> Type -> Type -> # Type -> # Type) affected (i :: Type -> # Type -> # Type) =
-  forall (node :: Type) (v :: # Type) (v' :: # Type) (r :: # (Type -> Type)) ops'. Traversable (VariantF r) =>
+type GenericExprAlgebraVTM m (ops :: Row (Type -> Type) -> Type -> Type -> Row Type -> Row Type) affected (i :: Type -> Row Type -> Row Type) =
+  forall (node :: Type) (v :: Row Type) (v' :: Row Type) (r :: Row (Type -> Type)) ops'. Traversable (VariantF r) =>
   (Variant v -> Record (ops (affected r) (Variant (i node v')) node ops') -> node -> m node) ->
   (Variant (i node v) -> Record (ops (affected r) (Variant (i node v')) node ops') -> node -> m node)
 

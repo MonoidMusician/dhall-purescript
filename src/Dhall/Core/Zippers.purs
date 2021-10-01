@@ -100,6 +100,7 @@ _ix_zipperE :: forall m s a. Prism' (Tuple (IExpr m (s) (a)) (Expr m s a)) (ZExp
 
 -}
 
+class ContainerI :: Type -> (Type -> Type) -> Constraint
 class ContainerI i f' | f' -> i where
   ixF :: forall x. f' x -> i
 class (Eq1 f, Eq1 f', Ord i, Merge f, Merge f', TraversableWithIndex i f, Traversable f', ContainerI i f', Functor f', Functor f) <= Container i f f' | f -> i f', f' -> i where
@@ -112,6 +113,7 @@ mapWithIndexV :: forall rl is fs a b.
   (Variant is -> a -> b) -> VariantF fs a -> VariantF fs b
 mapWithIndexV = mapWithIndexVRL (Proxy :: Proxy rl)
 
+class FunctorWithIndexVRL :: RL.RowList (Type -> Type) -> Row Type -> Row (Type -> Type) -> Constraint
 class FunctorWithIndexVRL rl is fs | rl -> is fs where
   mapWithIndexVRL :: forall a b. Proxy rl ->
     (Variant is -> a -> b) -> VariantF fs a -> VariantF fs b
@@ -139,6 +141,7 @@ ixFV :: forall rl is f's x.
   VariantF f's x -> Variant is
 ixFV = ixFVRL (Proxy :: Proxy rl)
 
+class ContainerIVRL :: RL.RowList (Type -> Type) -> Row Type -> Row (Type -> Type) -> Constraint
 class ContainerIVRL rl is f's | rl -> is f's where
   ixFVRL :: forall x. Proxy rl -> VariantF f's x -> Variant is
 
@@ -169,7 +172,8 @@ downZFV :: forall rl is fs f's x.
   VariantF fs x -> VariantF fs (ZF (VariantF f's) x)
 downZFV = downZFVRL (Proxy :: Proxy rl)
 
-class ContainerVRL rl (is :: # Type) fs f's | rl -> is fs f's where
+class ContainerVRL :: RL.RowList (Type -> Type) -> Row Type -> Row (Type -> Type) -> Row (Type -> Type) -> Constraint
+class ContainerVRL rl (is :: Row Type) fs f's | rl -> is fs f's where
   upZFVRL :: forall x. Proxy rl -> ZF (VariantF f's) x -> VariantF fs x
   downZFVRL :: forall x. Proxy rl -> VariantF fs x -> VariantF fs (ZF (VariantF f's) x)
 
@@ -335,7 +339,7 @@ instance containerIIdentity :: ContainerI Unit Identity where
 
 type Const' :: Type -> Type -> Type
 type Const' c = Const Void
-type ConstI c = Void
+type ConstI (c :: Type) = Void
 
 instance containerConst :: Eq c => Container Void (Const c) (Const Void) where
   upZF (_ :<-: z) = case extract z of Const void -> absurd void
@@ -350,6 +354,7 @@ instance containerIdentity :: Container Unit Identity (Const Unit) where
     Const (_ :: Unit) -> Identity a
   downZF (Identity a) = Identity (a :<-: pure (Const unit))
 
+type Coproduct' :: (Type -> Type) -> (Type -> Type) -> Type -> Type
 type Coproduct' = Coproduct
 type CoproductI = Either
 
@@ -367,6 +372,7 @@ instance containerCoproduct :: (Eq1 f, Eq1 g, Merge f, Merge g, Functor f', Func
       Coproduct (Right zf) -> Coproduct.right (upZF (a :<-: pure zf))
 
 -- Product rule: (f * g)' = (f' * g) + (g' * f)
+newtype Product' :: (Type -> Type) -> (Type -> Type) -> (Type -> Type) -> (Type -> Type) -> Type -> Type
 newtype Product' f f' g g' a = Product' (Coproduct (Product f' g) (Product f g') a)
 derive instance newtypeProduct' :: Newtype (Product' f f' g g' a) _
 derive newtype instance eqProduct' :: (Eq1 f, Eq1 f', Eq1 g, Eq1 g', Eq a) => Eq (Product' f f' g g' a)
@@ -425,6 +431,7 @@ instance containerProduct :: (Eq1 f, Eq1 g, Functor f', Merge f, Merge g, Functo
         Product.product f (upZF (a :<-: pure cg))
 
 -- Chain rule: (f ∘ g)' = (f' ∘ g) * g'
+newtype Compose' :: (Type -> Type) -> (Type -> Type) -> (Type -> Type) -> Type -> Type
 newtype Compose' f' g g' a = Compose' (Product (Compose f' g) g' a)
 derive instance newtypeCompose' :: Newtype (Compose' f' g g' a) _
 derive newtype instance eqCompose' :: (Eq1 f', Eq1 g, Eq1 g', Eq a) => Eq (Compose' f' g g' a)
@@ -496,7 +503,7 @@ instance containerEither :: (Eq c) => Container Unit (Either c) (Const Unit) whe
 
 type Tuple' :: Type -> Type -> Type
 type Tuple' c = Const c
-type TupleI c = Unit
+type TupleI (c :: Type) = Unit
 
 instance containerTuple :: (Eq c) => Container Unit (Tuple c) (Const c) where
   upZF (a :<-: z) = case extract z of
@@ -581,7 +588,7 @@ derive newtype instance mergeMap' :: Ord k => Merge (Map' k)
 instance containerMap' :: Ord k => Container (Either Void k) (Map' k) (Product' (Const k) (Const Void) (Map k) (Map' k)) where
   upZF = Map' <<< upZF
   downZF = over Map' downZF
-type MapI k = k
+type MapI (k :: Type) = k
 
 instance containerIMap :: ContainerI (k) (Map' k) where
   ixF (Map' (Product (Tuple (Const i) _))) = i
@@ -612,7 +619,7 @@ instance containerInsOrdMap' :: Ord k => Container
   ) where
   upZF = InsOrdMap' <<< upZF
   downZF = over InsOrdMap' downZF
-type InsOrdMapI k = k
+type InsOrdMapI (k :: Type) = k
 
 instance containerIIOSM :: Ord k => ContainerI k (InsOrdMap' k) where
   ixF (InsOrdMap' (Product (Tuple (Const k) _))) = k

@@ -25,7 +25,6 @@ import Dhall.Core.AST (BindingBody(..), CONST, Expr, LetF(..), Pair(..), S_, Var
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Transformations (GenericExprAlgebraVT, GenericExprAlgebraVTM, NodeOps, NodeOpsM, elim1, elim1M, runAlgebraExpr, runOverCases, runOverCasesM)
 import Matryoshka (Algebra, cata)
-import Type.RowList as RL
 
 -- | `shift` is used by both normalization and type-checking to avoid variable
 -- | capture by shifting variable indices
@@ -214,7 +213,7 @@ freeInAlg layer v = layer # trackIntro ((#) <<< trackVar v <<< trackIntroVar) >>
 type ShiftAlg (node :: Type) v = ( shift :: { delta :: Int, variable :: Var } | v )
 shiftAlgG :: forall m. GenericExprAlgebraVT NodeOps (VariablePlus m) ShiftAlg
 shiftAlgG = elim1 (_S::S_ "shift")
-  \i@{ delta, variable: v@(V x n) } node ->
+  \{ delta, variable: v@(V x n) } node ->
     let recur = node.recurse <<< Variant.inj (_S::S_ "shift") <<< { delta, variable: _ } in
     { "Var": over Const \(V x' n') ->
       let n'' = if x == x' && n <= n' then n' + delta else n'
@@ -228,7 +227,7 @@ shiftAlgG = elim1 (_S::S_ "shift")
 shiftAlgGM :: forall f m. Applicative f =>
   GenericExprAlgebraVTM f (NodeOpsM f) (VariablePlus m) ShiftAlg
 shiftAlgGM = elim1M (_S::S_ "shift")
-  \i@{ delta, variable: v@(V x n) } node ->
+  \{ delta, variable: v@(V x n) } node ->
     let recur = node.recurse <<< Variant.inj (_S::S_ "shift") <<< { delta, variable: _ } in
     { "Var": \(Const (V x' n')) ->
       let n'' = if x == x' && n <= n' then n' + delta else n'
@@ -245,11 +244,11 @@ type SubstAlg node v = ( subst :: { variable :: Var, substitution :: node } | v 
 type ShiftSubstAlg node v = ShiftAlg node (SubstAlg node v)
 shiftSubstAlgG :: forall m. GenericExprAlgebraVT NodeOps (VariablePlus m) ShiftSubstAlg
 shiftSubstAlgG rest = rest # shiftAlgG <<< Variant.on (_S::S_ "subst")
-  \i@{ variable: variable, substitution } node -> Identity <<<
+  \{ variable: variable, substitution } node -> Identity <<<
   let
     isTarget = node.unlayer >>> VariantF.on (_S::S_ "Var")
       (eq (Const variable)) ff
-    substIfTarget c = isTarget >>= if _ then pure substitution else c
+    substIfTargetElse c = isTarget >>= if _ then pure substitution else c
     subst1 v' s' = compose (un Identity) <<< node.recurse <<< Variant.inj (_S::S_ "subst") $ { variable: v', substitution: s' }
     shift1 name = compose (un Identity) <<< node.recurse <<< Variant.inj (_S::S_ "shift") $ { delta: 1, variable: V name 0 }
     -- If a variable is being introduced, shift it _in_ in the substitution
@@ -259,19 +258,17 @@ shiftSubstAlgG rest = rest # shiftAlgG <<< Variant.on (_S::S_ "subst")
     -- And track if the variable being searched for should be changed as well
     next = subst1 <$> trackVar variable <*> addShift1 substitution
   in
-    isTarget >>= if _
-      then pure substitution
-      else runOverCases node.overlayer (next Nothing) $
+    substIfTargetElse $ runOverCases node.overlayer (next Nothing) $
         trackIntroCases (next <<< trackIntroVar)
 
 shiftSubstAlgGM :: forall f m. Applicative f => Bind f =>
   GenericExprAlgebraVTM f (NodeOpsM f) (VariablePlus m) ShiftSubstAlg
 shiftSubstAlgGM rest = rest # shiftAlgGM <<< Variant.on (_S::S_ "subst")
-  \i@{ variable: variable, substitution } node ->
+  \{ variable: variable, substitution } node ->
   let
     isTarget = node.unlayer >>> VariantF.on (_S::S_ "Var")
       (eq (Const variable)) ff
-    substIfTarget c = isTarget >>= if _ then pure substitution else c
+    substIfTargetElse c = isTarget >>= if _ then pure (pure substitution) else c
     subst1 v' s' = node.recurse <<< Variant.inj (_S::S_ "subst") $ { variable: v', substitution: s' }
     shift1 name = node.recurse <<< Variant.inj (_S::S_ "shift") $ { delta: 1, variable: V name 0 }
     -- If a variable is being introduced, shift it _in_ in the substitution
@@ -283,9 +280,7 @@ shiftSubstAlgGM rest = rest # shiftAlgGM <<< Variant.on (_S::S_ "subst")
       (flip <<< subst1 <<< trackVar variable)
       (bind            <<< addShift1 substitution)
   in
-    isTarget >>= if _
-      then pure (pure substitution)
-      else runOverCasesM node.overlayer (next Nothing) $
+    substIfTargetElse $ runOverCasesM node.overlayer (next Nothing) $
         trackIntroCasesM (next <<< trackIntroVar)
 
 -- The Generic Algebra Command for renaming (which consists of shifting and

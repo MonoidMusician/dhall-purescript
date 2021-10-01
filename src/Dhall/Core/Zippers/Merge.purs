@@ -134,6 +134,7 @@ mergeWithVF :: forall rl fs a b c.
   Maybe (VariantF fs c)
 mergeWithVF = mergeWithVFRL (Proxy :: Proxy rl)
 
+class MergeVFRL :: RL.RowList (Type -> Type) -> Row (Type -> Type) -> Constraint
 class MergeVFRL rl fs | rl -> fs where
   mergeWithVFRL :: forall a b c. Proxy rl ->
     (a -> b -> c) ->

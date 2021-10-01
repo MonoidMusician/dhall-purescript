@@ -77,7 +77,7 @@ instance extendTimeline :: Extend Timeline where
       (gather (a : p) n <#> \(Timeline p' a' n') -> f (Timeline p' a' n'))
     where
       gather :: forall a. List a -> List a -> List (Timeline a)
-      gather passed Nil = Nil
+      gather _ Nil = Nil
       gather passed (a' : a's) =
           Timeline passed a' a's : gather (a' : passed) a's
 instance comonadTimeline :: Comonad Timeline where

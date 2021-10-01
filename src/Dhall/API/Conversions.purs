@@ -29,24 +29,24 @@ import Dhall.Normalize (GNormalizerF(..), Normalizer)
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.Normalize.Apps (apps, noapplit, (~))
 import Prim.Row as Row
-import Prim.RowList (Nil, Cons, class RowToList)
+import Prim.RowList (Nil, Cons, RowList, class RowToList)
 import Record as Record
 import Type.Proxy (Proxy(..))
 
 type StandardExpr = Expr Dhall.Map.InsOrdStrMap Void
 
-newtype Type a = Type
+newtype OutputType a = OutputType
   { extract  :: StandardExpr -> Maybe a
   -- ^ Extracts Haskell value from the Dhall expression
   , expected :: StandardExpr
   -- ^ Dhall type of the Haskell value
   }
-derive instance functorType :: Functor Type
-derive instance newtypeType :: Newtype (Type a) _
+derive instance functorType :: Functor OutputType
+derive instance newtypeType :: Newtype (OutputType a) _
 
-type TypeT f = forall a. Type a -> Type (f a)
+type OutputTypeT f = forall a. OutputType a -> OutputType (f a)
 
-auto :: forall a. Interpret a => Type a
+auto :: forall a. Interpret a => OutputType a
 auto = autoWith defaultInterpretOptions
 
 newtype InputType a = InputType
@@ -82,14 +82,14 @@ defaultInterpretOptions =
   }
 
 class Interpret a where
-  autoWith :: InterpretOptions -> Type a
+  autoWith :: InterpretOptions -> OutputType a
 
 class Inject a where
   injectWith :: InterpretOptions -> InputType a
 
 instance interpretBoolean :: Interpret Boolean where autoWith _ = boolean
-boolean :: Type Boolean
-boolean = Type
+boolean :: OutputType Boolean
+boolean = OutputType
   { expected: AST.mkBool
   , extract: Lens.preview (AST._E AST._BoolLit <<< _Newtype)
   }
@@ -100,8 +100,8 @@ instance injectBoolean :: Inject Boolean where
     }
 
 instance interpretNatural :: Interpret Natural where autoWith _ = natural
-natural :: Type Natural
-natural = Type
+natural :: OutputType Natural
+natural = OutputType
   { expected: AST.mkNatural
   , extract: Lens.preview (AST._E AST._NaturalLit <<< _Newtype)
   }
@@ -112,8 +112,8 @@ instance injectNatural :: Inject Natural where
     }
 
 instance interpretInt :: Interpret Int where autoWith _ = int
-int :: Type Int
-int = Type
+int :: OutputType Int
+int = OutputType
   { expected: AST.mkInteger
   , extract: Lens.preview (AST._E AST._IntegerLit <<< _Newtype) >>> map Num.integerToInt
   }
@@ -124,8 +124,8 @@ instance injectInt :: Inject Int where
     }
 
 instance interpretInteger :: Interpret Integer where autoWith _ = integer
-integer :: Type Integer
-integer = Type
+integer :: OutputType Integer
+integer = OutputType
   { expected: AST.mkInteger
   , extract: Lens.preview (AST._E AST._IntegerLit <<< _Newtype)
   }
@@ -136,8 +136,8 @@ instance injectInteger :: Inject Integer where
     }
 
 instance interpretNumber :: Interpret Number where autoWith _ = number
-number :: Type Number
-number = Type
+number :: OutputType Number
+number = OutputType
   { expected: AST.mkDouble
   , extract: Lens.preview (AST._E AST._DoubleLit <<< _Newtype <<< _Newtype)
   }
@@ -148,8 +148,8 @@ instance injectNumber :: Inject Number where
     }
 
 instance interpretString :: Interpret String where autoWith _ = string
-string :: Type String
-string = Type
+string :: OutputType String
+string = OutputType
   { expected: AST.mkText
   , extract: Lens.preview (AST._E (AST._TextLit_single <<< Lens.iso ConstF.Const unwrap) <<< _Newtype)
   }
@@ -161,8 +161,8 @@ instance injectString :: Inject String where
 
 instance interpretMaybe :: Interpret a => Interpret (Maybe a) where
   autoWith = maybe <<< autoWith
-maybe :: TypeT Maybe
-maybe (Type a) = Type
+maybe :: OutputTypeT Maybe
+maybe (OutputType a) = OutputType
   { expected: AST.mkApp AST.mkOptional a.expected
   , extract: \e -> extractSome e <|> extractNone e
   } where
@@ -180,8 +180,8 @@ instance injectMaybe :: Inject a => Inject (Maybe a) where
 
 instance interpretArray :: Interpret a => Interpret (Array a) where
   autoWith = array <<< autoWith
-array :: TypeT Array
-array (Type a) = Type
+array :: OutputTypeT Array
+array (OutputType a) = OutputType
   { expected: AST.mkApp AST.mkList a.expected
   , extract: \e -> Lens.preview (AST._E (AST._ExprFPrism (_S::S_ "ListLit"))) e >>=
     \(Product (Tuple _ es)) -> traverse a.extract es
@@ -192,15 +192,15 @@ instance injectArray :: Inject a => Inject (Array a) where
     , embed: AST.mkListLit (Just a.declared) <<< map a.embed
     } where (InputType a :: InputType a) = injectWith opts
 
-unfoldable :: forall f. Unfoldable f => TypeT f
+unfoldable :: forall f. Unfoldable f => OutputTypeT f
 unfoldable = array >>> map Array.toUnfoldable
 
 instance interpretVariant ::
   (RowToList r rl, InterpretRL rl r) => Interpret (Variant r) where
     autoWith = variant
 variant :: forall rl r. RowToList r rl => InterpretRL rl r =>
-  InterpretOptions -> Type (Variant r)
-variant opts = Type
+  InterpretOptions -> OutputType (Variant r)
+variant opts = OutputType
   { expected: AST.mkUnion $ pure <$> expectedV rl opts
   , extract: \e ->
     Lens.preview (AST._E (AST._ExprFPrism (_S::S_ "App"))) e >>=
@@ -214,14 +214,15 @@ instance interpretRecord ::
   (RowToList r rl, InterpretRL rl r) => Interpret (Record r) where
     autoWith = record
 record :: forall rl r. RowToList r rl => InterpretRL rl r =>
-  InterpretOptions -> Type (Record r)
-record opts = Type
+  InterpretOptions -> OutputType (Record r)
+record opts = OutputType
   { expected: AST.mkRecord $ expectedR rl opts
   , extract: \e ->
     Lens.preview (AST._E (AST._ExprFPrism (_S::S_ "RecordLit"))) e >>=
       extractR rl opts
   } where rl = Proxy :: Proxy rl
 
+class InterpretRL :: RowList Type -> Row Type -> Constraint
 class InterpretRL rl r | rl -> r where
   expectedR :: Proxy rl -> InterpretOptions ->
     Dhall.Map.InsOrdStrMap StandardExpr
@@ -252,26 +253,26 @@ instance interpretCons ::
     Dhall.Map.insert (opts.fieldModifier field) t.expected
       (expectedR (Proxy :: Proxy rl') opts)
     where
-      (Type t :: Type t) = autoWith opts
+      (OutputType t :: OutputType t) = autoWith opts
       field = reflectSymbol (_S::S_ s)
   extractR _ opts vs = Record.insert (_S::S_ s)
     <$> (Dhall.Map.get (opts.fieldModifier field) vs >>= t.extract)
     <*> extractR (Proxy :: Proxy rl') opts vs
     where
-      (Type t :: Type t) = autoWith opts
+      (OutputType t :: OutputType t) = autoWith opts
       field = reflectSymbol (_S::S_ s)
   expectedV _ opts =
     Dhall.Map.insert (opts.constructorModifier field) t.expected
       (expectedV (Proxy :: Proxy rl') opts)
     where
-      (Type t :: Type t) = autoWith opts
+      (OutputType t :: OutputType t) = autoWith opts
       field = reflectSymbol (_S::S_ s)
   extractV _ opts key v =
     if key == opts.constructorModifier field
       then t.extract v <#> Variant.inj (_S::S_ s)
       else extractV (Proxy :: Proxy rl') opts key v <#> Variant.expand
     where
-      (Type t :: Type t) = autoWith opts
+      (OutputType t :: OutputType t) = autoWith opts
       field = reflectSymbol (_S::S_ s)
 
 instance injectVariant ::
@@ -279,7 +280,7 @@ instance injectVariant ::
     injectWith opts = InputType
       { declared: AST.mkUnion $ pure <$> declaredV rl opts
       , embed: embedV rl opts >>>
-          \(Product (Tuple (Tuple key val) tys)) ->
+          \(Product (Tuple (Tuple key val) _tys)) ->
             AST.mkApp (AST.mkField (AST.mkUnion $ pure <$> declaredV rl opts) key) val
       } where rl = Proxy :: Proxy rl
 
@@ -290,6 +291,7 @@ instance injectRecord ::
       , embed: AST.mkRecordLit <<< embedR rl opts
       } where rl = Proxy :: Proxy rl
 
+class InjectRL :: RowList Type -> Row Type -> Constraint
 class InjectRL rl r | rl -> r where
   declaredR :: Proxy rl -> InterpretOptions ->
     Dhall.Map.InsOrdStrMap StandardExpr
@@ -344,10 +346,10 @@ instance injectCons ::
       field = reflectSymbol (_S::S_ s)
 
 interpretFnWith :: forall a b. Partial =>
-  InputType a -> Type b ->
+  InputType a -> OutputType b ->
   Normalizer Dhall.Map.InsOrdStrMap Void ->
-  Type (a -> b)
-interpretFnWith (InputType a :: InputType a) (Type b :: Type b) ctx = Type
+  OutputType (a -> b)
+interpretFnWith (InputType a :: InputType a) (OutputType b :: OutputType b) ctx = OutputType
   { expected: AST.mkArrow a.declared b.expected
   , extract: \e -> Just \i -> fromJust (b.extract (Dhall.Normalize.normalizeWith ctx (AST.mkApp e (a.embed i))))
   }
@@ -360,8 +362,8 @@ type InjectFn instances fnty =
 
 injectFnArg :: forall input instances fnty.
   InjectFn instances fnty ->
-  InjectFn (Tuple (Type input) instances) (input -> fnty)
-injectFnArg mkRest (Tuple (Type input) instances) =
+  InjectFn (Tuple (OutputType input) instances) (input -> fnty)
+injectFnArg mkRest (Tuple (OutputType input) instances) =
   let rest = mkRest instances in
   { ty: AST.mkArrow input.expected rest.ty
   , normalize: \name fn -> GNormalizer \_ -> case _ of
@@ -371,8 +373,8 @@ injectFnArg mkRest (Tuple (Type input) instances) =
       _ -> Nothing
   }
 
-injectFn :: forall i o. InjectFn (Tuple (Type i) (InputType o)) (i -> o)
-injectFn (Tuple (Type i :: Type i) (InputType o :: InputType o)) =
+injectFn :: forall i o. InjectFn (Tuple (OutputType i) (InputType o)) (i -> o)
+injectFn (Tuple (OutputType i :: OutputType i) (InputType o :: InputType o)) =
   { ty: AST.mkArrow i.expected o.declared
   , normalize: \name fn -> GNormalizer \_ -> case _ of
     namedfn ~ arg

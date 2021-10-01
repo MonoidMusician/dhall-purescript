@@ -19,7 +19,6 @@ import Data.Lazy (defer)
 import Data.Maybe (Maybe(..))
 import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (over, un, unwrap, wrap)
-import Data.Newtype as N
 import Data.These (theseLeft)
 import Data.Traversable (traverse)
 import Data.TraversableWithIndex (class TraversableWithIndex)
@@ -222,7 +221,7 @@ substcontextualizeWithin10 :: forall m a node node'.
 substcontextualizeWithin10 shiftIn_node' go ctx = trackIntro case _ of
   DoNothing -> go ctx
   Clear -> go Dhall.Context.empty
-  Intro (Tuple name introed) -> go $
+  Intro (Tuple name _introed) -> go $
     Dhall.Context.insert name empty $
       map (shiftIn_node' name) <$> ctx
 
@@ -534,7 +533,7 @@ overlayerOSM f = project >>> unwrap >>> case _ of
       EnvT (Tuple e (ERVF x)) ->
         embedShared <<< EnvT <<< Tuple e <<< ERVF <$>
           f (shared <$> x)
-    Right ft -> embedShared <$> (travEnvT <<< (\f -> map ERVF <<< f <<< unwrap)) f ft
+    Right ft -> embedShared <$> travEnvT (map ERVF <<< f <<< unwrap) ft
   where
     travEnvT f' (EnvT (Tuple e x)) = EnvT <<< Tuple e <$> f' x
 

@@ -327,16 +327,16 @@ prioritize_annot :: ParseExpr -> ParseExpr -> Maybe POrdering
 prioritize_annot = Prioritize.fromRelation \better worse -> Array.foldMap (Disj <<< isJust)
   [ do
       AST.MergeF x y ma <- reveal AST._Merge better
-      a <- ma
-      { value: xy', ty: a' } <- reveal AST._Annot worse
+      _a <- ma
+      { value: xy', ty: _a' } <- reveal AST._Annot worse
       AST.MergeF x' y' mb <- reveal AST._Merge xy'
       guard $ isNothing mb
       guard $ x <+-= x'
       guard $ y <+-= y'
   , do
       Product (Tuple (Identity x) ma) <- reveal AST._ToMap better
-      a <- ma
-      { value: xy', ty: a' } <- reveal AST._Annot worse
+      _a <- ma
+      { value: xy', ty: _a' } <- reveal AST._Annot worse
       Product (Tuple (Identity x') mb) <- reveal AST._ToMap xy'
       guard $ isNothing mb
       guard $ x <+-= x'
