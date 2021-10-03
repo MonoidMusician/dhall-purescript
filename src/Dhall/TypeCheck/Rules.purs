@@ -426,6 +426,12 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         AST.mkPi "replacement" AST.mkText $
           AST.mkPi "haystack" AST.mkText $
             AST.mkText
+  , "Date": identity aType
+  , "Time": identity aType
+  , "TimeZone": identity aType
+  , "DateLit": always $ AST.mkDate
+  , "TimeLit": always $ AST.mkTime
+  , "TimeZoneLit": always $ AST.mkTimeZone
   , "List": identity aFunctor
   , "ListLit": \(Product (Tuple mty lit)) -> V.mconfirmW (shared <$> mty) do
       -- get the assumed type of the list

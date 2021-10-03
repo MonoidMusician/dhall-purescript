@@ -16,7 +16,7 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
 import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..), swap)
-import Dhall.Core.AST.Types (Const(..), Expr, ExprLayerRow, Var, embedW, projectW, Double, Natural, Integer)
+import Dhall.Core.AST.Types (Const(..), Date, Double, Expr, ExprLayerRow, Integer, Natural, Time, TimeZone, Var, embedW, projectW)
 import Dhall.Core.AST.Types.Basics (_S, S_, BindingBody(..), CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
@@ -427,6 +427,42 @@ mkTextReplace = mkExpr (_S::S_ "TextReplace") unit
 
 _TextReplace :: forall r. ExprPrism ( "TextReplace" :: UNIT | r ) Unit
 _TextReplace = _ExprPrism (_S::S_ "TextReplace")
+
+mkDate :: forall m a. Expr m a
+mkDate = mkExpr (_S::S_ "Date") unit
+
+_Date :: forall r. ExprPrism ( "Date" :: UNIT | r ) Unit
+_Date = _ExprPrism (_S::S_ "Date")
+
+mkDateLit :: forall m a. Date -> Expr m a
+mkDateLit = mkExpr (_S::S_ "DateLit")
+
+_DateLit :: forall r. ExprPrism ( "DateLit" :: CONST Date | r ) Date
+_DateLit = _ExprPrism (_S::S_ "DateLit")
+
+mkTime :: forall m a. Expr m a
+mkTime = mkExpr (_S::S_ "Time") unit
+
+_Time :: forall r. ExprPrism ( "Time" :: UNIT | r ) Unit
+_Time = _ExprPrism (_S::S_ "Time")
+
+mkTimeLit :: forall m a. Time -> Expr m a
+mkTimeLit = mkExpr (_S::S_ "TimeLit")
+
+_TimeLit :: forall r. ExprPrism ( "TimeLit" :: CONST Time | r ) Time
+_TimeLit = _ExprPrism (_S::S_ "TimeLit")
+
+mkTimeZone :: forall m a. Expr m a
+mkTimeZone = mkExpr (_S::S_ "TimeZone") unit
+
+_TimeZone :: forall r. ExprPrism ( "TimeZone" :: UNIT | r ) Unit
+_TimeZone = _ExprPrism (_S::S_ "TimeZone")
+
+mkTimeZoneLit :: forall m a. TimeZone -> Expr m a
+mkTimeZoneLit = mkExpr (_S::S_ "TimeZoneLit")
+
+_TimeZoneLit :: forall r. ExprPrism ( "TimeZoneLit" :: CONST TimeZone | r ) TimeZone
+_TimeZoneLit = _ExprPrism (_S::S_ "TimeZoneLit")
 
 mkList :: forall m a. Expr m a
 mkList = mkExpr (_S::S_ "List") unit

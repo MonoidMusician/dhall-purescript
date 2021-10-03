@@ -33,6 +33,8 @@ import Dhall.Core.Zippers.Merge (class Merge)
 import Dhall.Core.Zippers.Recursive (ZRec, Indices)
 import Dhall.Lib.Numbers (Double, Integer, Natural)
 import Dhall.Lib.Numbers (Double(..), Integer(..), Natural(..), intToInteger, integerFromString, integerToInt, integerToInt', integerToNumber, naturalFromInt, naturalFromInteger, naturalToInteger) as Exports
+import Dhall.Lib.DateTime (Date, Time, TimeZone)
+import Dhall.Lib.DateTime as Exports
 import Matryoshka (class Corecursive, class Recursive, cata, embed, project)
 import Prim.Row as Row
 import Type.Proxy (Proxy)
@@ -61,6 +63,9 @@ type Literals (m :: Type -> Type) vs =
   , "NaturalLit" :: CONST Natural
   , "IntegerLit" :: CONST Integer
   , "DoubleLit" :: CONST Double
+  , "DateLit" :: CONST Date
+  , "TimeLit" :: CONST Time
+  , "TimeZoneLit" :: CONST TimeZone
   | vs
   )
 
@@ -69,6 +74,9 @@ type Literals' (m :: Type -> Type) (m' :: Type -> Type) vs =
   , "NaturalLit" :: VOID
   , "IntegerLit" :: VOID
   , "DoubleLit" :: VOID
+  , "DateLit" :: VOID
+  , "TimeLit" :: VOID
+  , "TimeZoneLit" :: VOID
   | vs
   )
 
@@ -77,6 +85,9 @@ type LiteralsI vs =
   , "NaturalLit" :: Void
   , "IntegerLit" :: Void
   , "DoubleLit" :: Void
+  , "DateLit" :: Void
+  , "TimeLit" :: Void
+  , "TimeZoneLit" :: Void
   | vs
   )
 
@@ -117,6 +128,9 @@ type BuiltinTypes (m :: Type -> Type) vs =
   , "Text" :: UNIT
   , "List" :: UNIT
   , "Optional" :: UNIT
+  , "Date" :: UNIT
+  , "Time" :: UNIT
+  , "TimeZone" :: UNIT
   , "Const" :: CONST Const
   | vs
   )
@@ -129,6 +143,9 @@ type BuiltinTypes' (m :: Type -> Type) (m' :: Type -> Type) vs =
   , "Text" :: VOID
   , "List" :: VOID
   , "Optional" :: VOID
+  , "Date" :: VOID
+  , "Time" :: VOID
+  , "TimeZone" :: VOID
   , "Const" :: VOID
   | vs
   )
@@ -141,6 +158,9 @@ type BuiltinTypesI vs =
   , "Text" :: Void
   , "List" :: Void
   , "Optional" :: Void
+  , "Date" :: Void
+  , "Time" :: Void
+  , "TimeZone" :: Void
   , "Const" :: Void
   | vs
   )
@@ -539,6 +559,12 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
         (unwrap >>> \b -> "(mkIntegerLit " <> show b <> ")")
       # VariantF.on (_S::S_ "DoubleLit")
         (unwrap >>> \b -> "(mkDoubleLit " <> show b <> ")")
+      # VariantF.on (_S::S_ "DateLit")
+        (unwrap >>> \b -> "(mkDateLit " <> show b <> ")")
+      # VariantF.on (_S::S_ "TimeLit")
+        (unwrap >>> \b -> "(mkTimeLit " <> show b <> ")")
+      # VariantF.on (_S::S_ "TimeZoneLit")
+        (unwrap >>> \b -> "(mkTimeZoneLit " <> show b <> ")")
       # VariantF.on (_S::S_ "Bool") (simple "mkBool")
       # VariantF.on (_S::S_ "Natural") (simple "mkNatural")
       # VariantF.on (_S::S_ "Integer") (simple "mkInteger")
@@ -546,6 +572,9 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
       # VariantF.on (_S::S_ "Text") (simple "mkText")
       # VariantF.on (_S::S_ "List") (simple "mkList")
       # VariantF.on (_S::S_ "Optional") (simple "mkOptional")
+      # VariantF.on (_S::S_ "Date") (simple "mkDate")
+      # VariantF.on (_S::S_ "Time") (simple "mkTime")
+      # VariantF.on (_S::S_ "TimeZone") (simple "mkTimeZone")
       # VariantF.on (_S::S_ "NaturalFold") (simple "mkNaturalFold")
       # VariantF.on (_S::S_ "NaturalBuild") (simple "mkNaturalBuild")
       # VariantF.on (_S::S_ "NaturalIsZero") (simple "mkNaturalIsZero")
@@ -705,6 +734,8 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (_S::S_ "Combine")
     # vfEqCase (_S::S_ "CombineTypes")
     # vfEqCase (_S::S_ "Const")
+    # vfEqCase (_S::S_ "Date")
+    # vfEqCase (_S::S_ "DateLit")
     # vfEqCase (_S::S_ "Double")
     # vfEqCase (_S::S_ "DoubleLit")
     # vfEqCase (_S::S_ "DoubleShow")
@@ -758,6 +789,10 @@ instance eq1ExprRowVF :: (Eq1 m, Eq a) => Eq1 (ExprRowVF m a) where
     # vfEqCase (_S::S_ "TextLit")
     # vfEqCase (_S::S_ "TextShow")
     # vfEqCase (_S::S_ "TextReplace")
+    # vfEqCase (_S::S_ "Time")
+    # vfEqCase (_S::S_ "TimeLit")
+    # vfEqCase (_S::S_ "TimeZone")
+    # vfEqCase (_S::S_ "TimeZoneLit")
     # vfEqCase (_S::S_ "ToMap")
     # vfEq1Case (_S::S_ "Union")
     # vfEqCase (_S::S_ "UsingHeaders")
@@ -783,6 +818,8 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (_S::S_ "Combine")
     # vfOrdCase (_S::S_ "CombineTypes")
     # vfOrdCase (_S::S_ "Const")
+    # vfOrdCase (_S::S_ "Date")
+    # vfOrdCase (_S::S_ "DateLit")
     # vfOrdCase (_S::S_ "Double")
     # vfOrdCase (_S::S_ "DoubleLit")
     # vfOrdCase (_S::S_ "DoubleShow")
@@ -836,6 +873,10 @@ instance ord1ExprRowVF :: (Ord1 m, Ord a) => Ord1 (ExprRowVF m a) where
     # vfOrdCase (_S::S_ "TextLit")
     # vfOrdCase (_S::S_ "TextShow")
     # vfOrdCase (_S::S_ "TextReplace")
+    # vfOrdCase (_S::S_ "Time")
+    # vfOrdCase (_S::S_ "TimeLit")
+    # vfOrdCase (_S::S_ "TimeZone")
+    # vfOrdCase (_S::S_ "TimeZoneLit")
     # vfOrdCase (_S::S_ "ToMap")
     # vfOrd1Case (_S::S_ "Union")
     # vfOrdCase (_S::S_ "UsingHeaders")
@@ -861,6 +902,8 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (_S::S_ "Combine")
     # vfEqCase (_S::S_ "CombineTypes")
     # vfEqCase (_S::S_ "Const")
+    # vfEqCase (_S::S_ "Date")
+    # vfEqCase (_S::S_ "DateLit")
     # vfEqCase (_S::S_ "Double")
     # vfEqCase (_S::S_ "DoubleLit")
     # vfEqCase (_S::S_ "DoubleShow")
@@ -914,6 +957,10 @@ instance eq1ExprRowVF' :: (Eq1 m, Eq1 m', Eq a) => Eq1 (ExprRowVF' m m' a) where
     # vfEqCase (_S::S_ "TextLit")
     # vfEqCase (_S::S_ "TextShow")
     # vfEqCase (_S::S_ "TextReplace")
+    # vfEqCase (_S::S_ "Time")
+    # vfEqCase (_S::S_ "TimeLit")
+    # vfEqCase (_S::S_ "TimeZone")
+    # vfEqCase (_S::S_ "TimeZoneLit")
     # vfEqCase (_S::S_ "ToMap")
     # vfEq1Case (_S::S_ "Union")
     # vfEqCase (_S::S_ "UsingHeaders")
@@ -939,6 +986,8 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (_S::S_ "Combine")
     # vfOrdCase (_S::S_ "CombineTypes")
     # vfOrdCase (_S::S_ "Const")
+    # vfOrdCase (_S::S_ "Date")
+    # vfOrdCase (_S::S_ "DateLit")
     # vfOrdCase (_S::S_ "Double")
     # vfOrdCase (_S::S_ "DoubleLit")
     # vfOrdCase (_S::S_ "DoubleShow")
@@ -992,6 +1041,10 @@ instance ord1ExprRowVF' :: (Ord1 m, Ord1 m', Ord a) => Ord1 (ExprRowVF' m m' a) 
     # vfOrdCase (_S::S_ "TextLit")
     # vfOrdCase (_S::S_ "TextShow")
     # vfOrdCase (_S::S_ "TextReplace")
+    # vfOrdCase (_S::S_ "Time")
+    # vfOrdCase (_S::S_ "TimeLit")
+    # vfOrdCase (_S::S_ "TimeZone")
+    # vfOrdCase (_S::S_ "TimeZoneLit")
     # vfOrdCase (_S::S_ "ToMap")
     # vfOrd1Case (_S::S_ "Union")
     # vfOrdCase (_S::S_ "UsingHeaders")

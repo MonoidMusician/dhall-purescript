@@ -10,7 +10,9 @@ import Data.Array as Array
 import Data.Array.NonEmpty as NEA
 import Data.BigInt (BigInt)
 import Data.Const (Const(..))
+import Data.Date as Date
 import Data.Either (Either(..))
+import Data.Enum (class BoundedEnum, fromEnum, toEnum)
 import Data.Foldable (any, fold, foldr)
 import Data.Functor.App (App(..))
 import Data.Functor.Product (Product(..))
@@ -21,6 +23,8 @@ import Data.Int as Int
 import Data.Lens as Lens
 import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Monoid (power)
+import Data.Monoid.Endo (Endo(..))
 import Data.Newtype (un, unwrap)
 import Data.Traversable (traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
@@ -29,8 +33,10 @@ import Dhall.Core (Const(..), Double, Natural, Integer, Expr, Import(..), Import
 import Dhall.Core.AST (BindingBody(..), projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Types.Basics (pureTextLitF)
-import Dhall.Imports.Retrieve (fromHeaders, headerType)
 import Dhall.Core.Imports (Directory(..), File(..), FilePrefix(..), ImportMode(..), Scheme(..), URL(..), Headers)
+import Dhall.Imports.Retrieve (fromHeaders, headerType)
+import Dhall.Lib.CBOR as CBOR
+import Dhall.Lib.DateTime (Time(..), TimeZone(..))
 import Dhall.Lib.Numbers as Num
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
@@ -83,6 +89,9 @@ encode = recenc Nil where
       , "Double": pure $ J.fromString "Double"
       , "Text": pure $ J.fromString "Text"
       , "List": pure $ J.fromString "List"
+      , "Date": pure $ J.fromString "Date"
+      , "Time": pure $ J.fromString "Time"
+      , "TimeZone": pure $ J.fromString "TimeZone"
       , "Const": un Const >>> case _ of
           Type -> J.fromString "Type"
           Kind -> J.fromString "Kind"
@@ -154,6 +163,35 @@ encode = recenc Nil where
             rec (TextLit s) = [ J.fromString s ]
             rec (TextInterp s a m') = [ J.fromString s, enc a ] <> rec m'
           in rec m
+      , "DateLit": \(Const v) -> tagged 30
+          [ unsafeCoerce (fromEnum (Date.year v))
+          , unsafeCoerce (fromEnum (Date.month v))
+          , unsafeCoerce (fromEnum (Date.day v))
+          ]
+      , "TimeLit": \(Const (Time h m s ms ns)) -> tagged 31
+          [ unsafeCoerce (fromEnum h)
+          , unsafeCoerce (fromEnum m)
+          , unsafeCoerce $ CBOR.mkDecimal $
+              if ns == bottom
+                then if ms == bottom
+                  then { exponent: 0, mantissa: fromEnum s }
+                  else
+                    { exponent: (-6)
+                    , mantissa: fromEnum s * 1000 + fromEnum ms
+                    }
+                else
+                  { exponent: (-9)
+                  , mantissa:
+                      fromEnum s * 1000000000 +
+                      fromEnum ms * 1000000 +
+                      fromEnum ns
+                  }
+          ]
+      , "TimeZoneLit": \(Const (TimeZone s h m)) -> tagged 32
+          [ unsafeCoerce s
+          , unsafeCoerce (fromEnum h)
+          , unsafeCoerce (fromEnum m)
+          ]
       , "Assert": \(Identity e) -> tagged 19 [ enc e ]
       , "Let": \d0 -> tagged 25 $
           let
@@ -365,6 +403,9 @@ decode = unsafeFromNumber (pure <<< AST.mkDoubleLit) $
       "Natural" -> pure AST.mkNatural
       "Integer" -> pure AST.mkInteger
       "Double" -> pure AST.mkDouble
+      "Date" -> pure AST.mkDate
+      "Time" -> pure AST.mkTime
+      "TimeZone" -> pure AST.mkTimeZone
       "Text" -> pure AST.mkText
       "List" -> pure AST.mkList
       "Type" -> pure AST.mkType
@@ -379,6 +420,20 @@ decode = unsafeFromNumber (pure <<< AST.mkDoubleLit) $
     decodeMaybe j = case J.toNull j of
       Just _ -> pure Nothing
       Nothing -> Just <$> decode j
+
+    decodeEnum :: forall e. BoundedEnum e => Json -> Maybe e
+    decodeEnum = J.toNumber >=> Int.fromNumber >=> toEnum
+
+    decodeSeconds { mantissa } | mantissa < 0 = Nothing
+    decodeSeconds { exponent, mantissa } =
+      let
+        man = mantissa * (1 # unwrap (power (Endo (_ * 10)) (9 + exponent))) / (1 # unwrap (power (Endo (_ * 10)) (negate (9 + exponent))))
+        sec = man / 1000000000
+        mil = man / 1000000 `Int.quot` 1000
+        nan = man `Int.quot` 1000000000
+      in
+        { s: _, ms: _, ns: _ } <$> toEnum sec <*> toEnum mil <*> toEnum nan
+
     decodeTagged :: Int -> Array Json -> Maybe (Expr m Import)
     decodeTagged = case _ of
       0 -> case _ of
@@ -535,6 +590,27 @@ decode = unsafeFromNumber (pure <<< AST.mkDoubleLit) $
           let
             dfs = traverse J.toString =<< NEA.fromArray =<< J.toArray fs
           in AST.mkWith <$> decode e <*> dfs <*> decode v
+        _ -> empty
+      30 -> case _ of
+        [ y, m, d ] -> do
+          year <- decodeEnum y
+          month <- decodeEnum m
+          day <- decodeEnum d
+          AST.mkDateLit <$> Date.exactDate year month day
+        _ -> empty
+      31 -> case _ of
+        [ hh, mm, second ] -> do
+          hour <- decodeEnum hh
+          minute <- decodeEnum mm
+          { s, ms, ns } <- decodeSeconds (CBOR.unDecimal (unsafeCoerce second :: CBOR.Decimal))
+          pure $ AST.mkTimeLit $ Time hour minute s ms ns
+        _ -> empty
+      32 -> case _ of
+        [ sign, hh, mm ] -> do
+          s <- J.toBoolean sign
+          hour <- decodeEnum hh
+          minute <- decodeEnum mm
+          pure $ AST.mkTimeZoneLit $ TimeZone s hour minute
         _ -> empty
       -- TODO: ensure hash
       63 -> case _ of

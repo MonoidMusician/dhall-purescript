@@ -202,6 +202,8 @@ import Dhall.Core.AST.Constructors
   , mkCombine
   , mkCombineTypes
   , mkConst
+  , mkDate
+  , mkDateLit
   , mkDouble
   , mkDoubleLit
   , mkDoubleShow
@@ -261,6 +263,10 @@ import Dhall.Core.AST.Constructors
   , mkTextLit'
   , mkTextReplace
   , mkTextShow
+  , mkTime
+  , mkTimeLit
+  , mkTimeZone
+  , mkTimeZoneLit
   , mkToMap
   , mkType
   , mkUnion

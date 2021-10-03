@@ -183,6 +183,8 @@ import Dhall.Core.AST
   , mkCombine
   , mkCombineTypes
   , mkConst
+  , mkDate
+  , mkDateLit
   , mkDouble
   , mkDoubleLit
   , mkDoubleShow
@@ -241,6 +243,10 @@ import Dhall.Core.AST
   , mkTextLit'
   , mkTextReplace
   , mkTextShow
+  , mkTime
+  , mkTimeLit
+  , mkTimeZone
+  , mkTimeZoneLit
   , mkToMap
   , mkType
   , mkUnion
@@ -382,6 +388,9 @@ reservedIdentifiers = Set.fromFoldable
   , "List/last"
   , "List/indexed"
   , "List/reverse"
+  , "Date"
+  , "Time"
+  , "TimeZone"
   , "Optional"
   , "None"
   ]

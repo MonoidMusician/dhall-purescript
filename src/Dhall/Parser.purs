@@ -5,7 +5,9 @@ import Prelude
 import Control.Monad.Except (runExcept)
 import Control.MonadZero (guard)
 import Data.Array as Array
+import Data.Date as Date
 import Data.Either (Either(..))
+import Data.Enum (toEnum)
 import Data.Foldable (any, oneOfMap)
 import Data.Function (on)
 import Data.Functor.Product (Product(..))
@@ -13,21 +15,25 @@ import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.HeytingAlgebra (ff, tt)
 import Data.Identity (Identity(..))
+import Data.Int as Int
 import Data.Lens (Fold', preview)
 import Data.List (List)
 import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
 import Data.Maybe.First (First)
+import Data.Monoid (power)
 import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (unwrap)
 import Data.Nullable (Nullable)
 import Data.Nullable as Nullable
 import Data.String as String
 import Data.Symbol (class IsSymbol)
+import Data.Time (Millisecond, Second)
 import Data.Tuple (Tuple(..))
 import Dhall.Core (S_, _S)
 import Dhall.Core.AST (Const(..), Expr, ExprLayerRow, TextLitF(..), Var(..), ExprLayer, projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.Imports (Directory, File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), Scheme(..), URL(..))
+import Dhall.Lib.DateTime (Nanosecond, Time(..), TimeZone(..))
 import Dhall.Lib.Numbers as Num
 import Dhall.Map as Dhall.Map
 import Dhall.Parser.Prioritize (POrdering)
@@ -70,6 +76,20 @@ decodeA :: forall r. (Foreign -> r) -> Foreign -> Array r
 decodeA decoder = map decoder
   <<< (unsafeCoerce :: Foreign -> Array Foreign)
 
+decodeSeconds :: Foreign -> Maybe { s :: Second, ms :: Millisecond, ns :: Nanosecond }
+decodeSeconds df =
+  let ds= unsafeCoerce df :: String in
+  case String.split (String.Pattern ".") ds of
+    [a]
+      | Just s <- Int.fromString a >>= toEnum
+      -> Just { s, ms: bottom, ns: bottom }
+    [a,b]
+      | Just s <- Int.fromString a >>= toEnum
+      , Just ms <- Int.fromString (String.take 3 b <> power "0" (3 - String.length b)) >>= toEnum
+      , Just ns <- Int.fromString ("0" <> String.drop 3 b <> power "0" (9 - String.length b)) >>= toEnum
+      -> Just { s, ms, ns }
+    _ -> Nothing
+
 decodeFAST :: FAST Foreign -> ParseExpr
 decodeFAST (FAST r) =
   let
@@ -87,6 +107,9 @@ decodeFAST (FAST r) =
     "Double", _ -> AST.mkDouble
     "Text", _ -> AST.mkText
     "List", _ -> AST.mkList
+    "Date", _ -> AST.mkDate
+    "Time", _ -> AST.mkTime
+    "TimeZone", _ -> AST.mkTimeZone
     "Optional", _ -> AST.mkOptional
     "Natural/fold", _ -> AST.mkNaturalFold
     "Natural/build", _ -> AST.mkNaturalBuild
@@ -140,6 +163,25 @@ decodeFAST (FAST r) =
     "IntegerLit", [a] | Just n <- Num.integerFromString (unsafeCoerce a) -> AST.mkIntegerLit n
     "DoubleLit", [a] -> AST.mkDoubleLit (unsafeCoerce a)
     "TextLit", vs -> AST.mkTextLit (decodeTextLit vs)
+    "DateLit", [yyyy, mm, dd]
+      | Just y <- Int.fromString (unsafeCoerce yyyy) >>= toEnum
+      , Just m <- Int.fromString (unsafeCoerce mm) >>= toEnum
+      , Just d <- Int.fromString (unsafeCoerce dd) >>= toEnum
+      , Just date <- Date.exactDate y m d ->
+        AST.mkDateLit date
+    "TimeLit", [hh, mm, ss]
+      | Just h <- Int.fromString (unsafeCoerce hh) >>= toEnum
+      , Just m <- Int.fromString (unsafeCoerce mm) >>= toEnum
+      , Just { s, ms, ns } <- decodeSeconds ss ->
+        AST.mkTimeLit (Time h m s ms ns)
+    "TimeZoneLit", [sign, hh, mm]
+      | Just s <- case unsafeCoerce sign of
+          "+" -> Just true
+          "-" -> Just false
+          _ -> Nothing
+      , Just h <- Int.fromString (unsafeCoerce hh) >>= toEnum
+      , Just m <- Int.fromString (unsafeCoerce mm) >>= toEnum ->
+        AST.mkTimeZoneLit (TimeZone s h m)
     "Some", [a] -> AST.mkSome (decodeF a)
     "None", _ -> AST.mkNone
     "ListLit", [a, b] -> AST.mkListLit (decodeN decodeF b) (decodeA decodeF a)

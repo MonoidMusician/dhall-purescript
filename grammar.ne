@@ -189,13 +189,16 @@ const builtin =
   , "List/last"
   , "List/indexed"
   , "List/reverse"
+  , "Date"
+  , "Time"
+  , "TimeZone"
   , "Optional"
   , "None"
   ];
 %}
 
 # This just adds surrounding whitespace for the top-level of the program
-complete_expression -> shebang:* whsp expression whsp {% pass(2) %}
+complete_expression -> shebang:* whsp expression whsp line_comment_prefix:? {% pass(2) %}
 
 end_of_line -> [\n] {% pass0 %} | [\r] [\n] {% () => "\n" %}
 tab -> [\t] {% pass0 %}
@@ -227,7 +230,8 @@ not_end_of_line -> ascii | valid_non_ascii | tab
 
 # NOTE: Slightly different from Haskell-style single-line comments because this
 # does not require a space after the dashes
-line_comment -> "--" not_end_of_line:* end_of_line
+line_comment_prefix -> "--" not_end_of_line:*
+line_comment -> line_comment_prefix end_of_line
 
 whitespace_chunk ->
       " " {% nuller %}
@@ -501,6 +505,9 @@ builtin ->
   | Integer {% pass0 %}
   | Double {% pass0 %}
   | Text {% pass0 %}
+  | Date {% pass0 %}
+  | Time {% pass0 %}
+  | TimeZone {% pass0 %}
   | List {% pass0 %}
   | Type {% pass0 %}
   | Kind {% pass0 %}
@@ -547,6 +554,9 @@ Optional_fold     -> "Optional/fold" {% pass0 %}
 Optional_build    -> "Optional/build" {% pass0 %}
 Text_show         -> "Text/show" {% pass0 %}
 Text_replace      -> "Text/replace" {% pass0 %}
+Date              -> "Date" {% pass0 %}
+Time              -> "Time" {% pass0 %}
+TimeZone          -> "TimeZone" {% pass0 %}
 
 combine       -> ( [\u2227] | "/\\"                ) {% pass0 %}
 combine_types -> ( [\u2A53] | "//\\\\"              ) {% pass0 %}
@@ -582,6 +592,74 @@ natural_literal ->
     | "0" {% collapse %}
 
 integer_literal -> ( "+" | "-" ) natural_literal {% collapse %}
+
+# All temporal literals need to be valid dates according to RFC3339, meaning
+# that:
+#
+# * Months must be in the range 1-12
+# * The day of the month must be valid according to the corresponding month
+# * Feburary 29 is only permitted on leap years
+#
+# The only exception to this is leap seconds, which are not supported because we
+# treat dates and times separately.  In other words, the valid range of the
+# seconds field is always 0-59.
+#
+temporal_literal ->
+    # "YYYY-MM-DDThh:mm:ss±HH:MM", parsed as a `{ date : Date, time : Time, timeZone : TimeZone }`
+      full_date ("T" | "t") partial_time time_offset
+      {% d => ({ type: "RecordLit", value: [
+        ["date", { type: "DateLit", value: d[0] }],
+        ["time", { type: "TimeLit", value: d[2] }],
+        ["timeZone", { type: "TimeZoneLit", value: d[3] }],
+      ] }) %}
+    # "YYYY-MM-DDThh:mm:ss", parsed as a `{ date : Date, time : Time }`
+    | full_date ("T" | "t") partial_time
+      {% d => ({ type: "RecordLit", value: [
+        ["date", { type: "DateLit", value: d[0] }],
+        ["time", { type: "TimeLit", value: d[2] }],
+      ] }) %}
+    # "hh:mm:ss±HH:MM", parsed as a `{ time : Time, timeZone, TimeZone }`
+    | partial_time time_offset
+      {% d => ({ type: "RecordLit", value: [
+        ["time", { type: "TimeLit", value: d[0] }],
+        ["timeZone", { type: "TimeZoneLit", value: d[1] }],
+      ] }) %}
+    # "YYYY-MM-DD", parsed as a `Date`
+    | full_date
+      {% d => ({ type: "DateLit", value: d[0] }) %}
+    # "hh:mm:ss", parsed as a `Time`
+    | partial_time
+      {% d => ({ type: "TimeLit", value: d[0] }) %}
+    # "±HH:MM", parsed as a `TimeZone`
+    #
+    # Carefully note that this `time-numoffset` and not `time-offset`, meaning
+    # that a standalone `Z` is not a valid Dhall literal for a `TimeZone`
+    | time_numoffset
+      {% d => ({ type: "TimeZoneLit", value: d[0] }) %}
+
+# Taken from RFC 3339 with some differences
+date_fullyear   -> DIGIT DIGIT DIGIT DIGIT {% collapse %}
+# 01-12
+date_month      -> ("0" [1-9] | "1" [0-2]) {% collapse %}
+# 01-28, 01-29, 01-30, 01-31 based on month/year
+date_mday       -> DIGIT DIGIT {% collapse %}
+# 00-23
+time_hour       -> ([0-1] [0-9] | "2" [0-3]) {% collapse %}
+# 00-59
+time_minute     -> [0-5] [0-9] {% collapse %}
+# 00-59 (**UNLIKE** RFC 3339, we don't support leap seconds)
+time_second     -> [0-5] [0-9] {% collapse %}
+
+# Like RFC 3339, we require an implementation to support *parsing* an arbitrary
+# time precision, but an implementation only needs to support storing/encoding
+# at least nanosecond precision.  In other words an implementation only needs to
+# preserve 9 digits after the decimal point.
+time_secfrac    -> "." DIGIT:+ {% collapse %} # RFC 3339
+time_numoffset  -> ("+" | "-") time_hour ":" time_minute {% d => [d[0][0], d[1], d[3]] %}
+time_offset     -> ("Z" | "z") {% d => ["+", "00", "00"] %} | time_numoffset {% pass0 %}
+
+partial_time    -> time_hour ":" time_minute ":" time_second time_secfrac:? {% d => [d[0], d[2], d[4] + (d[5] ? d[5][0] : "")] %}
+full_date       -> date_fullyear "-" date_month "-" date_mday {% d => [d[0], d[2], d[4]] %}
 
 # If the identifier matches one of the names in the `builtin` rule, then it is a
 # builtin, and should be treated as the curresponding item in the list of
@@ -896,6 +974,7 @@ primitive_expression ->
     | integer_literal {% tag("IntegerLit") %}
     # '"ABC"'
     | text_literal {% d => ({ type: "TextLit", value: d[0] }) %}
+    | temporal_literal {% pass0 %}
     # "{ foo = 1      , bar = True }"
     # "{ foo : Integer, bar : Bool }"
     | "{" whsp ( "," whsp ):? record_type_or_literal "}" {% pass(3) %}

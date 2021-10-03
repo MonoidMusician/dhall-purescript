@@ -8,8 +8,9 @@ import Data.Array.NonEmpty as NEA
 import Data.Bifunctor (bimap)
 import Data.Const (Const(..))
 import Data.Const (Const) as C
+import Data.Date as Date
 import Data.Either (Either(..))
-import Data.Enum (fromEnum)
+import Data.Enum (class BoundedEnum, fromEnum)
 import Data.Functor.App (App(..))
 import Data.Functor.Mu (Mu(..))
 import Data.Functor.Product (Product(..))
@@ -19,6 +20,7 @@ import Data.Int as Int
 import Data.List as List
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Monoid (power)
 import Data.Monoid.Additive (Additive(..))
 import Data.Newtype (over2, un, unwrap)
 import Data.Set as Set
@@ -29,6 +31,7 @@ import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Core (BindingBody(..), Const(..), Expr, ExprLayerF, LetF(..), MergeF(..), Pair(..), S_, TextLitF(..), Var(..), _S, reservedIdentifiers)
+import Dhall.Lib.DateTime (Time(..), TimeZone(..))
 import Dhall.Map (InsOrdStrMap, unIOSM)
 import Dhall.Map as Dhall.Map
 import Effect.Console (log)
@@ -273,6 +276,8 @@ fromAST renderImport = VariantF.match
       Type -> "Type"
       Kind -> "Kind"
       Sort -> "Sort"
+  , "Date": builtin "Date"
+  , "DateLit": unwrap >>> showDate >>> number
   , "Double": builtin "Double"
   , "DoubleLit": unwrap >>> showDouble >>> number
   , "DoubleShow": builtin "Double/show"
@@ -359,6 +364,10 @@ fromAST renderImport = VariantF.match
       in foldable (_S::S_ "String") <<< rec
   , "TextShow": builtin "Text/show"
   , "TextReplace": builtin "Text/replace"
+  , "Time": builtin "Time"
+  , "TimeLit": unwrap >>> showTime >>> number
+  , "TimeZone": builtin "TimeZone"
+  , "TimeZoneLit": unwrap >>> showTimeZone >>> number
   , "ToMap": \(Product (Tuple (Identity e) mty)) ->
       annotWith mty $ app $ Pair (keyword "toMap") e
   , "Union": unwrap >>> miosm (_S::S_ "Union")
@@ -377,6 +386,20 @@ fromAST renderImport = VariantF.match
     showDouble = show
     showNatural = show
     showInteger = show
+    pad n s = power "0" (n - String.length s) <> s
+    padEnum :: forall e. BoundedEnum e => Int -> e -> String
+    padEnum n v = pad n (show (fromEnum v))
+    showDate d =
+      padEnum 4 (Date.year d) <> "-" <>
+      padEnum 2 (Date.month d) <> "-" <>
+      padEnum 2 (Date.day d)
+    showTime (Time h m s ms ns) =
+      padEnum 2 h <> ":" <> padEnum 2 m <> ":" <> padEnum 2 s <>
+        if ms == bottom && ns == bottom then "" else
+          "." <> padEnum 3 ms <>
+            if ns == bottom then "" else padEnum 6 ns
+    showTimeZone (TimeZone s h m) =
+      (if s then "+" else "-") <> padEnum 2 h <> ":" <> padEnum 2 m
     annot = binop (_S::S_ "Annot")
     app = binop (_S::S_ "App")
     -- Note: We insert a unary annotation node as a signal that this node
