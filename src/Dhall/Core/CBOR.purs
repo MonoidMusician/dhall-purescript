@@ -34,7 +34,7 @@ import Dhall.Core.AST (BindingBody(..), projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Types.Basics (pureTextLitF)
 import Dhall.Core.Imports (Directory(..), File(..), FilePrefix(..), ImportMode(..), Scheme(..), URL(..), Headers)
-import Dhall.Imports.Retrieve (fromHeaders, headerType)
+import Dhall.Imports.Headers (fromHeaders, headerType)
 import Dhall.Lib.CBOR as CBOR
 import Dhall.Lib.DateTime (Time(..), TimeZone(..))
 import Dhall.Lib.Numbers as Num

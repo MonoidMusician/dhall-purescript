@@ -33,9 +33,9 @@ import Dhall.Core (Expr, Headers, Import(..), ImportMode(..), ImportType(..), Pa
 import Dhall.Core as AST
 import Dhall.Core.AST.Operations (rewriteBottomUpA')
 import Dhall.Core.CBOR (decode, encode)
-import Dhall.Core.Imports (addHeaders, canonicalizeImport, getHeader, isLocal)
+import Dhall.Core.Imports (addHeaders, canonicalizeImport, getHeader, isLocal, previewOrigin)
 import Dhall.Imports.Hash as Hash
-import Dhall.Imports.Retrieve (fromLocation, toHeaders)
+import Dhall.Imports.Headers (allOriginHeaders, fromLocation, getFromOriginHeaders, toHeaders)
 import Dhall.Lib.CBOR as CBOR
 import Dhall.Map (InsOrdStrMap)
 import Dhall.Parser as Parser
@@ -80,6 +80,9 @@ type S =
     }
   -- Set of hashes whose results will be written to cache
   , toBeCached :: Set String
+  -- Import expression for origin headers
+  -- (Note: typically from `originHeadersFromLocationAff nodeHeadersLocation`)
+  , originHeaders :: Expr InsOrdStrMap Import
   }
 type Infos w =
   -- Keep track of import graph
@@ -254,6 +257,8 @@ resolveImports = pure
   -- Resolve headers so that they are available as PS values
   -- (Eta-expanded because it calls this recursively, of course)
   >=> do \expr -> resolveHeaders expr
+  -- Add user origin headers
+  >=> traverse do \i -> addOriginHeaders i
   -- Traverse to set up resolving each individual import
   >=> do \expr -> traverse (resolveImport >>> pause) expr
   -- Handle failures in `ImportAlt` expressions, running effects only as necessary
@@ -378,6 +383,26 @@ ensureWellTyped :: forall w r. ResolvedExpr -> M w r ResolvedExpr
 ensureWellTyped e = e <$ do
   void $ liftFeedback $ rehydrateFeedback $ V.liftW $
     typeOf e
+
+getOriginHeadersFor :: forall w r. String -> M w r Headers
+getOriginHeadersFor origin = do
+  e0 <- gets _.originHeaders <#> allOriginHeaders
+  -- Do not localize to parent
+  let e1 = Localized <<< canonicalizeImport <$> e0
+  e2 <- local (_ { stack = empty })
+    (resolveImports e1 >>= ensureWellTyped >>> map normalize)
+  -- Avoid duplicating work
+  modify_ (_ { originHeaders = absurd <$> e2 })
+  pure $ getFromOriginHeaders origin e2
+
+addOriginHeaders :: forall w r. Localized -> M w r Localized
+addOriginHeaders (Localized i@(Import { importType }))
+  | Just origin <- previewOrigin importType = do
+    -- liftAff $ log $ "Getting headers for " <> origin
+    resolved <- getOriginHeadersFor origin
+    -- when (Array.length resolved /= 0) $ liftAff $ log $ unsafeCoerce { origin, resolved }
+    pure (Localized (addHeaders resolved i))
+addOriginHeaders i = pure i
 
 -- The main workhorse: turn a localized import into a resolved expression
 resolveImport :: forall w r. Localized -> M w r ResolvedExpr

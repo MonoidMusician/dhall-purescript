@@ -2,7 +2,6 @@ module Dhall.Test where
 
 import Prelude
 
-import Control.Comonad (extract)
 import Control.Monad.Writer (WriterT)
 import Data.Argonaut.Core (Json)
 import Data.ArrayBuffer.Types (ArrayBuffer)
@@ -18,6 +17,7 @@ import Dhall.Core (Expr, Import, unordered)
 import Dhall.Core as Dhall.Core
 import Dhall.Core.CBOR (encode)
 import Dhall.Imports.Hash as Hash
+import Dhall.Imports.Headers as Headers
 import Dhall.Imports.Resolve as Resolve
 import Dhall.Imports.Retrieve as Retrieve
 import Dhall.Lib.CBOR as CBOR
@@ -42,16 +42,13 @@ print :: Resolve.ImportExpr -> String
 print = printAST { ascii: true, line: Nothing, printImport: show, tabs: { width: wrap 2, soft: false, align: false } }
 noImports :: forall f a. Traversable f => f a -> Maybe (f Void)
 noImports = traverse (const Nothing)
-resolve' :: Resolve.ImportExpr -> Aff (Resolve.Feedback () () Resolve.ResolvedExpr)
-resolve' = resolve''
-  { stack: mempty
-  , retriever: Retrieve.nodeRetrieve
-  , cacher: Retrieve.nodeCache
-  }
+
 resolve'' :: Resolve.R -> Resolve.ImportExpr -> Aff (Resolve.Feedback () () Resolve.ResolvedExpr)
-resolve'' resolver e = Resolve.runM resolver { cache: IOSM.empty, toBeCached: mempty } (Resolve.resolveImportsHere e) <#> \(Tuple fb _) -> fb
-resolve :: Expr (InsOrdMap String) Import -> Aff (Maybe (Expr (InsOrdMap String) Void))
-resolve e = resolve' e <#> \fb -> V.hushW' fb
+resolve'' resolver e = do
+  originHeaders <- Headers.originHeadersFromLocationAff Retrieve.nodeHeadersLocation
+  Resolve.runM resolver { cache: IOSM.empty, toBeCached: mempty, originHeaders }
+    (Resolve.resolveImportsHere e) <#> \(Tuple fb _) -> fb
+
 tc :: forall t14. MapLike String t14 => Expr t14 Void -> Maybe (Expr t14 Void)
 tc = tc' >>> V.hush'
 tc' :: forall t14. MapLike String t14 => Expr t14 Void -> TC.ResultE () t14 Void (Expr t14 Void)
@@ -99,13 +96,6 @@ type Actions =
     }
   }
 
-mkActions :: String -> Actions
-mkActions = mkActions'
-  { stack: mempty
-  , retriever: Retrieve.nodeRetrieve
-  , cacher: Retrieve.nodeCache
-  }
-
 mkActions' :: Resolve.R -> String -> Actions
 mkActions' resolver text =
   { text
@@ -145,21 +135,3 @@ mkActions' resolver text =
           }
       }
   }
-
-execActions :: String -> Effect Unit
-execActions text = case extract $ unwrap $ _.parse $ mkActions text of
-  Nothing -> log "Parse error"
-  Just { parsed, imports } ->
-    logShow parsed *>
-    flip runAff_ (unwrap $ extract $ unwrap imports)
-    case _ of
-      Left err -> log (message err)
-      Right r ->
-        feedback' r (\(TC.TypeCheckError { tag }) -> logShow tag)
-          \{ resolved, typechecked } ->
-            logShow resolved *>
-            feedback (extract $ unwrap $ typechecked) (\(TC.TypeCheckError { tag }) -> logShow tag)
-              \{ inferredType, safeNormalized } -> logShow
-                { norm: extract safeNormalized
-                , type: inferredType
-                }

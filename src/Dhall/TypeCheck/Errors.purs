@@ -23,7 +23,7 @@ import Data.Variant as Variant
 import Dhall.Core.AST (Var(..), Const, Expr, ExprRowVF(..), ExprRowVFI(..), S_, _S, rehydrate)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Location as Loc
-import Dhall.Imports.Retrieve (headerType)
+import Dhall.Imports.Headers (headerType)
 import Dhall.Core.Zippers (_ix)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map

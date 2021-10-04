@@ -15,6 +15,7 @@ import Data.Variant (Variant)
 import Dhall.Core as Dhall
 import Dhall.Core.CBOR (decode)
 import Dhall.Imports.Hash as Hash
+import Dhall.Imports.Headers as Headers
 import Dhall.Imports.Resolve (ImportExpr)
 import Dhall.Imports.Resolve as Resolve
 import Dhall.Imports.Retrieve as Retrieve
@@ -56,8 +57,9 @@ normalizeFile file = do
   text <- Retrieve.nodeRetrieve target <#> _.result
   case Parser.parse =<< text of
     Nothing -> logShow "Parser error"
-    Just parsed ->
-      Resolve.runM (resolver target) { cache: Map.empty, toBeCached: mempty } (Resolve.resolveImportsHere parsed) >>=
+    Just parsed -> do
+      originHeaders <- Headers.originHeadersFromLocationAff Retrieve.nodeHeadersLocation
+      Resolve.runM (resolver target) { cache: Map.empty, toBeCached: mempty, originHeaders } (Resolve.resolveImportsHere parsed) >>=
         fst >>> unwrap >>> map fst >>> case _ of
           V.Error es _ -> do
             logShow "Imports failed"

@@ -2,30 +2,34 @@ module Dhall.Test.Standard where
 
 import Prelude
 
+import Control.Alternative (empty, guard, (<|>))
 import Control.Comonad (extract)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.Writer (WriterT(..))
 import Data.Array as Array
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Either (Either(..))
-import Data.Foldable (foldMap, for_, traverse_)
-import Data.FoldableWithIndex (forWithIndex_, traverseWithIndex_)
+import Data.Foldable (foldMap, for_, oneOfMap, traverse_)
+import Data.FoldableWithIndex (forWithIndex_)
+import Data.Lens (preview)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Newtype (unwrap, wrap)
 import Data.String (Pattern(..), stripSuffix)
 import Data.String as String
+import Data.Traversable (traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
-import Dhall.Core (Directory(..), File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), alphaNormalize, conv, unordered)
-import Dhall.Core.CBOR (decode)
+import Dhall.Core (Directory(..), File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), alphaNormalize, conv, projectW, unordered)
+import Dhall.Core as AST
+import Dhall.Core.CBOR (encode, decode)
 import Dhall.Imports.Resolve as Resolve
 import Dhall.Imports.Retrieve (nodeCache, nodeReadBinary, nodeRetrieve, nodeRetrieveFile)
 import Dhall.Lib.CBOR as CBOR
 import Dhall.Map (InsOrdStrMap)
-import Dhall.Printer (printAST)
+import Dhall.Map as Dhall.Map
 import Dhall.Test (Actions, parse, print)
 import Dhall.Test as Test
 import Dhall.Test.Util (eqArrayBuffer)
@@ -39,12 +43,14 @@ import Effect.Class.Console (log, logShow)
 import Effect.Exception (stack)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
+import Matryoshka (project)
 import Node.Buffer as Buffer
 import Node.ChildProcess as ChildProcess
 import Node.Encoding (Encoding(..))
 import Node.Path (FilePath)
 import Node.Process as Process
 import Node.Stream as Stream
+import Unsafe.Coerce (unsafeCoerce)
 import Validation.These as V
 
 root = "./dhall-lang/tests/" :: String
@@ -61,8 +67,8 @@ noteFb _ (WriterT (V.Success (Tuple a _))) = pure a
 
 etonFb :: forall w e a b.
   String -> TC.Feedback w e InsOrdStrMap a b -> Aff Unit
-etonFb _ (WriterT (V.Error es _)) = pure unit
-etonFb msg (WriterT (V.Success (Tuple a _))) = throwError (error msg)
+etonFb _ (WriterT (V.Error _ _)) = pure unit
+etonFb msg (WriterT (V.Success (Tuple _ _))) = throwError (error msg)
 
 noteR :: forall e a. Show (Variant e) =>
   String -> TC.Result e InsOrdStrMap a ~> Aff
@@ -72,8 +78,8 @@ noteR _ (V.Success a) = pure a
 
 etonR :: forall e a b.
   String -> TC.Result e InsOrdStrMap a b -> Aff Unit
-etonR _ (V.Error es _) = pure unit
-etonR msg (V.Success a) = throwError (error msg)
+etonR _ (V.Error _ _) = pure unit
+etonR msg (V.Success _) = throwError (error msg)
 
 type R =
   { filter :: String -> String -> Maybe Boolean
@@ -128,7 +134,25 @@ mkActions ty file = Test.mkActions'
     { get: nodeCache.get -- requires env:XDG_CACHE_HOME="./dhall-lang/tests/import/cache/"
     , put: \_ _ -> pure unit -- prevents writing to cache
     }
-  , retriever: nodeRetrieve
+  , retriever:
+      let
+        retrieveSpecial (Env name) = do
+          contents <- nodeRetrieveFile (file <> "ENV.dhall") >>= note (file <> "ENV.dhall had no contents")
+          parsed <- Test.parse contents >>= Test.noImports # note (file <> "ENV.dhall did not parse")
+          let
+            goalType = AST.mkApp AST.mkList (AST.mkRecord (Dhall.Map.fromFoldable
+              [ Tuple "mapKey" AST.mkText, Tuple "mapValue" AST.mkText ]
+            ))
+          void $ Test.tc (AST.mkAnnot parsed goalType) # note (file <> "ENV.dhall did not typecheck")
+          note (file <> " did not have key") do
+            list <- preview AST._ListLit (projectW (Test.normalize parsed)) <#> _.values
+            list # oneOfMap \item -> do
+              textValues <- preview AST._RecordLit $ projectW item
+              strValues <- traverse (preview AST._TextLit_single <<< projectW) textValues
+              guard $ Dhall.Map.get "mapKey" strValues == Just name
+              Dhall.Map.get "mapValue" strValues <#> Just >>> { headers: [], result: _ }
+        retrieveSpecial _ = empty
+      in \i -> retrieveSpecial i <|> nodeRetrieve i
   }
 
 logDiag :: ArrayBuffer -> Aff String
@@ -171,6 +195,16 @@ test = do
               then log d1 *> log d2
               else log (Util.showCBOR binA) *> log (Util.showCBOR binB)
           throwError (error "Binary did not match")
+        let decodedB = decode (CBOR.decode binB)
+        when (decodedB /= Just (unordered parsedA.parsed)) do
+          case decodedB of
+            Nothing -> do
+              log $ unsafeCoerce $ CBOR.decode binB
+              throwError (error "Could not decode B")
+            Just decoded -> do
+              logShow decoded
+              logShow parsedA.parsed
+              throwError (error "Parsed binary did not match parsed text")
     do \verb failure -> do
         mtext <- nodeRetrieveFile (failure <> ".dhall")
         for_ mtext \text -> do
@@ -365,7 +399,8 @@ main = launchAff_ do
       let
         allowed = Array.elem section sections.yes || Array.elem file files.yes ||
           (Array.null sections.yes && Array.null files.yes)
-        rejected = Array.elem section sections.no || Array.elem file files.no
+        rejected = Array.elem section sections.no || Array.elem file files.no ||
+          isJust (String.stripSuffix (String.Pattern "ENV") file)
       in if allowed && not rejected
         then Just (Array.elem file files.yes)
         else Nothing

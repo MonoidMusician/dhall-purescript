@@ -7,7 +7,7 @@ import Data.Array as Array
 import Data.Foldable (class Foldable, foldMap, intercalate)
 import Data.List (List(..), (:))
 import Data.List as List
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe, isNothing)
 import Data.String as String
 import Data.Tuple (Tuple(..))
 import Data.Unfoldable (class Unfoldable)
@@ -195,13 +195,17 @@ parseImportType "missing" = Missing
 parseImportType input
   | Just env <- String.stripPrefix (String.Pattern "env:") input = Env env
   | Just url <- parseURL input = Remote url
-  | otherwise =
-      let
-        parts = String.split (String.Pattern "/") input
-      in case Array.uncons parts of
-        Just { head, tail } | Just pre <- parseFilePrefix head
-          -> Local pre (mkFile tail)
-        _ -> Local Here (mkFile parts)
+  | otherwise = parseLocal input
+
+parseLocal :: String -> ImportType
+parseLocal "" = Missing
+parseLocal input =
+  let
+    parts = String.split (String.Pattern "/") input
+  in case Array.uncons parts of
+    Just { head, tail } | Just pre <- parseFilePrefix head
+      -> Local pre (mkFile tail)
+    _ -> Local Here (mkFile parts)
 
 prettyImportType :: ImportType -> String
 prettyImportType (Env env) = "env:" <> env
@@ -263,6 +267,16 @@ canonicalizeImport :: Import -> Import
 canonicalizeImport (Import i) =
   Import i { importType = canonicalizeImportType i.importType }
 
+previewOrigin :: ImportType -> Maybe String
+previewOrigin (Remote (URL { scheme, authority })) = Just
+  if String.contains (String.Pattern ":") authority
+    then authority else authority <> ":" <> defaultPort
+  where
+    defaultPort = case scheme of
+      HTTP -> "80"
+      HTTPS -> "443"
+previewOrigin _ = Nothing
+
 type Header = { header :: String, value :: String }
 type Headers = Array Header
 
@@ -271,9 +285,13 @@ getHeader header = Array.mapMaybe \r ->
   if String.toLower r.header == String.toLower header
     then Just r.value else Nothing
 
+firstHeaders :: Headers -> Headers -> Headers
+firstHeaders l r = l <>
+  Array.filter (\{ header } -> isNothing $ Array.find (_.header >>> eq header) l) r
+
 addHeaders :: Headers -> Import -> Import
 addHeaders headers = case _ of
   Import { importMode, importType: Remote (URL url) } ->
-    let url' = url { headers = Just headers <> url.headers } in
+    let url' = url { headers = Just $ firstHeaders headers (fromMaybe [] url.headers) } in
     Import { importMode, importType: Remote (URL url') }
   i -> i
