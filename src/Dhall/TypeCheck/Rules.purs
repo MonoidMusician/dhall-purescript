@@ -50,16 +50,14 @@ import Type.Proxy (Proxy)
 import Validation.These as V
 
 axiom :: forall f. Alternative f => Const -> f Const
-axiom Type = pure Kind
-axiom Kind = pure Sort
-axiom Sort = empty
+axiom (Universe u) = pure (Universe (u + one))
 
 rule :: forall f. Applicative f => Const -> Const -> f Const
-rule _ Type = pure Type
+rule _ (Universe 0) = pure (Universe 0)
 rule a b = pure $ max a b
 
 maxConst :: forall f. Foldable f => f Const -> Const
-maxConst = maybe Type (un Max) <<< foldMap (Just <<< Max)
+maxConst = maybe (Universe zero) (un Max) <<< foldMap (Just <<< Max)
 
 -- Compute groupings according to an equivalence relation
 tabulateGroupings :: forall k v.
@@ -225,9 +223,9 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
     always :: forall y. Expr m a -> y -> FeedbackE w r m a (OsprE w r m a)
     always b _ = pure $ newb $ b
     aType :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (OsprE w r m a)
-    aType = always $ AST.mkType
+    aType = always $ AST.mkType zero
     aFunctor :: forall x. Const.Const x (OxprE w r m a) -> FeedbackE w r m a (OsprE w r m a)
-    aFunctor = always $ AST.mkArrow AST.mkType AST.mkType
+    aFunctor = always $ AST.mkArrow (AST.mkType zero) (AST.mkType zero)
     a0 = AST.mkVar (AST.V "a" 0)
 
     -- TODO: This will need to become aware of AST holes
@@ -296,7 +294,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
     ensureType ty error = do
       kind <- typecheckStep ty
       ensure' (_S::S_ "Const") kind (\_ -> error Nothing) >>= case _ of
-        Const.Const Type -> pure unit
+        Const.Const (Universe 0) -> pure unit
         Const.Const c -> absurd <$> error (Just c)
   in
   { "Const": unwrap >>> \c ->
@@ -372,7 +370,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
           (errorHere (_S::S_ "Incomparable expression") <<< const i)
       _ <- checkEqR lty rty
         (errorHere (_S::S_ "Equivalent type mismatch"))
-      pure $ newb AST.mkType
+      pure $ newb (AST.mkType zero)
   , "Assert": \(Identity equiv) -> do
       Pair l r <- ensure' (_S::S_ "Equivalent") equiv
         (errorHere (_S::S_ "Not an equivalence"))
@@ -493,7 +491,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
         (AST.mkApp AST.mkList a0)
   , "Optional": identity aFunctor
   , "None": always $
-      AST.mkPi "A" AST.mkType $
+      AST.mkPi "A" (AST.mkType zero) $
         AST.mkApp AST.mkOptional (AST.mkVar (AST.V "A" 0))
   , "Some": unwrap >>> \a ->
       mkFunctor AST.mkOptional <<< shared <$> ensureTerm a

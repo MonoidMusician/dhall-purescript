@@ -273,9 +273,7 @@ fromAST renderImport = VariantF.match
   , "Combine": binop (_S::S_ "Combine")
   , "CombineTypes": binop (_S::S_ "CombineTypes")
   , "Const": (Const unit # _) <<< builtin <<< unwrap >>> case _ of
-      Type -> "Type"
-      Kind -> "Kind"
-      Sort -> "Sort"
+      Universe u -> "Universe " <> show u
   , "Date": builtin "Date"
   , "DateLit": unwrap >>> showDate >>> number
   , "Double": builtin "Double"

@@ -92,10 +92,8 @@ encode = recenc Nil where
       , "Date": pure $ J.fromString "Date"
       , "Time": pure $ J.fromString "Time"
       , "TimeZone": pure $ J.fromString "TimeZone"
-      , "Const": un Const >>> case _ of
-          Type -> J.fromString "Type"
-          Kind -> J.fromString "Kind"
-          Sort -> J.fromString "Sort"
+      , "Const": \(Const (Universe n)) -> tagged 42 $
+          [ J.fromNumber $ Int.toNumber n ]
       , "App": \(Pair f z) -> tagged 0 $
           let
             rec a = a # projectW # VariantF.on (_S::S_ "App")
@@ -408,9 +406,9 @@ decode = unsafeFromNumber (pure <<< AST.mkDoubleLit) $
       "TimeZone" -> pure AST.mkTimeZone
       "Text" -> pure AST.mkText
       "List" -> pure AST.mkList
-      "Type" -> pure AST.mkType
-      "Kind" -> pure AST.mkKind
-      "Sort" -> pure AST.mkSort
+      "Type" -> pure (AST.mkType zero)
+      "Kind" -> pure (AST.mkType one)
+      "Sort" -> pure (AST.mkType (one + one))
       _ -> empty
     numberHack n =
       Int.fromNumber n >>=
@@ -611,6 +609,14 @@ decode = unsafeFromNumber (pure <<< AST.mkDoubleLit) $
           hour <- decodeEnum hh
           minute <- decodeEnum mm
           pure $ AST.mkTimeZoneLit $ TimeZone s hour minute
+        _ -> empty
+      42 -> case _ of
+        [ n ] -> do
+          n' <- J.toNumber n >>= Int.fromNumber >>=
+            case _ of
+              i | i >= 0 -> pure i
+              _ -> empty
+          pure $ AST.mkType n'
         _ -> empty
       -- TODO: ensure hash
       63 -> case _ of

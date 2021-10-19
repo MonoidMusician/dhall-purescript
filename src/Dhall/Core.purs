@@ -201,7 +201,6 @@ import Dhall.Core.AST
   , mkIntegerNegate
   , mkIntegerShow
   , mkIntegerToDouble
-  , mkKind
   , mkLam
   , mkLet
   , mkList
@@ -236,7 +235,6 @@ import Dhall.Core.AST
   , mkRecordCompletion
   , mkRecordLit
   , mkSome
-  , mkSort
   , mkText
   , mkTextAppend
   , mkTextLit
@@ -350,6 +348,7 @@ reservedIdentifiers = Set.fromFoldable
   , "NaN"
   , "merge"
   , "Some"
+  , "Universe"
   , "toMap"
   , "assert"
   , "forall"

@@ -221,7 +221,6 @@ import Dhall.Core.AST.Constructors
   , mkIntegerNegate
   , mkIntegerShow
   , mkIntegerToDouble
-  , mkKind
   , mkLam
   , mkLet
   , mkList
@@ -256,7 +255,6 @@ import Dhall.Core.AST.Constructors
   , mkRecordCompletion
   , mkRecordLit
   , mkSome
-  , mkSort
   , mkText
   , mkTextAppend
   , mkTextLit

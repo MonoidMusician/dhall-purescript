@@ -42,13 +42,11 @@ import Type.Proxy (Proxy)
 -- This file defines the Expr type by its cases, and gives instances, etc.
 
 -- copied from dhall-haskell
-data Const = Type | Kind | Sort
+newtype Const = Universe Int
 derive instance eqConst :: Eq Const
 derive instance ordConst :: Ord Const
 instance showConst :: Show Const where
-  show Type = "Type"
-  show Kind = "Kind"
-  show Sort = "Sort"
+  show (Universe n) = "Universe " <> show n
 
 -- copied from dhall-haskell
 data Var = V String Int
@@ -599,9 +597,7 @@ instance showExpr :: (TraversableWithIndex String m, Show a) => Show (Expr m a) 
       # VariantF.on (_S::S_ "TextReplace") (simple "mkTextReplace")
       # VariantF.on (_S::S_ "Const")
         (case _ of
-          ConstF.Const Type -> "(mkConst Type)"
-          ConstF.Const Kind -> "(mkConst Kind)"
-          ConstF.Const Sort -> "(mkConst Sort)"
+          ConstF.Const u -> "(mkConst (" <> show u <> "))"
         )
       # VariantF.on (_S::S_ "Var")
         (unwrap >>> \(V n x) -> "(mkVar (V " <> show n <> show x <> "))")

@@ -116,14 +116,8 @@ mkConst = mkExpr (_S::S_ "Const")
 _Const :: forall r. ExprPrism ( "Const" :: CONST Const | r ) Const
 _Const = _ExprPrism (_S::S_ "Const")
 
-mkType :: forall m a. Expr m a
-mkType = mkConst Type
-
-mkKind :: forall m a. Expr m a
-mkKind = mkConst Kind
-
-mkSort :: forall m a. Expr m a
-mkSort = mkConst Sort
+mkType :: forall m a. Int -> Expr m a
+mkType = mkConst <<< Universe
 
 mkVar :: forall m a. Var -> Expr m a
 mkVar = mkExpr (_S::S_ "Var")
@@ -157,7 +151,7 @@ mkArrow :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkArrow = mkPi "_"
 
 mkForall :: forall m a. String -> Expr m a -> Expr m a
-mkForall name = mkPi name mkType
+mkForall name = mkPi name (mkType zero)
 
 mkApp :: forall m a. Expr m a -> Expr m a -> Expr m a
 mkApp fn arg = mkExprF (_S::S_ "App")

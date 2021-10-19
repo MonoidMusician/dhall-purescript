@@ -83,7 +83,7 @@ explain ctx nodeType =
         [ Text $ "The " <> (if String.null desc then "" else desc <> " ") <> " type "
         , reference loc
         , Text " is required to be a type in some universe, e.g. "
-        , referenceExpr AST.mkType
+        , referenceExpr (AST.mkType zero)
         , Text " but instead had type "
         , reference (typechecked <> loc)
         ]
@@ -140,7 +140,7 @@ explain ctx nodeType =
           typechecked <> within (_S::S_ "ListLit") (Right zero)
       in
       [ Text $ "A list should contain elements in the universe "
-      , referenceExpr AST.mkType
+      , referenceExpr (AST.mkType zero)
       , Text $ " but this is not "
       , reference (typechecked <> focus)
       ]
@@ -209,7 +209,7 @@ explain ctx nodeType =
               " which was in universe "
               (expr (AST.mkConst c))
               " instead of "
-              (expr (AST.mkConst AST.Type))
+              (expr (AST.mkConst (AST.Universe zero)))
           ]
   , "Duplicate record fields": \(keys :: NonEmptyList String) ->
       [ Text $ "The following names of fields occurred more than once in a Record (type): "
@@ -374,7 +374,7 @@ explain ctx nodeType =
   -- TODO
   , "Invalid toMap type": \mc ->
       [ Text $ "The `toMap` operation should contain elements in the universe "
-      , referenceExpr $ AST.mkType
+      , referenceExpr $ AST.mkType zero
       , Text $ " but instead the inferred type "
       ] <> case mc of
         Nothing ->
@@ -387,7 +387,7 @@ explain ctx nodeType =
               " which was in universe "
               (expr (AST.mkConst c))
               " instead of "
-              (expr (AST.mkConst AST.Type))
+              (expr (AST.mkConst (AST.Universe zero)))
           ]
   , "Missing toMap type": \(_ :: Unit) ->
       [ Text $ "The `toMap` operation, when its record is empty, must be annotated with a result type that looks like "

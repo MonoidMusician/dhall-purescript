@@ -96,9 +96,10 @@ decodeFAST (FAST r) =
     decodeF :: Foreign -> ParseExpr
     decodeF = unsafeCoerce decodeFAST
   in case r."type", r."value" of
-    "Type", _ -> AST.mkConst Type
-    "Kind", _ -> AST.mkConst Kind
-    "Sort", _ -> AST.mkConst Sort
+    "Universe", [a] -> AST.mkConst (Universe (unsafeCoerce a))
+    "Type", _ -> AST.mkConst (Universe zero)
+    "Kind", _ -> AST.mkConst (Universe one)
+    "Sort", _ -> AST.mkConst (Universe (one + one))
     "True", _ -> AST.mkBoolLit true
     "False", _ -> AST.mkBoolLit false
     "Bool", _ -> AST.mkBool

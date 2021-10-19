@@ -148,6 +148,7 @@ const keyword =
   , "NaN"
   , "merge"
   , "Some"
+  , "Universe"
   , "toMap"
   , "assert"
   , "forall"
@@ -451,6 +452,7 @@ missing           -> "missing" {% pass0 %}
 Infinity          -> "Infinity" {% pass0 %}
 NaN               -> "NaN" {% pass0 %}
 Some              -> "Some" {% pass0 %}
+Universe          -> "Universe" {% pass0 %}
 toMap             -> "toMap" {% pass0 %}
 assert            -> "assert" {% pass0 %}
 forall_keyword    -> "forall" {% pass0 %}
@@ -467,7 +469,7 @@ keyword ->
     | assert {% pass0 %} | as {% pass0 %}
     | Infinity {% pass0 %} | NaN {% pass0 %}
     | merge {% pass0 %} | Some {% pass0 %} | toMap {% pass0 %}
-    | forall_keyword {% pass0 %}
+    | forall_keyword {% pass0 %} | Universe {% pass0 %}
     | with {% pass0 %}
 
 # Note that there is a corresponding parser test in
@@ -592,6 +594,8 @@ natural_literal ->
     | "0" {% collapse %}
 
 integer_literal -> ( "+" | "-" ) natural_literal {% collapse %}
+
+universe -> natural_literal {% d => +d[0] %}
 
 # All temporal literals need to be valid dates according to RFC3339, meaning
 # that:
@@ -929,6 +933,8 @@ first_application_expression ->
   # "toMap e"
   | toMap whsp1 import_expression
     {% d => ({ type: "ToMap", value: [d[2], null] }) %}
+  # "Universe u"
+  | Universe whsp1 universe {% d => ({ type: "Universe", value: [d[2]] }) %}
   | import_expression {% pass0 %}
 
 import_expression ->
