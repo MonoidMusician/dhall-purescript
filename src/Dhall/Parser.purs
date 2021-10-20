@@ -18,6 +18,8 @@ import Data.Identity (Identity(..))
 import Data.Int as Int
 import Data.Lens (Fold', preview)
 import Data.List (List)
+import Data.Map (SemigroupMap(..))
+import Data.Map as Map
 import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
 import Data.Maybe.First (First)
 import Data.Monoid (power)
@@ -25,6 +27,7 @@ import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (unwrap)
 import Data.Nullable (Nullable)
 import Data.Nullable as Nullable
+import Data.Ord.Max (Max(..))
 import Data.String as String
 import Data.Symbol (class IsSymbol)
 import Data.Time (Millisecond, Second)
@@ -96,10 +99,16 @@ decodeFAST (FAST r) =
     decodeF :: Foreign -> ParseExpr
     decodeF = unsafeCoerce decodeFAST
   in case r."type", r."value" of
-    "Universe", [a] -> AST.mkConst (Universe (unsafeCoerce a))
-    "Type", _ -> AST.mkConst (Universe zero)
-    "Kind", _ -> AST.mkConst (Universe one)
-    "Sort", _ -> AST.mkConst (Universe (one + one))
+    "Universe", v0 | Just { head: a, tail: as } <- Array.uncons v0 ->
+      let
+        as' = unsafeCoerce as <#> unsafeCoerce >>> case _ of
+          [s, v] -> Tuple (unsafeCoerce s) (unsafeCoerce v)
+          _ -> unsafeCrashWith $ "bad universes " <> unsafeCoerce as
+        as'' = SemigroupMap $ Map.fromFoldableWith (<>) (as' :: Array _)
+      in AST.mkConst (Universes as'' (unsafeCoerce a))
+    "Type", _ -> AST.mkConst (Universes mempty (Max zero))
+    "Kind", _ -> AST.mkConst (Universes mempty (Max one))
+    "Sort", _ -> AST.mkConst (Universes mempty (Max (one + one)))
     "True", _ -> AST.mkBoolLit true
     "False", _ -> AST.mkBoolLit false
     "Bool", _ -> AST.mkBool

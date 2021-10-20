@@ -209,7 +209,7 @@ explain ctx nodeType =
               " which was in universe "
               (expr (AST.mkConst c))
               " instead of "
-              (expr (AST.mkConst (AST.Universe zero)))
+              (expr (AST.mkType zero))
           ]
   , "Duplicate record fields": \(keys :: NonEmptyList String) ->
       [ Text $ "The following names of fields occurred more than once in a Record (type): "
@@ -387,7 +387,7 @@ explain ctx nodeType =
               " which was in universe "
               (expr (AST.mkConst c))
               " instead of "
-              (expr (AST.mkConst (AST.Universe zero)))
+              (expr (AST.mkType zero))
           ]
   , "Missing toMap type": \(_ :: Unit) ->
       [ Text $ "The `toMap` operation, when its record is empty, must be annotated with a result type that looks like "

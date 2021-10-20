@@ -595,7 +595,19 @@ natural_literal ->
 
 integer_literal -> ( "+" | "-" ) natural_literal {% collapse %}
 
-universe -> natural_literal {% d => +d[0] %}
+universe ->
+    natural_literal {% d => [+d[0]] %}
+  | "(" whsp ")" {% d => [0] %}
+  | "(" whsp natural_literal whsp ("," whsp):? ")" {% d => [+d[2]] %}
+  | "(" whsp natural_literal whsp "," whsp universes whsp ("," whsp):? ")" {% d => [+d[2], ...d[6]] %}
+
+universes ->
+    universe_expr {% d => [d[0]] %}
+  | universe_expr whsp "," whsp universes {% d => [d[0], ...d[4]] %}
+
+universe_expr ->
+    simple_label {% d => [d[0], 0] %}
+  | simple_label whsp "+" whsp natural_literal {% d => [d[0], +d[4]] %}
 
 # All temporal literals need to be valid dates according to RFC3339, meaning
 # that:
@@ -934,7 +946,7 @@ first_application_expression ->
   | toMap whsp1 import_expression
     {% d => ({ type: "ToMap", value: [d[2], null] }) %}
   # "Universe u"
-  | Universe whsp1 universe {% d => ({ type: "Universe", value: [d[2]] }) %}
+  | Universe whsp1 universe {% d => ({ type: "Universe", value: d[2] }) %}
   | import_expression {% pass0 %}
 
 import_expression ->

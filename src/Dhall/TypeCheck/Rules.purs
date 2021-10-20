@@ -24,9 +24,11 @@ import Data.List as List
 import Data.List.NonEmpty (foldMap1)
 import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList(..))
+import Data.Map (SemigroupMap(..))
+import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Maybe.First (First(..))
-import Data.Newtype (un, unwrap, wrap)
+import Data.Newtype (over, un, unwrap, wrap)
 import Data.NonEmpty ((:|))
 import Data.Ord.Max (Max(..))
 import Data.Set as Set
@@ -45,19 +47,19 @@ import Dhall.Map as Dhall.Map
 import Dhall.TypeCheck.Operations (alsoOriginateFromO, areEq, newborn, newshared, normalizeStep, plain, shiftInOxpr0, topLoc, tryShiftOut0Oxpr, typecheckStep, unlayerO)
 import Dhall.TypeCheck.Tree (shared, unshared)
 import Dhall.TypeCheck.Types (Errors, FeedbackE, Inconsistency(..), L, LxprF, OsprE, Oxpr, OxprE, TypeCheckError(..), WithBiCtx(..))
-import Type.Row as R
 import Type.Proxy (Proxy)
+import Type.Row as R
 import Validation.These as V
 
 axiom :: forall f. Alternative f => Const -> f Const
-axiom (Universe u) = pure (Universe (u + one))
+axiom (Universes us u) = pure (Universes (map (over Max (_ + one)) us) (over Max (_ + one) u))
 
 rule :: forall f. Applicative f => Const -> Const -> f Const
-rule _ (Universe 0) = pure (Universe 0)
-rule a b = pure $ max a b
+rule _ u@(Universes (SemigroupMap m) (Max 0)) | Map.isEmpty m = pure u
+rule a b = pure $ a <> b
 
 maxConst :: forall f. Foldable f => f Const -> Const
-maxConst = maybe (Universe zero) (un Max) <<< foldMap (Just <<< Max)
+maxConst = fromMaybe (Universes mempty (Max zero)) <<< foldMap Just
 
 -- Compute groupings according to an equivalence relation
 tabulateGroupings :: forall k v.
@@ -294,7 +296,8 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
     ensureType ty error = do
       kind <- typecheckStep ty
       ensure' (_S::S_ "Const") kind (\_ -> error Nothing) >>= case _ of
-        Const.Const (Universe 0) -> pure unit
+        -- TODO
+        Const.Const (Universes (SemigroupMap m) (Max 0)) | Map.isEmpty m -> pure unit
         Const.Const c -> absurd <$> error (Just c)
   in
   { "Const": unwrap >>> \c ->

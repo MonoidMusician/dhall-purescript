@@ -14,6 +14,7 @@ import Data.Date as Date
 import Data.Either (Either(..))
 import Data.Enum (class BoundedEnum, fromEnum, toEnum)
 import Data.Foldable (any, fold, foldr)
+import Data.FoldableWithIndex (foldMapWithIndex)
 import Data.Functor.App (App(..))
 import Data.Functor.Product (Product(..))
 import Data.Functor.Variant as VariantF
@@ -22,11 +23,14 @@ import Data.Identity (Identity(..))
 import Data.Int as Int
 import Data.Lens as Lens
 import Data.List (List(..), (:))
+import Data.Map (SemigroupMap(..))
+import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Monoid (power)
 import Data.Monoid.Endo (Endo(..))
 import Data.Newtype (un, unwrap)
-import Data.Traversable (traverse)
+import Data.Ord.Max (Max(..))
+import Data.Traversable (for, traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..), fst)
 import Dhall.Core (Const(..), Double, Natural, Integer, Expr, Import(..), ImportType(..), LetF(..), MergeF(..), Pair(..), S_, TextLitF(..), Triplet(..), Var(..), _S)
@@ -92,8 +96,10 @@ encode = recenc Nil where
       , "Date": pure $ J.fromString "Date"
       , "Time": pure $ J.fromString "Time"
       , "TimeZone": pure $ J.fromString "TimeZone"
-      , "Const": \(Const (Universe n)) -> tagged 42 $
-          [ J.fromNumber $ Int.toNumber n ]
+      , "Const": \(Const (Universes us (Max n))) -> tagged 42 $
+          [ J.fromNumber $ Int.toNumber n ] <>
+            (foldMapWithIndex \s (Max v) ->
+              [ J.fromArray [ J.fromString s, J.fromNumber $ Int.toNumber v ] ]) us
       , "App": \(Pair f z) -> tagged 0 $
           let
             rec a = a # projectW # VariantF.on (_S::S_ "App")
@@ -610,14 +616,12 @@ decode = unsafeFromNumber (pure <<< AST.mkDoubleLit) $
           minute <- decodeEnum mm
           pure $ AST.mkTimeZoneLit $ TimeZone s hour minute
         _ -> empty
-      42 -> case _ of
-        [ n ] -> do
-          n' <- J.toNumber n >>= Int.fromNumber >>=
-            case _ of
-              i | i >= 0 -> pure i
-              _ -> empty
-          pure $ AST.mkType n'
-        _ -> empty
+      42 -> Array.uncons >=> \{ head: n, tail: us } -> do
+        n' <- J.toNumber n >>= Int.fromNumber
+        us' <- for us \u -> J.toArray u >>= case _ of
+          [ s, v ] -> Tuple <$> J.toString s <*> (J.toNumber v >>= Int.fromNumber)
+          _ -> empty
+        pure $ AST.mkConst $ Universes (SemigroupMap (Map.fromFoldable $ map (map Max) us')) (Max n')
       -- TODO: ensure hash
       63 -> case _ of
         [ e, hash ] -> AST.mkHashed <$> decode e <*> J.toString hash

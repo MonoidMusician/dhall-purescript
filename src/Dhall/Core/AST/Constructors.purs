@@ -14,13 +14,14 @@ import Data.Lens (Prism', prism', iso, only)
 import Data.Lens.Iso.Newtype (_Newtype)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
+import Data.Ord.Max (Max(..))
 import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..), swap)
 import Dhall.Core.AST.Types (Const(..), Date, Double, Expr, ExprLayerRow, Integer, Natural, Time, TimeZone, Var, embedW, projectW)
 import Dhall.Core.AST.Types.Basics (_S, S_, BindingBody(..), CONST, LetF(..), MergeF(..), Pair(..), TextLitF(..), Triplet(..), UNIT)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
-import Prelude (class Functor, Unit, const, identity, one, pure, unit, zero, (#), ($), (<<<))
+import Prelude (class Functor, Unit, const, identity, mempty, one, pure, unit, zero, (#), ($), (<<<))
 import Prim.Row as Row
 import Type.Proxy (Proxy)
 
@@ -117,7 +118,7 @@ _Const :: forall r. ExprPrism ( "Const" :: CONST Const | r ) Const
 _Const = _ExprPrism (_S::S_ "Const")
 
 mkType :: forall m a. Int -> Expr m a
-mkType = mkConst <<< Universe
+mkType = mkConst <<< Universes mempty <<< Max
 
 mkVar :: forall m a. Var -> Expr m a
 mkVar = mkExpr (_S::S_ "Var")

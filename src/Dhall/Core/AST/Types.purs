@@ -18,10 +18,13 @@ import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
+import Data.Map (SemigroupMap)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un, unwrap, wrap)
 import Data.Ord (class Ord1, compare1)
+import Data.Ord.Max (Max(..))
 import Data.String (joinWith)
+import Data.String as String
 import Data.Symbol (class IsSymbol)
 import Data.Traversable (class Traversable, sequence)
 import Data.TraversableWithIndex (class TraversableWithIndex)
@@ -31,10 +34,10 @@ import Dhall.Core.AST.Types.Basics (_S, S_, BindingBody(..), BindingBody', Bindi
 import Dhall.Core.Zippers (class Container, class ContainerI, Array', ArrayI, Compose', Either', EitherI, Identity', IdentityI, Maybe', MaybeI, Product', ProductI, Tuple', TupleI, ComposeI, _contextZF, downZFV, ixFV, mapWithIndexV, upZFV, (:<-:))
 import Dhall.Core.Zippers.Merge (class Merge)
 import Dhall.Core.Zippers.Recursive (ZRec, Indices)
-import Dhall.Lib.Numbers (Double, Integer, Natural)
-import Dhall.Lib.Numbers (Double(..), Integer(..), Natural(..), intToInteger, integerFromString, integerToInt, integerToInt', integerToNumber, naturalFromInt, naturalFromInteger, naturalToInteger) as Exports
 import Dhall.Lib.DateTime (Date, Time, TimeZone)
-import Dhall.Lib.DateTime as Exports
+import Dhall.Lib.DateTime (Date, Nanosecond(..), Time(..), TimeZone(..)) as Exports
+import Dhall.Lib.Numbers (Double(..), Integer(..), Natural(..), intToInteger, integerFromString, integerToInt, integerToInt', integerToNumber, naturalFromInt, naturalFromInteger, naturalToInteger) as Exports
+import Dhall.Lib.Numbers (Double, Integer, Natural)
 import Matryoshka (class Corecursive, class Recursive, cata, embed, project)
 import Prim.Row as Row
 import Type.Proxy (Proxy)
@@ -42,11 +45,19 @@ import Type.Proxy (Proxy)
 -- This file defines the Expr type by its cases, and gives instances, etc.
 
 -- copied from dhall-haskell
-newtype Const = Universe Int
+data Const = Universes (SemigroupMap String (Max Int)) (Max Int)
 derive instance eqConst :: Eq Const
 derive instance ordConst :: Ord Const
+instance semigroupConst :: Semigroup Const where
+  append (Universes as a) (Universes bs b) = Universes (as <> bs) (a <> b)
 instance showConst :: Show Const where
-  show (Universe n) = "Universe " <> show n
+  show (Universes us (Max u)) = "Universe " <> shown
+    where
+      args = foldMapWithIndex (\i (Max v) -> [i <> (if v == zero then "" else "+" <> show v)]) us
+      shown = case args of
+        [] -> show u
+        [a] | u == zero -> a
+        _ -> "(" <> show u <> "," <> String.joinWith "," args <> ")"
 
 -- copied from dhall-haskell
 data Var = V String Int
