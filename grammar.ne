@@ -597,9 +597,11 @@ integer_literal -> ( "+" | "-" ) natural_literal {% collapse %}
 
 universe ->
     natural_literal {% d => [+d[0]] %}
+  | simple_label {% d => [0, [d[0], 0]] %}
   | "(" whsp ")" {% d => [0] %}
   | "(" whsp natural_literal whsp ("," whsp):? ")" {% d => [+d[2]] %}
   | "(" whsp natural_literal whsp "," whsp universes whsp ("," whsp):? ")" {% d => [+d[2], ...d[6]] %}
+  | "(" whsp universes whsp ("," whsp):? ")" {% d => [0, ...d[2]] %}
 
 universes ->
     universe_expr {% d => [d[0]] %}
