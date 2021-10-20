@@ -44,7 +44,7 @@ import Dhall.Core.AST (Const(..), Expr, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
-import Dhall.TypeCheck.Operations (alsoOriginateFromO, areEq, newborn, newshared, normalizeStep, plain, shiftInOxpr0, topLoc, tryShiftOut0Oxpr, typecheckStep, unlayerO)
+import Dhall.TypeCheck.Operations (alsoOriginateFromO, areEq, newborn, newshared, normalizeStep, plain, shiftInOxpr0, topLoc, tryShiftOut0Oxpr, typecheckStep, unify, unlayerO)
 import Dhall.TypeCheck.Tree (shared, unshared)
 import Dhall.TypeCheck.Types (Errors, FeedbackE, Inconsistency(..), L, LxprF, OsprE, Oxpr, OxprE, TypeCheckError(..), WithBiCtx(..))
 import Type.Proxy (Proxy)
@@ -173,6 +173,8 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       , tag: Variant.inj sym v
       }
 
+    uniError = errorHere (_S::S_ "Universes could not unify")
+
     newb = unshared <<< newborn
     mkFunctor :: Expr m a -> OsprE w r m a -> OsprE w r m a
     mkFunctor f a = mkShared (_S::S_ "App") $
@@ -209,8 +211,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = unwrap layer # V
       (Unit -> FeedbackE w r m a Void) ->
       FeedbackE w r m a Unit
     checkEq ty0 ty1 error =
-      when (not areEq ty0 ty1) $
-        absurd <$> error unit
+      unify error uniError ty0 ty1
     checkEqL ::
       OxprE w r m a -> OxprE w r m a ->
       (Unit -> FeedbackE w r m a Void) ->

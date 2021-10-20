@@ -20,17 +20,16 @@ import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Dhall.Core.AST (Var(..), Const, Expr, ExprRowVF(..), ExprRowVFI(..), S_, _S, rehydrate)
+import Dhall.Core.AST (Const, Expr, ExprRowVF(..), ExprRowVFI(..), Pair(..), S_, Var(..), _S, rehydrate)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Location as Loc
-import Dhall.Imports.Headers (headerType)
 import Dhall.Core.Zippers (_ix)
+import Dhall.Imports.Headers (headerType)
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
+import Dhall.TypeCheck.Types (BiContext, Errors)
 import Type.Proxy (Proxy)
 import Type.Row as R
-
-import Dhall.TypeCheck.Types (BiContext, Errors)
 
 data Reference a
   = Text String
@@ -476,5 +475,12 @@ explain ctx nodeType =
           (expr headerType)
           " but this instead had type "
           (dereference $ typechecked <> within (_S::S_ "UsingHeaders") true)
+      ]
+  , "Universes could not unify": \(Pair a b) ->
+      [ Compare
+          "The universe "
+          (expr (AST.mkConst a))
+          " could not be unified with "
+          (expr (AST.mkConst b))
       ]
   }

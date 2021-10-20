@@ -25,13 +25,12 @@ import Data.Traversable (class Traversable, sequence, traverse)
 import Data.Tuple (Tuple)
 import Data.Variant (Variant)
 import Dhall.Context (Context)
-import Dhall.Core.AST (Var, Const, SimpleExpr)
+import Dhall.Core.AST (Const, Pair, SimpleExpr, Var)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Location (BasedExprDerivation)
 import Dhall.Normalize as Dhall.Normalize
-import Validation.These as V
-
 import Dhall.TypeCheck.Tree (HalfTwoD, TwoD)
+import Validation.These as V
 
 -- Locations --
 
@@ -160,6 +159,7 @@ type Errors r =
   , "Equivalent type mismatch" :: Unit
   , "`Sort` has no type" :: Unit
   , "Unexpected type" :: Tuple Boolean SimpleExpr
+  , "Universes could not unify" :: Pair Const
   | r
   )
 type ResultE r m a = Result (Errors r) m a
