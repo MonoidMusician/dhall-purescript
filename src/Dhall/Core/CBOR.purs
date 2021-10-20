@@ -96,10 +96,18 @@ encode = recenc Nil where
       , "Date": pure $ J.fromString "Date"
       , "Time": pure $ J.fromString "Time"
       , "TimeZone": pure $ J.fromString "TimeZone"
-      , "Const": \(Const (Universes us (Max n))) -> tagged 42 $
-          [ J.fromNumber $ Int.toNumber n ] <>
-            (foldMapWithIndex \s (Max v) ->
-              [ J.fromArray [ J.fromString s, J.fromNumber $ Int.toNumber v ] ]) us
+      , "Const": \(Const (Universes us (Max n))) ->
+          case us, n of
+            (SemigroupMap m), 0 | Map.isEmpty m ->
+              J.fromString "Type"
+            (SemigroupMap m), 1 | Map.isEmpty m ->
+              J.fromString "Kind"
+            (SemigroupMap m), 2 | Map.isEmpty m ->
+              J.fromString "Sort"
+            _, _ -> tagged 42 $
+              [ J.fromNumber $ Int.toNumber n ] <>
+                (foldMapWithIndex \s (Max v) ->
+                  [ J.fromArray [ J.fromString s, J.fromNumber $ Int.toNumber v ] ]) us
       , "App": \(Pair f z) -> tagged 0 $
           let
             rec a = a # projectW # VariantF.on (_S::S_ "App")
