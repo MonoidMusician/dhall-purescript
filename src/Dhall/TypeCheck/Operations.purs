@@ -35,7 +35,7 @@ import Dhall.Core.Zippers.Merge (mergeWith)
 import Dhall.Map (class MapLike)
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.TypeCheck.Tree (bitransProduct, deshare, embedShared, env, head2D, mapEnv, recursor2DSharingCtx, shared, step2D, unEnvT, unshared, wasShared)
-import Dhall.TypeCheck.Types (Ann, BiContext, Feedback, L, Lxpr, LxprF, Operations, Ospr, Oxpr, SubstContext, WithBiCtx(..), overBiCtx)
+import Dhall.TypeCheck.Types (Ann, BiContext, Feedback, L, Lxpr, LxprF, Operations, Ospr, Oxpr, SubstContext, WithBiCtx(..), LFeedback, overBiCtx)
 import Dhall.Variables (MaybeIntro(..), alphaNormalizeAlgG, freeInAlg, shiftAlgG, trackIntro)
 import Matryoshka (class Recursive, cata, embed, mapR, project, transCata, traverseR)
 import Unsafe.Reference (unsafeRefEq)
@@ -51,10 +51,10 @@ areEq ty0 ty1 =
   in ty0' == ty1'
 
 unify :: forall w r m a. Eq a => MapLike String m =>
-  (Unit -> Feedback w r m a Void) ->
-  (Pair AST.Const -> Feedback w r m a Void) ->
+  (Unit -> LFeedback w r m a Void) ->
+  (Pair AST.Const -> LFeedback w r m a Void) ->
   Oxpr w r m a -> Oxpr w r m a ->
-  Feedback w r m a Unit
+  LFeedback w r m a Unit
 unify _ _ ty0 ty1 | unsafeRefEq ty0 ty1 = pure unit -- perhaps there is enough sharing
 unify uniError constError ty0 ty1 =
   let

@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Comonad.Cofree (Cofree)
 import Control.Comonad.Env (EnvT)
+import Control.Monad.Reader (ReaderT)
 import Control.Monad.Writer (WriterT)
 import Data.Bifoldable (bifoldMap, bifoldl, bifoldr)
 import Data.Bifunctor (bimap)
@@ -30,6 +31,7 @@ import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Location (BasedExprDerivation)
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.TypeCheck.Tree (HalfTwoD, TwoD)
+import Dhall.TypeCheck.Universes (ConstSolver)
 import Validation.These as V
 
 -- Locations --
@@ -87,10 +89,13 @@ derive instance newtypeTypeCheckError :: Newtype (TypeCheckError r a) _
 derive instance functorTypeCheckError :: Functor (TypeCheckError r)
 derive newtype instance showTypeCheckError :: (Show a, Show (Variant r)) => Show (TypeCheckError r a)
 
+type Write w = Array (Variant w)
 -- Writer-Error "monad" (not quite a monad, but has bind+applicative)
-type WR w e = WriterT (Array (Variant w)) (V.Erroring e)
+type WR w e = WriterT (Write w) (V.Erroring e)
 -- Writer-Error "monad" with type-checking errors specifically
 type Feedback w r m a = WR w (TypeCheckError r (L m a))
+-- Feedback with location
+type LFeedback w r m a = ReaderT (L m a) (Feedback w r m a)
 -- Just the error "monad"
 type Result r m a = V.Erroring (TypeCheckError r (L m a))
 
@@ -164,6 +169,7 @@ type Errors r =
   )
 type ResultE r m a = Result (Errors r) m a
 type FeedbackE w r m a = Feedback w (Errors r) m a
+type LFeedbackE w r m a = LFeedback w (Errors r) m a
 type OxprE w r m a = Oxpr w (Errors r) m a
 type OsprE w r m a = Ospr w (Errors r) m a
 type TypeCheckErrorE r a = TypeCheckError (Errors r) a

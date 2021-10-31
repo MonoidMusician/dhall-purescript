@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Comonad (extract)
 import Control.Monad.Writer as W
+import Control.Monad.Reader as R
 import Control.Plus (empty)
 import Data.Array.NonEmpty as NEA
 import Data.Bifunctor (class Bifunctor)
@@ -73,10 +74,18 @@ confirmW a = case _ of
   W.WriterT (Error es mtaccum) ->
     W.WriterT (Error es $ pure $ Tuple a $ foldMap extract mtaccum)
 
+confirmWR :: forall r w a b e. Monoid w => a -> R.ReaderT r (W.WriterT w (Erroring e)) b -> R.ReaderT r (W.WriterT w (Erroring e)) a
+confirmWR a (R.ReaderT f) = R.ReaderT \r -> confirmW a (f r)
+
 mconfirmW :: forall w a e. Monoid w => Maybe a -> W.WriterT w (Erroring e) a -> W.WriterT w (Erroring e) a
 mconfirmW = case _ of
   Nothing -> identity
   Just a -> confirmW a
+
+mconfirmWR :: forall r w a e. Monoid w => Maybe a -> R.ReaderT r (W.WriterT w (Erroring e)) a -> R.ReaderT r (W.WriterT w (Erroring e)) a
+mconfirmWR = case _ of
+  Nothing -> identity
+  Just a -> confirmWR a
 
 --------------------------------------------------------------------------------
 
@@ -127,3 +136,6 @@ liftCL = Compose <<< map pure
 
 liftCR :: forall f g. Applicative f => g ~> Compose f g
 liftCR = Compose <<< pure
+
+liftR :: forall f a r. Functor f => f a -> R.ReaderT r f a
+liftR m = R.ReaderT (pure m)
