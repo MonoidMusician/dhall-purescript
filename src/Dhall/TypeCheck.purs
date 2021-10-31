@@ -3,7 +3,6 @@ module Dhall.TypeCheck ( module Dhall.TypeCheck, module Exports ) where
 import Prelude
 
 import Control.Comonad (extend)
-import Control.Monad.Writer (WriterT(..))
 import Control.Plus (empty)
 import Data.Bifunctor (bimap)
 import Data.Foldable (foldr, oneOfMap)
@@ -24,17 +23,17 @@ import Dhall.Core.AST (Expr, ExprRowVF(..), ExprRowVFI, S_, _S)
 import Dhall.Core.AST.Operations.Location (Derivation, Derived, Operated, Within)
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.Zippers (_ix)
+import Dhall.Lib.MonoidalState as V
 import Dhall.Map (class MapLike)
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.TypeCheck.Errors (Reference(..), explain)
 import Dhall.TypeCheck.Operations (alphaNormalizeStep, contextStep, normalizeStep, originateFrom, plain, reconstituteCtxM, shiftOxpr, substContextExpr0, substContextExprCtx, substContextOxprCtx, topLoc, typecheckSketch, typecheckStep, unlayerO)
 import Dhall.TypeCheck.Rules (typecheckAlgebra)
-import Dhall.TypeCheck.Types (Ann, BiContext, Errors, Feedback, FeedbackE, Inconsistency(..), L, Lxpr, LxprF, Operations, Ospr, OsprE, Oxpr, OxprE, SubstContext, TypeCheckError(..), TypeCheckErrorE, WR, WithBiCtx(..), Result, ResultE) as Exports
-import Dhall.TypeCheck.Types (BiContext, Errors, FeedbackE, L, OxprE, TypeCheckError(..), ResultE)
+import Dhall.TypeCheck.Types (Ann, BiContext, Errors, Feedback, FeedbackE, Inconsistency(..), L, Lxpr, LxprF, Operations, Ospr, OsprE, Oxpr, OxprE, Result, ResultE, SubstContext, TypeCheckError, TypeCheckErrorE, WithBiCtx(..)) as Exports
+import Dhall.TypeCheck.Types (BiContext, Errors, FeedbackE, L, OxprE, ResultE, TypeCheckError)
 import Dhall.Variables (MaybeIntro(..), trackIntro)
 import Matryoshka (project)
-import Validation.These (unW)
-import Validation.These as V
+import Validation.These as VV
 
 -- | Function that converts the value inside an `Embed` constructor into a new
 -- | expression.
@@ -53,12 +52,9 @@ locateO' foc0 = Variant.match
   , alphaNormalize: \{} -> pure $ alphaNormalizeStep foc0
   , normalize: \{} -> typecheckStep foc0 <#> \_ -> normalizeStep foc0
   , typecheck: \{} -> typecheckStep foc0
-  , within: \i -> V.liftW $
+  , within: \i ->
       foc0 # unlayerO # ERVF # preview (_ix i) # do
-        V.note $ TypeCheckError
-          { location: topLoc foc0
-          , tag: Variant.inj (_S::S_ "Not found") i
-          }
+        V.note $ Tuple (topLoc foc0) $ Variant.inj (_S::S_ "Not found") i
   }
 
 locateO :: forall w r m a. Eq a => MapLike String m =>
@@ -98,7 +94,7 @@ locateE' tpa = Variant.match
   -- I guess we need to substitute `let`-bound variables in context
   -- before typechecking
   , typecheck: \{} -> substCtx >>> typecheck
-  , within: \i -> \(Tuple ctx e) -> V.liftW $
+  , within: \i -> \(Tuple ctx e) ->
       let
         intro = Tuple <<< case _ of
           DoNothing -> ctx
@@ -106,10 +102,7 @@ locateE' tpa = Variant.match
           Intro (Tuple k th) -> join bimap (Variables.shift 1 (V k 0)) <$>
             Dhall.Context.insert k th ctx
       in e # project # un ERVF # trackIntro intro # ERVF # preview (_ix i) # do
-        V.note $ TypeCheckError
-          { location: pure (Tuple empty empty)
-          , tag: Variant.inj (_S::S_ "Not found") i
-          }
+        V.note $ Tuple (pure (Tuple empty empty)) $ Variant.inj (_S::S_ "Not found") i
   }
 
 locateE :: forall w r m a. Eq a => MapLike String m =>
@@ -153,7 +146,19 @@ typeWithA :: forall r m a.
   Context (Expr m a) ->
   Expr m a ->
   ResultE r m a (Expr m a)
-typeWithA tpa ctx0 e0 = unW $ map plain <<< typecheckStep =<< typingWithA tpa ctx0 e0
+typeWithA tpa ctx0 e0 = case map plain <<< typecheckStep =<< typingWithA tpa ctx0 e0 of
+  V.Success _ a -> VV.Success a
+  V.Error es _ ma ->
+    let
+      up = case _ of
+        That e -> absurd e
+        This e -> absurd e
+        Both e _  -> absurd e
+      es' = case es of
+        That e -> e
+        This o -> pure (up (V.unErrorPart o))
+        Both o e -> pure (up (V.unErrorPart o)) <> e
+    in VV.Error es' ma
 
 typingWithA :: forall w r m a.
   Eq a => MapLike String m =>
@@ -202,18 +207,18 @@ oneStopShop tpa e0 = { oxpr, locate, explain: explainHere } where
     Just e1 -> oxprFrom (Just e1) e1
   locate (NonEmptyList (a :| as)) =
     case get a of
-      suc@(WriterT (V.Success _)) -> suc
-      err@(WriterT (V.Error _ _)) ->
-        case oneOfMap (V.hushW' <<< get) as of
+      suc@(V.Success _ _) -> suc
+      err@(V.Error _ _ _) ->
+        case oneOfMap (V.hush' <<< get) as of
           Nothing -> err
           Just r -> pure r
   explainNotFound :: forall b. String -> Array (Reference b)
   explainNotFound i =
     [ Text $ "Could not find location: " <> i ]
-  explainHere (TypeCheckError { location, tag: tag0 }) =
+  explainHere (Tuple location tag0) =
     tag0 # Variant.on (_S::S_ "Not found" ) (explainNotFound <<< show) \tag ->
       let
-        located = V.hushW' $ locate location
+        located = V.hush' $ locate location
         addLocation :: Loc.BasedExprDerivation m a -> L m a
         addLocation (Tuple path (Just base)) = pure $ Tuple path (Just base)
         addLocation (Tuple path Nothing) = bimap (path <> _) identity <$> location
@@ -222,5 +227,5 @@ oneStopShop tpa e0 = { oxpr, locate, explain: explainHere } where
           let
             ctx = join bimap (const unit) <$> contextStep el
             nodeType = unit <$ unlayerO el
-          in explain ctx nodeType tag <#> map (V.hushW' <<< locate <<< addLocation)
+          in explain ctx nodeType tag <#> map (V.hush' <<< locate <<< addLocation)
         Nothing -> explainNotFound (show location)

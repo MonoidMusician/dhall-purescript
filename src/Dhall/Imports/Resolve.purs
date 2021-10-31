@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Alt ((<|>))
 import Control.Apply (lift2)
+import Control.Comonad (extract)
 import Control.Monad.Reader (ReaderT(..))
 import Control.Monad.Writer (WriterT(..))
 import Control.Parallel (parallel, sequential)
@@ -25,6 +26,7 @@ import Data.Newtype (class Newtype, un, unwrap)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.String as String
+import Data.These (These(..))
 import Data.Traversable (sequence, traverse, traverse_)
 import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
@@ -37,6 +39,7 @@ import Dhall.Core.Imports (addHeaders, canonicalizeImport, getHeader, isLocal, p
 import Dhall.Imports.Hash as Hash
 import Dhall.Imports.Headers (allOriginHeaders, fromLocation, getFromOriginHeaders, toHeaders)
 import Dhall.Lib.CBOR as CBOR
+import Dhall.Lib.MonoidalState as V
 import Dhall.Map (InsOrdStrMap)
 import Dhall.Parser as Parser
 import Dhall.TypeCheck (L, typeOf)
@@ -48,7 +51,7 @@ import Effect.Aff.AVar as AVar
 import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
-import Validation.These as V
+import Validation.These as VV
 
 newtype Localized = Localized Import
 derive instance newtypeLocalized :: Newtype Localized _
@@ -133,22 +136,30 @@ instance applyM :: Apply (M w r) where
 instance applicativeM :: Applicative (M w r) where
   pure = M <<< pure
 instance bindM :: Bind (M w r) where
-  bind (M (ReaderT rf)) f = M $ ReaderT \rs -> Compose $ map WriterT do
-    fa <- map (un WriterT) $ un Compose $ rf rs
+  bind (M (ReaderT rf)) f = M $ ReaderT \rs -> Compose $ do
+    fa <- un Compose $ rf rs
     let
       run a = case f a of
         M (ReaderT rf') -> do
-          map (un WriterT) $ un Compose $ rf' rs
+          un Compose $ rf' rs
     case fa of
-      V.Success (Tuple a w) ->
+      V.Success s a ->
         run a <#> case _ of
-          V.Success (Tuple b w') -> V.Success (Tuple b (w <> w'))
-          V.Error es' mb -> V.Error es' (mb <#> map (append w))
-      V.Error es (Just (Tuple a w)) ->
+          V.Success s' b -> case V.emappend s s' of
+            Tuple Nothing s'' -> V.Success s'' b
+            Tuple (Just es) s'' -> V.Error (This es) s'' (Just b)
+          V.Error es' s' mb ->
+            case V.splitGrace (V.upStatePart s <> V.exErrorPart es' <> V.upStatePart s') of
+              Tuple os s'' -> V.Error (V.acc es' os) s'' mb
+      V.Error es s (Just a) ->
         run a <#> case _ of
-          V.Success (Tuple b w') -> V.Success (Tuple b (w <> w'))
-          V.Error es' mb -> V.Error (es <> es') (mb <#> map (append w))
-      V.Error es Nothing -> pure (V.Error es Nothing)
+          V.Success s' b ->
+            case V.splitGrace (V.exErrorPart es <> V.upStatePart s <> V.upStatePart s') of
+              Tuple os s'' -> V.Error (V.acc es os) s'' (Just b)
+          V.Error es' s' mb ->
+            case V.splitGrace (V.exErrorPart es <> V.upStatePart s <> V.exErrorPart es' <> V.upStatePart s') of
+              Tuple os s'' -> V.Error (V.acc (V.eths es es') os) s'' mb
+      V.Error es s Nothing -> pure (V.Error es s Nothing)
 
 -- Run the `ReaderT` layer but pause the remaining effects
 pause :: forall w r a. M w r a -> M w r (N w r a)
@@ -189,11 +200,11 @@ modify_ :: forall w r. (S -> S) -> M w r Unit
 modify_ = state <<< (<<<) (Tuple unit)
 
 tell :: forall w r. Variant (Infos w) -> M w r Unit
-tell v = liftFeedback $ WriterT $ pure $ Tuple unit (pure v)
+tell v = liftFeedback $ V.writeOther (pure v)
 
 throwFb :: forall w r a. Variant (Errors r) -> Feedback w r a
-throwFb e = WriterT $
-  V.Error (pure (TC.TypeCheckError { location: loc, tag: e })) Nothing
+throwFb e =
+  V.Error (That (pure (Tuple loc e))) V.zeroState Nothing
 
 throw :: forall w r a. Variant (Errors r) -> M w r a
 throw e = liftFeedback $ throwFb e
@@ -202,7 +213,7 @@ withCleanup :: forall w r a.
   Aff Unit -> M w r a -> M w r a
 withCleanup h (M (ReaderT rf)) = M $ ReaderT \r -> Compose $
   unwrap (rf r) >>= \a -> a <$ case a of
-    WriterT (V.Error _ _) -> h
+    (V.Error _ _ _) -> h
     _ -> pure unit
 
 note :: forall w r. Variant (Errors r) -> Maybe ~> M w r
@@ -211,10 +222,12 @@ note e = case _ of
   Nothing -> throw e
 
 rehydrateFeedback :: forall w r a.
-  TC.Feedback w r InsOrdStrMap Void ~>
+  TC.Result r InsOrdStrMap Void ~>
   TC.Feedback w r InsOrdStrMap a
-rehydrateFeedback (WriterT f) =
-  WriterT ((lmap <<< map <<< map <<< map <<< map <<< map) absurd f)
+rehydrateFeedback =
+  ((lmap <<< lmap <<< map <<< map <<< map <<< map) absurd) <<< case _ of
+    VV.Success a -> V.Success V.zeroState a
+    VV.Error es ma -> V.Error (That es) V.zeroState ma
 
 liftFeedback :: forall w r. Feedback w r ~> M w r
 liftFeedback f = M $ ReaderT $ pure $ Compose $ pure f
@@ -288,20 +301,21 @@ resolveAlternativesAndCheckHashes = rewriteBottomUpA' $ identity
       -- Recurse on the original but return the *normalized* node
       -- See: https://github.com/dhall-lang/dhall-lang/issues/690#issuecomment-518442494
       pure $ AST.mkHashed exprn hash
-    isRecoverableError = unwrap >>> _.tag >>> Variant.onMatch
+    isRecoverableError = extract >>> Variant.onMatch
       { "Missing import": const true
       , "Import error": const true
       , "Import failed to resolve": const true
       } (const false)
     recover :: Pair (M w r ResolvedExpr) -> M w r ResolvedExpr
-    recover (Pair l r) = M $ ReaderT \rs -> Compose $ WriterT <$> do
-      l' <- unwrap <$> unwrap (unwrap (unwrap l) rs)
+    recover (Pair l r) = M $ ReaderT \rs -> Compose $ do
+      l' <- unwrap (unwrap (unwrap l) rs)
       case l' of
-        V.Error as ma | List.any isRecoverableError as -> do
-          r' <- unwrap <$> unwrap (unwrap (unwrap r) rs)
+        V.Error as s ma | List.any (List.any isRecoverableError) as -> do
+          r' <- unwrap (unwrap (unwrap r) rs)
           case r' of
-            V.Success a -> pure $ V.Success a
-            V.Error bs mb -> pure $ V.Error (as <> bs) (ma <|> mb)
+            V.Success s' a -> pure $ V.Success s' a
+            -- FIXME
+            V.Error bs s' mb -> pure $ V.Error (as <> bs) s' (ma <|> mb)
         _ -> pure l'
 
 -- For hashes found in the cache, replace the expression with that
@@ -381,7 +395,7 @@ parseImport = Parser.parse >>> note (Variant.inj (_S::S_ "Parse error") unit)
 -- Ensure the expr typechecks
 ensureWellTyped :: forall w r. ResolvedExpr -> M w r ResolvedExpr
 ensureWellTyped e = e <$ do
-  void $ liftFeedback $ rehydrateFeedback $ V.liftW $
+  void $ liftFeedback $ rehydrateFeedback $
     typeOf e
 
 getOriginHeadersFor :: forall w r. String -> M w r Headers

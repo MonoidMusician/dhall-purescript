@@ -51,7 +51,8 @@ import Node.Path (FilePath)
 import Node.Process as Process
 import Node.Stream as Stream
 import Unsafe.Coerce (unsafeCoerce)
-import Validation.These as V
+import Dhall.Lib.MonoidalState as V
+import Validation.These as VV
 
 root = "./dhall-lang/tests/" :: String
 
@@ -61,25 +62,25 @@ note _ (Just a) = pure a
 
 noteFb :: forall w e a. Show (Variant e) =>
   String -> TC.Feedback w e InsOrdStrMap a ~> Aff
-noteFb msg (WriterT (V.Error es _)) =
-  throwError (error (msg <> foldMap (\(TC.TypeCheckError { tag }) -> "\n    " <> show tag) es))
-noteFb _ (WriterT (V.Success (Tuple a _))) = pure a
+noteFb msg (V.Error es _ _) =
+  throwError (error (msg <> foldMap (foldMap \(Tuple _ tag) -> "\n    " <> show tag) es))
+noteFb _ (V.Success _ a) = pure a
 
 etonFb :: forall w e a b.
   String -> TC.Feedback w e InsOrdStrMap a b -> Aff Unit
-etonFb _ (WriterT (V.Error _ _)) = pure unit
-etonFb msg (WriterT (V.Success (Tuple _ _))) = throwError (error msg)
+etonFb _ (V.Error _ _ _) = pure unit
+etonFb msg (V.Success _ _) = throwError (error msg)
 
 noteR :: forall e a. Show (Variant e) =>
   String -> TC.Result e InsOrdStrMap a ~> Aff
-noteR msg (V.Error es _) =
-  throwError (error (msg <> foldMap (\(TC.TypeCheckError { tag }) -> "\n    " <> show tag) es))
-noteR _ (V.Success a) = pure a
+noteR msg (VV.Error es _) =
+  throwError (error (msg <> foldMap (\(Tuple _ tag) -> "\n    " <> show tag) es))
+noteR _ (VV.Success a) = pure a
 
 etonR :: forall e a b.
   String -> TC.Result e InsOrdStrMap a b -> Aff Unit
-etonR _ (V.Error _ _) = pure unit
-etonR msg (V.Success _) = throwError (error msg)
+etonR _ (VV.Error _ _) = pure unit
+etonR msg (VV.Success _) = throwError (error msg)
 
 type R =
   { filter :: String -> String -> Maybe Boolean

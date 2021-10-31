@@ -40,13 +40,14 @@ import Data.Tuple (Tuple(..), curry, fst, uncurry)
 import Dhall.Context as Dhall.Context
 import Dhall.Core.AST (Const(..), Expr, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
+import Dhall.Lib.MonoidalState (provideLoc)
+import Dhall.Lib.MonoidalState as V
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
-import Dhall.TypeCheck.Operations (alsoOriginateFromO, areEq, normalizeStep, shiftInOxpr0, topLoc, tryShiftOut0Oxpr, typecheckStep, unlayerO)
 import Dhall.TypeCheck.MoreOperations (aFunctor, aType, always, checkBinOp, checkEq, checkEqL, checkEqR, ensure, ensure', ensureAnyTerm, ensureConst, ensureTerm, ensureType, errorHere, mkFunctor, mkShared, newb, noteHere, tyStep)
+import Dhall.TypeCheck.Operations (alsoOriginateFromO, areEq, normalizeStep, shiftInOxpr0, topLoc, tryShiftOut0Oxpr, typecheckStep, unlayerO)
 import Dhall.TypeCheck.Tree (shared)
 import Dhall.TypeCheck.Types (FeedbackE, Inconsistency(..), L, LxprF, OsprE, Oxpr, OxprE, WithBiCtx(..))
-import Validation.These as V
 
 axiom :: forall f. Alternative f => Const -> f Const
 axiom (Universes us u) = pure (Universes (map (over Max (_ + one)) us) (over Max (_ + one) u))
@@ -144,7 +145,7 @@ typecheckAlgebra :: forall w r m a. Eq a => MapLike String m =>
   (a -> FeedbackE w r m a (Expr m a)) ->
   WithBiCtx (LxprF m a) (OxprE w r m a) ->
   FeedbackE w r m a (OsprE w r m a)
-typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT loc0 $ unwrap layer # VariantF.match
+typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0 $ unwrap layer # VariantF.match
   let
     a0 = AST.mkVar (AST.V "a" 0)
 
@@ -219,7 +220,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT
               -- even if its argument does not have the right type
               errorHere (_S::S_ "Type mismatch") unit # case shifted of
                 Nothing -> identity
-                Just rty' -> V.confirmWR (shared rty')
+                Just rty' -> V.confirmR (shared rty')
       in join $ checkArg <$> checkFn <*> tyStep a
   , "Annot": \(AST.Pair expr ty) ->
       map shared $ join $ checkEqR
@@ -280,7 +281,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT
   , "DoubleLit": always $ AST.mkDouble
   , "DoubleShow": always $ AST.mkArrow AST.mkDouble AST.mkText
   , "Text": identity aType
-  , "TextLit": \things -> V.confirmWR (newb AST.mkText) $
+  , "TextLit": \things -> V.confirmR (newb AST.mkText) $
       forWithIndex_ things \i expr -> ensure (_S::S_ "Text") expr
         (errorHere (_S::S_ "Cannot interpolate") <<< const i)
   , "TextAppend": checkBinOp AST.mkText
@@ -297,7 +298,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT
   , "TimeLit": always $ AST.mkTime
   , "TimeZoneLit": always $ AST.mkTimeZone
   , "List": identity aFunctor
-  , "ListLit": \(Product (Tuple mty lit)) -> V.mconfirmWR (shared <$> mty) do
+  , "ListLit": \(Product (Tuple mty lit)) -> V.mconfirmR (shared <$> mty) do
       -- get the assumed type of the list
       (ty :: OxprE w r m a) <- case mty of
         -- either from annotation
@@ -307,7 +308,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT
           normalizeStep list # unlayerO #
             VariantF.on (_S::S_ "List") (const (pure unit))
               \_ -> absurd <$> error unit
-          V.confirmWR ty $ ensureType ty
+          V.confirmR ty $ ensureType ty
             (errorHere (_S::S_ "Invalid list type"))
         -- or from the first element
         Nothing -> case Array.head lit of
@@ -315,7 +316,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT
           Just item -> do
             ensureTerm item
               (errorHere (_S::S_ "Invalid list type"))
-      V.confirmWR (mkFunctor AST.mkList (shared ty)) $ forWithIndex_ lit \i item -> do
+      V.confirmR (mkFunctor AST.mkList (shared ty)) $ forWithIndex_ lit \i item -> do
         ty' <- tyStep item
         checkEq ty ty' \_ ->
           case mty of
@@ -375,7 +376,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT
         (errorHere (_S::S_ "Duplicate record fields")) kvs
       *> do
         kts <- traverse tyStep kvs
-        V.confirmWR (mkShared(_S::S_"Record") (shared <$> kts)) do
+        V.confirmR (mkShared(_S::S_"Record") (shared <$> kts)) do
           forWithIndex_ kts \field ty -> do
             ensure (_S::S_ "Const") ty
               (errorHere (_S::S_ "Invalid field type") <<< const field)
@@ -449,7 +450,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT
         <*> (Dhall.Map.get "Type" fields # noteHere (_S::S_ "Missing field") "Type")
       fields' <- ensure' (_S::S_ "Record") dest
         (errorHere (_S::S_ "Annotation mismatch"))
-      V.confirmWR (shared dest) do
+      V.confirmR (shared dest) do
         let p = AST.Pair df r
         AST.Pair { const: _constL, kts: ktsL } { const: _constR, kts: ktsR } <-
           forWithIndex p \side kvs -> do
@@ -528,7 +529,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT
                 pure $ Tuple (Just { key: k, fn: true }) output'
               Nothing -> do
                 pure $ Tuple (Just { key: k, fn: false }) item
-      V.confirmWR (shared ty) ado
+      V.confirmR (shared ty) ado
         when (not Set.isEmpty diffX)
           (errorHere (_S::S_ "Unused handlers") diffX)
         forWithIndex_ ktsY \k mtY -> do
@@ -551,7 +552,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT
               checkEq ty tX
                 (errorHere (_S::S_ "Handler type mismatch") <<< const (Tuple whence k))
         in unit
-  , "ToMap": \(Product (Tuple (Identity expr) mty)) -> V.mconfirmWR (shared <$> mty) do
+  , "ToMap": \(Product (Tuple (Identity expr) mty)) -> V.mconfirmR (shared <$> mty) do
       kts <- ensure (_S::S_ "Record") expr
         (errorHere (_S::S_ "toMap takes a record"))
       let
@@ -574,7 +575,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT
         _ <- ensure' (_S::S_ "Text") tyK error
         ty <- Dhall.Map.get "mapValue" tyS
           # noteHere (_S::S_ "Invalid toMap type annotation") unit
-        V.confirmWR ty $ ensureType ty (errorHere (_S::S_ "Invalid toMap type"))
+        V.confirmR ty $ ensureType ty (errorHere (_S::S_ "Invalid toMap type"))
       ty <- ensureConsistentOxpr
         (errorHere (_S::S_ "Missing toMap type"))
         (errorHere (_S::S_ "Inconsistent toMap types") <<< (map <<< map) _.key)
@@ -634,11 +635,12 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT
         pure unit
   , "ImportAlt": \(Pair l r) ->
       -- FIXME???
-      V.liftR $ case unwrap $ shared <$> typecheckStep l of
-        succ@(V.Success _) -> wrap succ
-        V.Error es ml ->
-          case unwrap $ shared <$> typecheckStep r of
-            succ@(V.Success _) -> wrap succ
-            V.Error es' mr -> wrap $ V.Error (es <> es') (ml <|> mr)
+      V.liftR $ case shared <$> typecheckStep l of
+        succ@(V.Success _ _) -> succ
+        V.Error es ms ml ->
+          case shared <$> typecheckStep r of
+            succ@(V.Success _ _) -> succ
+            -- FIXME
+            V.Error es' ms' mr -> V.Error (es <> es') ms' (ml <|> mr)
   , "Embed": V.liftR <<< map newb <<< tpa <<< unwrap
   }

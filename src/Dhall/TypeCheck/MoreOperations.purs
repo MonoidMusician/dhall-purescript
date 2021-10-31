@@ -3,7 +3,6 @@ module Dhall.TypeCheck.MoreOperations where
 
 import Prelude
 
-import Control.Monad.Reader (ReaderT(..))
 import Data.Const as Const
 import Data.FoldableWithIndex (forWithIndex_)
 import Data.Functor.Variant as VariantF
@@ -18,13 +17,14 @@ import Data.Variant as Variant
 import Dhall.Core (SimpleExpr, rehydrate)
 import Dhall.Core.AST (Const(..), Expr, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
+import Dhall.Lib.MonoidalState (LocStateErroring(..))
+import Dhall.Lib.MonoidalState as V
 import Dhall.Map (class MapLike)
 import Dhall.TypeCheck.Operations (newborn, newshared, normalizeStep, plain, typecheckStep, unify, unlayerO)
 import Dhall.TypeCheck.Tree (unshared)
 import Dhall.TypeCheck.Types (Errors, LFeedbackE, OsprE, OxprE, TypeCheckError(..))
 import Type.Proxy (Proxy)
 import Type.Row as R
-import Validation.These as V
 
 
 errorHere ::
@@ -34,10 +34,8 @@ errorHere ::
   Proxy sym ->
   t ->
   LFeedbackE w r m a b
-errorHere sym v = ReaderT \loc -> V.liftW $ V.erroring $ TypeCheckError
-  { location: loc
-  , tag: Variant.inj sym v
-  }
+errorHere sym v =
+  LocStateErroring \loc -> V.erroring $ Tuple loc $ Variant.inj sym v
 
 noteHere ::
   forall sym t r' b w r m a. Eq a => MapLike String m =>
@@ -99,12 +97,12 @@ checkEqL :: forall w r m a. Eq a => MapLike String m =>
   OxprE w r m a -> OxprE w r m a ->
   (Unit -> LFeedbackE w r m a Void) ->
   LFeedbackE w r m a (OxprE w r m a)
-checkEqL ty0 ty1 error = V.confirmWR ty0 $ checkEq ty0 ty1 error
+checkEqL ty0 ty1 error = V.confirmR ty0 $ checkEq ty0 ty1 error
 checkEqR :: forall w r m a. Eq a => MapLike String m =>
   OxprE w r m a -> OxprE w r m a ->
   (Unit -> LFeedbackE w r m a Void) ->
   LFeedbackE w r m a (OxprE w r m a)
-checkEqR ty0 ty1 error = V.confirmWR ty1 $ checkEq ty0 ty1 error
+checkEqR ty0 ty1 error = V.confirmR ty1 $ checkEq ty0 ty1 error
 
 always :: forall y w r m a. Eq a => MapLike String m => Expr m a -> y -> LFeedbackE w r m a (OsprE w r m a)
 always b _ = pure $ newb $ b
@@ -120,7 +118,7 @@ checkBinOp :: forall w r m a. Eq a => MapLike String m =>
   SimpleExpr ->
   Pair (OxprE w r m a) ->
   LFeedbackE w r m a (OsprE w r m a)
-checkBinOp t p = V.confirmWR (newb (rehydrate t)) $ forWithIndex_ p $
+checkBinOp t p = V.confirmR (newb (rehydrate t)) $ forWithIndex_ p $
   -- t should be simple enough that alphaNormalize is unnecessary
   \side operand -> tyStep operand >>= normalizeStep >>> case _ of
     ty_operand | rehydrate t == plain ty_operand -> pure unit

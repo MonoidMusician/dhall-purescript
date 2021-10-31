@@ -15,6 +15,7 @@ import Data.Functor.Product (Product)
 import Data.Lazy (Lazy)
 import Data.List (List)
 import Data.List.Types (NonEmptyList)
+import Data.Map (SemigroupMap(..))
 import Data.Maybe (Maybe)
 import Data.Natural (Natural)
 import Data.Newtype (class Newtype)
@@ -29,9 +30,10 @@ import Dhall.Context (Context)
 import Dhall.Core.AST (Const, Pair, SimpleExpr, Var)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Location (BasedExprDerivation)
+import Dhall.Lib.MonoidalState (LocStateErroring(..), OccurrencesWithInfos, StateErroring, Total(..))
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.TypeCheck.Tree (HalfTwoD, TwoD)
-import Dhall.TypeCheck.Universes (ConstSolver)
+import Dhall.TypeCheck.Universes (ConstSolver, SolverKey, SolverVal)
 import Validation.These as V
 
 -- Locations --
@@ -79,23 +81,14 @@ instance traversableWithBiCtx :: Traversable f => Traversable (WithBiCtx f) wher
 -- Errors --
 
 -- A single error
-newtype TypeCheckError r a = TypeCheckError
-  -- The main location where the typechecking error occurred
-  { location :: a
-  -- The tag for the specific error, mostly for machine purposes
-  , tag :: Variant r
-  }
-derive instance newtypeTypeCheckError :: Newtype (TypeCheckError r a) _
-derive instance functorTypeCheckError :: Functor (TypeCheckError r)
-derive newtype instance showTypeCheckError :: (Show a, Show (Variant r)) => Show (TypeCheckError r a)
+type TypeCheckError r a = Tuple a (Variant r)
 
-type Write w = Array (Variant w)
--- Writer-Error "monad" (not quite a monad, but has bind+applicative)
-type WR w e = WriterT (Write w) (V.Erroring e)
+type TCState l = ConstSolver l
+type Write w = Total (Array (Variant w))
 -- Writer-Error "monad" with type-checking errors specifically
-type Feedback w r m a = WR w (TypeCheckError r (L m a))
+type Feedback w r m a = StateErroring (Tuple (Write w) Unit) (TypeCheckError r (L m a))
 -- Feedback with location
-type LFeedback w r m a = ReaderT (L m a) (Feedback w r m a)
+type LFeedback w r m a = LocStateErroring (L m a) (Tuple (Write w) Unit) (Variant r)
 -- Just the error "monad"
 type Result r m a = V.Erroring (TypeCheckError r (L m a))
 
