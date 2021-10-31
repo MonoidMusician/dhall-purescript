@@ -33,23 +33,19 @@ import Data.Newtype (over, un, unwrap, wrap)
 import Data.NonEmpty ((:|))
 import Data.Ord.Max (Max(..))
 import Data.Set as Set
-import Data.Symbol (class IsSymbol)
 import Data.These (These(..))
 import Data.Traversable (for, traverse)
 import Data.TraversableWithIndex (forWithIndex, traverseWithIndex)
 import Data.Tuple (Tuple(..), curry, fst, uncurry)
-import Data.Variant as Variant
 import Dhall.Context as Dhall.Context
-import Dhall.Core (SimpleExpr, rehydrate)
 import Dhall.Core.AST (Const(..), Expr, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
-import Dhall.TypeCheck.Operations (alsoOriginateFromO, areEq, newborn, newshared, normalizeStep, plain, shiftInOxpr0, topLoc, tryShiftOut0Oxpr, typecheckStep, unify, unlayerO)
-import Dhall.TypeCheck.Tree (shared, unshared)
-import Dhall.TypeCheck.Types (Errors, FeedbackE, Inconsistency(..), L, LxprF, OsprE, Oxpr, OxprE, TypeCheckError(..), WithBiCtx(..), LFeedbackE)
-import Type.Proxy (Proxy)
-import Type.Row as R
+import Dhall.TypeCheck.Operations (alsoOriginateFromO, areEq, normalizeStep, shiftInOxpr0, topLoc, tryShiftOut0Oxpr, typecheckStep, unlayerO)
+import Dhall.TypeCheck.MoreOperations (aFunctor, aType, always, checkBinOp, checkEq, checkEqL, checkEqR, ensure, ensure', ensureAnyTerm, ensureConst, ensureTerm, ensureType, errorHere, mkFunctor, mkShared, newb, noteHere, tyStep)
+import Dhall.TypeCheck.Tree (shared)
+import Dhall.TypeCheck.Types (FeedbackE, Inconsistency(..), L, LxprF, OsprE, Oxpr, OxprE, WithBiCtx(..))
 import Validation.These as V
 
 axiom :: forall f. Alternative f => Const -> f Const
@@ -148,105 +144,9 @@ typecheckAlgebra :: forall w r m a. Eq a => MapLike String m =>
   (a -> FeedbackE w r m a (Expr m a)) ->
   WithBiCtx (LxprF m a) (OxprE w r m a) ->
   FeedbackE w r m a (OsprE w r m a)
-typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = flip runReaderT loc $ unwrap layer # VariantF.match
+typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = flip runReaderT loc0 $ unwrap layer # VariantF.match
   let
-    errorHere ::
-      forall sym t r' b.
-        IsSymbol sym =>
-        R.Cons sym t r' (Errors r) =>
-      Proxy sym ->
-      t ->
-      LFeedbackE w r m a b
-    errorHere sym v = V.liftR $ V.liftW $ V.erroring $ TypeCheckError
-      { location: loc
-      , tag: Variant.inj sym v
-      }
-
-    noteHere ::
-      forall sym t r' b.
-        IsSymbol sym =>
-        R.Cons sym t r' (Errors r) =>
-      Proxy sym ->
-      t ->
-      Maybe b ->
-      LFeedbackE w r m a b
-    noteHere sym v = (<<<) V.liftR $ (<<<) V.liftW $ V.note $ TypeCheckError
-      { location: loc
-      , tag: Variant.inj sym v
-      }
-
-    tyStep = V.liftR <<< typecheckStep
-    uniError = errorHere (_S::S_ "Universes could not unify")
-
-    newb = unshared <<< newborn
-    mkFunctor :: Expr m a -> OsprE w r m a -> OsprE w r m a
-    mkFunctor f a = mkShared (_S::S_ "App") $
-      Pair (newb f) a
-    mkShared :: forall sym f r'.
-      Functor f =>
-      IsSymbol sym =>
-      R.Cons sym f r' (AST.ExprLayerRow m a) =>
-      Proxy sym ->
-      f (OsprE w r m a) ->
-      OsprE w r m a
-    mkShared sym = newshared <<< VariantF.inj sym
-    ensure' :: forall sym f r'.
-      IsSymbol sym =>
-      R.Cons sym f r' (AST.ExprLayerRow m a) =>
-      Proxy sym ->
-      OxprE w r m a ->
-      (Unit -> LFeedbackE w r m a Void) ->
-      LFeedbackE w r m a (f (OxprE w r m a))
-    ensure' s ty error =
-      let nf_ty = normalizeStep ty in
-      unlayerO nf_ty # VariantF.on s pure
-        \_ -> absurd <$> error unit
-    ensureConst ::
-      OxprE w r m a ->
-      (Unit -> LFeedbackE w r m a Void) ->
-      LFeedbackE w r m a Const
-    ensureConst expr error = do
-      ty <- tyStep expr
-      unwrap <$> ensure' (_S::S_ "Const") ty error
-
-    checkEq ::
-      OxprE w r m a -> OxprE w r m a ->
-      (Unit -> LFeedbackE w r m a Void) ->
-      LFeedbackE w r m a Unit
-    checkEq ty0 ty1 error =
-      unify error uniError ty0 ty1
-    checkEqL ::
-      OxprE w r m a -> OxprE w r m a ->
-      (Unit -> LFeedbackE w r m a Void) ->
-      LFeedbackE w r m a (OxprE w r m a)
-    checkEqL ty0 ty1 error = V.confirmWR ty0 $ checkEq ty0 ty1 error
-    checkEqR ::
-      OxprE w r m a -> OxprE w r m a ->
-      (Unit -> LFeedbackE w r m a Void) ->
-      LFeedbackE w r m a (OxprE w r m a)
-    checkEqR ty0 ty1 error = V.confirmWR ty1 $ checkEq ty0 ty1 error
-
-    always :: forall y. Expr m a -> y -> LFeedbackE w r m a (OsprE w r m a)
-    always b _ = pure $ newb $ b
-    aType :: forall x. Const.Const x (OxprE w r m a) -> LFeedbackE w r m a (OsprE w r m a)
-    aType = always $ AST.mkType zero
-    aFunctor :: forall x. Const.Const x (OxprE w r m a) -> LFeedbackE w r m a (OsprE w r m a)
-    aFunctor = always $ AST.mkArrow (AST.mkType zero) (AST.mkType zero)
     a0 = AST.mkVar (AST.V "a" 0)
-
-    -- TODO: This will need to become aware of AST holes
-    -- Check a binary operation (`Pair` functor) against a simple, static,
-    -- *normalize* type `t`.
-    checkBinOp ::
-      SimpleExpr ->
-      Pair (OxprE w r m a) ->
-      LFeedbackE w r m a (OsprE w r m a)
-    checkBinOp t p = V.confirmWR (newb (rehydrate t)) $ forWithIndex_ p $
-      -- t should be simple enough that alphaNormalize is unnecessary
-      \side operand -> tyStep operand >>= normalizeStep >>> case _ of
-        ty_operand | rehydrate t == plain ty_operand -> pure unit
-          | otherwise -> errorHere
-            (_S::S_ "Unexpected type") (Tuple side t)
 
     naturalEnc =
       AST.mkForall "natural" $
@@ -262,47 +162,6 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc layer))) = flip runReaderT 
           AST.mkPi "nil" list $
             list
 
-    ensure :: forall sym f r'.
-      IsSymbol sym =>
-      R.Cons sym f r' (AST.ExprLayerRow m a) =>
-      Proxy sym ->
-      OxprE w r m a ->
-      (Unit -> LFeedbackE w r m a Void) ->
-      LFeedbackE w r m a (f (OxprE w r m a))
-    ensure s expr error = do
-      ty <- tyStep expr
-      ensure' s ty error
-
-    -- Ensure that the passed `expr` is a term; i.e. the type of its type
-    -- is `Type`. Returns the type of the `expr`.
-    ensureTerm ::
-      OxprE w r m a ->
-      (Maybe Const -> LFeedbackE w r m a Void) ->
-      LFeedbackE w r m a (OxprE w r m a)
-    ensureTerm expr error = do
-      ty <- tyStep expr
-      ty <$ ensureType ty error
-
-    ensureAnyTerm ::
-      OxprE w r m a ->
-      (Unit -> LFeedbackE w r m a Void) ->
-      LFeedbackE w r m a (OxprE w r m a)
-    ensureAnyTerm expr error = do
-      ty <- tyStep expr
-      kind <- tyStep ty
-      ty <$ ensure' (_S::S_ "Const") kind error
-
-    -- Ensure that the passed `ty` is a type; i.e. its type is `Type`.
-    ensureType ::
-      OxprE w r m a ->
-      (Maybe Const -> LFeedbackE w r m a Void) ->
-      LFeedbackE w r m a Unit
-    ensureType ty error = do
-      kind <- tyStep ty
-      ensure' (_S::S_ "Const") kind (\_ -> error Nothing) >>= case _ of
-        -- TODO
-        Const.Const (Universes (SemigroupMap m) (Max 0)) | Map.isEmpty m -> pure unit
-        Const.Const c -> absurd <$> error (Just c)
   in
   { "Const": unwrap >>> \c ->
       axiom c <#> newb <<< AST.mkConst #
