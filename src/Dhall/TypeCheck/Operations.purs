@@ -16,11 +16,11 @@ import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
 import Data.Lazy (defer)
-import Data.Maybe (Maybe(..), maybe')
+import Data.Maybe (Maybe(..))
 import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (over, un, unwrap, wrap)
 import Data.These (theseLeft)
-import Data.Traversable (sequence, traverse)
+import Data.Traversable (traverse)
 import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..))
 import Data.Variant as Variant
@@ -31,11 +31,10 @@ import Dhall.Core.AST (Expr, ExprRowVF(..), Pair(..), S_, _S)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.AST.Operations.Transformations (OverCases, OverCasesM(..))
-import Dhall.Core.Zippers.Merge (mergeWith)
 import Dhall.Map (class MapLike)
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.TypeCheck.Tree (bitransProduct, deshare, embedShared, env, head2D, mapEnv, recursor2DSharingCtx, shared, step2D, unEnvT, unshared, wasShared)
-import Dhall.TypeCheck.Types (Ann, BiContext, Feedback, L, Lxpr, LxprF, Operations, Ospr, Oxpr, SubstContext, WithBiCtx(..), LFeedback, overBiCtx)
+import Dhall.TypeCheck.Types (Ann, BiContext, Feedback, L, Lxpr, LxprF, Operations, Ospr, Oxpr, SubstContext, WithBiCtx(..), overBiCtx)
 import Dhall.Variables (MaybeIntro(..), alphaNormalizeAlgG, freeInAlg, shiftAlgG, trackIntro)
 import Matryoshka (class Recursive, cata, embed, mapR, project, transCata, traverseR)
 import Unsafe.Reference (unsafeRefEq)
@@ -49,34 +48,6 @@ areEq ty0 ty1 =
       -- even though it is shared in `Oxpr`
       normalizeStep >>> plain >>> AST.unordered >>> alphaNormalize
   in ty0' == ty1'
-
-unify :: forall w r m a. Eq a => MapLike String m =>
-  (Unit -> LFeedback w r m a Void) ->
-  (Pair AST.Const -> LFeedback w r m a Void) ->
-  Oxpr w r m a -> Oxpr w r m a ->
-  LFeedback w r m a Unit
-unify _ _ ty0 ty1 | unsafeRefEq ty0 ty1 = pure unit -- perhaps there is enough sharing
-unify uniError constError ty0 ty1 =
-  let
-    Pair ty0' ty1' = Pair ty0 ty1 <#>
-      -- it appears that alphaNormalize is cheaper after `plain`,
-      -- even though it is shared in `Oxpr`
-      normalizeStep >>> plain >>> AST.unordered >>> alphaNormalize
-    unifyAll a b = AST.embedW <$> unifyLayer (AST.projectW a) (AST.projectW b)
-    unifyLayer l r = ((#) r) $ ((#) l) $ VariantF.on (_S::S_ "Const")
-      do
-        \a ->
-          VariantF.on (_S::S_ "Const")
-            do \b -> unifyConst (unwrap a) (unwrap b) <#> VariantF.inj (_S::S_ "Const") <<< wrap
-            do \_ -> absurd <$> uniError unit
-      do
-        \_ ->
-          VariantF.on (_S::S_ "Const")
-            do \_ -> absurd <$> uniError unit
-            do \_ -> maybe' (map absurd <<< uniError) sequence (mergeWith unifyAll l r)
-    unifyConst a b | a == b = pure a
-    unifyConst a b = absurd <$> constError (Pair a b)
-  in void $ unifyAll ty0' ty1'
 
 -- Transforms the simple "typecheck one thing" algorithm to the full-blown
 -- Lxpr -> Oxpr transformation (which includes typechecking and normalizing

@@ -26,6 +26,7 @@ import Dhall.Map as IOSM
 import Dhall.Parser as Parser
 import Dhall.Printer (printAST)
 import Dhall.TypeCheck as TC
+import Dhall.TypeCheck.State as TCS
 import Effect (Effect)
 import Effect.Aff (Aff, runAff_)
 import Effect.Class.Console (log, logShow)
@@ -51,7 +52,7 @@ resolve'' resolver e = do
 
 tc :: forall t14. MapLike String t14 => Expr t14 Void -> Maybe (Expr t14 Void)
 tc = tc' >>> V.hush'
-tc' :: forall t14. MapLike String t14 => Expr t14 Void -> TC.ResultE () t14 Void (Expr t14 Void)
+tc' :: forall t14. MapLike String t14 => Expr t14 Void -> TC.ResultE (TCS.StateErrors ()) t14 Void (Expr t14 Void)
 tc' = TC.typeOf
 normalize :: forall m a. MapLike String m => Eq a => Expr m a -> Expr m a
 normalize = Dhall.Core.normalize
@@ -82,7 +83,7 @@ type Actions =
         , cbor :: ArrayBuffer
         }
       , unsafeNormalized :: Lazy Resolve.ResolvedExpr
-      , typechecked :: Compose Lazy (TC.ResultE () IOSM.InsOrdStrMap Void)
+      , typechecked :: Compose Lazy (TC.ResultE (TCS.StateErrors ()) IOSM.InsOrdStrMap Void)
         { inferredType :: Resolve.ResolvedExpr
         , normalizedType :: Lazy Resolve.ResolvedExpr
         , safeNormalized :: Lazy Resolve.ResolvedExpr

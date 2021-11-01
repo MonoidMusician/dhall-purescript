@@ -6,7 +6,6 @@ import Control.Alt ((<|>))
 import Control.Apply (lift2)
 import Control.Comonad (extract)
 import Control.Monad.Reader (ReaderT(..))
-import Control.Monad.Writer (WriterT(..))
 import Control.Parallel (parallel, sequential)
 import Control.Plus (empty)
 import Data.ArrayBuffer.Types (ArrayBuffer)
@@ -44,6 +43,7 @@ import Dhall.Map (InsOrdStrMap)
 import Dhall.Parser as Parser
 import Dhall.TypeCheck (L, typeOf)
 import Dhall.TypeCheck as TC
+import Dhall.TypeCheck.State as TCS
 import Effect.AVar (AVar)
 import Effect.Aff (Aff)
 import Effect.Aff as Aff
@@ -92,7 +92,7 @@ type Infos w =
   ( graph :: { parent :: Localized, child :: Localized }
   | w
   )
-type Errors r = TC.Errors
+type Errors r = TCS.StateErrors (TC.Errors
   ( "Parse error" :: Unit
   , "Decoding error" :: Unit
   , "Invalid headers" :: Unit
@@ -110,7 +110,7 @@ type Errors r = TC.Errors
     }
   , "Import failed to resolve" :: Localized
   | r
-  )
+  ))
 type Feedback w r = TC.Feedback (Infos w) (Errors r) InsOrdStrMap Import
 
 -- FIXME: use different location

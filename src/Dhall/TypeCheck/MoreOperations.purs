@@ -20,7 +20,8 @@ import Dhall.Core.AST as AST
 import Dhall.Lib.MonoidalState (LocStateErroring(..))
 import Dhall.Lib.MonoidalState as V
 import Dhall.Map (class MapLike)
-import Dhall.TypeCheck.Operations (newborn, newshared, normalizeStep, plain, typecheckStep, unify, unlayerO)
+import Dhall.TypeCheck.Operations (newborn, newshared, normalizeStep, plain, typecheckStep, unlayerO)
+import Dhall.TypeCheck.State (unify)
 import Dhall.TypeCheck.Tree (unshared)
 import Dhall.TypeCheck.Types (Errors, LFeedbackE, OsprE, OxprE)
 import Type.Proxy (Proxy)

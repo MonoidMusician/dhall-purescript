@@ -4,8 +4,6 @@ import Prelude
 
 import Control.Comonad.Cofree (Cofree)
 import Control.Comonad.Env (EnvT)
-import Control.Monad.Reader (ReaderT)
-import Control.Monad.Writer (WriterT)
 import Data.Bifoldable (bifoldMap, bifoldl, bifoldr)
 import Data.Bifunctor (bimap)
 import Data.Bitraversable (bisequence, bitraverse)
@@ -15,7 +13,6 @@ import Data.Functor.Product (Product)
 import Data.Lazy (Lazy)
 import Data.List (List)
 import Data.List.Types (NonEmptyList)
-import Data.Map (SemigroupMap(..))
 import Data.Maybe (Maybe)
 import Data.Natural (Natural)
 import Data.Newtype (class Newtype)
@@ -30,10 +27,10 @@ import Dhall.Context (Context)
 import Dhall.Core.AST (Const, Pair, SimpleExpr, Var)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Operations.Location (BasedExprDerivation)
-import Dhall.Lib.MonoidalState (LocStateErroring(..), OccurrencesWithInfos, StateErroring, Total(..))
+import Dhall.Lib.MonoidalState (LocStateErroring, StateErroring, Total)
 import Dhall.Normalize as Dhall.Normalize
 import Dhall.TypeCheck.Tree (HalfTwoD, TwoD)
-import Dhall.TypeCheck.Universes (ConstSolver, SolverKey, SolverVal)
+import Dhall.TypeCheck.Universes (ConstSolver)
 import Validation.These as V
 
 -- Locations --
@@ -86,9 +83,9 @@ type TypeCheckError r a = Tuple a (Variant r)
 type TCState l = ConstSolver l
 type Write w = Total (Array (Variant w))
 -- Writer-Error "monad" with type-checking errors specifically
-type Feedback w r m a = StateErroring (Tuple (Write w) Unit) (TypeCheckError r (L m a))
+type Feedback w r m a = StateErroring (Tuple (Write w) (TCState (L m a))) (TypeCheckError r (L m a))
 -- Feedback with location
-type LFeedback w r m a = LocStateErroring (L m a) (Tuple (Write w) Unit) (Variant r)
+type LFeedback w r m a = LocStateErroring (L m a) (Tuple (Write w) (TCState (L m a))) (Variant r)
 -- Just the error "monad"
 type Result r m a = V.Erroring (TypeCheckError r (L m a))
 

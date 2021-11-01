@@ -5,7 +5,6 @@ import Prelude
 import Control.Alternative (empty, guard, (<|>))
 import Control.Comonad (extract)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
-import Control.Monad.Writer (WriterT(..))
 import Data.Array as Array
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Either (Either(..))
@@ -24,7 +23,7 @@ import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
 import Dhall.Core (Directory(..), File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), alphaNormalize, conv, projectW, unordered)
 import Dhall.Core as AST
-import Dhall.Core.CBOR (encode, decode)
+import Dhall.Core.CBOR (decode)
 import Dhall.Imports.Resolve as Resolve
 import Dhall.Imports.Retrieve (nodeCache, nodeReadBinary, nodeRetrieve, nodeRetrieveFile)
 import Dhall.Lib.CBOR as CBOR
@@ -43,7 +42,6 @@ import Effect.Class.Console (log, logShow)
 import Effect.Exception (stack)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
-import Matryoshka (project)
 import Node.Buffer as Buffer
 import Node.ChildProcess as ChildProcess
 import Node.Encoding (Encoding(..))
@@ -283,16 +281,20 @@ test = do
         throwError (error "Why is there a semantic hash failure?")
   testType "type-inference"
     do \verb success -> do
+        log success
         textA <- nodeRetrieveFile (success <> "A.dhall") >>= note "Failed to decode A"
         let actA = mkActions "type-inference" success textA
         parsedA <- actA.parse # unwrap # extract #
           note "Failed to parse A"
         see (success <> "A.dhall") parsedA.parsed
+        log "… parsed"
         importedA <- parsedA.imports # unwrap # extract # unwrap >>=
           noteFb "Failed to resolve A"
+        log "… resolved"
         see (success <> "A.dhall.resolved") (map absurd importedA.resolved)
         typecheckedA <- importedA.typechecked # unwrap # extract #
           noteR "Failed to typecheck A"
+        log "… typechecked"
         see (success <> "A.dhall.type") (map absurd typecheckedA.inferredType)
         textB <- nodeRetrieveFile (success <> "B.dhall") >>= note "Failed to decode B"
         let actB = mkActions "type-inference" success textB

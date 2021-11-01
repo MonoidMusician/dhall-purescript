@@ -29,6 +29,7 @@ import Dhall.Normalize as Dhall.Normalize
 import Dhall.TypeCheck.Errors (Reference(..), explain)
 import Dhall.TypeCheck.Operations (alphaNormalizeStep, contextStep, normalizeStep, originateFrom, plain, reconstituteCtxM, shiftOxpr, substContextExpr0, substContextExprCtx, substContextOxprCtx, topLoc, typecheckSketch, typecheckStep, unlayerO)
 import Dhall.TypeCheck.Rules (typecheckAlgebra)
+import Dhall.TypeCheck.State as State
 import Dhall.TypeCheck.Types (Ann, BiContext, Errors, Feedback, FeedbackE, Inconsistency(..), L, Lxpr, LxprF, Operations, Ospr, OsprE, Oxpr, OxprE, Result, ResultE, SubstContext, TypeCheckError, TypeCheckErrorE, WithBiCtx(..)) as Exports
 import Dhall.TypeCheck.Types (BiContext, Errors, FeedbackE, L, OxprE, ResultE, TypeCheckError)
 import Dhall.Variables (MaybeIntro(..), trackIntro)
@@ -126,7 +127,7 @@ typeWith :: forall r m.
   MapLike String m =>
   Context (Expr m Void) ->
   Expr m Void ->
-  ResultE r m Void (Expr m Void)
+  ResultE (State.StateErrors r) m Void (Expr m Void)
 typeWith = typeWithA absurd
 
 -- | `typeOf` is the same as `typeWith` with an empty context, meaning that the
@@ -135,7 +136,7 @@ typeWith = typeWithA absurd
 typeOf :: forall r m.
   MapLike String m =>
   Expr m Void ->
-  ResultE r m Void (Expr m Void)
+  ResultE (State.StateErrors r) m Void (Expr m Void)
 typeOf = typeWith Dhall.Context.empty
 
 -- | Generalization of `typeWith` that allows type-checking the `Embed`
@@ -145,20 +146,16 @@ typeWithA :: forall r m a.
   Typer m a ->
   Context (Expr m a) ->
   Expr m a ->
-  ResultE r m a (Expr m a)
+  ResultE (State.StateErrors r) m a (Expr m a)
 typeWithA tpa ctx0 e0 = case map plain <<< typecheckStep =<< typingWithA tpa ctx0 e0 of
-  V.Success _ a -> VV.Success a
-  V.Error es _ ma ->
+  V.Success s a -> VV.Success (State.substituteExpr (State.tcState s) a)
+  V.Error es s ma ->
     let
-      up = case _ of
-        That e -> absurd e
-        This e -> absurd e
-        Both e _  -> absurd e
       es' = case es of
         That e -> e
-        This o -> pure (up (V.unErrorPart o))
-        Both o e -> pure (up (V.unErrorPart o)) <> e
-    in VV.Error es' ma
+        This o -> State.liftErrors o
+        Both o e -> State.liftErrors o <> e
+    in VV.Error es' (State.substituteExpr (State.tcState s) <$> ma)
 
 typingWithA :: forall w r m a.
   Eq a => MapLike String m =>

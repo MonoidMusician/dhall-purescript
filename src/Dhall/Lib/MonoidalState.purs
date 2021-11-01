@@ -11,12 +11,14 @@ import Data.Bifoldable (bifoldMap)
 import Data.Bifunctor (class Bifunctor, bimap)
 import Data.Either (Either(..), either)
 import Data.Functor.Compose (Compose(..))
+import Data.Generic.Rep (class Generic)
 import Data.Map (Map, SemigroupMap(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Monoid.Disj (Disj(..))
 import Data.Semigroup.Foldable (class Foldable1, foldMap1, foldl1Default, foldr1Default)
 import Data.Semigroup.Traversable (class Traversable1, sequence1, traverse1)
+import Data.Show.Generic (genericShow)
 import Data.These (These(..), theseLeft, theseRight)
 import Data.Traversable (class Foldable, class Traversable, foldMap, foldl, foldr, sequence, traverse)
 import Data.Tuple (Tuple(..))
@@ -205,10 +207,16 @@ instance errorMonoidTuple ::
   ErrorMonoid (These o1 o2) (Tuple m1 m2) (Tuple w1 w2) where
     emempty (Tuple w1 w2) = Tuple (emempty w1) (emempty w2)
 
+-- TODO: NonEmptySemigroupMap
 instance errorSemigroupSemigroupMap :: (Ord k, ErrorSemigroup o m w) =>
   ErrorSemigroup (SemigroupMap k o) (SemigroupMap k m) (SemigroupMap k w) where
     split = map split >>> \(SemigroupMap together) ->
-      Both (SemigroupMap (Map.mapMaybe theseLeft together)) (SemigroupMap (Map.mapMaybe theseRight together))
+      let
+        os = Map.mapMaybe theseLeft together
+        ms = Map.mapMaybe theseRight together
+      in if Map.isEmpty os
+        then That (SemigroupMap ms)
+        else Both (SemigroupMap os) (SemigroupMap ms)
     ocomb = map ocomb
     mcomb = map mcomb
 instance errorMonoidSemigroupMap :: (Ord k, ErrorSemigroup o m w) =>
@@ -254,6 +262,9 @@ instance partialSemigroupUpDiscrete :: (PartialSemigroup Maybe a) => PartialSemi
 
 data Inconsistency a = Inconsistent a a | Additional (Inconsistency a) a
 derive instance functorInconsistency :: Functor (Inconsistency)
+derive instance genericInconsistency :: Generic (Inconsistency a) _
+instance showInconsistency :: Show a => Show (Inconsistency a) where
+  show a = genericShow a
 instance foldableInconsistency :: Foldable (Inconsistency) where
   foldMap f (Inconsistent a0 a1) = f a0 <> f a1
   foldMap f (Additional as a) = foldMap f as <> f a
@@ -293,6 +304,9 @@ instance semigroupInconsistency :: (PartialSemigroup Maybe a) => Semigroup (Inco
 
 data Occurrences a = Occurrence a | Again (Occurrences a) a
 derive instance functorOccurrences :: Functor (Occurrences)
+derive instance genericOccurrences :: Generic (Occurrences a) _
+instance showOccurrences :: Show a => Show (Occurrences a) where
+  show a = genericShow a
 instance foldableOccurrences :: Foldable (Occurrences) where
   foldMap f (Occurrence a0) = f a0
   foldMap f (Again as a) = foldMap f as <> f a
