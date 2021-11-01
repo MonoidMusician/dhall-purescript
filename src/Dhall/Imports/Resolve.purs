@@ -8,6 +8,7 @@ import Control.Monad.Reader (ReaderT(..))
 import Control.Monad.Writer (WriterT(..))
 import Control.Parallel (parallel, sequential)
 import Control.Plus (empty)
+import Data.Array as Array
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Bifunctor (lmap)
 import Data.Function (on)
@@ -46,8 +47,10 @@ import Effect.Aff (Aff)
 import Effect.Aff as Aff
 import Effect.Aff.AVar as AVar
 import Effect.Class (liftEffect)
+import Effect.Class.Console (log)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
+import Unsafe.Coerce (unsafeCoerce)
 import Validation.These as V
 
 newtype Localized = Localized Import
@@ -75,8 +78,8 @@ type R =
 type S =
   -- In-memory cache of imports, both as text and to-be-resolved expressions
   { cache :: Map Localized
-    { text :: AVar String
-    , resolved :: Maybe (AVar ResolvedExpr)
+    { text :: AVar (Maybe String)
+    , resolved :: Maybe (AVar (Maybe ResolvedExpr))
     }
   -- Set of hashes whose results will be written to cache
   , toBeCached :: Set String
@@ -146,7 +149,7 @@ instance bindM :: Bind (M w r) where
           V.Error es' mb -> V.Error es' (mb <#> map (append w))
       V.Error es (Just (Tuple a w)) ->
         run a <#> case _ of
-          V.Success (Tuple b w') -> V.Success (Tuple b (w <> w'))
+          V.Success (Tuple b w') -> V.Error es (Just (Tuple b (w <> w')))
           V.Error es' mb -> V.Error (es <> es') (mb <#> map (append w))
       V.Error es Nothing -> pure (V.Error es Nothing)
 
@@ -202,7 +205,7 @@ withCleanup :: forall w r a.
   Aff Unit -> M w r a -> M w r a
 withCleanup h (M (ReaderT rf)) = M $ ReaderT \r -> Compose $
   unwrap (rf r) >>= \a -> a <$ case a of
-    WriterT (V.Error _ _) -> h
+    WriterT (V.Error _ _) -> log "Cleanup" *> h
     _ -> pure unit
 
 note :: forall w r. Variant (Errors r) -> Maybe ~> M w r
@@ -224,7 +227,8 @@ liftAff f = M $ ReaderT $ pure $ Compose $ pure <$> f
 
 liftAff' :: forall w r a. (Aff.Error -> M w r a) -> Aff a -> M w r a
 liftAff' h f = M $ ReaderT \r -> Compose $
-  Aff.catchError (pure <$> f) \err ->
+  Aff.catchError (pure <$> f) \err -> do
+    log "Caught error"
     unwrap (unwrap (unwrap (h err)) r)
 
 
@@ -298,9 +302,12 @@ resolveAlternativesAndCheckHashes = rewriteBottomUpA' $ identity
       l' <- unwrap <$> unwrap (unwrap (unwrap l) rs)
       case l' of
         V.Error as ma | List.any isRecoverableError as -> do
+          log "Recovering?"
           r' <- unwrap <$> unwrap (unwrap (unwrap r) rs)
           case r' of
-            V.Success a -> pure $ V.Success a
+            V.Success a -> do
+              log "Recovered"
+              pure $ V.Success a
             V.Error bs mb -> pure $ V.Error (as <> bs) (ma <|> mb)
         _ -> pure l'
 
@@ -369,8 +376,10 @@ retrieveImport :: forall w r. ImportType -> M w r { headers :: Headers, result :
 retrieveImport Missing = throw (Variant.inj (_S::S_ "Missing import") unit)
 retrieveImport i = do
   retriever <- asks _.retriever
-  mresult <- liftAff' (throw <<< Variant.inj (_S::S_ "Import error")) $
+  liftAff $ log $ "Get"
+  mresult <- liftAff' (\e -> liftAff (log (show e)) *> (throw <<< Variant.inj (_S::S_ "Import error")) e) $
     retriever i
+  liftAff $ log $ "Got"
   case mresult.result of
     Nothing -> throw $ Variant.inj (_S::S_ "Decoding error") unit
     Just result -> pure { headers: mresult.headers, result }
@@ -389,19 +398,26 @@ getOriginHeadersFor origin = do
   e0 <- gets _.originHeaders <#> allOriginHeaders
   -- Do not localize to parent
   let e1 = Localized <<< canonicalizeImport <$> e0
-  e2 <- local (_ { stack = empty })
+  e2 <-
     (resolveImports e1 >>= ensureWellTyped >>> map normalize)
   -- Avoid duplicating work
-  modify_ (_ { originHeaders = absurd <$> e2 })
-  pure $ getFromOriginHeaders origin e2
+  liftAff $ log "Resolved"
+  -- modify_ (_ { originHeaders = absurd <$> e2 })
+  -- liftAff $ log "Saved"
+  -- pure $ getFromOriginHeaders origin e2
+  pure []
 
 addOriginHeaders :: forall w r. Localized -> M w r Localized
 addOriginHeaders (Localized i@(Import { importType }))
   | Just origin <- previewOrigin importType = do
-    -- liftAff $ log $ "Getting headers for " <> origin
+    _ <- getOriginHeadersFor origin
+    pure (Localized i)
+addOriginHeaders (Localized i@(Import { importType }))
+  | Just origin <- previewOrigin importType = do
+    liftAff $ log $ "Getting headers for " <> origin
     resolved <- getOriginHeadersFor origin
-    -- when (Array.length resolved /= 0) $ liftAff $ log $ unsafeCoerce { origin, resolved }
-    pure (Localized (addHeaders resolved i))
+    liftAff $ log $ unsafeCoerce { origin, resolved }
+    Localized i <$ pure (Localized (addHeaders resolved i))
 addOriginHeaders i = pure i
 
 -- The main workhorse: turn a localized import into a resolved expression
@@ -419,21 +435,25 @@ resolveImport i@(Localized (Import { importMode, importType })) =
       cache <- gets _.cache
       case Map.lookup i cache <#> _.text of
         Just retrieving -> do
-          -- liftAff $ log $ "Found " <> show i
+          liftAff $ log $ "Found " <> show i
           when (resolver # isJust) do
             -- Put resolver in state as a courtesy
             modify_ $ prop (_S::S_ "cache") $
               Map.insert i { text: retrieving, resolved: resolver }
-          liftAff' (pure (throw (Variant.inj (_S::S_ "Import failed to resolve") i))) $
-              AVar.read retrieving
+          note (Variant.inj (_S::S_ "Import failed to resolve") i) =<< do
+            liftAff' (pure (liftAff (log ("Dropped text " <> show i)) *> throw (Variant.inj (_S::S_ "Import failed to resolve") i))) $
+                (AVar.read retrieving <* log "YESSIR")
         Nothing -> do
-          -- liftAff $ log $ "Caching " <> show i
+          liftAff $ log $ "Caching " <> show i
           retrieving <- liftAff AVar.empty
           modify_ $ prop (_S::S_ "cache") $
             Map.insert i { text: retrieving, resolved: resolver }
-          retrieved <- retrieveTextVerified a
-          void $ liftAff $ AVar.tryPut retrieved retrieving
-          -- liftAff $ log $ "Cached " <> show i
+          liftAff $ log $ "Retrieving " <> show i
+          retrieved <- retrieveTextVerified a #
+            withCleanup (log "holaaa" *> void (AVar.tryPut Nothing retrieving))
+          liftAff $ log $ "Retrieved " <> show i
+          void $ liftAff $ AVar.tryPut (Just retrieved) retrieving
+          liftAff $ log $ "Cached " <> show i
           pure retrieved
     -- Retrieve the import as text over the wire and ensure it is CORS compliant
     retrieveTextVerified = pure
@@ -448,25 +468,31 @@ resolveImport i@(Localized (Import { importMode, importType })) =
         -- resolving (in the case of diamond imports, a sibling may wait for the
         -- first thread to complete resolving the shared import)
         Just resolving -> do
-          -- liftAff $ log $ "Waiting for " <> show i
+          liftAff $ log $ "Waiting for " <> show i
           -- TODO: this does not tell us whether it is a recoverable error?
-          liftAff' (pure (throw (Variant.inj (_S::S_ "Import failed to resolve") i))) $
-            AVar.read resolving
+          note (Variant.inj (_S::S_ "Import failed to resolve") i) =<< do
+            liftAff' (pure (liftAff (log ("Dropped expr " <> show i)) *> throw (Variant.inj (_S::S_ "Import failed to resolve") i))) $
+              (AVar.read resolving <* log "AYEAYE")
         -- Otherwise, create the resolved value
         Nothing -> do
           -- Make an AVar to hold the result, and pass it while retrieving text
           resolving <- liftAff AVar.empty
           -- Then obtain the text of the import, from cache or retrieved
           -- (this also will put `resolving` in state)
-          text <- retrieveTextVerifiedOrCached (Just resolving) a
+          -- Make sure we propagate errors here too!
+          text <- retrieveTextVerifiedOrCached (Just resolving) a #
+            withCleanup (log "UGH" *> void (AVar.tryPut Nothing resolving))
+          liftAff $ log $ "Got text for " <> show i
           -- Fully parse, resolve, and verify the import
           resolved <- retrieveExprVerified text #
-            withCleanup (AVar.kill (Aff.error $ "Import failed " <> show i) resolving)
+            withCleanup (log "HIII" *> void (AVar.tryPut Nothing resolving))
+          liftAff $ log $ "Resolved " <> show i
           -- And stick it in the AVar, both for any listeners that popped up
           -- in parallel, and for future reference
           -- NOTE: this may be called even if the AVar is killed, because of the
           -- error-recovering semantics of V.Erroring
-          void $ liftAff $ AVar.tryPut resolved resolving
+          void $ liftAff $ AVar.tryPut (Just resolved) resolving
+          liftAff $ log $ "Notified " <> show i
           -- And return it, of course
           pure resolved
     -- Verify an imported expr

@@ -122,6 +122,6 @@ nodeCache =
 
 nodeHeadersLocation :: Aff String
 nodeHeadersLocation = oneOfMap identity
-  [ (liftEffect (lookupEnv "XDG_CONFIG_HOME") >>= oneOfMap pure)
-  , (liftEffect (lookupEnv "HOME") >>= oneOfMap pure) <#> (_ <> "/.config")
+  [ (liftEffect (lookupEnv "XDG_CONFIG_HOME") >>= oneOfMap pure) <#> (_ <> "/dhall/headers.dhall")
+  , (liftEffect (lookupEnv "HOME") >>= oneOfMap pure) <#> (_ <> "/.config/dhall/headers.dhall")
   ]
