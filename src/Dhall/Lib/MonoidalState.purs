@@ -451,6 +451,14 @@ askLocStateErroring = LocStateErroring \l -> Success zeroState l
 
 
 
+escalate :: forall w e a. StateErroring w e a -> StateErroring w e a
+escalate (Error es s _) = Error es s Nothing
+escalate v = v
+
+escalateR :: forall l w e a. LocStateErroring l w e a -> LocStateErroring l w e a
+escalateR (LocStateErroring f) = LocStateErroring \l -> escalate (f l)
+
+
 confirm :: forall w a b e. a -> StateErroring w e b -> StateErroring w e a
 confirm a (Success s _) = Success s a
 confirm a (Error es s _) = Error es s (Just a)

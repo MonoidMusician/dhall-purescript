@@ -5,7 +5,6 @@ import Prelude
 import Control.Alternative (class Alternative, (<|>))
 import Control.Comonad (extract)
 import Control.Comonad.Env (EnvT(..))
-import Control.Monad.Reader (runReaderT)
 import Control.Plus (empty)
 import Data.Array as Array
 import Data.Array.NonEmpty as NEA
@@ -239,11 +238,11 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
         (errorHere (_S::S_ "Equivalent type mismatch"))
       pure $ newb (AST.mkType zero)
   , "Assert": \(Identity equiv) -> do
+      void $ V.escalateR (tyStep equiv)
       Pair l r <- ensure' (_S::S_ "Equivalent") equiv
         (errorHere (_S::S_ "Not an equivalence"))
-      _ <- checkEqR l r
+      V.confirmR (shared equiv) $ checkEqR l r
         (errorHere (_S::S_ "Assertion failed"))
-      pure $ shared equiv
   , "Bool": identity aType
   , "BoolLit": always $ AST.mkBool
   , "BoolAnd": checkBinOp AST.mkBool
@@ -304,6 +303,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
         -- either from annotation
         Just listty -> do
           let error = errorHere (_S::S_ "List annotation must be list type")
+          void $ V.escalateR $ tyStep listty
           AST.Pair list ty <- ensure' (_S::S_ "App") listty error
           normalizeStep list # unlayerO #
             VariantF.on (_S::S_ "List") (const (pure unit))
@@ -327,8 +327,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
   , "ListAppend": \p -> mkFunctor AST.mkList <<< shared <$> do
       AST.Pair ty_l ty_r <- forWithIndex p \side expr -> do
         let error = errorHere (_S::S_ "Cannot append non-list") <<< const side
-        expr_ty <- tyStep expr
-        AST.Pair list ty <- ensure' (_S::S_ "App") expr_ty error
+        AST.Pair list ty <- ensure (_S::S_ "App") expr error
         normalizeStep list # unlayerO #
           VariantF.on (_S::S_ "List") (const (pure unit))
             \_ -> absurd <$> error unit
@@ -405,12 +404,13 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
                 combineTypes (k : here) (AST.Pair ktsL' ktsR')
               This t -> pure (shared t)
               That t -> pure (shared t)
-      in (=<<) (combineTypes Nil) <<< traverse tyStep
+      in (=<<) (combineTypes Nil) <<< traverse (V.escalateR <<< tyStep)
   , "CombineTypes":
       let
         combineTypes here (p :: Pair (OxprE w r m a)) = do
           AST.Pair { const: constL, kts: ktsL } { const: constR, kts: ktsR } <-
             forWithIndex p \side ty -> do
+              void $ V.escalateR $ tyStep ty
               kts <- ensure' (_S::S_ "Record") ty
                 (errorHere (_S::S_ "Must combine a record") <<< const (Tuple here side))
               const <- ensureConst ty
@@ -428,7 +428,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
   , "Prefer": \p -> do
       AST.Pair { const: _constL, kts: ktsL } { const: _constR, kts: ktsR } <-
         forWithIndex p \side kvs -> do
-          ty <- tyStep kvs
+          ty <- V.escalateR (tyStep kvs)
           kts <- ensure' (_S::S_ "Record") ty
             (errorHere (_S::S_ "Must combine a record") <<< const (Tuple Nil side))
           _k <- tyStep ty
@@ -442,7 +442,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
           Both a _ -> a
       pure $ mkShared(_S::S_"Record") $ map shared $ Dhall.Map.unionWith (pure preference) ktsR ktsL
   , "RecordCompletion": \(AST.Pair l r) -> do
-      AST.Pair _lT _rT <- traverse tyStep (AST.Pair l r)
+      AST.Pair _lT _rT <- traverse (V.escalateR <<< tyStep) (AST.Pair l r)
       fields <- ensure' (_S::S_ "RecordLit") l
         (errorHere (_S::S_ "Cannot access"))
       AST.Pair df dest <- AST.Pair
@@ -472,7 +472,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
           res = Dhall.Map.unionWith (pure preference) ktsR ktsL
         void $ traverse identity $ Dhall.Map.unionWith (pure (Just <<< comparing)) res fields'
   , "With": \(Product (Tuple (Identity e) (Tuple ks0 v))) -> do
-      AST.Pair eT vT <- traverse tyStep (AST.Pair e v)
+      AST.Pair eT vT <- traverse (V.escalateR <<< tyStep) (AST.Pair e v)
       let
         addfield ks t = do
           kts <- ensure' (_S::S_ "Record") t
@@ -493,7 +493,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
         <$> ensure (_S::S_ "Record") handlers
           (errorHere (_S::S_ "Must merge a record"))
         <*> do
-          tyY <- tyStep cases
+          tyY <- V.escalateR (tyStep cases)
           let
             error = errorHere (_S::S_ "Must merge a union")
             casing = (\_ -> absurd <$> error unit)
@@ -564,6 +564,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
       tyA <- mty # traverse \listty -> do
         -- TODO: better errors
         let error = errorHere (_S::S_ "Invalid toMap type annotation")
+        void $ V.escalateR $ tyStep listty
         AST.Pair list rty <- ensure' (_S::S_ "App") listty error
         normalizeStep list # unlayerO #
           VariantF.on (_S::S_ "List") (const (pure unit))
@@ -583,7 +584,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
       void $ ensureType ty (errorHere (_S::S_ "Invalid toMap type annotation") <<< const unit)
       pure $ mapType $ shared ty
   , "Field": \(Tuple field expr) -> do
-      tyR <- tyStep expr
+      tyR <- V.escalateR (tyStep expr)
       let
         error _ = errorHere (_S::S_ "Cannot access") unit
         handleRecord kts = do
@@ -610,7 +611,7 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
               (errorHere (_S::S_ "Duplicate record fields")) ks
             $> (ks <#> \(_ :: Unit) -> Nothing)
         Right fields -> do
-          _ <- tyStep fields
+          void $ V.escalateR $ tyStep fields
           -- TODO: right error?
           ks <- ensure' (_S::S_ "Record") fields (errorHere (_S::S_ "Cannot project by expression"))
           ks # traverse \ty -> Just ty <$ tyStep ty
@@ -621,9 +622,9 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
           checkEqR ty0 ty1 (errorHere (_S::S_ "Projection type mismatch") <<< const k)
   , "Hashed": \(Tuple _ e) -> shared <$> tyStep e
   , "UsingHeaders": \(Pair l r) ->
-      shared <$> tyStep l <* do
+      shared <$> V.escalateR (tyStep l) <* do
         let error = errorHere (_S::S_ "Wrong header type")
-        (ty :: OxprE w r m a) <- tyStep r
+        (ty :: OxprE w r m a) <- V.escalateR (tyStep r)
         AST.Pair list (ty' :: OxprE w r m a) <- ensure' (_S::S_ "App") ty error
         _ <- ensure' (_S::S_ "List") list error
         (rec :: m (OxprE w r m a)) <- ensure' (_S::S_ "Record") ty' error

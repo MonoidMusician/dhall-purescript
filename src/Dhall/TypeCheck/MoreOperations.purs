@@ -22,7 +22,7 @@ import Dhall.Lib.MonoidalState as V
 import Dhall.Map (class MapLike)
 import Dhall.TypeCheck.Operations (newborn, newshared, normalizeStep, plain, typecheckStep, unify, unlayerO)
 import Dhall.TypeCheck.Tree (unshared)
-import Dhall.TypeCheck.Types (Errors, LFeedbackE, OsprE, OxprE, TypeCheckError(..))
+import Dhall.TypeCheck.Types (Errors, LFeedbackE, OsprE, OxprE)
 import Type.Proxy (Proxy)
 import Type.Row as R
 
@@ -84,7 +84,7 @@ ensureConst :: forall w r m a. Eq a => MapLike String m =>
   (Unit -> LFeedbackE w r m a Void) ->
   LFeedbackE w r m a Const
 ensureConst expr error = do
-  ty <- tyStep expr
+  ty <- V.escalateR (tyStep expr)
   unwrap <$> ensure' (_S::S_ "Const") ty error
 
 checkEq :: forall w r m a. Eq a => MapLike String m =>
@@ -120,7 +120,7 @@ checkBinOp :: forall w r m a. Eq a => MapLike String m =>
   LFeedbackE w r m a (OsprE w r m a)
 checkBinOp t p = V.confirmR (newb (rehydrate t)) $ forWithIndex_ p $
   -- t should be simple enough that alphaNormalize is unnecessary
-  \side operand -> tyStep operand >>= normalizeStep >>> case _ of
+  \side operand -> V.escalateR (tyStep operand) >>= normalizeStep >>> case _ of
     ty_operand | rehydrate t == plain ty_operand -> pure unit
       | otherwise -> errorHere
         (_S::S_ "Unexpected type") (Tuple side t)
@@ -133,7 +133,7 @@ ensure :: forall sym f r' w r m a. Eq a => MapLike String m =>
   (Unit -> LFeedbackE w r m a Void) ->
   LFeedbackE w r m a (f (OxprE w r m a))
 ensure s expr error = do
-  ty <- tyStep expr
+  ty <- V.escalateR (tyStep expr)
   ensure' s ty error
 
 -- Ensure that the passed `expr` is a term; i.e. the type of its type
@@ -143,7 +143,7 @@ ensureTerm :: forall w r m a. Eq a => MapLike String m =>
   (Maybe Const -> LFeedbackE w r m a Void) ->
   LFeedbackE w r m a (OxprE w r m a)
 ensureTerm expr error = do
-  ty <- tyStep expr
+  ty <- V.escalateR (tyStep expr)
   ty <$ ensureType ty error
 
 ensureAnyTerm :: forall w r m a. Eq a => MapLike String m =>
@@ -151,7 +151,7 @@ ensureAnyTerm :: forall w r m a. Eq a => MapLike String m =>
   (Unit -> LFeedbackE w r m a Void) ->
   LFeedbackE w r m a (OxprE w r m a)
 ensureAnyTerm expr error = do
-  ty <- tyStep expr
+  ty <- V.escalateR (tyStep expr)
   kind <- tyStep ty
   ty <$ ensure' (_S::S_ "Const") kind error
 
@@ -161,7 +161,7 @@ ensureType :: forall w r m a. Eq a => MapLike String m =>
   (Maybe Const -> LFeedbackE w r m a Void) ->
   LFeedbackE w r m a Unit
 ensureType ty error = do
-  kind <- tyStep ty
+  kind <- V.escalateR (tyStep ty)
   ensure' (_S::S_ "Const") kind (\_ -> error Nothing) >>= case _ of
     -- TODO
     Const.Const (Universes (SemigroupMap m) (Max 0)) | Map.isEmpty m -> pure unit
