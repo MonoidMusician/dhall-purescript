@@ -109,7 +109,10 @@ desugarHeaders = go Nil where
 
 
 originHeadersType :: forall m i. MapLike String m => Expr m i
-originHeadersType = AST.mkApp AST.mkList headerType
+originHeadersType = AST.mkApp AST.mkList $ AST.mkRecord $ Dhall.Map.fromFoldable $
+  [ Tuple "mapKey" AST.mkText
+  , Tuple "mapValue" $ AST.mkApp AST.mkList headerType
+  ]
 
 emptyOriginHeaders :: forall m i. MapLike String m => Expr m i
 emptyOriginHeaders = AST.mkListLit (Just originHeadersType) []
