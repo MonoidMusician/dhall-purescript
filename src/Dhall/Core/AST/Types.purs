@@ -51,7 +51,7 @@ derive instance ordConst :: Ord Const
 instance semigroupConst :: Semigroup Const where
   append (Universes as a) (Universes bs b) = Universes (as <> bs) (a <> b)
 instance showConst :: Show Const where
-  show (Universes us (Max u)) = "Universe " <> shown
+  show (Universes us (Max u)) = "(Universe " <> shown <> ")"
     where
       args = foldMapWithIndex (\i (Max v) -> [i <> (if v == zero then "" else "+" <> show v)]) us
       shown = case args of
