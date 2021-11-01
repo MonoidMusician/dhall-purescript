@@ -50,12 +50,12 @@ liftErrors = unErrorPart >>> unThese >>> foldMapWithIndex liftError >>> NEA.from
 tcState :: forall to tm tw m a. ErrorMonoid to tm tw => StatePart (Tuple tw (TCState (L m a))) -> StatePart (TCState (L m a))
 tcState = mkStatePart <<< extract <<< unStatePart
 
-substitute :: forall m a node ops.
-  GenericExprAlgebra (NodeOps (AST.ExprLayerRow m a) (StatePart (TCState (L m a))) node ops) (StatePart (TCState (L m a))) node
+substitute :: forall l m a node ops.
+  GenericExprAlgebra (NodeOps (AST.ExprLayerRow m a) (StatePart (TCState l)) node ops) (StatePart (TCState l)) node
 substitute us alg = pure <<< runOverCases alg.overlayer (unwrap <<< alg.recurse us)
   { "Const": unwrap >>> U.substitute (unStatePart us) >>> wrap }
 
-substituteExpr :: forall m a. StatePart (TCState (L m a)) -> Expr m a -> Expr m a
+substituteExpr :: forall l m a. StatePart (TCState l) -> Expr m a -> Expr m a
 substituteExpr = runAlgebraExpr substitute
 
 unify :: forall w r m a. Eq a => MapLike String m =>

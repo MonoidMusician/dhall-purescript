@@ -17,7 +17,7 @@ import Data.Variant (Variant)
 import Data.Variant as Variant
 import Dhall.Context (Context)
 import Dhall.Context as Dhall.Context
-import Dhall.Core (Var(..), alphaNormalize)
+import Dhall.Core (Pair(..), Var(..), alphaNormalize)
 import Dhall.Core as Variables
 import Dhall.Core.AST (Expr, ExprRowVF(..), ExprRowVFI, S_, _S)
 import Dhall.Core.AST.Operations.Location (Derivation, Derived, Operated, Within)
@@ -147,15 +147,36 @@ typeWithA :: forall r m a.
   Context (Expr m a) ->
   Expr m a ->
   ResultE (State.StateErrors r) m a (Expr m a)
-typeWithA tpa ctx0 e0 = case map plain <<< typecheckStep =<< typingWithA tpa ctx0 e0 of
-  V.Success s a -> VV.Success (State.substituteExpr (State.tcState s) a)
+typeWithA tpa ctx0 e0 = withTypeWithA tpa ctx0 e0 <#> \(Pair _ t) -> t
+
+withTypeWith :: forall r m.
+  MapLike String m =>
+  Context (Expr m Void) ->
+  Expr m Void ->
+  ResultE (State.StateErrors r) m Void (Pair (Expr m Void))
+withTypeWith = withTypeWithA absurd
+
+withTypeOf :: forall r m.
+  MapLike String m =>
+  Expr m Void ->
+  ResultE (State.StateErrors r) m Void (Pair (Expr m Void))
+withTypeOf = withTypeWith Dhall.Context.empty
+
+withTypeWithA :: forall r m a.
+  Eq a => MapLike String m =>
+  Typer m a ->
+  Context (Expr m a) ->
+  Expr m a ->
+  ResultE (State.StateErrors r) m a (Pair (Expr m a))
+withTypeWithA tpa ctx0 e0 = case map plain <<< typecheckStep =<< typingWithA tpa ctx0 e0 of
+  V.Success s a -> VV.Success (State.substituteExpr (State.tcState s) <$> (Pair e0 a))
   V.Error es s ma ->
     let
       es' = case es of
         That e -> e
         This o -> State.liftErrors o
         Both o e -> State.liftErrors o <> e
-    in VV.Error es' (State.substituteExpr (State.tcState s) <$> ma)
+    in VV.Error es' (map (State.substituteExpr (State.tcState s)) <<< Pair e0 <$> ma)
 
 typingWithA :: forall w r m a.
   Eq a => MapLike String m =>

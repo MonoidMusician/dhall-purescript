@@ -12,6 +12,7 @@ import Data.String as String
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
+import Dhall.Core (Pair(..))
 import Dhall.Core as Dhall
 import Dhall.Core.CBOR (decode)
 import Dhall.Imports.Hash as Hash
@@ -67,13 +68,13 @@ normalizeFile file = do
             for_ es $ traverse \(Tuple _ tag) -> logShow (tag :: Variant (Resolve.Errors ()))
           V.Success _ resolved -> do
             -- logShow resolved
-            case TC.typeOf resolved of
+            case TC.withTypeOf resolved of
               VV.Error es _ -> do
                 logShow "Type error"
                 for_ es \(Tuple _ tag) -> logShow (tag :: Variant (Resolve.Errors ()))
-              VV.Success a -> do
-                log $ print show a
-                let normalized = Dhall.normalize resolved
+              VV.Success (Pair exp typ) -> do
+                log $ print show typ
+                let normalized = Dhall.normalize exp
                 log $ print show normalized
                 pure unit
 

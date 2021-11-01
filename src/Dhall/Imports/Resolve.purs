@@ -8,7 +8,6 @@ import Control.Comonad (extract)
 import Control.Monad.Reader (ReaderT(..))
 import Control.Parallel (parallel, sequential)
 import Control.Plus (empty)
-import Data.Array as Array
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Bifunctor (lmap)
 import Data.Function (on)
