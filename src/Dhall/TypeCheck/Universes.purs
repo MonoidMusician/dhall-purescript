@@ -41,9 +41,9 @@ emit k l v = SemigroupMap $ Map.singleton k $ Tuple
 unifyConst :: forall l. l -> Const -> l -> Const -> Maybe (Tuple (ConstSolved l) Const)
 unifyConst _ u1 _ u2 | u1 == u2 = Just (Tuple (SemigroupMap Map.empty) u1)
 unifyConst l1 u1 l2 u2 = case getFixed u1, getFixed u2, getVariable u1, getVariable u2 of
-  Just v, _, Just (Tuple k dv), _ | v >= dv ->
+  Just v, _, _, Just (Tuple k dv) | v >= dv ->
     Just (Tuple (emit k l1 (v - dv)) (mkFixed v))
-  _, Just v, _, Just (Tuple k dv) | v >= dv ->
+  _, Just v, Just (Tuple k dv), _ | v >= dv ->
     Just (Tuple (emit k l2 (v - dv)) (mkFixed v))
   _, _, _, _ -> Nothing
 
