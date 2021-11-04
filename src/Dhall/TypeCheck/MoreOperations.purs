@@ -94,6 +94,8 @@ checkEq :: forall w r m a. Eq a => MapLike String m =>
   LFeedbackE w r m a Unit
 checkEq ty0 ty1 error =
   unify error uniError ty0 ty1
+-- TODO: better continuation with errors, since if one side fails
+-- we can continue with the other side
 checkEqL :: forall w r m a. Eq a => MapLike String m =>
   OxprE w r m a -> OxprE w r m a ->
   (Unit -> LFeedbackE w r m a Void) ->

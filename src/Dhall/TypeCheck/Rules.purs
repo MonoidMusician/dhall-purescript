@@ -205,31 +205,27 @@ typecheckAlgebra tpa (WithBiCtx ctx (EnvT (Tuple loc0 layer))) = provideLoc loc0
           (errorHere (_S::S_ "Not a function"))
         checkArg (AST.BindingBody name aty0 rty) aty1 =
           let shifted = tryShiftOut0Oxpr name rty in
-          if areEq aty0 aty1
-            then pure case shifted of
-              Nothing -> mkShared(_S::S_"App") $ Pair
+          checkEq aty0 aty1 (errorHere (_S::S_ "Type mismatch")) # case shifted of
+            Nothing -> map $ const $
+              mkShared(_S::S_"App") $ Pair
                 do mkShared(_S::S_"Lam") (shared <$> AST.BindingBody name aty0 rty)
                 do shared a
-              Just rty' -> shared rty'
-            else do
-              -- SPECIAL!
-              -- Recovery case: if the variable is unused in the return type
-              -- then this is a non-dependent function
-              -- and its return type can be suggested
-              -- even if its argument does not have the right type
-              errorHere (_S::S_ "Type mismatch") unit # case shifted of
-                Nothing -> identity
-                Just rty' -> V.confirmR (shared rty')
-      in join $ checkArg <$> checkFn <*> tyStep a
+            -- SPECIAL!
+            -- Recovery case: if the variable is unused in the return type
+            -- then this is a non-dependent function
+            -- and its return type can be suggested
+            -- even if its argument does not have the right type
+            Just rty' -> V.confirmR (shared rty')
+      in join $ checkArg <$> checkFn <*> V.escalateR (tyStep a)
   , "Annot": \(AST.Pair expr ty) ->
       map shared $ join $ checkEqR
-        <$> tyStep expr
+        <$> V.escalateR (tyStep expr)
         <@> ty
         <@> errorHere (_S::S_ "Annotation mismatch")
         <* do
           ty # unlayerO # VariantF.on (_S::S_ "Const")
             (\_ -> pure unit)
-            (\_ -> void $ tyStep ty)
+            (\_ -> void $ V.escalateR (tyStep ty))
   , "Equivalent": \p -> do
       Pair lty rty <- p # traverseWithIndex \i t ->
         ensureTerm t
