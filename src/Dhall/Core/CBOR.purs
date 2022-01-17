@@ -29,14 +29,18 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Monoid (power)
 import Data.Monoid.Endo (Endo(..))
 import Data.Newtype (un, unwrap)
+import Data.NonEmpty (NonEmpty(..))
 import Data.Ord.Max (Max(..))
-import Data.Traversable (for, traverse)
+import Data.Set as Set
+import Data.Semigroup.Foldable (fold1)
+import Data.Traversable (traverse)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..), fst)
 import Dhall.Core (Const(..), Double, Natural, Integer, Expr, Import(..), ImportType(..), LetF(..), MergeF(..), Pair(..), S_, TextLitF(..), Triplet(..), Var(..), _S)
 import Dhall.Core.AST (BindingBody(..), projectW)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Types.Basics (pureTextLitF)
+import Dhall.Core.AST.Types.Universes (Tail(..), normalizeConst, uKind, uSort, uType, uempty)
 import Dhall.Core.Imports (Directory(..), File(..), FilePrefix(..), ImportMode(..), Scheme(..), URL(..), Headers)
 import Dhall.Imports.Headers (fromHeaders, headerType)
 import Dhall.Lib.CBOR as CBOR
@@ -96,18 +100,19 @@ encode = recenc Nil where
       , "Date": pure $ J.fromString "Date"
       , "Time": pure $ J.fromString "Time"
       , "TimeZone": pure $ J.fromString "TimeZone"
-      , "Const": \(Const (Universes us (Max n))) ->
-          case us, n of
-            (SemigroupMap m), 0 | Map.isEmpty m ->
+      , "Const": \(Const u) ->
+          case normalizeConst u of
+            u' | u' == uType ->
               J.fromString "Type"
-            (SemigroupMap m), 1 | Map.isEmpty m ->
+            u' | u' == uKind ->
               J.fromString "Kind"
-            (SemigroupMap m), 2 | Map.isEmpty m ->
+            u' | u' == uSort ->
               J.fromString "Sort"
-            _, _ -> tagged 42 $
-              [ J.fromNumber $ Int.toNumber n ] <>
+            Universes uz -> tagged 42 $ uz # foldMapWithIndex \ks (Tail us (Max n)) ->
+              let ks' = J.fromArray (J.fromString <$> Array.fromFoldable ks) in
+              [ J.fromArray [ ks', J.fromString "", J.fromNumber $ Int.toNumber n ] ] <>
                 (foldMapWithIndex \s (Max v) ->
-                  [ J.fromArray [ J.fromString s, J.fromNumber $ Int.toNumber v ] ]) us
+                  [ J.fromArray [ ks', J.fromString s, J.fromNumber $ Int.toNumber v ] ]) us
       , "App": \(Pair f z) -> tagged 0 $
           let
             rec a = a # projectW # VariantF.on (_S::S_ "App")
@@ -624,12 +629,18 @@ decode = unsafeFromNumber (pure <<< AST.mkDoubleLit) $
           minute <- decodeEnum mm
           pure $ AST.mkTimeZoneLit $ TimeZone s hour minute
         _ -> empty
-      42 -> Array.uncons >=> \{ head: n, tail: us } -> do
-        n' <- J.toNumber n >>= Int.fromNumber
-        us' <- for us \u -> J.toArray u >>= case _ of
-          [ s, v ] -> Tuple <$> J.toString s <*> (J.toNumber v >>= Int.fromNumber)
-          _ -> empty
-        pure $ AST.mkConst $ Universes (SemigroupMap (Map.fromFoldable $ map (map Max) us')) (Max n')
+      42 -> \as -> do
+        mr <- as # traverse \uz ->
+          J.toArray uz >>= case _ of
+            [ ks, s, v ] -> ado
+                ks' <- Set.fromFoldable <$> (traverse J.toString =<< J.toArray ks)
+                s' <- J.toString s
+                v' <- Max <$> (J.toNumber v >>= Int.fromNumber)
+              in Universes $ SemigroupMap $ Map.singleton ks' $
+                if s' == "" then Tail mempty v' else
+                  Tail (SemigroupMap $ Map.singleton s' v') v'
+            _ -> empty
+        pure $ AST.mkConst $ fold1 (NonEmpty uempty mr)
       -- TODO: ensure hash
       63 -> case _ of
         [ e, hash ] -> AST.mkHashed <$> decode e <*> J.toString hash

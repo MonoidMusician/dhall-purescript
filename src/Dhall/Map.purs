@@ -16,7 +16,7 @@ import Data.Functor.Compose (Compose(..))
 import Data.FunctorWithIndex (class FunctorWithIndex)
 import Data.Lens (Prism', prism')
 import Data.List (List)
-import Data.Map (Map)
+import Data.Map (Map, SemigroupMap(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, fromMaybe', isJust)
 import Data.Newtype (class Newtype, over, unwrap, wrap)
@@ -64,7 +64,7 @@ unionWithMapThese f ma mb =
       This a, This _ -> This a
   in Map.mapMaybeWithKey f $ Map.unionWith combine (This <$> ma) (That <$> mb)
 
-instance strMapMapString :: Ord k => MapLike k (Map k) where
+instance mapLikeMap :: Ord k => MapLike k (Map k) where
   empty = Map.empty
   isEmpty = Map.isEmpty
   get = Map.lookup
@@ -81,6 +81,24 @@ instance strMapMapString :: Ord k => MapLike k (Map k) where
   toUnfoldable = Map.toUnfoldable
   fromFoldable = Map.fromFoldable
   size = Map.size
+
+instance mapLikeSemigroupMap :: Ord k => MapLike k (SemigroupMap k) where
+  empty = SemigroupMap (Map.empty)
+  isEmpty (SemigroupMap m) = Map.isEmpty m
+  get k (SemigroupMap m) = Map.lookup k m
+  modify k f (SemigroupMap m) = do
+    v <- Map.lookup k m
+    let Tuple k' v' = f v
+    let m' = if k == k' then m else Map.delete k m
+    pure $ SemigroupMap (Map.insert k' v' m')
+  alterA k f (SemigroupMap m) = f (Map.lookup k m) <#> case _ of
+    Nothing -> SemigroupMap (Map.delete k m)
+    Just v -> SemigroupMap (Map.insert k v m)
+  delete k (SemigroupMap m) = Map.lookup k m $> SemigroupMap (Map.delete k m)
+  unionWith f (SemigroupMap m1) (SemigroupMap m2) = SemigroupMap (unionWithMapThese f m1 m2)
+  toUnfoldable = unwrap >>> Map.toUnfoldable
+  fromFoldable = wrap <<< Map.fromFoldable
+  size (SemigroupMap m) = Map.size m
 
 newtype InsOrdMap k a = InsOrdMap (Compose Array (Tuple k) a)
 type InsOrdStrMap = InsOrdMap String
@@ -107,7 +125,7 @@ instance foldableWithIndexIOSM :: FoldableWithIndex k (InsOrdMap k) where
 instance traversableWithIndexIOSM :: TraversableWithIndex k (InsOrdMap k) where
   traverseWithIndex f = unwrap >>> unwrap >>>
     traverse (\(Tuple k v) -> f k v <#> Tuple k) >>> map (wrap >>> wrap)
-instance strMapIshIOSM :: Ord k => MapLike k (InsOrdMap k) where
+instance mapLikeInsOrdMap :: Ord k => MapLike k (InsOrdMap k) where
   empty = wrap $ wrap []
   isEmpty = unwrap >>> unwrap >>> Array.null
   get k = unwrap >>> unwrap >>> find (fst >>> eq k) >>> map snd

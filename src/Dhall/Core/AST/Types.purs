@@ -2,18 +2,14 @@ module Dhall.Core.AST.Types ( module Dhall.Core.AST.Types, module Exports ) wher
 
 import Prelude
 
-import Control.Alternative (empty, guard)
 import Control.Comonad (extract)
-import Control.Comonad.Cofree (Cofree)
-import Control.Comonad.Cofree as Cofree
 import Control.Monad.Free (Free)
-import Data.Array as Array
 import Data.Array.NonEmpty (NonEmptyArray)
 import Data.Bifunctor (class Bifunctor, lmap)
 import Data.Const as ConstF
 import Data.Either (Either(..), either)
 import Data.Eq (class Eq1, eq1)
-import Data.Foldable (class Foldable, all, fold, foldMap, foldl, foldr)
+import Data.Foldable (class Foldable, fold, foldl, foldr)
 import Data.FoldableWithIndex (class FoldableWithIndex, foldMapWithIndex)
 import Data.Functor.App (App(..))
 import Data.Functor.Compose (Compose)
@@ -22,29 +18,18 @@ import Data.Functor.Variant (VariantF)
 import Data.Functor.Variant as VariantF
 import Data.FunctorWithIndex (class FunctorWithIndex, mapWithIndex)
 import Data.Identity (Identity(..))
-import Data.List (List)
-import Data.List as List
-import Data.Map (SemigroupMap(..))
-import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un, unwrap, wrap)
-import Data.NonEmpty (NonEmpty(..))
 import Data.Ord (class Ord1, compare1)
-import Data.Ord.Max (Max(..))
-import Data.Semigroup.Foldable (fold1)
-import Data.Set (Set)
-import Data.Set as Set
-import Data.Set.NonEmpty (NonEmptySet)
-import Data.Set.NonEmpty as NEA
-import Data.Set.NonEmpty as NES
 import Data.String (joinWith)
-import Data.String as String
 import Data.Symbol (class IsSymbol)
 import Data.Traversable (class Traversable, sequence)
 import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
 import Dhall.Core.AST.Types.Basics (_S, S_, BindingBody(..), BindingBody', BindingBodyI, CONST, LetF(..), LetF', LetFI, MergeF(..), MergeF', MergeFI, Pair(..), Pair', PairI, TextLitF(..), TextLitF', TextLitFI, Triplet(..), Triplet', TripletI, UNIT, VOID)
+import Dhall.Core.AST.Types.Universes (Const)
+import Dhall.Core.AST.Types.Universes (Const(..), Tail(..)) as Exports
 import Dhall.Core.Zippers (class Container, class ContainerI, Array', ArrayI, Compose', Either', EitherI, Identity', IdentityI, Maybe', MaybeI, Product', ProductI, Tuple', TupleI, ComposeI, _contextZF, downZFV, ixFV, mapWithIndexV, upZFV, (:<-:))
 import Dhall.Core.Zippers.Merge (class Merge)
 import Dhall.Core.Zippers.Recursive (ZRec, Indices)
@@ -57,50 +42,6 @@ import Prim.Row as Row
 import Type.Proxy (Proxy)
 
 -- This file defines the Expr type by its cases, and gives instances, etc.
-
-data Const = Universes (SemigroupMap String Const) (SemigroupMap String (Max Int)) (Max Int)
-derive instance eqConst :: Eq Const
-derive instance ordConst :: Ord Const
-instance semigroupConst :: Semigroup Const where
-  append (Universes az as a) (Universes bz bs b) = Universes (az <> bz) (as <> bs) (a <> b)
-instance showConst :: Show Const where
-  show e = "(Universe " <> shown <> ")"
-    where
-      args = renderCofree List.Nil e
-      renderCofree js (Universes uz us (Max u)) = [renderKey (show u) js] <> renderItems us js <>
-        foldMapWithIndex (\j -> renderCofree (List.Cons j js)) uz
-      renderItems kvs js = foldMapWithIndex (flip renderItem js) kvs
-      renderItem i js (Max v) = [renderKey i js <> (if v == zero then "" else "+" <> show v)]
-      renderKey i List.Nil = i
-      renderKey i js =
-        let rest = js
-        in "(" <> String.joinWith "; " ([i] <> Array.fromFoldable rest) <> ")"
-      shown = case args of
-        _ -> "(" <> String.joinWith ", " args <> ")"
-
-normalizeConstFrom :: List String -> Const -> Const
-normalizeConstFrom js (Universes uz us u) =
-  Universes uz' us' u'
-    where
-      uz' = mapWithIndex (\j -> normalizeConstFrom (List.Cons j js)) uz
-      allKeys = uz' # foldMapWithIndex
-        \k _ -> SemigroupMap (Map.singleton k (Max zero))
-      us' = us <> allKeys
-      u' = fold1 (NonEmpty u us) <> Max zero
-
-zeroable :: Const -> Boolean
-zeroable (Universes uz us (Max u)) =
-  u <= zero && all (\(Max v) -> v <= zero) us && all zeroable uz
-
-skim :: Const -> Set String
-skim (Universes (SemigroupMap uz) (SemigroupMap us) _) =
-  Map.keys us <> Map.keys uz
-
-imax :: Const -> Const -> Const
-imax u v | zeroable v
-  = v <> Universes nested mempty (Max zero)
-  where nested = skim v # foldMap \y -> SemigroupMap (Map.singleton y u)
-imax u v = u <> v
 
 -- copied from dhall-haskell
 data Var = V String Int

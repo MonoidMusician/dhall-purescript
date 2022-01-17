@@ -27,14 +27,15 @@ import Data.Monoid.Disj (Disj(..))
 import Data.Newtype (unwrap)
 import Data.Nullable (Nullable)
 import Data.Nullable as Nullable
-import Data.Ord.Max (Max(..))
 import Data.String as String
 import Data.Symbol (class IsSymbol)
 import Data.Time (Millisecond, Second)
 import Data.Tuple (Tuple(..))
 import Dhall.Core (S_, _S)
-import Dhall.Core.AST (Const(..), Expr, ExprLayerRow, TextLitF(..), Var(..), ExprLayer, projectW)
+import Dhall.Core.AST (Expr, ExprLayer, ExprLayerRow, TextLitF(..), Var(..), projectW)
 import Dhall.Core.AST as AST
+import Dhall.Core.AST.Types (Tail(..))
+import Dhall.Core.AST.Types.Universes (normalizeConst, uKind, uSort, uType, upure)
 import Dhall.Core.Imports (Directory, File(..), FilePrefix(..), Import(..), ImportMode(..), ImportType(..), Scheme(..), URL(..))
 import Dhall.Lib.DateTime (Nanosecond, Time(..), TimeZone(..))
 import Dhall.Lib.Numbers as Num
@@ -105,10 +106,10 @@ decodeFAST (FAST r) =
           [s, v] -> Tuple (unsafeCoerce s) (unsafeCoerce v)
           _ -> unsafeCrashWith $ "bad universes " <> unsafeCoerce as
         as'' = SemigroupMap $ Map.fromFoldableWith (<>) (as' :: Array _)
-      in AST.mkConst (Universes as'' (unsafeCoerce a))
-    "Type", _ -> AST.mkConst (Universes mempty (Max zero))
-    "Kind", _ -> AST.mkConst (Universes mempty (Max one))
-    "Sort", _ -> AST.mkConst (Universes mempty (Max (one + one)))
+      in AST.mkConst (normalizeConst $ upure $ Tail as'' (unsafeCoerce a))
+    "Type", _ -> AST.mkConst uType
+    "Kind", _ -> AST.mkConst uKind
+    "Sort", _ -> AST.mkConst uSort
     "True", _ -> AST.mkBoolLit true
     "False", _ -> AST.mkBoolLit false
     "Bool", _ -> AST.mkBool

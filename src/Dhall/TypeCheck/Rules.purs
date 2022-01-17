@@ -24,21 +24,19 @@ import Data.List as List
 import Data.List.NonEmpty (foldMap1)
 import Data.List.NonEmpty as NEL
 import Data.List.Types (NonEmptyList(..))
-import Data.Map (SemigroupMap(..))
-import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Maybe.First (First(..))
-import Data.Newtype (over, un, unwrap, wrap)
+import Data.Newtype (un, unwrap, wrap)
 import Data.NonEmpty ((:|))
-import Data.Ord.Max (Max(..))
 import Data.Set as Set
 import Data.These (These(..))
 import Data.Traversable (for, traverse)
 import Data.TraversableWithIndex (forWithIndex, traverseWithIndex)
 import Data.Tuple (Tuple(..), curry, fst, uncurry)
 import Dhall.Context as Dhall.Context
-import Dhall.Core.AST (Const(..), Expr, Pair(..), S_, _S)
+import Dhall.Core.AST (Const, Expr, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
+import Dhall.Core.AST.Types.Universes (imax, uempty, ushift)
 import Dhall.Lib.MonoidalState (provideLoc)
 import Dhall.Lib.MonoidalState as V
 import Dhall.Map (class MapLike)
@@ -49,14 +47,13 @@ import Dhall.TypeCheck.Tree (shared)
 import Dhall.TypeCheck.Types (FeedbackE, Inconsistency(..), L, LxprF, OsprE, Oxpr, OxprE, WithBiCtx(..))
 
 axiom :: forall f. Alternative f => Const -> f Const
-axiom (Universes us u) = pure (Universes (map (over Max (_ + one)) us) (over Max (_ + one) u))
+axiom = pure <<< flip ushift 1
 
 rule :: forall f. Applicative f => Const -> Const -> f Const
-rule _ u@(Universes (SemigroupMap m) (Max 0)) | Map.isEmpty m = pure u
-rule a b = pure $ a <> b
+rule u v = pure (imax u v)
 
 maxConst :: forall f. Foldable f => f Const -> Const
-maxConst = fromMaybe (Universes mempty (Max zero)) <<< foldMap Just
+maxConst = fromMaybe uempty <<< foldMap Just
 
 -- Compute groupings according to an equivalence relation
 tabulateGroupings :: forall k v.

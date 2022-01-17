@@ -17,6 +17,7 @@ import Data.Variant as Variant
 import Dhall.Core (SimpleExpr, rehydrate)
 import Dhall.Core.AST (Const(..), Expr, Pair(..), S_, _S)
 import Dhall.Core.AST as AST
+import Dhall.Core.AST.Types.Universes (uType)
 import Dhall.Lib.MonoidalState (LocStateErroring(..))
 import Dhall.Lib.MonoidalState as V
 import Dhall.Map (class MapLike)
@@ -167,5 +168,5 @@ ensureType ty error = do
   kind <- V.escalateR (tyStep ty)
   ensure' (_S::S_ "Const") kind (\_ -> error Nothing) >>= case _ of
     -- TODO
-    Const.Const (Universes (SemigroupMap m) (Max 0)) | Map.isEmpty m -> pure unit
+    Const.Const u | u == uType -> pure unit
     Const.Const c -> absurd <$> error (Just c)
