@@ -2,16 +2,21 @@ module Dhall.CLI.Main where
 
 import Prelude
 
+import Data.Array (intercalate)
 import Data.Array as Array
+import Data.Either (Either(..))
 import Data.Foldable (for_, traverse_)
+import Data.FoldableWithIndex (foldMapWithIndex, forWithIndex_)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
-import Data.Newtype (wrap)
+import Data.Newtype (unwrap, wrap)
 import Data.String as String
 import Data.Traversable (traverse)
+import Data.TraversableWithIndex (forWithIndex)
 import Data.Tuple (Tuple(..), fst)
 import Data.Variant (Variant)
+import Dhall.Context as Dhall.Context
 import Dhall.Core (Pair(..))
 import Dhall.Core as Dhall
 import Dhall.Core.CBOR (decode)
@@ -21,10 +26,12 @@ import Dhall.Imports.Resolve (ImportExpr)
 import Dhall.Imports.Resolve as Resolve
 import Dhall.Imports.Retrieve as Retrieve
 import Dhall.Lib.CBOR as CBOR
+import Dhall.Lib.MonoidalState (unStatePart)
 import Dhall.Lib.MonoidalState as V
 import Dhall.Parser as Parser
 import Dhall.Printer as Printer
 import Dhall.TypeCheck as TC
+import Dhall.TypeCheck.UniSolver (exemplify)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
@@ -68,12 +75,20 @@ normalizeFile file = do
             for_ es $ traverse \(Tuple _ tag) -> logShow (tag :: Variant (Resolve.Errors ()))
           V.Success _ resolved -> do
             -- logShow resolved
-            case TC.withTypeOf resolved of
+            case TC.withTypeWithA' absurd Dhall.Context.empty resolved of
               VV.Error es _ -> do
                 logShow "Type error"
                 for_ es \(Tuple _ tag) -> logShow (tag :: Variant (Resolve.Errors ()))
-              VV.Success (Pair exp typ) -> do
+              VV.Success (Tuple st (Pair exp typ)) -> do
                 log $ print show typ
+                if Map.isEmpty (unwrap st) then mempty else do
+                  forWithIndex_ (unwrap st) \k (Tuple _ v) ->
+                    log $ show k <> " !>= " <> show v
+                  case exemplify st of
+                    Left _ -> mempty
+                    Right ex ->
+                      log $ "e.g. " <> intercalate ", " (ex # foldMapWithIndex \k v -> [k <> " = " <> show v])
+                  log mempty
                 let normalized = Dhall.normalize exp
                 log $ print show normalized
                 pure unit

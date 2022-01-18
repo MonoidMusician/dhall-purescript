@@ -16,6 +16,7 @@ import Data.Map (Map, SemigroupMap(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Monoid.Disj (Disj(..))
+import Data.Semigroup.First (First(..))
 import Data.Semigroup.Foldable (class Foldable1, foldMap1, foldl1Default, foldr1Default)
 import Data.Semigroup.Traversable (class Traversable1, sequence1, traverse1)
 import Data.Show.Generic (genericShow)
@@ -206,6 +207,15 @@ instance errorMonoidTuple ::
   (ErrorMonoid o1 m1 w1, ErrorMonoid o2 m2 w2) =>
   ErrorMonoid (These o1 o2) (Tuple m1 m2) (Tuple w1 w2) where
     emempty (Tuple w1 w2) = Tuple (emempty w1) (emempty w2)
+
+instance errorSemigroupUntotal :: (PartialSemigroup (Either e) m) => ErrorSemigroup (First e) m (Untotal (Either e) m) where
+  split (Untotal (Left o)) = This (First o)
+  split (Untotal (Right m)) = That m
+  ocomb (First o) = Untotal (Left o)
+  mcomb = Untotal <<< Right
+
+instance errorMonoidUntotal :: (PartialMonoid (Either e) m) => ErrorMonoid (First e) m (Untotal (Either e) m) where
+  emempty _ = pempty (Proxy :: Proxy (Either e))
 
 -- TODO: NonEmptySemigroupMap
 instance errorSemigroupSemigroupMap :: (Ord k, ErrorSemigroup o m w) =>

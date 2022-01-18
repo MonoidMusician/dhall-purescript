@@ -23,39 +23,35 @@ import Dhall.Lib.MonoidalState (class ErrorMonoid, Discrete(..), ErrorPart, Inco
 import Dhall.Map (class MapLike)
 import Dhall.TypeCheck.Operations (normalizeStep, plain, topLoc)
 import Dhall.TypeCheck.Types (LFeedback, Oxpr, TCState, L)
+import Dhall.TypeCheck.UniSolver (Conflict(..))
 import Dhall.TypeCheck.Universes as U
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Reference (unsafeRefEq)
 
 type StateErrors r =
-  ( "Unification error" ::
-    { key :: U.SolverKey
-    , value :: Inconsistency U.SolverVal
-    }
+  ( "Unification error" :: Conflict Unit
   | r
   )
 
 liftErrors :: forall w m a r. Monoid w => ErrorPart (Tuple (Total w) (TCState (L m a))) -> NonEmptyArray (Tuple (L m a) (Variant (StateErrors r)))
-liftErrors = unErrorPart >>> unThese >>> foldMapWithIndex liftError >>> NEA.fromArray >>> unsafePartial fromJust
+liftErrors = unErrorPart >>> unThese >>> unwrap >>> liftError
   where
     unThese (This e) = absurd e
     unThese (Both e _) = absurd e
     unThese (That e) = e
 
-    liftError k i = pure $ Tuple (loc i) (Variant.inj (_S::S_ "Unification error") { key: k, value: strip i })
-
-    strip = map \(Tuple _ (Discrete v)) -> v
-    loc = foldMap1 \(Tuple (Total l) _) -> NEA.head l
+    liftError (Contradiction d l) = pure $ Tuple l (Variant.inj (_S::S_ "Unification error") (Contradiction d unit))
+    liftError (Undeterminable l vs) = pure $ Tuple l (Variant.inj (_S::S_ "Unification error") (Undeterminable unit vs))
 
 tcState :: forall to tm tw m a. ErrorMonoid to tm tw => StatePart (Tuple tw (TCState (L m a))) -> StatePart (TCState (L m a))
 tcState = mkStatePart <<< extract <<< unStatePart
 
-substitute :: forall l m a node ops.
+substitute :: forall l m a node ops. Semigroup l =>
   GenericExprAlgebra (NodeOps (AST.ExprLayerRow m a) (StatePart (TCState l)) node ops) (StatePart (TCState l)) node
 substitute us alg = pure <<< runOverCases alg.overlayer (unwrap <<< alg.recurse us)
   { "Const": unwrap >>> U.substitute (unStatePart us) >>> wrap }
 
-substituteExpr :: forall l m a. StatePart (TCState l) -> Expr m a -> Expr m a
+substituteExpr :: forall l m a. Semigroup l => StatePart (TCState l) -> Expr m a -> Expr m a
 substituteExpr = runAlgebraExpr substitute
 
 unify :: forall w r m a. Eq a => MapLike String m =>

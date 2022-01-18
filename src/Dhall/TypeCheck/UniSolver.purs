@@ -2,9 +2,11 @@ module Dhall.TypeCheck.UniSolver where
 
 import Prelude
 
+import Control.Comonad (extract)
 import Data.Array as Array
-import Data.Bifunctor (lmap)
-import Data.Either (Either(..), isRight, note)
+import Data.Array.NonEmpty as NEA
+import Data.Bifunctor (bimap, lmap)
+import Data.Either (Either(..), hush, isRight, note)
 import Data.FoldableWithIndex (foldMapWithIndex, traverseWithIndex_)
 import Data.Functor.App (App(..))
 import Data.Generic.Rep (class Generic)
@@ -27,6 +29,7 @@ import Data.Tuple (Tuple(..), curry, uncurry)
 import Dhall.Core (Const(..), Pair(..))
 import Dhall.Core.AST.Types (Const, Tail(..))
 import Dhall.Core.AST.Types.Universes (foundAt, getTail, normalizeConst, onlyConst, onlyTail, onlyVar, reduceByConst', reduceBySelf, uconst, upure, ushift, uvar, uvarS, varsConst)
+import Dhall.Lib.MonoidalState (class PartialMonoid, class PartialSemigroup)
 import Dhall.Map as Dhall.Map
 
 {-
@@ -161,43 +164,50 @@ shiftLE uz1 uz2 =
 
 infix 5 shiftLE as +<=
 
--- A map of GE constraints (key >= value)
-newtype GESolver = GESolver (Map Const Const)
-derive instance newtypeGESolver :: Newtype GESolver _
-derive newtype instance eqGESolver :: Eq GESolver
-derive newtype instance showGESolver :: Show GESolver
+-- A map of GE constraints (key >= value) with associated data l
+newtype GESolver l = GESolver (Map Const (Tuple l Const))
+derive instance newtypeGESolver :: Newtype (GESolver l) _
+derive newtype instance eqGESolver :: Eq l => Eq (GESolver l)
+derive newtype instance showGESolver :: Show l => Show (GESolver l)
+instance functorGESolver :: Functor GESolver where
+  map f (GESolver s) = GESolver (lmap f <$> s)
 
-joinbimapGESolver :: (Const -> Const) -> GESolver -> GESolver
+instance partialSemigroupGESolver :: Semigroup l => PartialSemigroup (Either (Conflict l)) (GESolver l) where
+  pappend (GESolver s1) (GESolver s2) = closure' (GESolver (Map.unionWith append s1 s2))
+instance partialMonoidGESolver :: Semigroup l => PartialMonoid (Either (Conflict l)) (GESolver l) where
+  pempty _ = GESolver Map.empty
+
+joinbimapGESolver :: forall l. Semigroup l => (Const -> Const) -> GESolver l -> GESolver l
 joinbimapGESolver f (GESolver s) = GESolver $ un SemigroupMap $
-  s # foldMapWithIndex \k v ->
-    SemigroupMap $ Map.singleton (f k) (f v)
+  s # foldMapWithIndex \k (Tuple l v) ->
+    SemigroupMap $ Map.singleton (f k) (Tuple l (f v))
 
-mapWithIndexGESolver :: (Tuple Const Const -> Tuple Const Const) -> GESolver -> GESolver
+mapWithIndexGESolver :: forall l. Semigroup l => (Tuple Const Const -> Tuple Const Const) -> GESolver l -> GESolver l
 mapWithIndexGESolver f (GESolver s) = GESolver $ un SemigroupMap $
-  s # foldMapWithIndex \k v ->
-    SemigroupMap $ uncurry Map.singleton (curry f k v)
+  s # foldMapWithIndex \k (Tuple l v) ->
+    SemigroupMap $ uncurry Map.singleton (map (Tuple l) $ curry f k v)
 
-normalizeGESolver :: GESolver -> GESolver
+normalizeGESolver :: forall l. Semigroup l => GESolver l -> GESolver l
 normalizeGESolver = joinbimapGESolver normalizeConst
 
 -- | Determine which variables are known to be positive and known to be zero
 -- | and reduce all instances of `imax` which include them accordingly.
-reduceImpredicativity :: GESolver -> Either Conflict GESolver
+reduceImpredicativity :: forall l. Semigroup l => GESolver l -> Either (Conflict l) (GESolver l)
 reduceImpredicativity (GESolver s) =
   mustBeZeroM <#> \mustBeZero ->
-    joinbimapGESolver (reduce (Tuple mustBeZero mustBePositive)) (GESolver s)
+    joinbimapGESolver (reduce (Tuple (mustBeZero) (mustBePositive))) (GESolver s)
   where
-    getZeroesConst level = unwrap >>> unwrap >>> Map.lookup Set.empty >>> maybe mempty (getZeroesTail level)
-    getZeroesTail level (Tail (SemigroupMap vs) _) = vs # foldMapWithIndex \var (Max shift) ->
+    getZeroesConst l level = unwrap >>> unwrap >>> Map.lookup Set.empty >>> maybe mempty (getZeroesTail l level)
+    getZeroesTail l level (Tail (SemigroupMap vs) _) = vs # foldMapWithIndex \var (Max shift) ->
       case compare level shift of
         GT -> mempty
         EQ -> pure (Set.singleton var)
-        LT -> App $ Left (Contradiction (Pair (uconst level) (uvarS var shift)))
-    mustBeZeroM = un App $ s # foldMapWithIndex \k v ->
+        LT -> App $ Left (Contradiction (Pair (uconst level) (uvarS var shift)) l)
+    mustBeZeroM = un App $ s # foldMapWithIndex \k (Tuple l v) ->
       if not onlyTail k then mempty else
       onlyConst (getTail k) # maybe mempty \level ->
-        getZeroesConst level v
-    mustBePositive = s # foldMapWithIndex \k v ->
+        getZeroesConst l level v
+    mustBePositive = s # foldMapWithIndex \k (Tuple _ v) ->
       if not onlyTail k then mempty else
       onlyVar (getTail k) # maybe mempty \name ->
         case getTail v of
@@ -205,20 +215,20 @@ reduceImpredicativity (GESolver s) =
           _ -> mempty
 
 -- | For each constraint `k !>= v`, reduce `k` by `v`, and remove it if `k == v`.
-reduceKeys :: GESolver -> GESolver
+reduceKeys :: forall l. Semigroup l => GESolver l -> GESolver l
 reduceKeys (GESolver kvs) = GESolver $ Map.fromFoldableWith append (Array.mapMaybe reduceKey (Map.toUnfoldableUnordered kvs))
   where
-    reduceKey (Tuple k v) =
+    reduceKey (Tuple k (Tuple l v)) =
       let k' = reduceBySelf $ reduceByConst' v k in
       if k' == v then Nothing else
-        Just (Tuple k' v)
+        Just (Tuple k' (Tuple l v))
 
 -- TODO
-reduceGESolver :: GESolver -> GESolver
+reduceGESolver :: forall l. Semigroup l => GESolver l -> GESolver l
 reduceGESolver (GESolver s) = GESolver s
 
 -- | Do one step of the closure algorithm, including normalization steps.
-close :: GESolver -> Either Conflict GESolver
+close :: forall l. Semigroup l => GESolver l -> Either (Conflict l) (GESolver l)
 close =
   normalizeGESolver >>>
   justClose >=>
@@ -227,19 +237,19 @@ close =
   \s -> reduceGESolver <$> checkImpredicativity s
 
 -- | Take one step in closing the GESolver, unless we come across an inconsistency
-justClose :: GESolver -> Either Conflict GESolver
+justClose :: forall l. Semigroup l => GESolver l -> Either (Conflict l) (GESolver l)
 justClose (GESolver s) =
-  GESolver <$> sequence (Map.mapMaybeWithKey closeKey (map normalizeConst s))
+  GESolver <$> sequence (Map.mapMaybeWithKey closeKey (map (map normalizeConst) s))
   where
-    closeKey k1 v1 =
+    closeKey k1 (Tuple l1 v1) =
       let
-        mv3 = (\vs -> normalizeConst $ fold1 $ v1 :| vs) <$>
+        mv3 = (\vs -> map normalizeConst $ fold1 $ Tuple l1 v1 :| vs) <$>
           sequence (Map.mapMaybeWithKey additional s)
-        additional k2 v2 =
+        additional k2 (Tuple l2 v2) =
           case k2 +<= v1 of
             -- reflexivity: add the key itself (k1 >= k1)
             _ | k1 == k2 ->
-              Just (Just k1)
+              Just (Just (Tuple l1 k1))
             -- Do nothing with this key
             Nothing -> Nothing
             -- shift v2 by the amount that makes k2 <= v1 (for transitivity)
@@ -259,36 +269,35 @@ justClose (GESolver s) =
                       _ -> Just (Just v2d)
                 -- otherwise add v2d to this key
                 _ -> Just (Just v2d)
-              -} Just (Just v2d)
-      in mv3 <#> \v3 -> case compareConst k1 v3 of
-          Just ALT -> Left (Contradiction (Pair k1 v3))
-          _ -> pure v3
+              -} Just (Just (Tuple (l1 <> l2) v2d))
+      in mv3 <#> \(Tuple l v3) -> case compareConst k1 v3 of
+          Just ALT -> Left (Contradiction (Pair k1 v3) l)
+          _ -> pure (Tuple l v3)
+
+eqGESolver_ :: forall l l'. GESolver l -> GESolver l' -> Boolean
+eqGESolver_ (GESolver s1) (GESolver s2) = map extract s1 == map extract s2
 
 -- | Compute the full closure, if it is consistent.
-closure :: GESolver -> Maybe GESolver
-closure s =
-  case close s of
-    Left _ -> Nothing
-    Right s' | s' == s -> Just s
-    Right s' -> closure s'
+closure :: forall l. Semigroup l => GESolver l -> Maybe (GESolver l)
+closure = hush <<< closure'
 
 -- | Compute the full closure or return an error indicating what the
 -- | some contradiction is that prevents it from being consistent.
-closure' :: GESolver -> Either Conflict GESolver
+closure' :: forall l. Semigroup l => GESolver l -> Either (Conflict l) (GESolver l)
 closure' s =
   case close s of
     Left e -> Left e
-    Right s' | s' == s -> Right s
+    Right s' | eqGESolver_ s' s -> Right s
     Right s' -> closure' s'
 
-powerset :: forall a. Ord a => Set a -> Set (Set a)
-powerset vs = case Set.findMin vs of
-  Nothing -> Set.singleton Set.empty
-  Just v ->
+powerset :: forall a l. Ord a => Map a l -> Array (Map a l)
+powerset vs = case Map.findMin vs of
+  Nothing -> [Map.empty]
+  Just { key: v, value: l } ->
     let
-      vs' = Set.delete v vs
+      vs' = Map.delete v vs
       rec = powerset vs'
-    in rec <> Set.map (Set.insert v) rec
+    in rec <> map (Map.insert v l) rec
 
 evaluate' :: Set String -> Const -> Tail
 evaluate' vs (Universes (SemigroupMap m)) =
@@ -314,38 +323,44 @@ reduce (Tuple mustBeZero mustBeNonZero) (Universes (SemigroupMap m)) = Universes
 
 -- | Add to the `GESolver` the constraints the indicate which variables are
 -- | zero or positive.
-removeImpredicativity :: Tuple (Set String) (Set String) -> GESolver -> GESolver
-removeImpredicativity (Tuple mustBeZero mustBeNonZero) (GESolver s) =
+removeImpredicativity :: forall l. Semigroup l => Tuple (Map String l) (Map String l) -> GESolver l -> GESolver l
+removeImpredicativity (Tuple mustBeZeroM mustBeNonZeroM) (GESolver s) =
   let
-    added = (uconst 1 <$ Set.toMap (Set.map uvar mustBeNonZero))
-      # if Set.isEmpty mustBeZero then identity else Map.insert (uconst 0) (varsConst mustBeZero)
+    gather :: Map String l -> Maybe (Tuple l (Set String))
+    gather m = Tuple <$> foldMap Just m <@> Map.keys m
+    added = maybe Map.empty (\(Tuple lp mustBeNonZero) -> (Tuple lp (uconst 1) <$ Set.toMap (Set.map uvar mustBeNonZero))) (gather mustBeNonZeroM)
+      # maybe identity (\(Tuple lz mustBeZero) -> Map.insert (uconst 0) (Tuple lz (varsConst mustBeZero))) (gather mustBeZeroM)
   in GESolver $ Map.unionWith append added s
 
 -- | Check that some hypothesis is globally satisfiable, and notice which
 -- | variables are forced to be zero or positive.
-checkImpredicativity :: GESolver -> Either Conflict GESolver
+checkImpredicativity :: forall l. Semigroup l => GESolver l -> Either (Conflict l) (GESolver l)
 checkImpredicativity (GESolver s) =
   let
-    neededCases :: Set String
-    neededCases = s # foldMapWithIndex
-      \(Universes (SemigroupMap k)) (Universes (SemigroupMap v)) ->
-        fold $ Map.keys k <> Map.keys v
-    isConsistentWith info =
-      isRight $ closure' $ removeImpredicativity info (GESolver s)
-    Tuple allowedToBeZero allowedPositive =
+    neededCases = Map.keys neededCases'
+    neededCases' :: Map String l
+    neededCases' = unwrap $ s # foldMapWithIndex
+      \(Universes (SemigroupMap k)) (Tuple l (Universes (SemigroupMap v))) ->
+        SemigroupMap $ l <$ Set.toMap (fold $ Map.keys k <> Map.keys v)
+    isConsistentWith (Tuple a b) =
+      isRight $ closure' $ removeImpredicativity (Tuple (unit <$ a) (unit <$ b)) (GESolver (map (Tuple unit <<< extract) s))
+    Tuple (SemigroupMap allowedToBeZero) (SemigroupMap allowedPositive) =
       -- Note: this conditional is needed for termination
       if Set.isEmpty neededCases then mempty else
-      powerset neededCases # foldMap \assumedPositive ->
-        let info = Tuple (Set.difference neededCases assumedPositive) (assumedPositive)
+      powerset neededCases' # foldMap \assumedPositive ->
+        let info = Tuple (Map.difference neededCases' assumedPositive) (assumedPositive)
         in if isConsistentWith info
-          then info
+          then bimap SemigroupMap SemigroupMap $ info
           else mempty
-  in case NES.fromSet (Set.difference neededCases (allowedToBeZero <> allowedPositive)) of
-    Just undecided -> Left (Undeterminable undecided)
-    Nothing ->
+  in case Map.difference neededCases' (Map.unionWith append allowedToBeZero allowedPositive) of
+    missing
+    | Just undecided <- NES.fromSet (Map.keys missing)
+    , Just l <- fold1 <$> NEA.fromFoldable missing ->
+      Left (Undeterminable l undecided)
+    _ ->
       let
-        mustBeNonZero = Set.difference neededCases allowedToBeZero
-        mustBeZero = Set.difference neededCases allowedPositive
+        mustBeNonZero = Map.difference neededCases' allowedToBeZero
+        mustBeZero = Map.difference neededCases' allowedPositive
       in Right $ removeImpredicativity (Tuple mustBeZero mustBeNonZero) (GESolver s)
 
 -- | Concrete assignment of variables to values.
@@ -370,25 +385,23 @@ substituteConst sol (Universes m) = Universes $
       map SemigroupMap $
         Map.singleton <$> substituteHyp sol k <@> substituteTail sol v
 
-data Conflict
-  = Contradiction (Pair Const)
-  | Undeterminable (NonEmptySet String)
-derive instance genericConflict :: Generic Conflict _
-instance showConflict :: Show Conflict where
+data Conflict l
+  = Contradiction (Pair Const) l
+  | Undeterminable l (NonEmptySet String)
+derive instance genericConflict :: Generic (Conflict l) _
+instance showConflict :: Show l => Show (Conflict l) where
   show = genericShow
 
-substituteSolver :: Solution -> GESolver -> Either Conflict GESolver
+substituteSolver :: forall l. Semigroup l => Solution -> GESolver l -> Either (Conflict l) (GESolver l)
 substituteSolver sol = map closure' $ over GESolver $ un SemigroupMap <<<
-  foldMapWithIndex \k v ->
-    SemigroupMap $ Map.singleton (substituteConst sol k) (substituteConst sol v)
+  foldMapWithIndex \k (Tuple l v) ->
+    SemigroupMap $ Map.singleton (substituteConst sol k) (Tuple l (substituteConst sol v))
 
-data ExError
-  = ClosureError Solution GESolver Conflict
-  | InternalError Solution GESolver
-  | DomainError Const
-  | VerifyError Const Const
-derive instance genericExError :: Generic ExError _
-instance showExError :: Show ExError where
+data ExError l
+  = ClosureError Solution (GESolver l) (Conflict l)
+  | VerifyError Const l Const
+derive instance genericExError :: Generic (ExError l) _
+instance showExError :: Show l => Show (ExError l) where
   show = genericShow
 
 unUniverse :: Const -> Maybe Tail
@@ -400,12 +413,12 @@ unTail (Tail (SemigroupMap m) (Max i)) =
   if Map.isEmpty m then Just i else Nothing
 
 -- | All variables mentioned in the `GESolver`.
-gatherVariables :: GESolver -> Set String
+gatherVariables :: forall l. GESolver l -> Set String
 gatherVariables (GESolver gm) =
   let
     fromConst (Universes (SemigroupMap m)) =
       m # foldMapWithIndex \k (Tail (SemigroupMap v) _) -> k <> Map.keys v
-  in gm # foldMapWithIndex \k v -> fromConst k <> fromConst v
+  in gm # foldMapWithIndex \k (Tuple _ v) -> fromConst k <> fromConst v
 
 -- | Demonstrate a solution to the `GESolver` (assuming it is already closed).
 -- |
@@ -413,7 +426,7 @@ gatherVariables (GESolver gm) =
 -- | and then pick off a variable or two each time and set it to that lower
 -- | bound. Then we reduce the solver state accordingly, run closure again,
 -- | and continue onwards.
-exemplify :: GESolver -> Either ExError Solution
+exemplify :: forall l. Semigroup l => GESolver l -> Either (ExError l) Solution
 exemplify ge0 = lmap (ClosureError Map.empty ge0) (closure' ge0) >>= go Map.empty where
   nextStep :: Tail -> Tail -> Maybe (First (Tuple String Int))
   nextStep (Tail (SemigroupMap ks) (Max _atLeast)) (Tail _ (Max floor)) =
@@ -421,11 +434,11 @@ exemplify ge0 = lmap (ClosureError Map.empty ge0) (closure' ge0) >>= go Map.empt
     case Map.findMin ks of
       Just { key: k, value: Max v } -> Just (First (Tuple k (floor - v)))
       Nothing -> Nothing
-  getNextStep key value =
+  getNextStep key (Tuple _ value) =
     unUniverse key >>= \k ->
     unUniverse value >>= \v ->
       nextStep k v
-  go :: Solution -> GESolver -> Either ExError Solution
+  go :: Solution -> GESolver l -> Either (ExError l) Solution
   go sol0 (GESolver m) = case foldMapWithIndex getNextStep m of
     Nothing -> pure $
       let extra = gatherVariables (GESolver m) in
@@ -435,9 +448,9 @@ exemplify ge0 = lmap (ClosureError Map.empty ge0) (closure' ge0) >>= go Map.empt
       in lmap (ClosureError sol (GESolver m)) (substituteSolver sol (GESolver m)) >>= go sol
 
 -- | Verify a concrete solution to the constraints.
-verifySolutionTo :: GESolver -> Solution -> Either ExError Unit
+verifySolutionTo :: forall l. GESolver l -> Solution -> Either (ExError l) Unit
 verifySolutionTo (GESolver m) sol = m #
-  traverseWithIndex_ \k v -> note (VerifyError k v) $
+  traverseWithIndex_ \k (Tuple l v) -> note (VerifyError k l v) $
     unUniverse (substituteConst sol k) >>= unTail >>= \k' ->
       unUniverse (substituteConst sol v) >>= unTail >>= \v' ->
         if k' >= v' then pure unit else Nothing

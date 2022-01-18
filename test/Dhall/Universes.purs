@@ -15,7 +15,7 @@ import Data.Ord.Max (Max(..))
 import Data.Tuple (Tuple(..))
 import Dhall.Core (Const, Pair(..))
 import Dhall.Core.AST.Types.Universes (uconst, uempty, uvar, uvarS, (^+), (^<))
-import Dhall.TypeCheck.UniSolver (Conflict(..), ExError, GESolver(..), Rel(..), close, closure, compareConst, exemplify, verifySolutionTo, (+<=))
+import Dhall.TypeCheck.UniSolver (Conflict(..), ExError, GESolver(..), Rel(..), close, closure, compareConst, eqGESolver_, exemplify, verifySolutionTo, (+<=))
 import Effect (Effect)
 import Effect.Console (log)
 
@@ -68,12 +68,12 @@ compareConstAssert c1 c2 r = do
 
 infix 2 compareConstAssert as !<=>
 
-closure' :: Int -> GESolver -> Maybe (Either Conflict GESolver)
+closure' :: forall l. Semigroup l => Int -> GESolver l -> Maybe (Either (Conflict l) (GESolver l))
 closure' gas _ | gas <= 0 = Nothing
 closure' gas s =
   case close s of
     Left e -> Just (Left e)
-    Right s' | s' == s -> Just (Right s)
+    Right s' | eqGESolver_ s' s -> Just (Right s)
     Right s' -> closure' (gas-1) s'
 
 addToSolver :: Const -> Const -> Writer (SemigroupMap Const Const) Unit
@@ -82,11 +82,11 @@ addToSolver = map (tell <<< SemigroupMap) <<< Map.singleton
 infix 2 addToSolver as !>=
 
 type MkSolver = Writer (SemigroupMap Const Const) Unit
-mkSolver :: MkSolver -> GESolver
+mkSolver :: MkSolver -> GESolver Unit
 mkSolver (WriterT (Identity (Tuple _ (SemigroupMap constraints)))) =
-  GESolver constraints
+  GESolver (map (Tuple unit) constraints)
 
-ensureModel' :: GESolver -> (Map String Int -> Effect Unit) -> Effect Unit
+ensureModel' :: forall l. Semigroup l => GESolver l -> (Map String Int -> Effect Unit) -> Effect Unit
 ensureModel' solved act = case exemplify solved of
   Left _ -> log "But did not have model"
   Right model ->
@@ -94,7 +94,7 @@ ensureModel' solved act = case exemplify solved of
       Left _ -> log "But model was invalid"
       Right _ -> act model
 
-ensureModel :: GESolver -> Effect Unit
+ensureModel :: forall l. Semigroup l => GESolver l -> Effect Unit
 ensureModel = ensureModel' <@> \_ -> pure unit
 
 consistent :: Writer (SemigroupMap Const Const) Unit -> Effect Unit
@@ -114,7 +114,7 @@ consistent' constraints = do
     Just solv -> ensureModel' solv \ex -> do
       log $ (_ <> "for") $ ex # foldMapWithIndex \k v -> k <> " = " <> show v <> ", "
       for_ solved \(GESolver solution) -> do
-        forWithIndex_ solution \i v -> do
+        forWithIndex_ solution \i (Tuple _ v) -> do
           log ("  " <> showU i <> " !>= " <> showU v)
 
 inconsistent :: Writer (SemigroupMap Const Const) Unit -> Effect Unit
@@ -123,27 +123,27 @@ inconsistent constraints = do
   let solved = closure solver
   for_ solved \(GESolver solution) -> do
     log "Was consistent:"
-    forWithIndex_ solution \i v -> do
+    forWithIndex_ solution \i (Tuple _ v) -> do
       log ("  " <> showU i <> " !>= " <> showU v)
 
 testSystem :: Writer (SemigroupMap Const Const) Unit -> Effect Unit
 testSystem constraints = do
   log "Testing to show …"
   let solver = mkSolver constraints
-  forWithIndex_ (unwrap solver) \i v -> do
+  forWithIndex_ (unwrap solver) \i (Tuple _ v) -> do
     log ("  " <> showU i <> " !>= " <> showU v)
   let solved = closure' 10 solver
   case solved of
     Nothing -> log "… did not stabilize"
-    Just (Left (Contradiction (Pair l r))) -> do
+    Just (Left (Contradiction (Pair l r) _)) -> do
       log "… inconsistent:"
       log ("  " <> showU l <> " < " <> showU r)
-    Just (Left (Undeterminable vs)) -> do
+    Just (Left (Undeterminable _ vs)) -> do
       log "… inconsistent:"
       log (show vs)
     Just (Right (GESolver solution)) -> do
       log "… consistent:"
-      forWithIndex_ solution \i v -> do
+      forWithIndex_ solution \i (Tuple _ v) -> do
         log ("  " <> showU i <> " !>= " <> showU v)
       ensureModel (GESolver solution)
 
@@ -151,7 +151,7 @@ stepSystem :: Writer (SemigroupMap Const Const) Unit -> Effect Unit
 stepSystem constraints = do
   log "Stepping to show …"
   let solver = mkSolver constraints
-  forWithIndex_ (unwrap solver) \i v -> do
+  forWithIndex_ (unwrap solver) \i (Tuple _ v) -> do
     log ("  " <> showU i <> " !>= " <> showU v)
   let
     go s =
@@ -161,21 +161,21 @@ stepSystem constraints = do
           pure $ Right solution
         Right (GESolver solution) -> do
           log "… stepping …"
-          forWithIndex_ solution \i v -> do
+          forWithIndex_ solution \i (Tuple _ v) -> do
             log ("  " <> showU i <> " !>= " <> showU v)
           go (GESolver solution)
   solved <- go solver
   case Just solved of
     Nothing -> log "… did not stabilize"
-    Just (Left (Contradiction (Pair l r))) -> do
+    Just (Left (Contradiction (Pair l r) _)) -> do
       log "… inconsistent:"
       log ("  " <> showU l <> " < " <> showU r)
-    Just (Left (Undeterminable vs)) -> do
+    Just (Left (Undeterminable _ vs)) -> do
       log "… inconsistent:"
       log (show vs)
     Just (Right (GESolver solution)) -> do
       log "… consistent:"
-      forWithIndex_ solution \i v -> do
+      forWithIndex_ solution \i (Tuple _ v) -> do
         log ("  " <> showU i <> " !>= " <> showU v)
       ensureModel (GESolver solution)
 
@@ -184,26 +184,26 @@ goesTo constraints goal = do
   -- log "Testing …"
   let solver = mkSolver constraints
   let
-    showit = forWithIndex_ (unwrap solver) \i v -> do
+    showit = forWithIndex_ (unwrap solver) \i (Tuple _ v) -> do
       log ("  " <> showU i <> " !>= " <> showU v)
   let solved = closure' 10 solver
   case solved of
     Nothing -> log "Did not stabilize:" <> showit
-    Just (Left (Contradiction (Pair l r))) -> do
+    Just (Left (Contradiction (Pair l r) _)) -> do
       log "Inconsistent:"
       log ("  " <> showU l <> " < " <> showU r)
       showit
-    Just (Left (Undeterminable vs)) -> do
+    Just (Left (Undeterminable _ vs)) -> do
       log "Inconsistent:"
       log (show vs)
       showit
     Just (Right (GESolver solution)) | wrap solution /= mkSolver goal -> do
       log "Consistent but unexpected:"
       log "Expected:"
-      forWithIndex_ (unwrap $ mkSolver goal) \i v -> do
+      forWithIndex_ (unwrap $ mkSolver goal) \i (Tuple _ v) -> do
         log ("  " <> showU i <> " !>= " <> showU v)
       log "Got:"
-      forWithIndex_ solution \i v -> do
+      forWithIndex_ solution \i (Tuple _ v) -> do
         log ("  " <> showU i <> " !>= " <> showU v)
     Just (Right (GESolver solution)) -> ensureModel (GESolver solution)
 
@@ -212,7 +212,7 @@ systemDerives constraints goal = do
   -- log "Testing …"
   let solver = mkSolver constraints
   let
-    showit = forWithIndex_ (unwrap solver) \i v -> do
+    showit = forWithIndex_ (unwrap solver) \i (Tuple _ v) -> do
       log ("  " <> showU i <> " !>= " <> showU v)
   let solved = closure' 10 solver
   let
@@ -222,11 +222,11 @@ systemDerives constraints goal = do
         # maybe false (\v' -> v' <> v == v')
   case solved of
     Nothing -> log "Did not stabilize:" <> showit
-    Just (Left (Contradiction (Pair l r))) -> do
+    Just (Left (Contradiction (Pair l r) _)) -> do
       log "Inconsistent:"
       log ("  " <> showU l <> " < " <> showU r)
       showit
-    Just (Left (Undeterminable vs)) -> do
+    Just (Left (Undeterminable _ vs)) -> do
       log "Inconsistent:"
       log (show vs)
       showit
@@ -235,11 +235,11 @@ systemDerives constraints goal = do
       log "Expected at least:"
       showit
       log "Got:"
-      forWithIndex_ solution \i v -> do
+      forWithIndex_ solution \i (Tuple _ v) -> do
         log ("  " <> showU i <> " !>= " <> showU v)
     Just (Right (GESolver solution)) -> ensureModel (GESolver solution)
 
-verifyingSolution :: GESolver -> Either ExError (Map String Int)
+verifyingSolution :: forall l. Semigroup l => GESolver l -> Either (ExError l) (Map String Int)
 verifyingSolution solver =
   exemplify solver >>= \sol -> verifySolutionTo solver sol $> sol
 

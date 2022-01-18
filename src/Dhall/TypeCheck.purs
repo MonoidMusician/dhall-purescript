@@ -2,7 +2,7 @@ module Dhall.TypeCheck ( module Dhall.TypeCheck, module Exports ) where
 
 import Prelude
 
-import Control.Comonad (extend)
+import Control.Comonad (extend, extract)
 import Control.Plus (empty)
 import Data.Bifunctor (bimap)
 import Data.Foldable (foldr, oneOfMap)
@@ -23,6 +23,7 @@ import Dhall.Core.AST (Expr, ExprRowVF(..), ExprRowVFI, S_, _S)
 import Dhall.Core.AST.Operations.Location (Derivation, Derived, Operated, Within)
 import Dhall.Core.AST.Operations.Location as Loc
 import Dhall.Core.Zippers (_ix)
+import Dhall.Lib.MonoidalState (unStatePart)
 import Dhall.Lib.MonoidalState as V
 import Dhall.Map (class MapLike)
 import Dhall.Normalize as Dhall.Normalize
@@ -32,6 +33,7 @@ import Dhall.TypeCheck.Rules (typecheckAlgebra)
 import Dhall.TypeCheck.State as State
 import Dhall.TypeCheck.Types (Ann, BiContext, Errors, Feedback, FeedbackE, Inconsistency(..), L, Lxpr, LxprF, Operations, Ospr, OsprE, Oxpr, OxprE, Result, ResultE, SubstContext, TypeCheckError, TypeCheckErrorE, WithBiCtx(..)) as Exports
 import Dhall.TypeCheck.Types (BiContext, Errors, FeedbackE, L, OxprE, ResultE, TypeCheckError)
+import Dhall.TypeCheck.Universes (ConstSolved)
 import Dhall.Variables (MaybeIntro(..), trackIntro)
 import Matryoshka (project)
 import Validation.These as VV
@@ -177,6 +179,22 @@ withTypeWithA tpa ctx0 e0 = case map plain <<< typecheckStep =<< typingWithA tpa
         This o -> State.liftErrors o
         Both o e -> State.liftErrors o <> e
     in VV.Error es' (map (State.substituteExpr (State.tcState s)) <<< Pair e0 <$> ma)
+
+withTypeWithA' :: forall r m a.
+  Eq a => MapLike String m =>
+  Typer m a ->
+  Context (Expr m a) ->
+  Expr m a ->
+  ResultE (State.StateErrors r) m a (Tuple (ConstSolved (L m a)) (Pair (Expr m a)))
+withTypeWithA' tpa ctx0 e0 = case map plain <<< typecheckStep =<< typingWithA tpa ctx0 e0 of
+  V.Success s a -> VV.Success (Tuple (extract $ unStatePart s) (State.substituteExpr (State.tcState s) <$> (Pair e0 a)))
+  V.Error es s ma ->
+    let
+      es' = case es of
+        That e -> e
+        This o -> State.liftErrors o
+        Both o e -> State.liftErrors o <> e
+    in VV.Error es' (Tuple (extract $ unStatePart s) <<< (map (State.substituteExpr (State.tcState s)) <<< Pair e0) <$> ma)
 
 typingWithA :: forall w r m a.
   Eq a => MapLike String m =>
