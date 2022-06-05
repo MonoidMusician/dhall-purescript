@@ -13,6 +13,7 @@ to generate this file without the comments in this block.
 { name = "dhall-purescript"
 , dependencies =
   [ "aff"
+  , "aff-promise"
   , "argonaut-core"
   , "arraybuffer-types"
   , "arrays"
