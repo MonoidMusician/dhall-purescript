@@ -8,7 +8,7 @@
     "@petamoriken/float16": "^2.0.0",
     "big-integer": "^1.6.48",
     "nearley": "^2.20.1",
-    "node-fetch": "^2.6.1",
+    "node-fetch": "^2.6.7",
     "purescript": "^0.15.2",
     "sjcl": "git://github.com/athanclark/sjcl.git#e6ca43fbcc85689f9e6b212cc88b85a53295a459",
     "spago": "^0.20.9"
