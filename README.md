@@ -30,6 +30,14 @@ Generate the grammar by calling `dhall-purescript/grammar.sh` from the root of y
 ```
 (this ensures `grammar.js` ends up adjacent to `output`, so the FFI can find it)
 
+Copy or symlink the `cbor-js` library:
+
+```
+mkdir lib
+cd lib 
+ln -s ../.spago/dhall-purescript/main/lib/cbor-js cbor-js
+```
+
 ## Why Dhall?
 Because Dhall is awesome, relatively simple, and conceptually clean. It has an agreed-upon standard, with lots of tests, is under active development, continually improving.
 
