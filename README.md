@@ -15,19 +15,7 @@ npm install --save node-fetch@^2.6.1
 npm install --save git://github.com/athanclark/sjcl.git#e6ca43fbcc85689f9e6b212cc88b85a53295a459
 ```
 
-You should probably use `spago` to install this! For the time being, add the following to your `packages.dhall`:
-```dhall
-in  upstream
-  with dhall-purescript =
-    { dependencies =
-        ( https://raw.githubusercontent.com/MonoidMusician/dhall-purescript/main/spago.dhall
-        ).dependencies
-    , repo = "https://github.com/MonoidMusician/dhall-purescript.git"
-    , version = "main"
-    }
-  with variant.version = "map-variant"
-  with variant.repo = "https://github.com/MonoidMusician/purescript-variant.git"
-```
+You should probably use `spago` to install this!
 
 If you want to use `bower`, it's in an ugly state since some dependencies are not updated (warning: solving dependencies will take a loooong time):
 ```sh
@@ -73,14 +61,14 @@ A word of warning: most of the library is implemented in more generality than yo
 ### CLI
 You can use the npm commands `cli` and `normalize` to access the basic command-line interface:
 ```sh
-npm run cli -- normalize-all dhall-lang/Prelude/Double/*.dhall
+npm run cli -- normalize-all -b "dhall-lang/Prelude/Double/*.dhall"
 npm run normalize https://test.dhall-lang.org/Bool/package.dhall
 ```
 
 ### Running tests
 You can run the tests with `npm run test -- --`. You can specify test categories (parser, normalization, alpha-normalization, semantic-hash, type-inference, import, and binary-decode) and individual tests (starting with `./dhall-lang/` but NOT including the suffix of `{A,B}.*`!!). You can also exclude test categories or tests by prepending a minus sign. The prelude doesn't complete without OOMing so I typically exclude it.
 ```sh
-npm run test -- -- parser
-npm run test -- -- -type-inference -import
-npm run test -- -- -./dhall-lang/tests/type-inference/success/prelude
+npm run test -- parser
+npm run test -- -type-inference -b -import
+npm run test -- -./dhall-lang/tests/type-inference/success/prelude
 ```
