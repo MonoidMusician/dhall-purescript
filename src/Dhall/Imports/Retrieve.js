@@ -28,5 +28,5 @@ export function windowFetch() {
 }
 
 export function nodeFetch() {
-  return import("node-fetch");
+  return import("node-fetch").then(x => x.default);
 }
