@@ -37,9 +37,9 @@ type StandardExpr = Expr Dhall.Map.InsOrdStrMap Void
 
 newtype OutputType a = OutputType
   { extract  :: StandardExpr -> Maybe a
-  -- ^ Extracts Haskell value from the Dhall expression
+  -- ^ Extracts PureScript value from the Dhall expression
   , expected :: StandardExpr
-  -- ^ Dhall type of the Haskell value
+  -- ^ Dhall type of the PureScript value
   }
 derive instance functorType :: Functor OutputType
 derive instance newtypeType :: Newtype (OutputType a) _
@@ -51,9 +51,9 @@ auto = autoWith defaultInterpretOptions
 
 newtype InputType a = InputType
   { embed    :: a -> StandardExpr
-  -- ^ Embeds a Haskell value as a Dhall expression
+  -- ^ Embeds a PureScript value as a Dhall expression
   , declared :: StandardExpr
-  -- ^ Dhall type of the Haskell value
+  -- ^ Dhall type of the PureScript value
   }
 derive instance newtypeInputType :: Newtype (InputType a) _
 
@@ -68,10 +68,10 @@ inject = injectWith defaultInterpretOptions
 
 type InterpretOptions =
   { fieldModifier       :: String -> String
-  -- ^ Function used to transform Haskell field names into their corresponding
+  -- ^ Function used to transform PureScript field names into their corresponding
   --   Dhall field names
   , constructorModifier :: String -> String
-  -- ^ Function used to transform Haskell constructor names into their
+  -- ^ Function used to transform PureScript constructor names into their
   --   corresponding Dhall alternative names
   }
 
