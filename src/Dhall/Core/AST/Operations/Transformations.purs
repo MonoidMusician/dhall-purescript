@@ -15,7 +15,7 @@ import Data.Traversable (class Traversable)
 import Data.Tuple (Tuple(..))
 import Data.Variant (Variant)
 import Data.Variant as Variant
-import Data.Variant.Internal (class VariantFTravCases, class VariantTags)
+import Data.Variant.Internal (class VariantFTraverseCases, class VariantTags)
 import Dhall.Core.AST (Expr)
 import Dhall.Core.AST as AST
 import Dhall.Core.AST.Noted as Noted
@@ -101,7 +101,7 @@ runOverCases (OverCasesM f) rest cases = un Identity <<< f
 
 runOverCasesM :: forall cases casesrl affected affectedrl unaffected all node m.
     RL.RowToList cases casesrl =>
-    VariantFTravCases m casesrl affected affected node node =>
+    VariantFTraverseCases m casesrl affected affected node node =>
     RL.RowToList affected affectedrl =>
     VariantTags affectedrl =>
     VariantFMaps affectedrl =>
@@ -155,7 +155,7 @@ elim1M ::
     R.Cons sym i v_ v =>
     R.Cons sym i v'_ v' =>
     RL.RowToList cases casesrl =>
-    VariantFTravCases m casesrl affected affected node node =>
+    VariantFTraverseCases m casesrl affected affected node node =>
     RL.RowToList affected affectedrl =>
     VariantTags affectedrl =>
     VariantFMaps affectedrl =>

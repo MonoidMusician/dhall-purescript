@@ -9,13 +9,14 @@
     "big-integer": "^1.6.48",
     "nearley": "^2.20.1",
     "node-fetch": "^2.6.1",
-    "sjcl": "git://github.com/athanclark/sjcl.git#e6ca43fbcc85689f9e6b212cc88b85a53295a459"
+    "purescript": "^0.14.9",
+    "sjcl": "git://github.com/athanclark/sjcl.git#e6ca43fbcc85689f9e6b212cc88b85a53295a459",
+    "spago": "^0.20.9"
   },
-  "devDependencies": {},
   "scripts": {
-    "test": "XDG_CACHE_HOME=\"./dhall-lang/tests/import/cache/\" DHALL_TEST_VAR=\"6 * 7\" pulp test -m Dhall.Test.Standard",
-    "cli": "pulp run -m Dhall.CLI.Main --",
-    "normalize": "pulp run -m Dhall.CLI.Main -- normalize",
+    "test": "XDG_CACHE_HOME=\"./dhall-lang/tests/import/cache/\" DHALL_TEST_VAR=\"6 * 7\" spago test -m Dhall.Test.Standard -b",
+    "cli": "spago run -m Dhall.CLI.Main -b",
+    "normalize": "spago run -m Dhall.CLI.Main -b normalize -b",
     "grammar": "./grammar.sh"
   },
   "repository": {
