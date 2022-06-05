@@ -1,7 +1,7 @@
-const nearley = require("nearley");
-const grammar = require("../../grammar.js");
+import nearley from "nearley";
+import grammar from "../../grammar.js";
 
-exports.parseImpl = function(s) {
+export function parseImpl(s) {
   const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
   try {
     parser.feed(s);

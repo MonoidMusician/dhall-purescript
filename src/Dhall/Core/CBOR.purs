@@ -2,8 +2,8 @@ module Dhall.Core.CBOR where
 
 import Prelude
 
-import Control.MonadZero (guard, (<|>))
 import Control.Plus (empty)
+import Control.Alternative (guard, (<|>))
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Core as J
 import Data.Array as Array

@@ -16,7 +16,7 @@ import Dhall.Core.AST.Types (Expr(..), ExprLayerRow, SimpleExpr, embedW, project
 import Dhall.Map (class MapLike)
 import Dhall.Map as Dhall.Map
 import Prim.Row as Row
-import Type.Proxy (Proxy2)
+import Type.Proxy (Proxy)
 
 -- Some general operations for the Expr AST
 hoistExpr :: forall m m'. Functor m' => (m ~> m') -> Expr m ~> Expr m'
@@ -31,7 +31,7 @@ hoistExpr nat = over Expr $ hoistFree \a ->
 conv :: forall m m'. MapLike String m => MapLike String m' => Expr m ~> Expr m'
 conv = hoistExpr Dhall.Map.conv
 
-convTo :: forall m m'. MapLike String m => MapLike String m' => Proxy2 m' -> Expr m ~> Expr m'
+convTo :: forall m m'. MapLike String m => MapLike String m' => Proxy m' -> Expr m ~> Expr m'
 convTo = hoistExpr <<< Dhall.Map.convTo
 
 unordered :: forall m. MapLike String m => Expr m ~> Expr (Map String)

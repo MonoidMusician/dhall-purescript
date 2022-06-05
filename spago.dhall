@@ -13,6 +13,7 @@ to generate this file without the comments in this block.
 { name = "dhall-purescript"
 , dependencies =
   [ "aff"
+  , "aff-promise"
   , "argonaut-core"
   , "arraybuffer-types"
   , "arrays"
@@ -40,7 +41,6 @@ to generate this file without the comments in this block.
   , "lists"
   , "matryoshka"
   , "maybe"
-  , "milkis"
   , "naturals"
   , "newtype"
   , "node-buffer"
@@ -71,6 +71,7 @@ to generate this file without the comments in this block.
   , "unsafe-coerce"
   , "unsafe-reference"
   , "variant"
+  , "yoga-fetch"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

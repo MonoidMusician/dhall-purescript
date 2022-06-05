@@ -3,6 +3,7 @@ module Dhall.Imports.Retrieve where
 import Prelude
 
 import Control.Plus (empty)
+import Control.Promise (Promise, toAffE)
 import Data.Array as Array
 import Data.ArrayBuffer.Types (ArrayBuffer)
 import Data.Foldable (oneOfMap)
@@ -16,10 +17,10 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Foreign.Object as Foreign.Object
-import Milkis as M
-import Milkis.Impl (FetchImpl)
 import Node.Buffer as Node.Buffer
 import Node.FS.Aff as Node.FS.Aff
+import Yoga.Fetch as M
+import Yoga.Fetch.Impl (FetchImpl)
 
 foreign import getEnv :: Effect (Foreign.Object.Object String)
 foreign import unsafeDecode :: forall r. (String -> r) -> r -> ArrayBuffer -> r
@@ -39,7 +40,7 @@ nodeRetrieveFile :: String -> Aff (Maybe String)
 nodeRetrieveFile path = nodeReadBinary path <#> decode
 
 foreign import responseHeaders :: M.Response -> M.Headers
-foreign import nodeFetch :: Unit -> FetchImpl
+foreign import nodeFetch :: Effect (Promise FetchImpl)
 foreign import windowFetch :: Unit -> FetchImpl
 
 milkisRetrieveURL :: FetchImpl -> Headers -> String -> Aff { result :: Maybe String, headers :: Headers }
@@ -56,7 +57,9 @@ milkisRetrieveURL impl headers = M.URL >>> (=<<) infos <<< flip (M.fetch impl)
       pure { result, headers: resHeaders }
 
 nodeRetrieveURL :: Headers -> String -> Aff { result :: Maybe String, headers :: Headers }
-nodeRetrieveURL headers url = milkisRetrieveURL (nodeFetch unit) headers url
+nodeRetrieveURL headers url = do
+  nodeFetched <- toAffE nodeFetch
+  milkisRetrieveURL nodeFetched headers url
 
 windowRetrieveURL :: Headers -> String -> Aff { result :: Maybe String, headers :: Headers }
 windowRetrieveURL headers url = milkisRetrieveURL (windowFetch unit) headers url

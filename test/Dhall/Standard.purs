@@ -168,7 +168,7 @@ logDiag ab = makeAff \cb -> do
     cb (Right res)
   let stdin = ChildProcess.stdin cp
   buffer <- Buffer.fromArrayBuffer ab
-  void $ Stream.write stdin buffer (Stream.end stdin mempty)
+  void $ Stream.write stdin buffer (const $ Stream.end stdin mempty)
   pure mempty
 
 test :: RT Unit
