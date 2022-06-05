@@ -1,4 +1,4 @@
-exports.eqArrayBuffer = function(a) {
+export function eqArrayBuffer(a) {
   return function(b) {
     return arrayBuffersAreEqual(a, b);
   }
@@ -19,6 +19,6 @@ function dataViewsAreEqual(a, b) {
 }
 
 // from https://stackoverflow.com/a/40031979
-exports.showCBOR = function(buffer) {
+export function showCBOR(buffer) {
   return [...new Uint8Array(buffer)].map(x => x.toString(16).padStart(2, '0')).join('');
 }

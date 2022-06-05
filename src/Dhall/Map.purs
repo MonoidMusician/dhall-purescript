@@ -26,7 +26,7 @@ import Data.Traversable (class Traversable, traverse)
 import Data.TraversableWithIndex (class TraversableWithIndex)
 import Data.Tuple (Tuple(..), fst, snd, uncurry)
 import Data.Unfoldable (class Unfoldable)
-import Type.Proxy (Proxy2(..))
+import Type.Proxy (Proxy(..))
 
 -- This abstracts the functor used for record and union cases in the AST
 -- (the major difference being that sometimes we want sorting vs ordering)
@@ -172,8 +172,8 @@ conv = toUnfoldable >>> (identity :: List ~> List) >>> fromFoldable
 unordered :: forall k m. MapLike k m => m ~> Map k
 unordered = conv
 
-convTo :: forall k m m'. MapLike k m => MapLike k m' => Proxy2 m' -> m ~> m'
-convTo Proxy2 = conv
+convTo :: forall k m m'. MapLike k m => MapLike k m' => Proxy m' -> m ~> m'
+convTo Proxy = conv
 
 toUnfoldableSorted :: forall k m f a. MapLike k m => Unfoldable f =>
   m a -> f (Tuple k a)

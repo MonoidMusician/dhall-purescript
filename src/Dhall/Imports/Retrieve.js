@@ -1,16 +1,16 @@
-exports.getEnv = function() {
+export function getEnv() {
   return process.env;
-};
+}
 
-exports.responseHeaders = function(resp) {
+export function responseHeaders(resp) {
   var obj = {};
   Array.from(resp.headers.entries()).forEach(function(item) {
     obj[item[0]] = item[1];
   });
   return obj;
-};
+}
 
-exports.unsafeDecode = function(just) {
+export function unsafeDecode(just) {
   return function(nothing) {
     return function(s) {
       try {
@@ -21,12 +21,12 @@ exports.unsafeDecode = function(just) {
       }
     };
   };
-};
+}
 
-exports.windowFetch = function() {
+export function windowFetch() {
   return window.fetch;
-};
+}
 
-exports.nodeFetch = function() {
+export function nodeFetch() {
   return require("node-fetch").default;
-};
+}

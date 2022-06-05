@@ -1,7 +1,7 @@
-exports.unsafeNumber = function(n) {
+export function unsafeNumber(n) {
   return new Number(n);
 }
-exports.unsafeFromNumber = function(just) {
+export function unsafeFromNumber(just) {
   return function(nothing) {
     return function(n) {
       if (n instanceof Number) {
@@ -12,7 +12,7 @@ exports.unsafeFromNumber = function(just) {
     }
   }
 }
-exports.unsafeFromBigInt = function(just) {
+export function unsafeFromBigInt(just) {
   return function(nothing) {
     return function(n) {
       if (require("big-integer").isInstance(n)) {

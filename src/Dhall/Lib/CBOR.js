@@ -1,12 +1,12 @@
-exports.encode = function(r) {
+export function encode(r) {
   return require("../../lib/cbor-js/cbor.js").encode(r);
-};
-exports.decode = function(r) {
+}
+export function decode(r) {
   return require("../../lib/cbor-js/cbor.js").decode(r);
-};
-exports.mkDecimal = function(r) {
+}
+export function mkDecimal(r) {
   return new (require("../../lib/cbor-js/cbor.js").Decimal)(r);
-};
-exports.unDecimal = function(r) {
+}
+export function unDecimal(r) {
   return { exponent: r.exponent, mantissa: r.mantissa };
-};
+}

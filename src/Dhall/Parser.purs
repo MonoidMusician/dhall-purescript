@@ -3,7 +3,7 @@ module Dhall.Parser where
 import Prelude
 
 import Control.Monad.Except (runExcept)
-import Control.MonadZero (guard)
+import Control.Alternative (guard, (<|>))
 import Data.Array as Array
 import Data.Date as Date
 import Data.Either (Either(..))

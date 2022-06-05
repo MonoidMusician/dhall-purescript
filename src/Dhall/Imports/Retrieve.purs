@@ -16,8 +16,8 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Foreign.Object as Foreign.Object
-import Milkis as M
-import Milkis.Impl (FetchImpl)
+import Yoga.Fetch as M
+import Yoga.Fetch.Impl (FetchImpl)
 import Node.Buffer as Node.Buffer
 import Node.FS.Aff as Node.FS.Aff
 
