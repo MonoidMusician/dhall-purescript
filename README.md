@@ -38,6 +38,20 @@ cd lib
 ln -s ../.spago/dhall-purescript/main/lib/cbor-js cbor-js
 ```
 
+## Installation - Easy
+
+To From the project root 
+```sh
+spago build
+./grammar.sh
+```
+
+## CLI Usage - Easy
+
+```
+npm run cli -- normalize-all -b "packages.dhall"
+```
+
 ## Why Dhall?
 Because Dhall is awesome, relatively simple, and conceptually clean. It has an agreed-upon standard, with lots of tests, is under active development, continually improving.
 
