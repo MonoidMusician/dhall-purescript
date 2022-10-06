@@ -43,7 +43,7 @@ ln -s ../.spago/dhall-purescript/main/lib/cbor-js cbor-js
 To From the project root 
 ```sh
 spago build
-./grammar.jsh
+./grammar.sh
 ```
 
 ## CLI Usage - Easy
